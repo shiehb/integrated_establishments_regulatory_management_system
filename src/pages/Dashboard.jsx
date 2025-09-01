@@ -1,8 +1,10 @@
+import Header from "../components/Header";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
 
 export default function Dashboard() {
   return (
-    <Layout>
+    <>
+      <Header />
       <LayoutWithSidebar userLevel="admin">
         <div className="p-6 bg-white rounded-lg shadow-md">
           <h1 className="mb-4 text-2xl font-bold text-sky-600">
@@ -11,6 +13,6 @@ export default function Dashboard() {
           {/* Dashboard content here */}
         </div>
       </LayoutWithSidebar>
-    </Layout>
+    </>
   );
 }

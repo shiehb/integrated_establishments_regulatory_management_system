@@ -91,53 +91,8 @@ export default function Sidebar({
         !isOpen ? "w-16" : "w-53"
       } h-screen sticky top-0`}
     >
-      {/* Sidebar Header */}
-      <div className="relative flex items-center justify-between p-4 border-b border-sky-700 group">
-        {/* Logo / Toggle */}
-        <button
-          onClick={handleToggle}
-          className="flex items-center justify-center w-8 h-8 transition-colors bg-transparent rounded-full hover:bg-sky-700"
-        >
-          {isOpen ? (
-            <img
-              src={logo}
-              alt="Logo"
-              className="object-contain w-8 h-8 rounded-full"
-            />
-          ) : (
-            <>
-              {/* Default logo - always rounded and fixed size */}
-              <div className="flex items-center justify-center group-hover:hidden">
-                <img
-                  src={logo}
-                  alt="Logo"
-                  className="object-contain w-8 h-8 rounded-full"
-                />
-              </div>
-              {/* Swap to open icon on hover */}
-              <div className="items-center justify-center hidden p-4 group-hover:flex">
-                <PanelLeftOpen size={22} />
-              </div>
-            </>
-          )}
-        </button>
-
-        {/* Text + Close button (only when open) */}
-        {isOpen && (
-          <div className="flex items-center justify-between flex-1 ml-3">
-            <span className="text-lg font-bold tracking-wide">IERMS</span>
-            <button
-              onClick={handleToggle}
-              className="flex items-center justify-center w-8 h-8 transition bg-transparent rounded-full hover:bg-sky-700"
-            >
-              <PanelLeftClose size={22} />
-            </button>
-          </div>
-        )}
-      </div>
-
       {/* Navigation Items */}
-      <nav className="flex-1 py-4 overflow-y-auto">
+      <nav className="flex-1 py-1 overflow-y-auto">
         <ul className="px-2 space-y-1">
           {menuItems.map((item) => {
             const IconComponent = item.icon;

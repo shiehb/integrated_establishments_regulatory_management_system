@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Layout from "../components/Layout";
+import Header from "../components/Header";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
 import UsersList from "../components/users/UsersList";
 import AddUser from "../components/users/AddUser";
@@ -10,7 +10,8 @@ export default function Users() {
   const [editUser, setEditUser] = useState(null);
 
   return (
-    <Layout>
+    <>
+      <Header />
       <LayoutWithSidebar userLevel="admin">
         <div className="p-6 bg-white rounded-lg shadow-md">
           {/* Users List */}
@@ -34,6 +35,6 @@ export default function Users() {
           )}
         </div>
       </LayoutWithSidebar>
-    </Layout>
+    </>
   );
 }
