@@ -7,12 +7,30 @@ export default function AddUser({ onClose }) {
     lastName: "",
     email: "",
     userLevel: "",
+    section: "",
   });
   const [submitted, setSubmitted] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    let newValue = value;
+    if (["firstName", "middleName", "lastName"].includes(name)) {
+      newValue = value.toUpperCase();
+    } else if (name === "email") {
+      newValue = value.toLowerCase();
+    }
+
+    setFormData((prev) => {
+      // auto-clear section if userLevel changes to a role without sections
+      if (
+        name === "userLevel" &&
+        !["sectionchief", "unithead", "monitoringpersonnel"].includes(value)
+      ) {
+        return { ...prev, [name]: newValue, section: "" };
+      }
+      return { ...prev, [name]: newValue };
+    });
   };
 
   const handleSubmit = (e) => {
@@ -24,7 +42,11 @@ export default function AddUser({ onClose }) {
       !formData.middleName.trim() ||
       !formData.lastName.trim() ||
       !formData.email.trim() ||
-      !formData.userLevel.trim()
+      !formData.userLevel.trim() ||
+      (["sectionchief", "unithead", "monitoringpersonnel"].includes(
+        formData.userLevel
+      ) &&
+        !formData.section.trim())
     ) {
       return;
     }
@@ -38,19 +60,25 @@ export default function AddUser({ onClose }) {
       <span>
         {children} <span className="text-red-500">*</span>
       </span>
-      {submitted && !formData[field].trim() && (
+      {submitted && !formData[field]?.trim() && (
         <span className="text-xs text-red-500">Required</span>
       )}
     </label>
   );
+
+  const isSectionEnabled = [
+    "sectionchief",
+    "unithead",
+    "monitoringpersonnel",
+  ].includes(formData.userLevel);
 
   return (
     <div className="w-full max-w-2xl p-8 bg-white shadow-lg rounded-2xl">
       <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
         Add User
       </h2>
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Row 1 */}
+      <form onSubmit={handleSubmit} className="space-y-5 text-sm">
+        {/* Row 1: Names */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <Label field="firstName">First Name</Label>
@@ -96,22 +124,24 @@ export default function AddUser({ onClose }) {
           </div>
         </div>
 
-        {/* Row 2 */}
+        {/* Row 2: Email */}
+        <div>
+          <Label field="email">Email</Label>
+          <input
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
+            className={`w-full p-2 border rounded-lg ${
+              submitted && !formData.email.trim()
+                ? "border-red-500"
+                : "border-gray-300"
+            }`}
+          />
+        </div>
+
+        {/* Row 3: User Level + Section */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <Label field="email">Email</Label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className={`w-full p-2 border rounded-lg ${
-                submitted && !formData.email.trim()
-                  ? "border-red-500"
-                  : "border-gray-300"
-              }`}
-            />
-          </div>
           <div>
             <Label field="userLevel">User Level</Label>
             <select
@@ -125,11 +155,39 @@ export default function AddUser({ onClose }) {
               }`}
             >
               <option value="">Select User Level</option>
-              <option value="LegalUnit">Legal Unit</option>
-              <option value="DivisionChief">Division Chief</option>
-              <option value="SectionChief">Section Chief</option>
-              <option value="UnitHead">Unit Head</option>
-              <option value="MonitoringPersonnel">Monitoring Personnel</option>
+              <option value="legalunit">Legal Unit</option>
+              <option value="divisionchief">Division Chief</option>
+              <option value="sectionchief">Section Chief</option>
+              <option value="unithead">Unit Head</option>
+              <option value="monitoringpersonnel">Monitoring Personnel</option>
+            </select>
+          </div>
+
+          <div>
+            <Label field="section">Section</Label>
+            <select
+              name="section"
+              value={formData.section}
+              onChange={handleChange}
+              disabled={!isSectionEnabled}
+              className={`w-full p-2 border rounded-lg ${
+                submitted && isSectionEnabled && !formData.section.trim()
+                  ? "border-red-500"
+                  : "border-gray-300"
+              } ${
+                !isSectionEnabled
+                  ? "bg-gray-100 text-gray-500 cursor-not-allowed"
+                  : ""
+              }`}
+            >
+              <option value="">Select Section</option>
+              <option value="airquality">Air Quality</option>
+              <option value="waterquality">Water Quality</option>
+              <option value="solidwaste">Solid Waste</option>
+              <option value="hazardouswaste">Hazardous Waste</option>
+              <option value="environmentalimpact">
+                Environmental Impact Assessment
+              </option>
             </select>
           </div>
         </div>

@@ -1,30 +1,35 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
-export default function EditUser({ user, onClose }) {
+export default function EditUser({ userData, onClose }) {
   const [formData, setFormData] = useState({
-    firstName: "",
-    middleName: "",
-    lastName: "",
-    email: "",
-    userLevel: "",
+    firstName: userData?.firstName || "",
+    middleName: userData?.middleName || "",
+    lastName: userData?.lastName || "",
+    email: userData?.email || "",
+    userLevel: userData?.userLevel || "",
+    section: userData?.section || "",
   });
   const [submitted, setSubmitted] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        firstName: user.firstName || "",
-        middleName: user.middleName || "",
-        lastName: user.lastName || "",
-        email: user.email || "",
-        userLevel: user.userLevel || "",
-      });
-    }
-  }, [user]);
-
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+
+    let newValue = value;
+    if (["firstName", "middleName", "lastName"].includes(name)) {
+      newValue = value.toUpperCase();
+    } else if (name === "email") {
+      newValue = value.toLowerCase();
+    }
+
+    setFormData((prev) => {
+      if (
+        name === "userLevel" &&
+        !["sectionchief", "unithead", "monitoringpersonnel"].includes(value)
+      ) {
+        return { ...prev, [name]: newValue, section: "" };
+      }
+      return { ...prev, [name]: newValue };
+    });
   };
 
   const handleSubmit = (e) => {
@@ -35,7 +40,12 @@ export default function EditUser({ user, onClose }) {
       !formData.firstName.trim() ||
       !formData.middleName.trim() ||
       !formData.lastName.trim() ||
-      !formData.userLevel.trim()
+      !formData.email.trim() ||
+      !formData.userLevel.trim() ||
+      (["sectionchief", "unithead", "monitoringpersonnel"].includes(
+        formData.userLevel
+      ) &&
+        !formData.section.trim())
     ) {
       return;
     }
@@ -49,19 +59,25 @@ export default function EditUser({ user, onClose }) {
       <span>
         {children} <span className="text-red-500">*</span>
       </span>
-      {submitted && !formData[field].trim() && (
+      {submitted && !formData[field]?.trim() && (
         <span className="text-xs text-red-500">Required</span>
       )}
     </label>
   );
+
+  const isSectionEnabled = [
+    "sectionchief",
+    "unithead",
+    "monitoringpersonnel",
+  ].includes(formData.userLevel);
 
   return (
     <div className="w-full max-w-2xl p-8 bg-white shadow-lg rounded-2xl">
       <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
         Edit User
       </h2>
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Row 1 */}
+      <form onSubmit={handleSubmit} className="space-y-5 text-sm">
+        {/* Row 1: Names */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <Label field="firstName">First Name</Label>
@@ -107,18 +123,20 @@ export default function EditUser({ user, onClose }) {
           </div>
         </div>
 
-        {/* Row 2 */}
+        {/* Row 2: Email */}
+        <div>
+          <Label field="email">Email</Label>
+          <input
+            type="email"
+            name="email"
+            value={formData.email}
+            disabled
+            className="w-full p-2 border rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+          />
+        </div>
+
+        {/* Row 3: User Level + Section */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <Label field="email">Email</Label>
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              disabled
-              className="w-full p-2 text-gray-500 bg-gray-100 border rounded-lg cursor-not-allowed"
-            />
-          </div>
           <div>
             <Label field="userLevel">User Level</Label>
             <select
@@ -132,11 +150,39 @@ export default function EditUser({ user, onClose }) {
               }`}
             >
               <option value="">Select User Level</option>
-              <option value="LegalUnit">Legal Unit</option>
-              <option value="DivisionChief">Division Chief</option>
-              <option value="SectionChief">Section Chief</option>
-              <option value="UnitHead">Unit Head</option>
-              <option value="MonitoringPersonnel">Monitoring Personnel</option>
+              <option value="legalunit"></option>
+              <option value="divisionchief">Division Chief</option>
+              <option value="sectionchief">Section Chief</option>
+              <option value="unithead">Unit Head</option>
+              <option value="monitoringpersonnel">Monitoring Personnel</option>
+            </select>
+          </div>
+
+          <div>
+            <Label field="section">Section</Label>
+            <select
+              name="section"
+              value={formData.section}
+              onChange={handleChange}
+              disabled={!isSectionEnabled}
+              className={`w-full p-2 border rounded-lg ${
+                submitted && isSectionEnabled && !formData.section.trim()
+                  ? "border-red-500"
+                  : "border-gray-300"
+              } ${
+                !isSectionEnabled
+                  ? "bg-gray-100 text-gray-500 cursor-not-allowed"
+                  : ""
+              }`}
+            >
+              <option value="">Select Section</option>
+              <option value="airquality">Air Quality</option>
+              <option value="waterquality">Water Quality</option>
+              <option value="solidwaste">Solid Waste</option>
+              <option value="hazardouswaste">Hazardous Waste</option>
+              <option value="environmentalimpact">
+                Environmental Impact Assessment
+              </option>
             </select>
           </div>
         </div>
@@ -154,7 +200,7 @@ export default function EditUser({ user, onClose }) {
             type="submit"
             className="flex-1 py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700"
           >
-            Save Changes
+            Update
           </button>
         </div>
       </form>

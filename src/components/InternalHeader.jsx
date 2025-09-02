@@ -14,7 +14,7 @@ export default function InternalHeader({
             <input
               type="text"
               placeholder="Search..."
-              className="w-full py-2 pl-10 pr-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+              className="w-full py-1 pl-10 pr-4 border border-gray-300 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -24,7 +24,7 @@ export default function InternalHeader({
           {/* Notifications */}
           <button className="relative p-2 text-gray-600 transition-colors bg-transparent rounded-lg hover:text-sky-600 hover:bg-gray-100">
             <Bell className="w-5 h-5" />
-            <span className="absolute flex items-center justify-center w-4 h-4 text-xs text-white bg-red-500 rounded-full -top-1 -right-1">
+            <span className="absolute flex items-center justify-center w-4 h-4 text-xs text-white bg-red-500 rounded-full -top-0 -right-1">
               3
             </span>
           </button>

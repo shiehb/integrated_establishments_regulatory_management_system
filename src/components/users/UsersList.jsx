@@ -5,7 +5,7 @@ export default function UsersList({ onAdd, onEdit }) {
   const [users, setUsers] = useState([
     {
       id: 1,
-      fullName: "Marvi",
+      fullName: "MARVIJOHN MABALOT M.",
       email: "marvi@example.com",
       role: "DivisionChief",
       active: true,
@@ -14,7 +14,7 @@ export default function UsersList({ onAdd, onEdit }) {
     },
     {
       id: 2,
-      fullName: "hari",
+      fullName: "HARRY",
       email: "hari@example.com",
       role: "MonitoringPersonel",
       active: false,
@@ -32,51 +32,54 @@ export default function UsersList({ onAdd, onEdit }) {
   return (
     <div className="p-4 bg-white rounded shadow">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold text-sky-600">Users</h1>
         <button
           onClick={onAdd}
-          className="flex items-center gap-2 px-3 py-2 text-white rounded-lg bg-sky-600 hover:bg-sky-700"
+          className="flex items-center gap-2 px-2 py-2 text-white rounded-lg bg-sky-600 hover:bg-sky-700"
         >
           <Plus size={18} /> Add User
         </button>
       </div>
 
       {/* Table */}
-      <table className="w-full border-collapse">
+      <table className="w-full  border-collapse">
         <thead>
-          <tr className="text-left bg-gray-100">
-            <th className="p-2">Full Name</th>
-            <th className="p-2">Email</th>
-            <th className="p-2">Role</th>
-            <th className="p-2">Status</th>
-            <th className="p-2">Created Date</th>
-            <th className="p-2">Updated Date</th>
+          <tr className="text-left text-white bg-sky-700 text-sm">
+            <th className="p-1">Fullname</th>
+            <th className="p-1">Email</th>
+            <th className="p-1">Role</th>
+            <th className="p-1">Status</th>
+            <th className="p-1">Created Date</th>
+            <th className="p-1">Updated Date</th>
 
-            <th className="p-2 text-right">Actions</th>
+            <th className="p-1 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
           {users.map((u) => (
-            <tr key={u.id} className="border-b hover:bg-gray-50">
-              <td className="p-2">{u.fullName}</td>
-              <td className="p-2">{u.email}</td>
-              <td className="p-2">{u.role}</td>
-              <td className="p-2">
+            <tr
+              key={u.id}
+              className="border-b-1 p-1 font-semibold border-gray-400 hover:bg-gray-50 text-sm"
+            >
+              <td className=" pl-4">{u.fullName}</td>
+              <td>{u.email}</td>
+              <td>{u.role}</td>
+              <td>
                 <span
                   className={`px-2 py-1 text-xs rounded-full ${
                     u.active
-                      ? "bg-green-100 text-green-700"
+                      ? "bg-green-100 text-green-700 "
                       : "bg-red-100 text-red-700"
                   }`}
                 >
                   {u.active ? "Active" : "Inactive"}
                 </span>
               </td>
-              <td className="p-2">{u.createdDate}</td>
-              <td className="p-2">{u.updatedDate}</td>
+              <td>{u.createdDate}</td>
+              <td>{u.updatedDate}</td>
 
-              <td className="relative p-2 text-right">
+              <td className="relative p-1 text-right">
                 <Menu user={u} onEdit={onEdit} onToggleStatus={toggleStatus} />
               </td>
             </tr>
@@ -114,13 +117,13 @@ function Menu({ user, onEdit, onToggleStatus }) {
     <div className="relative inline-block" ref={menuRef}>
       <button
         onClick={() => setOpen((prev) => !prev)}
-        className="p-2 rounded hover:bg-gray-200"
+        className="p-1 rounded-full text-black bg-transparent hover:bg-gray-200"
       >
         <MoreVertical size={18} />
       </button>
 
       {open && (
-        <div className="absolute z-10 w-48 mt-2 bg-white border shadow-lg right-10">
+        <div className="absolute z-10 w-48 mt-2 bg-white border shadow-lg right-0">
           <button
             onClick={() => {
               onEdit(user);
