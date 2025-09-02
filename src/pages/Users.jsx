@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Header from "../components/Header";
+import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
 import UsersList from "../components/users/UsersList";
 import AddUser from "../components/users/AddUser";
@@ -13,7 +14,7 @@ export default function Users() {
     <>
       <Header />
       <LayoutWithSidebar userLevel="admin">
-        <div className="p-6 bg-white rounded-lg shadow-md">
+        <div>
           {/* Users List */}
           <UsersList
             onAdd={() => setShowAdd(true)}
@@ -22,19 +23,20 @@ export default function Users() {
 
           {/* Add User Modal */}
           {showAdd && (
-            <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40">
+            <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
               <AddUser onClose={() => setShowAdd(false)} />
             </div>
           )}
 
           {/* Edit User Modal */}
           {editUser && (
-            <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40">
+            <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
               <EditUser user={editUser} onClose={() => setEditUser(null)} />
             </div>
           )}
         </div>
       </LayoutWithSidebar>
+      <Footer />
     </>
   );
 }

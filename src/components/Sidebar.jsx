@@ -1,6 +1,4 @@
 import { Link, useLocation } from "react-router-dom";
-import logo from "../assets/logo1.svg";
-
 import {
   LayoutDashboard,
   Users,
@@ -11,23 +9,20 @@ import {
   Search,
   Phone,
   Home,
-  PanelLeftOpen,
-  PanelLeftClose,
   User,
   MapPin,
   InspectIcon,
 } from "lucide-react";
-import { useState, useEffect } from "react";
 
 // Sidebar data for different user levels
 const sidebarData = {
   admin: [
-    { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
+    { name: "Dashboard", path: "/", icon: LayoutDashboard },
     { name: "Users", path: "/users", icon: Users },
-    { name: "Map", path: "/admin/map", icon: MapPin },
-    { name: "Establishments", path: "/admin/establishments", icon: Building },
-    { name: "Inspections", path: "/admin/inspections", icon: InspectIcon },
-    { name: "Reports", path: "/admin/reports", icon: BarChart3 },
+    { name: "Map", path: "/map", icon: MapPin },
+    { name: "Establishments", path: "/establishments", icon: Building },
+    { name: "Inspections", path: "/inspections", icon: InspectIcon },
+    { name: "Compliance", path: "/compliance", icon: BarChart3 },
   ],
   inspector: [
     { name: "Dashboard", path: "/inspector/dashboard", icon: LayoutDashboard },
@@ -55,42 +50,12 @@ const sidebarData = {
   ],
 };
 
-export default function Sidebar({
-  userLevel = "public",
-  isOpen: externalIsOpen,
-  onToggle: externalOnToggle,
-}) {
+export default function Sidebar({ userLevel = "public" }) {
   const location = useLocation();
   const menuItems = sidebarData[userLevel] || sidebarData.public;
 
-  // Use internal state if no external control is provided
-  const [internalIsOpen, setInternalIsOpen] = useState(() => {
-    const savedState = localStorage.getItem("sidebarOpen");
-    return savedState !== null ? JSON.parse(savedState) : true;
-  });
-
-  const isControlled = externalIsOpen !== undefined;
-  const isOpen = isControlled ? externalIsOpen : internalIsOpen;
-
-  const handleToggle = () => {
-    if (isControlled && externalOnToggle) {
-      externalOnToggle();
-    } else {
-      setInternalIsOpen(!isOpen);
-    }
-  };
-
-  // Save to localStorage whenever isOpen changes
-  useEffect(() => {
-    localStorage.setItem("sidebarOpen", JSON.stringify(isOpen));
-  }, [isOpen]);
-
   return (
-    <div
-      className={`flex flex-col bg-sky-800 text-white transition-all duration-300 ${
-        !isOpen ? "w-16" : "w-53"
-      } h-screen sticky top-0`}
-    >
+    <div className="sticky top-0 flex flex-col w-56 h-[calc(100vh-105px)] bg-sky-700/50">
       {/* Navigation Items */}
       <nav className="flex-1 py-1 overflow-y-auto">
         <ul className="px-2 space-y-1">
@@ -103,11 +68,11 @@ export default function Sidebar({
                   className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
                     location.pathname === item.path
                       ? "bg-sky-700 text-white"
-                      : "text-sky-100 hover:bg-sky-700 hover:text-white"
+                      : "text-black hover:bg-sky-700 hover:text-white"
                   }`}
                 >
                   <IconComponent size={20} className="flex-shrink-0" />
-                  {isOpen && <span className="ml-3 text-sm">{item.name}</span>}
+                  <span className="ml-3 text-sm">{item.name}</span>
                 </Link>
               </li>
             );

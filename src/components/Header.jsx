@@ -17,13 +17,13 @@ export default function Header() {
           {/* Text Content */}
           <div className="text-center md:text-left">
             <h1 className="text-lg font-bold md:text-lg">
-              Department of Environmental and Natural Resources
+              Integrated Establishment Regulatory Management System
             </h1>
-            <h1 className="text-xs italic font-semibold md:text-sm">
+            <h1 className="text-xs font-semibold md:text-sm">
               Environmental Management Bureau
             </h1>
-            <h2 className="text-xs font-semibold tracking-wide md:text-xs">
-              Integrated Establishment Regulatory Management System
+            <h2 className="text-xs italic font-semibold tracking-wide md:text-xs">
+              Department of Environmental and Natural Resources
             </h2>
           </div>
         </div>

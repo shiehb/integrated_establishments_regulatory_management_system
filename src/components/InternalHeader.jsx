@@ -6,7 +6,7 @@ export default function InternalHeader({
 }) {
   return (
     <header className="p-1 bg-white border-b border-gray-200">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mx-2">
         {/* Search Bar */}
         <div className="flex-1 max-w-md">
           <div className="relative">

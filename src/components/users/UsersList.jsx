@@ -1,21 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MoreVertical, Pencil, UserCheck, UserX, Plus } from "lucide-react";
 
 export default function UsersList({ onAdd, onEdit }) {
   const [users, setUsers] = useState([
     {
       id: 1,
-      name: "John Doe",
-      email: "john@example.com",
-      role: "Admin",
+      fullName: "Marvi",
+      email: "marvi@example.com",
+      role: "DivisionChief",
       active: true,
+      createdDate: "2025-08-01",
+      updatedDate: "2025-08-15",
     },
     {
       id: 2,
-      name: "Jane Smith",
-      email: "jane@example.com",
-      role: "User",
+      fullName: "hari",
+      email: "hari@example.com",
+      role: "MonitoringPersonel",
       active: false,
+      createdDate: "2025-08-05",
+      updatedDate: "2025-08-20",
     },
   ]);
 
@@ -26,13 +30,13 @@ export default function UsersList({ onAdd, onEdit }) {
   };
 
   return (
-    <div className="p-4 bg-white shadow rounded-2xl">
+    <div className="p-4 bg-white rounded shadow">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold">Users</h2>
+        <h1 className="text-2xl font-bold text-sky-600">Users</h1>
         <button
           onClick={onAdd}
-          className="flex items-center gap-2 px-3 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+          className="flex items-center gap-2 px-3 py-2 text-white rounded-lg bg-sky-600 hover:bg-sky-700"
         >
           <Plus size={18} /> Add User
         </button>
@@ -42,17 +46,20 @@ export default function UsersList({ onAdd, onEdit }) {
       <table className="w-full border-collapse">
         <thead>
           <tr className="text-left bg-gray-100">
-            <th className="p-2">Name</th>
+            <th className="p-2">Full Name</th>
             <th className="p-2">Email</th>
             <th className="p-2">Role</th>
             <th className="p-2">Status</th>
+            <th className="p-2">Created Date</th>
+            <th className="p-2">Updated Date</th>
+
             <th className="p-2 text-right">Actions</th>
           </tr>
         </thead>
         <tbody>
           {users.map((u) => (
             <tr key={u.id} className="border-b hover:bg-gray-50">
-              <td className="p-2">{u.name}</td>
+              <td className="p-2">{u.fullName}</td>
               <td className="p-2">{u.email}</td>
               <td className="p-2">{u.role}</td>
               <td className="p-2">
@@ -66,6 +73,9 @@ export default function UsersList({ onAdd, onEdit }) {
                   {u.active ? "Active" : "Inactive"}
                 </span>
               </td>
+              <td className="p-2">{u.createdDate}</td>
+              <td className="p-2">{u.updatedDate}</td>
+
               <td className="relative p-2 text-right">
                 <Menu user={u} onEdit={onEdit} onToggleStatus={toggleStatus} />
               </td>
@@ -80,43 +90,69 @@ export default function UsersList({ onAdd, onEdit }) {
 /* Dropdown Menu Component */
 function Menu({ user, onEdit, onToggleStatus }) {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block" ref={menuRef}>
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => setOpen((prev) => !prev)}
         className="p-2 rounded hover:bg-gray-200"
       >
         <MoreVertical size={18} />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-10 w-48 mt-2 bg-white border rounded-lg shadow-lg">
+        <div className="absolute z-10 w-48 mt-2 bg-white border shadow-lg right-10">
           <button
             onClick={() => {
               onEdit(user);
               setOpen(false);
             }}
-            className="flex items-center w-full gap-2 px-4 py-2 text-left hover:bg-gray-100"
+            className="flex items-center w-full gap-2 px-4 py-2 text-left hover:bg-gray-200 hover:text-gray-600"
           >
-            <Pencil size={16} className="text-blue-600" />
+            <Pencil size={16} />
             <span>Edit</span>
           </button>
           <button
             onClick={() => {
-              onToggleStatus(user.id);
+              const action = user.active ? "deactivate" : "activate";
+              if (
+                window.confirm(
+                  `Are you sure you want to ${action} ${user.fullName}?`
+                )
+              ) {
+                onToggleStatus(user.id);
+              }
               setOpen(false);
             }}
-            className="flex items-center w-full gap-2 px-4 py-2 text-left hover:bg-gray-100"
+            className="flex items-center w-full gap-2 px-4 py-2 text-left hover:bg-gray-200 hover:text-gray-600"
           >
             {user.active ? (
               <>
-                <UserX size={16} className="text-red-600" />
+                <UserX size={16} />
                 <span>Deactivate User</span>
               </>
             ) : (
               <>
-                <UserCheck size={16} className="text-green-600" />
+                <UserCheck size={16} />
                 <span>Activate User</span>
               </>
             )}
