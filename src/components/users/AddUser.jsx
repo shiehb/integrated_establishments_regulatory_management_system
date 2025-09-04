@@ -60,7 +60,13 @@ export default function AddUser({ onClose }) {
       <span>
         {children} <span className="text-red-500">*</span>
       </span>
-      {submitted && !formData[field]?.trim() && (
+      {field === "section" &&
+        submitted &&
+        isSectionEnabled &&
+        !formData.section.trim() && (
+          <span className="text-xs text-red-500">Required</span>
+        )}
+      {field !== "section" && submitted && !formData[field]?.trim() && (
         <span className="text-xs text-red-500">Required</span>
       )}
     </label>

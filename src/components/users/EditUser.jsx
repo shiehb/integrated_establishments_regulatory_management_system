@@ -59,7 +59,13 @@ export default function EditUser({ userData, onClose }) {
       <span>
         {children} <span className="text-red-500">*</span>
       </span>
-      {submitted && !formData[field]?.trim() && (
+      {field === "section" &&
+        submitted &&
+        isSectionEnabled &&
+        !formData.section.trim() && (
+          <span className="text-xs text-red-500">Required</span>
+        )}
+      {field !== "section" && submitted && !formData[field]?.trim() && (
         <span className="text-xs text-red-500">Required</span>
       )}
     </label>
@@ -200,7 +206,7 @@ export default function EditUser({ userData, onClose }) {
             type="submit"
             className="flex-1 py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700"
           >
-            Update
+            Save Changes
           </button>
         </div>
       </form>

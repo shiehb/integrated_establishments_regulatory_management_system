@@ -7,19 +7,19 @@ export default function UsersList({ onAdd, onEdit }) {
       id: 1,
       fullName: "MARVIJOHN MABALOT M.",
       email: "marvi@example.com",
-      role: "DivisionChief",
+      role: "Division Chief",
       active: true,
-      createdDate: "2025-08-01",
-      updatedDate: "2025-08-15",
+      createdDate: "January 01, 2025",
+      updatedDate: "September 04, 2025",
     },
     {
       id: 2,
       fullName: "HARRY",
       email: "hari@example.com",
-      role: "MonitoringPersonel",
+      role: "Monitoring Personel",
       active: false,
-      createdDate: "2025-08-05",
-      updatedDate: "2025-08-20",
+      createdDate: "February 20, 2025",
+      updatedDate: "August 20, 2025",
     },
   ]);
 
@@ -43,43 +43,31 @@ export default function UsersList({ onAdd, onEdit }) {
       </div>
 
       {/* Table */}
-      <table className="w-full  border-collapse">
+      <table className="w-full border border-gray-300 rounded-lg">
         <thead>
-          <tr className="text-left text-white bg-sky-700 text-sm">
-            <th className="p-1">Fullname</th>
-            <th className="p-1">Email</th>
-            <th className="p-1">Role</th>
-            <th className="p-1">Status</th>
-            <th className="p-1">Created Date</th>
-            <th className="p-1">Updated Date</th>
-
-            <th className="p-1 text-right">Actions</th>
+          <tr className="text-sm text-center text-white bg-sky-700">
+            <th className="p-1 border border-gray-300">Fullname</th>
+            <th className="p-1 border border-gray-300">Email</th>
+            <th className="p-1 border border-gray-300">Role</th>
+            <th className="p-1 border border-gray-300">Created Date</th>
+            <th className="p-1 border border-gray-300">Updated Date</th>
+            <th className="p-1 text-right border border-gray-300"></th>
           </tr>
         </thead>
         <tbody>
           {users.map((u) => (
             <tr
               key={u.id}
-              className="border-b-1 p-1 font-semibold border-gray-400 hover:bg-gray-50 text-sm"
+              className="p-1 text-xs border border-gray-300 hover:bg-gray-50"
             >
-              <td className=" pl-4">{u.fullName}</td>
-              <td>{u.email}</td>
-              <td>{u.role}</td>
-              <td>
-                <span
-                  className={`px-2 py-1 text-xs rounded-full ${
-                    u.active
-                      ? "bg-green-100 text-green-700 "
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {u.active ? "Active" : "Inactive"}
-                </span>
+              <td className="px-2 font-semibold border border-gray-300">
+                {u.fullName}
               </td>
-              <td>{u.createdDate}</td>
-              <td>{u.updatedDate}</td>
-
-              <td className="relative p-1 text-right">
+              <td className="px-2 border border-gray-300">{u.email}</td>
+              <td className="px-2 border border-gray-300">{u.role}</td>
+              <td className="px-2 border border-gray-300">{u.createdDate}</td>
+              <td className="px-2 border border-gray-300">{u.updatedDate}</td>
+              <td className="relative w-10 p-1 text-center border border-gray-300">
                 <Menu user={u} onEdit={onEdit} onToggleStatus={toggleStatus} />
               </td>
             </tr>
@@ -93,37 +81,49 @@ export default function UsersList({ onAdd, onEdit }) {
 /* Dropdown Menu Component */
 function Menu({ user, onEdit, onToggleStatus }) {
   const [open, setOpen] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const menuRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(e) {
       if (menuRef.current && !menuRef.current.contains(e.target)) {
         setOpen(false);
+        setShowConfirm(false);
       }
     }
-
-    if (open) {
+    if (open || showConfirm) {
       document.addEventListener("mousedown", handleClickOutside);
-    } else {
-      document.removeEventListener("mousedown", handleClickOutside);
     }
-
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [open]);
+  }, [open, showConfirm]);
+
+  const handleStatusClick = () => {
+    setShowConfirm(true);
+  };
+
+  const handleConfirm = () => {
+    onToggleStatus(user.id);
+    setShowConfirm(false);
+    setOpen(false);
+  };
+
+  const handleCancel = () => {
+    setShowConfirm(false);
+  };
 
   return (
     <div className="relative inline-block" ref={menuRef}>
       <button
         onClick={() => setOpen((prev) => !prev)}
-        className="p-1 rounded-full text-black bg-transparent hover:bg-gray-200"
+        className="p-1 text-black bg-transparent rounded-full hover:bg-gray-200"
       >
         <MoreVertical size={18} />
       </button>
 
       {open && (
-        <div className="absolute z-10 w-48 mt-2 bg-white border shadow-lg right-0">
+        <div className="absolute right-0 z-10 min-w-36 mt-2 bg-white border shadow-lg">
           <button
             onClick={() => {
               onEdit(user);
@@ -135,17 +135,7 @@ function Menu({ user, onEdit, onToggleStatus }) {
             <span>Edit</span>
           </button>
           <button
-            onClick={() => {
-              const action = user.active ? "deactivate" : "activate";
-              if (
-                window.confirm(
-                  `Are you sure you want to ${action} ${user.fullName}?`
-                )
-              ) {
-                onToggleStatus(user.id);
-              }
-              setOpen(false);
-            }}
+            onClick={handleStatusClick}
             className="flex items-center w-full gap-2 px-4 py-2 text-left hover:bg-gray-200 hover:text-gray-600"
           >
             {user.active ? (
@@ -160,6 +150,39 @@ function Menu({ user, onEdit, onToggleStatus }) {
               </>
             )}
           </button>
+        </div>
+      )}
+
+      {/* Tailwind UI Confirm Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
+            <h3 className="text-lg font-semibold mb-2 text-gray-800">
+              Confirm Action
+            </h3>
+            <p className="mb-4 text-gray-600">
+              Are you sure you want to {user.active ? "deactivate" : "activate"}{" "}
+              <span className="font-bold">{user.fullName}</span>?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={handleCancel}
+                className="px-4 py-2 rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirm}
+                className={`px-4 py-2 rounded text-white ${
+                  user.active
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-sky-600 hover:bg-sky-700"
+                }`}
+              >
+                {user.active ? "Deactivate" : "Activate"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
