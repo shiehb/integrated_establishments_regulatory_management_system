@@ -14,9 +14,9 @@ export default function UsersList({ onAdd, onEdit }) {
     },
     {
       id: 2,
-      fullName: "HARRY",
+      fullName: "HARRY JUSTIN ZABATE U.",
       email: "hari@example.com",
-      role: "Monitoring Personel",
+      role: "Monitoring Personel - Water Quality",
       active: false,
       createdDate: "February 20, 2025",
       updatedDate: "August 20, 2025",

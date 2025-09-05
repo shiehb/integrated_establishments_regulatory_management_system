@@ -55,7 +55,7 @@ export default function EstablishmentList({ onAdd, onEdit }) {
       </div>
 
       {/* Table */}
-      <table className="w-full border border-gray-300 rounded-lg">
+      <table className="w-full border border-gray-300 rounded-lg ">
         <thead>
           <tr className="text-sm text-center text-white bg-sky-700">
             <th className="p-1 border border-gray-300">Name</th>
