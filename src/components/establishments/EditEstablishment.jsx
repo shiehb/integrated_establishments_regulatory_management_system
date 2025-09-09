@@ -54,7 +54,7 @@ async function reverseGeocode(lat, lon, setFormData) {
         barangay: (
           data.address.suburb ||
           data.address.neighbourhood ||
-          data.address.village || // ✅ added village fallback
+          data.address.village ||
           prev.address.barangay ||
           ""
         ).toUpperCase(),
@@ -116,7 +116,6 @@ export default function EditEstablishment({ establishmentData, onClose }) {
       longitude: establishmentData?.coordinates?.longitude || "",
     },
   });
-  const [submitted, setSubmitted] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -124,6 +123,15 @@ export default function EditEstablishment({ establishmentData, onClose }) {
       ...prev,
       [name]: value.toUpperCase(),
     }));
+  };
+
+  const handleYearChange = (e) => {
+    let val = e.target.value.replace(/\D/g, ""); // only digits
+    if (val.length > 4) val = val.slice(0, 4); // max 4 digits
+    if (parseInt(val) > new Date().getFullYear()) {
+      val = new Date().getFullYear().toString(); // cap at current year
+    }
+    setFormData((prev) => ({ ...prev, yearEstablished: val }));
   };
 
   const handleAddressChange = async (e) => {
@@ -137,25 +145,12 @@ export default function EditEstablishment({ establishmentData, onClose }) {
     };
     setFormData(newForm);
 
-    // Geocode when editing address
     const address = `${newForm.address.streetBuilding}, ${newForm.address.barangay}, ${newForm.address.city}, ${newForm.address.province}`;
     await geocodeAddress(address, setFormData);
   };
 
-  const handleCoordinatesChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      coordinates: {
-        ...prev.coordinates,
-        [name]: value,
-      },
-    }));
-  };
-
   const handleSubmit = (e) => {
     e.preventDefault();
-    setSubmitted(true);
 
     if (
       !formData.name.trim() ||
@@ -176,34 +171,52 @@ export default function EditEstablishment({ establishmentData, onClose }) {
     onClose();
   };
 
-  const Label = ({ children }) => (
-    <label className="flex items-center justify-between text-sm font-medium text-gray-700">
-      <span>
-        {children} <span className="text-red-500">*</span>
-      </span>
-    </label>
-  );
+  function Label({ children }) {
+    return (
+      <label className="flex items-center justify-between text-sm font-medium text-gray-700">
+        <span>
+          {children} <span className="text-red-500">*</span>
+        </span>
+      </label>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-6xl p-8 bg-white shadow-lg rounded-2xl">
-      {/* Left: Form */}
+    <div className="grid w-full max-w-6xl grid-cols-1 gap-6 p-8 bg-white shadow-lg md:grid-cols-2 rounded-2xl">
       <form onSubmit={handleSubmit} className="space-y-5 text-sm">
         <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
           Edit Establishment
         </h2>
 
-        {/* Row 1: Name & Business */}
+        {/* Name */}
+        <div>
+          <Label>Name</Label>
+          <input
+            type="text"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            className="w-full p-2 border rounded-lg"
+          />
+        </div>
+
+        {/* Business & Year Established */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label>Name</Label>
+            <Label>Year Established</Label>
+
             <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
+              type="number"
+              name="yearEstablished"
+              value={formData.yearEstablished}
+              onChange={handleYearChange}
+              min="1900"
+              max={new Date().getFullYear()}
+              placeholder="YYYY"
               className="w-full p-2 border rounded-lg"
             />
           </div>
+
           <div>
             <Label>Nature of Business</Label>
             <input
@@ -216,19 +229,7 @@ export default function EditEstablishment({ establishmentData, onClose }) {
           </div>
         </div>
 
-        {/* Row 2: Year */}
-        <div>
-          <Label>Year Established</Label>
-          <input
-            type="text"
-            name="yearEstablished"
-            value={formData.yearEstablished}
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
-          />
-        </div>
-
-        {/* Row 3: Province & City */}
+        {/* Province & City */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <Label>Province</Label>
@@ -252,7 +253,7 @@ export default function EditEstablishment({ establishmentData, onClose }) {
           </div>
         </div>
 
-        {/* Row 4: Barangay & Street */}
+        {/* Barangay & Street */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <Label>Barangay</Label>
@@ -276,19 +277,35 @@ export default function EditEstablishment({ establishmentData, onClose }) {
           </div>
         </div>
 
-        {/* Row 5: Postal Code */}
-        <div>
-          <Label>Postal Code</Label>
-          <input
-            type="text"
-            name="postalCode"
-            value={formData.address.postalCode}
-            onChange={handleAddressChange}
-            className="w-full p-2 border rounded-lg"
-          />
+        {/* Postal Code */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <Label field="address.postalCode">Postal Code</Label>
+            <input
+              type="text"
+              name="postalCode"
+              value={formData.address.postalCode}
+              onChange={(e) => {
+                // Only allow numbers and max 4 digits
+                let val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                setFormData((prev) => ({
+                  ...prev,
+                  address: {
+                    ...prev.address,
+                    postalCode: val,
+                  },
+                }));
+              }}
+              className="w-full p-2 border rounded-lg"
+              maxLength={4}
+              inputMode="numeric"
+              pattern="\d{4}"
+            />
+          </div>
+          <div />
         </div>
 
-        {/* Row 6: Coordinates */}
+        {/* Coordinates */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <Label>Latitude</Label>
@@ -296,7 +313,19 @@ export default function EditEstablishment({ establishmentData, onClose }) {
               type="text"
               name="latitude"
               value={formData.coordinates.latitude}
-              onChange={handleCoordinatesChange}
+              onChange={(e) => {
+                // Only allow numbers and a single dot
+                let val = e.target.value
+                  .replace(/[^0-9.]/g, "") // Remove non-numeric/non-dot
+                  .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : "")); // Only one dot allowed
+                setFormData((prev) => ({
+                  ...prev,
+                  coordinates: {
+                    ...prev.coordinates,
+                    latitude: val,
+                  },
+                }));
+              }}
               className="w-full p-2 border rounded-lg"
             />
           </div>
@@ -306,7 +335,19 @@ export default function EditEstablishment({ establishmentData, onClose }) {
               type="text"
               name="longitude"
               value={formData.coordinates.longitude}
-              onChange={handleCoordinatesChange}
+              onChange={(e) => {
+                // Only allow numbers and a single dot
+                let val = e.target.value
+                  .replace(/[^0-9.]/g, "")
+                  .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : ""));
+                setFormData((prev) => ({
+                  ...prev,
+                  coordinates: {
+                    ...prev.coordinates,
+                    longitude: val,
+                  },
+                }));
+              }}
               className="w-full p-2 border rounded-lg"
             />
           </div>
@@ -330,7 +371,7 @@ export default function EditEstablishment({ establishmentData, onClose }) {
         </div>
       </form>
 
-      {/* Right: Map */}
+      {/* Map */}
       <div className="h-[600px] w-full rounded-lg overflow-hidden shadow">
         <MapContainer
           center={[

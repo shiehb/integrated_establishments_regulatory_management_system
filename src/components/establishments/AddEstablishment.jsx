@@ -21,8 +21,10 @@ async function geocodeAddress(address, setFormData) {
     const { lat, lon } = data[0];
     setFormData((prev) => ({
       ...prev,
-      latitude: parseFloat(lat).toFixed(6),
-      longitude: parseFloat(lon).toFixed(6),
+      coordinates: {
+        latitude: parseFloat(lat).toFixed(6),
+        longitude: parseFloat(lon).toFixed(6),
+      },
     }));
   }
 }
@@ -35,33 +37,42 @@ async function reverseGeocode(lat, lon, setFormData) {
   if (data && data.address) {
     setFormData((prev) => ({
       ...prev,
-      province: (data.address.state || prev.province || "").toUpperCase(),
-      city: (
-        data.address.city ||
-        data.address.town ||
-        data.address.village ||
-        prev.city ||
-        ""
-      ).toUpperCase(),
-      barangay: (
-        data.address.suburb ||
-        data.address.neighbourhood ||
-        data.address.village || // ✅ added village fallback
-        prev.barangay ||
-        ""
-      ).toUpperCase(),
-      streetBuilding: (
-        data.address.road ||
-        prev.streetBuilding ||
-        ""
-      ).toUpperCase(),
-      postalCode: (
-        data.address.postcode ||
-        prev.postalCode ||
-        ""
-      ).toUpperCase(),
-      latitude: lat,
-      longitude: lon,
+      address: {
+        ...prev.address,
+        province: (
+          data.address.state ||
+          prev.address.province ||
+          ""
+        ).toUpperCase(),
+        city: (
+          data.address.city ||
+          data.address.town ||
+          data.address.village ||
+          prev.address.city ||
+          ""
+        ).toUpperCase(),
+        barangay: (
+          data.address.suburb ||
+          data.address.neighbourhood ||
+          data.address.village ||
+          prev.address.barangay ||
+          ""
+        ).toUpperCase(),
+        streetBuilding: (
+          data.address.road ||
+          prev.address.streetBuilding ||
+          ""
+        ).toUpperCase(),
+        postalCode: (
+          data.address.postcode ||
+          prev.address.postalCode ||
+          ""
+        ).toUpperCase(),
+      },
+      coordinates: {
+        latitude: lat,
+        longitude: lon,
+      },
     }));
   }
 }
@@ -77,9 +88,12 @@ function LocationMarker({ formData, setFormData }) {
     },
   });
 
-  return formData.latitude && formData.longitude ? (
+  return formData.coordinates.latitude && formData.coordinates.longitude ? (
     <Marker
-      position={[parseFloat(formData.latitude), parseFloat(formData.longitude)]}
+      position={[
+        parseFloat(formData.coordinates.latitude),
+        parseFloat(formData.coordinates.longitude),
+      ]}
       icon={markerIcon}
     />
   ) : null;
@@ -90,31 +104,50 @@ export default function AddEstablishment({ onClose }) {
     name: "",
     natureOfBusiness: "",
     yearEstablished: "",
-    province: "",
-    city: "",
-    barangay: "",
-    streetBuilding: "",
-    postalCode: "",
-    latitude: "",
-    longitude: "",
+    address: {
+      province: "",
+      city: "",
+      barangay: "",
+      streetBuilding: "",
+      postalCode: "",
+    },
+    coordinates: {
+      latitude: "",
+      longitude: "",
+    },
   });
   const [submitted, setSubmitted] = useState(false);
 
-  const handleChange = async (e) => {
+  const handleChange = (e) => {
     const { name, value } = e.target;
-    const newValue = value.toUpperCase();
-    const newForm = { ...formData, [name]: newValue };
-    setFormData(newForm);
-
-    if (["province", "city", "barangay", "streetBuilding"].includes(name)) {
-      const address = `${newForm.streetBuilding}, ${newForm.barangay}, ${newForm.city}, ${newForm.province}`;
-      await geocodeAddress(address, setFormData);
-    }
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value.toUpperCase(),
+    }));
   };
 
-  const handleCoordinatesChange = (e) => {
+  const handleYearChange = (e) => {
+    let val = e.target.value.replace(/\D/g, ""); // only digits
+    if (val.length > 4) val = val.slice(0, 4); // max 4 digits
+    if (parseInt(val) > new Date().getFullYear()) {
+      val = new Date().getFullYear().toString(); // cap at current year
+    }
+    setFormData((prev) => ({ ...prev, yearEstablished: val }));
+  };
+
+  const handleAddressChange = async (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const newForm = {
+      ...formData,
+      address: {
+        ...formData.address,
+        [name]: value.toUpperCase(),
+      },
+    };
+    setFormData(newForm);
+
+    const address = `${newForm.address.streetBuilding}, ${newForm.address.barangay}, ${newForm.address.city}, ${newForm.address.province}`;
+    await geocodeAddress(address, setFormData);
   };
 
   const handleSubmit = (e) => {
@@ -125,13 +158,13 @@ export default function AddEstablishment({ onClose }) {
       !formData.name.trim() ||
       !formData.natureOfBusiness.trim() ||
       !formData.yearEstablished.trim() ||
-      !formData.province.trim() ||
-      !formData.city.trim() ||
-      !formData.barangay.trim() ||
-      !formData.streetBuilding.trim() ||
-      !formData.postalCode.trim() ||
-      !formData.latitude.trim() ||
-      !formData.longitude.trim()
+      !formData.address.province.trim() ||
+      !formData.address.city.trim() ||
+      !formData.address.barangay.trim() ||
+      !formData.address.streetBuilding.trim() ||
+      !formData.address.postalCode.trim() ||
+      !formData.coordinates.latitude.trim() ||
+      !formData.coordinates.longitude.trim()
     ) {
       return;
     }
@@ -145,29 +178,49 @@ export default function AddEstablishment({ onClose }) {
       <span>
         {children} <span className="text-red-500">*</span>
       </span>
-      {submitted && !formData[field]?.trim() && (
-        <span className="text-xs text-red-500">Required</span>
-      )}
+      {submitted &&
+        (field.includes(".")
+          ? !field
+              .split(".")
+              .reduce((o, i) => (o ? o[i] : ""), formData)
+              ?.trim()
+          : !formData[field]?.trim()) && (
+          <span className="text-xs text-red-500">Required</span>
+        )}
     </label>
   );
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-6xl p-8 bg-white shadow-lg rounded-2xl">
-      {/* Left: Form */}
+    <div className="grid w-full max-w-6xl grid-cols-1 gap-6 p-8 bg-white shadow-lg md:grid-cols-2 rounded-2xl">
       <form onSubmit={handleSubmit} className="space-y-5 text-sm">
         <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
           Add Establishment
         </h2>
 
-        {/* Row 1: Name & Business */}
+        {/* Name */}
+        <div>
+          <Label field="name">Name</Label>
+          <input
+            type="text"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            className="w-full p-2 border rounded-lg"
+          />
+        </div>
+
+        {/* Business & Year Established */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label field="name">Name</Label>
+            <Label field="yearEstablished">Year Established</Label>
             <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
+              type="number"
+              name="yearEstablished"
+              value={formData.yearEstablished}
+              onChange={handleYearChange}
+              min="1900"
+              max={new Date().getFullYear()}
+              placeholder="YYYY"
               className="w-full p-2 border rounded-lg"
             />
           </div>
@@ -183,93 +236,125 @@ export default function AddEstablishment({ onClose }) {
           </div>
         </div>
 
-        {/* Row 2: Year */}
-        <div>
-          <Label field="yearEstablished">Year Established</Label>
-          <input
-            type="text"
-            name="yearEstablished"
-            value={formData.yearEstablished}
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
-          />
-        </div>
-
-        {/* Row 3: Address */}
+        {/* Province & City */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label field="province">Province</Label>
+            <Label field="address.province">Province</Label>
             <input
               type="text"
               name="province"
-              value={formData.province}
-              onChange={handleChange}
+              value={formData.address.province}
+              onChange={handleAddressChange}
               className="w-full p-2 border rounded-lg"
             />
           </div>
           <div>
-            <Label field="city">City</Label>
+            <Label field="address.city">City</Label>
             <input
               type="text"
               name="city"
-              value={formData.city}
-              onChange={handleChange}
+              value={formData.address.city}
+              onChange={handleAddressChange}
               className="w-full p-2 border rounded-lg"
             />
           </div>
         </div>
+
+        {/* Barangay & Street */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label field="barangay">Barangay</Label>
+            <Label field="address.barangay">Barangay</Label>
             <input
               type="text"
               name="barangay"
-              value={formData.barangay}
-              onChange={handleChange}
+              value={formData.address.barangay}
+              onChange={handleAddressChange}
               className="w-full p-2 border rounded-lg"
             />
           </div>
           <div>
-            <Label field="streetBuilding">Street/Building</Label>
+            <Label field="address.streetBuilding">Street/Building</Label>
             <input
               type="text"
               name="streetBuilding"
-              value={formData.streetBuilding}
-              onChange={handleChange}
+              value={formData.address.streetBuilding}
+              onChange={handleAddressChange}
               className="w-full p-2 border rounded-lg"
             />
           </div>
         </div>
-        <div>
-          <Label field="postalCode">Postal Code</Label>
-          <input
-            type="text"
-            name="postalCode"
-            value={formData.postalCode}
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
-          />
-        </div>
 
-        {/* Row 4: Coordinates */}
+        {/* Postal Code */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label field="latitude">Latitude</Label>
+            <Label field="address.postalCode">Postal Code</Label>
+            <input
+              type="text"
+              name="postalCode"
+              value={formData.address.postalCode}
+              onChange={(e) => {
+                // Only allow numbers and max 4 digits
+                let val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                setFormData((prev) => ({
+                  ...prev,
+                  address: {
+                    ...prev.address,
+                    postalCode: val,
+                  },
+                }));
+              }}
+              className="w-full p-2 border rounded-lg"
+              maxLength={4}
+              inputMode="numeric"
+              pattern="\d{4}"
+            />
+          </div>
+          <div />
+        </div>
+
+        {/* Coordinates */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <Label field="coordinates.latitude">Latitude</Label>
             <input
               type="text"
               name="latitude"
-              value={formData.latitude}
-              onChange={handleCoordinatesChange}
+              value={formData.coordinates.latitude}
+              onChange={(e) => {
+                // Only allow numbers, dot, and at most one dot
+                let val = e.target.value
+                  .replace(/[^0-9.]/g, "") // Remove non-numeric/non-dot
+                  .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : "")); // Only one dot allowed
+                setFormData((prev) => ({
+                  ...prev,
+                  coordinates: {
+                    ...prev.coordinates,
+                    latitude: val,
+                  },
+                }));
+              }}
               className="w-full p-2 border rounded-lg"
             />
           </div>
           <div>
-            <Label field="longitude">Longitude</Label>
+            <Label field="coordinates.longitude">Longitude</Label>
             <input
               type="text"
               name="longitude"
-              value={formData.longitude}
-              onChange={handleCoordinatesChange}
+              value={formData.coordinates.longitude}
+              onChange={(e) => {
+                // Only allow numbers, dot, and at most one dot
+                let val = e.target.value
+                  .replace(/[^0-9.]/g, "")
+                  .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : ""));
+                setFormData((prev) => ({
+                  ...prev,
+                  coordinates: {
+                    ...prev.coordinates,
+                    longitude: val,
+                  },
+                }));
+              }}
               className="w-full p-2 border rounded-lg"
             />
           </div>
@@ -293,11 +378,14 @@ export default function AddEstablishment({ onClose }) {
         </div>
       </form>
 
-      {/* Right: Map */}
+      {/* Map */}
       <div className="h-[600px] w-full rounded-lg overflow-hidden shadow">
         <MapContainer
-          center={[formData.latitude || 12.8797, formData.longitude || 121.774]}
-          zoom={formData.latitude ? 15 : 6}
+          center={[
+            formData.coordinates.latitude || 12.8797,
+            formData.coordinates.longitude || 121.774,
+          ]}
+          zoom={formData.coordinates.latitude ? 15 : 6}
           style={{ height: "100%", width: "100%" }}
         >
           <TileLayer

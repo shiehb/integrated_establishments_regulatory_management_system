@@ -50,7 +50,10 @@ export default function UsersList({ onAdd, onEdit }) {
             <th className="p-1 border border-gray-300">Email</th>
             <th className="p-1 border border-gray-300">Role</th>
             <th className="p-1 border border-gray-300">Created Date</th>
-            <th className="p-1 border border-gray-300">Updated Date</th>
+            <th className="p-1 text-center border border-gray-300">
+              Updated Date
+            </th>
+            <th className="p-1 border border-gray-300 w-28">Status</th>{" "}
             <th className="p-1 text-right border border-gray-300"></th>
           </tr>
         </thead>
@@ -65,8 +68,20 @@ export default function UsersList({ onAdd, onEdit }) {
               </td>
               <td className="px-2 border border-gray-300">{u.email}</td>
               <td className="px-2 border border-gray-300">{u.role}</td>
+
               <td className="px-2 border border-gray-300">{u.createdDate}</td>
               <td className="px-2 border border-gray-300">{u.updatedDate}</td>
+              <td className="px-2 text-center border border-gray-300 w-28">
+                <span
+                  className={`inline-block w-20 px-2 py-1 rounded text-xs font-semibold text-center ${
+                    u.active
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
+                  }`}
+                >
+                  {u.active ? "Active" : "Inactive"}
+                </span>
+              </td>
               <td className="relative w-10 p-1 text-center border border-gray-300">
                 <Menu user={u} onEdit={onEdit} onToggleStatus={toggleStatus} />
               </td>
@@ -123,7 +138,7 @@ function Menu({ user, onEdit, onToggleStatus }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-10 min-w-36 mt-2 bg-white border shadow-lg">
+        <div className="absolute right-0 z-10 mt-2 bg-white border shadow-lg min-w-36">
           <button
             onClick={() => {
               onEdit(user);
@@ -156,8 +171,8 @@ function Menu({ user, onEdit, onToggleStatus }) {
       {/* Tailwind UI Confirm Modal */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
-            <h3 className="text-lg font-semibold mb-2 text-gray-800">
+          <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-lg">
+            <h3 className="mb-2 text-lg font-semibold text-gray-800">
               Confirm Action
             </h3>
             <p className="mb-4 text-gray-600">
@@ -167,7 +182,7 @@ function Menu({ user, onEdit, onToggleStatus }) {
             <div className="flex justify-end gap-2">
               <button
                 onClick={handleCancel}
-                className="px-4 py-2 rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
+                className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
               >
                 Cancel
               </button>

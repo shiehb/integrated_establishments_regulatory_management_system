@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
-import { MoreVertical, Pencil, Plus } from "lucide-react";
+import { useState } from "react";
+import { MoreVertical, Pencil, Map, Plus } from "lucide-react";
 
-export default function EstablishmentList({ onAdd, onEdit }) {
+export default function EstablishmentList({ onAdd, onEdit, onPolygon }) {
   const [establishments] = useState([
     {
       id: 1,
@@ -19,6 +19,7 @@ export default function EstablishmentList({ onAdd, onEdit }) {
         latitude: "14.6760",
         longitude: "121.0437",
       },
+      polygon: null, // new field
       active: true,
     },
     {
@@ -37,6 +38,7 @@ export default function EstablishmentList({ onAdd, onEdit }) {
         latitude: "14.0668",
         longitude: "121.3260",
       },
+      polygon: null,
       active: false,
     },
   ]);
@@ -86,70 +88,31 @@ export default function EstablishmentList({ onAdd, onEdit }) {
               <td className="px-2 text-center border border-gray-300">
                 {e.coordinates.latitude}, {e.coordinates.longitude}
               </td>
-              <td className="relative w-16 p-1 text-center border border-gray-300">
-                <button
-                  onClick={() => onEdit(e)}
-                  className="flex items-center gap-2 px-2 py-1 hover:text-sky-700 rounded hover:bg-gray-200"
-                  title="Edit"
-                >
-                  <Pencil size={16} />
-                  <span>Edit</span>
-                </button>
+              <td className="relative w-40 p-1 text-center border border-gray-300">
+                <div className="flex justify-center gap-2">
+                  <button
+                    onClick={() => onEdit(e)}
+                    className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+                    title="Edit"
+                  >
+                    <Pencil size={14} />
+                    Edit
+                  </button>
+
+                  <button
+                    onClick={() => onPolygon(e)}
+                    className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+                    title="Polygon"
+                  >
+                    <Map size={14} />
+                    Polygon
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-/* Dropdown Menu Component */
-function Menu({ establishment, onEdit }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    }
-
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
-    } else {
-      document.removeEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [open]);
-
-  return (
-    <div className="relative inline-block" ref={menuRef}>
-      <button
-        onClick={() => setOpen((prev) => !prev)}
-        className="p-1 text-black bg-transparent rounded-full hover:bg-gray-200"
-      >
-        <MoreVertical size={18} />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 z-10 w-20 mt-2 bg-white border shadow-lg">
-          <button
-            onClick={() => {
-              onEdit(establishment);
-              setOpen(false);
-            }}
-            className="flex items-center w-full gap-2 px-4 py-2 text-left hover:bg-gray-200 hover:text-gray-600"
-          >
-            <Pencil size={16} />
-            <span>Edit</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }
