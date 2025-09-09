@@ -1,4 +1,7 @@
 export default function ViewInspection({ inspection, onClose }) {
+  // Since each inspection now has only one establishment
+  const establishment = inspection.establishments[0];
+
   return (
     <div className="w-full max-w-4xl p-6 bg-white rounded-lg shadow-lg">
       <h2 className="mb-4 text-xl font-bold text-sky-600">
@@ -15,20 +18,19 @@ export default function ViewInspection({ inspection, onClose }) {
           </tr>
         </thead>
         <tbody>
-          {inspection.establishments.map((e) => (
-            <tr key={e.id} className="text-xs text-center">
-              <td className="p-2 border border-gray-300">{e.name}</td>
-              <td className="p-2 border border-gray-300">
-                {e.natureOfBusiness}
-              </td>
-              <td className="p-2 border border-gray-300">
-                {`${e.address.street}, ${e.address.barangay}, ${e.address.city}, ${e.address.province}, ${e.address.postalCode}`}
-              </td>
-              <td className="p-2 border border-gray-300">
-                {e.coordinates.latitude}, {e.coordinates.longitude}
-              </td>
-            </tr>
-          ))}
+          <tr className="text-xs text-center">
+            <td className="p-2 border border-gray-300">{establishment.name}</td>
+            <td className="p-2 border border-gray-300">
+              {establishment.natureOfBusiness}
+            </td>
+            <td className="p-2 border border-gray-300">
+              {`${establishment.address.street}, ${establishment.address.barangay}, ${establishment.address.city}, ${establishment.address.province}, ${establishment.address.postalCode}`}
+            </td>
+            <td className="p-2 border border-gray-300">
+              {establishment.coordinates.latitude},{" "}
+              {establishment.coordinates.longitude}
+            </td>
+          </tr>
         </tbody>
       </table>
 

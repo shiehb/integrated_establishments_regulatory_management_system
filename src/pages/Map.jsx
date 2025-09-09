@@ -102,16 +102,16 @@ export default function MapPage() {
             </h1>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 h-[calc(100vh-220px)]">
+          <div className="grid grid-cols-2 gap-4 h-[calc(100vh-230px)]">
             {/* Left: Establishments Table */}
             <div className="overflow-y-auto">
               <table className="w-full border border-gray-300 rounded-lg">
                 <thead>
                   <tr className="text-sm text-center text-white bg-sky-700">
-                    <th className="p-2 border border-gray-300">Name</th>
-                    <th className="p-2 border border-gray-300">Address</th>
-                    <th className="p-2 border border-gray-300">Coordinates</th>
-                    <th className="p-2 border border-gray-300">Actions</th>
+                    <th className="p-1 border border-gray-300">Name</th>
+                    <th className="p-1 border border-gray-300">Address</th>
+                    <th className="p-1 border border-gray-300">Coordinates</th>
+                    <th className="p-1 border border-gray-300"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -132,7 +132,7 @@ export default function MapPage() {
                           4
                         )}, ${e.coordinates.longitude.toFixed(4)}`}
                       </td>
-                      <td className="p-2 text-center border border-gray-300">
+                      <td className="w-10 p-2 text-center border border-gray-300">
                         <button
                           className="flex items-center gap-1 px-2 py-1 text-xs text-white rounded bg-sky-600 hover:bg-sky-700"
                           onClick={(event) => {

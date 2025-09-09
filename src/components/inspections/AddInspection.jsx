@@ -11,6 +11,23 @@ export default function AddInspection({ establishments, onCancel, onSave }) {
     );
   };
 
+  // Map law → prefix for ID generation
+  const sectionPrefixes = {
+    "PD-1586": "EIA", // Environmental Impact Assessment
+    "RA-6969": "TOX", // Toxic Substances
+    "RA-8749": "AIR", // Clean Air Act
+    "RA-9275": "WATER", // Clean Water Act
+    "RA-9003": "WASTE", // Ecological Solid Waste
+  };
+
+  // Generate inspection ID based on section and timestamp
+  const generateInspectionId = (section, index) => {
+    const prefix = sectionPrefixes[section] || "GEN";
+    const year = new Date().getFullYear();
+    const timestamp = Date.now().toString().slice(-4);
+    return `${prefix}-${year}-${timestamp}-${index}`;
+  };
+
   return (
     <div className="w-full p-4 overflow-y-auto bg-white">
       <h2 className="mb-6 text-2xl font-bold text-sky-600">
@@ -64,7 +81,7 @@ export default function AddInspection({ establishments, onCancel, onSave }) {
             <select
               value={selectedLaw}
               onChange={(e) => setSelectedLaw(e.target.value)}
-              className="p-2 border border-gray-300 rounded w-30"
+              className="w-full p-2 border border-gray-300 rounded"
             >
               <option value="">-- Select --</option>
               <option value="PD-1586">PD-1586</option>
@@ -80,22 +97,27 @@ export default function AddInspection({ establishments, onCancel, onSave }) {
       {/* Step 2: Review */}
       {step === 2 && (
         <div>
-          <h3 className="mb-4 font-medium">Review Inspection</h3>
+          <h3 className="mb-4 font-medium">Review Inspections</h3>
           <table className="w-full border rounded-lg">
             <thead>
               <tr className="text-sm text-center text-white bg-sky-700">
+                <th className="p-1 border">Inspection ID</th>
                 <th className="p-1 border">Name</th>
                 <th className="p-1 border">Nature</th>
                 <th className="p-1 border">Address</th>
                 <th className="p-1 border">Coordinates</th>
                 <th className="p-1 border">Section</th>
+                <th className="p-1 border">Status</th>
               </tr>
             </thead>
             <tbody>
               {establishments
                 .filter((e) => selectedEstablishments.includes(e.id))
-                .map((e) => (
+                .map((e, index) => (
                   <tr key={e.id} className="text-xs text-center">
+                    <td className="p-2 border border-gray-300">
+                      {generateInspectionId(selectedLaw, index)}
+                    </td>
                     <td className="p-2 border border-gray-300">{e.name}</td>
                     <td className="p-2 border border-gray-300">
                       {e.natureOfBusiness}
@@ -109,6 +131,7 @@ export default function AddInspection({ establishments, onCancel, onSave }) {
                     <td className="p-2 border border-gray-300">
                       {selectedLaw}
                     </td>
+                    <td className="p-2 border border-gray-300">Pending</td>
                   </tr>
                 ))}
             </tbody>
@@ -138,11 +161,17 @@ export default function AddInspection({ establishments, onCancel, onSave }) {
         {step === 2 && (
           <button
             onClick={() => {
-              onSave({
-                establishments: selectedEstablishments,
-                law: selectedLaw,
-              });
-              onCancel();
+              // Create separate inspection for each selected establishment
+              const newInspections = establishments
+                .filter((e) => selectedEstablishments.includes(e.id))
+                .map((e, index) => ({
+                  id: generateInspectionId(selectedLaw, index),
+                  establishmentId: e.id,
+                  section: selectedLaw,
+                  status: "PENDING",
+                }));
+
+              onSave(newInspections);
             }}
             className="p-2 px-4 text-white bg-green-600 rounded hover:bg-green-700"
           >

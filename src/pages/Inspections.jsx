@@ -42,11 +42,11 @@ export default function Inspections() {
     },
   ]);
 
-  // 🔹 Inspections state
+  // 🔹 Inspections state - now each inspection has only one establishment
   const [inspections, setInspections] = useState([
     {
       id: "EIA-2025-0001",
-      establishments: [1],
+      establishmentId: 1, // Changed from establishments array to single establishmentId
       section: "PD-1586",
       status: "PENDING",
     },
@@ -65,19 +65,19 @@ export default function Inspections() {
   const generateInspectionId = (section) => {
     const prefix = sectionPrefixes[section] || "GEN";
     const year = new Date().getFullYear();
-    const seq = (inspections.length + 1).toString().padStart(4, "0");
+
+    // Count existing inspections for this section type
+    const sectionCount =
+      inspections.filter((insp) => insp.section === section).length + 1;
+    const seq = sectionCount.toString().padStart(4, "0");
+
     return `${prefix}-${year}-${seq}`;
   };
 
-  // 🔹 Save new inspection
-  const handleSaveInspection = (data) => {
-    const newInspection = {
-      id: generateInspectionId(data.law),
-      establishments: data.establishments,
-      section: data.law,
-      status: "PENDING",
-    };
-    setInspections((prev) => [...prev, newInspection]);
+  // 🔹 Save new inspections (multiple when multiple establishments selected)
+  const handleSaveInspection = (inspectionsData) => {
+    // inspectionsData is now an array of inspection objects
+    setInspections((prev) => [...prev, ...inspectionsData]);
   };
 
   // 🔹 Update inspection section
@@ -89,10 +89,13 @@ export default function Inspections() {
 
   // 🔹 Expand inspections with establishment details
   const inspectionsWithDetails = inspections.map((i) => {
-    const estDetails = establishments.filter((e) =>
-      i.establishments.includes(e.id)
+    const establishment = establishments.find(
+      (e) => e.id === i.establishmentId
     );
-    return { ...i, establishments: estDetails };
+    return {
+      ...i,
+      establishments: establishment ? [establishment] : [],
+    };
   });
 
   return (
@@ -104,8 +107,8 @@ export default function Inspections() {
             <AddInspection
               establishments={establishments}
               onCancel={() => setShowAdd(false)}
-              onSave={(data) => {
-                handleSaveInspection(data);
+              onSave={(inspectionsData) => {
+                handleSaveInspection(inspectionsData);
                 setShowAdd(false);
               }}
             />
