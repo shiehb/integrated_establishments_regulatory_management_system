@@ -137,7 +137,7 @@ export default function EditUser({ userData, onClose }) {
             name="email"
             value={formData.email}
             disabled
-            className="w-full p-2 border rounded-lg bg-gray-100 text-gray-500 cursor-not-allowed"
+            className="w-full p-2 text-gray-500 bg-gray-100 border rounded-lg cursor-not-allowed"
           />
         </div>
 
@@ -155,12 +155,11 @@ export default function EditUser({ userData, onClose }) {
                   : "border-gray-300"
               }`}
             >
-              <option value="">Select User Level</option>
-              <option value="legalunit"></option>
-              <option value="divisionchief">Division Chief</option>
-              <option value="sectionchief">Section Chief</option>
-              <option value="unithead">Unit Head</option>
-              <option value="monitoringpersonnel">Monitoring Personnel</option>
+              <option value="Legal Unit">Legal Unit</option>
+              <option value="Division Chief">Division Chief</option>
+              <option value="Section Chief">Section Chief</option>
+              <option value="Unit Head">Unit Head</option>
+              <option value="Monitoring Personnel">Monitoring Personnel</option>
             </select>
           </div>
 
@@ -181,14 +180,11 @@ export default function EditUser({ userData, onClose }) {
                   : ""
               }`}
             >
-              <option value="">Select Section</option>
-              <option value="airquality">Air Quality</option>
-              <option value="waterquality">Water Quality</option>
-              <option value="solidwaste">Solid Waste</option>
-              <option value="hazardouswaste">Hazardous Waste</option>
-              <option value="environmentalimpact">
-                Environmental Impact Assessment
-              </option>
+              <option value="PD-1586">PD-1586</option>
+              <option value="RA-6969">RA-6969</option>
+              <option value="RA-8749">RA-8749</option>
+              <option value="RA-9275">RA-9275</option>
+              <option value="RA-9003">RA-9003</option>
             </select>
           </div>
         </div>

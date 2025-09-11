@@ -25,7 +25,7 @@ class RegisterSerializer(serializers.ModelSerializer):
                     "section": "This field is required for this user level."
                 })
         else:
-            data["section"] = None
+            data["section"] = ""
 
         return data
 

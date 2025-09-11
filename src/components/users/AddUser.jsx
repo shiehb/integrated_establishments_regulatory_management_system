@@ -25,7 +25,7 @@ export default function AddUser({ onClose }) {
     setFormData((prev) => {
       if (
         name === "userLevel" &&
-        !["sectionchief", "unithead", "monitoringpersonnel"].includes(value)
+        !["Section Chief", "Unit Head", "Monitoring Personnel"].includes(value)
       ) {
         return { ...prev, [name]: newValue, section: "" };
       }
@@ -43,7 +43,7 @@ export default function AddUser({ onClose }) {
       !formData.lastName.trim() ||
       !formData.email.trim() ||
       !formData.userLevel.trim() ||
-      (["sectionchief", "unithead", "monitoringpersonnel"].includes(
+      (["Section Chief", "Unit Head", "Monitoring Personnel"].includes(
         formData.userLevel
       ) &&
         !formData.section.trim())
@@ -58,9 +58,9 @@ export default function AddUser({ onClose }) {
         middle_name: formData.middleName,
         last_name: formData.lastName,
         userlevel: formData.userLevel,
-        ...(formData.section ? { section: formData.section } : {}), // ✅ only include if not empty
+        ...(formData.section ? { section: formData.section } : {}),
       };
-      await registerUser(payload); // 🔥 create user in Django
+      await registerUser(payload);
       alert("User registered successfully (default password set in backend)!");
       onClose();
     } catch (err) {
@@ -88,9 +88,9 @@ export default function AddUser({ onClose }) {
   );
 
   const isSectionEnabled = [
-    "sectionchief",
-    "unithead",
-    "monitoringpersonnel",
+    "Section Chief",
+    "Unit Head",
+    "Monitoring Personnel",
   ].includes(formData.userLevel);
 
   return (
@@ -176,11 +176,11 @@ export default function AddUser({ onClose }) {
               }`}
             >
               <option value="">Select User Level</option>
-              <option value="legalunit">Legal Unit</option>
-              <option value="divisionchief">Division Chief</option>
-              <option value="sectionchief">Section Chief</option>
-              <option value="unithead">Unit Head</option>
-              <option value="monitoringpersonnel">Monitoring Personnel</option>
+              <option value="Legal Unit">Legal Unit</option>
+              <option value="Division Chief">Division Chief</option>
+              <option value="Section Chief">Section Chief</option>
+              <option value="Unit Head">Unit Head</option>
+              <option value="Monitoring Personnel">Monitoring Personnel</option>
             </select>
           </div>
 

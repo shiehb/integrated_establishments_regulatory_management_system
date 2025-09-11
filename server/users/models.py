@@ -44,7 +44,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     middle_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     userlevel = models.CharField(max_length=50, choices=USERLEVEL_CHOICES, blank=True)
-    section = models.CharField(max_length=50, choices=SECTION_CHOICES, blank=True)
+    section = models.CharField(max_length=50, choices=SECTION_CHOICES, null=True)
 
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
