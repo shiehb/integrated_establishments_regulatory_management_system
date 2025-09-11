@@ -1,27 +1,27 @@
 import { useState, useEffect, useRef } from "react";
 import { MoreVertical, Pencil, UserCheck, UserX, Plus } from "lucide-react";
+import api from "../../services/api"; // now works ✅
 
 export default function UsersList({ onAdd, onEdit }) {
-  const [users, setUsers] = useState([
-    {
-      id: 1,
-      fullName: "MARVIJOHN MABALOT M.",
-      email: "marvi@example.com",
-      role: "Division Chief",
-      active: true,
-      createdDate: "January 01, 2025",
-      updatedDate: "September 04, 2025",
-    },
-    {
-      id: 2,
-      fullName: "HARRY JUSTIN ZABATE U.",
-      email: "hari@example.com",
-      role: "Monitoring Personel - Water Quality",
-      active: false,
-      createdDate: "February 20, 2025",
-      updatedDate: "August 20, 2025",
-    },
-  ]);
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    api
+      .get("users/") // calls /api/users/
+      .then((res) => {
+        const mappedUsers = res.data.map((u) => ({
+          id: u.id,
+          fullName: `${u.first_name} ${u.middle_name || ""} ${u.last_name}`,
+          email: u.email,
+          role: `${u.userlevel} ${u.section ? "- " + u.section : ""}`,
+          active: true, // TODO: replace with real status when added
+          createdDate: new Date(u.date_joined).toDateString(),
+          updatedDate: new Date().toDateString(),
+        }));
+        setUsers(mappedUsers);
+      })
+      .catch(() => setUsers([]));
+  }, []);
 
   const toggleStatus = (id) => {
     setUsers((prev) =>
@@ -53,40 +53,54 @@ export default function UsersList({ onAdd, onEdit }) {
             <th className="p-1 text-center border border-gray-300">
               Updated Date
             </th>
-            <th className="p-1 border border-gray-300 w-28">Status</th>{" "}
+            <th className="p-1 border border-gray-300 w-28">Status</th>
             <th className="p-1 text-right border border-gray-300"></th>
           </tr>
         </thead>
         <tbody>
-          {users.map((u) => (
-            <tr
-              key={u.id}
-              className="p-1 text-xs border border-gray-300 hover:bg-gray-50"
-            >
-              <td className="px-2 font-semibold border border-gray-300">
-                {u.fullName}
-              </td>
-              <td className="px-2 border border-gray-300">{u.email}</td>
-              <td className="px-2 border border-gray-300">{u.role}</td>
-
-              <td className="px-2 border border-gray-300">{u.createdDate}</td>
-              <td className="px-2 border border-gray-300">{u.updatedDate}</td>
-              <td className="px-2 text-center border border-gray-300 w-28">
-                <span
-                  className={`inline-block w-20 px-2 py-1 rounded text-xs font-semibold text-center ${
-                    u.active
-                      ? "bg-green-100 text-green-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {u.active ? "Active" : "Inactive"}
-                </span>
-              </td>
-              <td className="relative w-10 p-1 text-center border border-gray-300">
-                <Menu user={u} onEdit={onEdit} onToggleStatus={toggleStatus} />
+          {users.length > 0 ? (
+            users.map((u) => (
+              <tr
+                key={u.id}
+                className="p-1 text-xs border border-gray-300 hover:bg-gray-50"
+              >
+                <td className="px-2 font-semibold border border-gray-300">
+                  {u.fullName}
+                </td>
+                <td className="px-2 border border-gray-300">{u.email}</td>
+                <td className="px-2 border border-gray-300">{u.role}</td>
+                <td className="px-2 border border-gray-300">{u.createdDate}</td>
+                <td className="px-2 border border-gray-300">{u.updatedDate}</td>
+                <td className="px-2 text-center border border-gray-300 w-28">
+                  <span
+                    className={`inline-block w-20 px-2 py-1 rounded text-xs font-semibold text-center ${
+                      u.active
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {u.active ? "Active" : "Inactive"}
+                  </span>
+                </td>
+                <td className="relative w-10 p-1 text-center border border-gray-300">
+                  <Menu
+                    user={u}
+                    onEdit={onEdit}
+                    onToggleStatus={toggleStatus}
+                  />
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td
+                colSpan="7"
+                className="px-4 py-6 text-sm text-center text-gray-500 border border-gray-300"
+              >
+                There are no records to display
               </td>
             </tr>
-          ))}
+          )}
         </tbody>
       </table>
     </div>
@@ -168,7 +182,6 @@ function Menu({ user, onEdit, onToggleStatus }) {
         </div>
       )}
 
-      {/* Tailwind UI Confirm Modal */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-lg">

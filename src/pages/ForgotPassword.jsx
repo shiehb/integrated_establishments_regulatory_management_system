@@ -6,8 +6,8 @@ export default function ForgotPassword() {
 
   return (
     <Layout>
-      <div className="w-full max-w-md bg-white shadow-lg rounded-2xl p-8">
-        <h2 className="text-2xl font-bold text-center mb-6 text-sky-600">
+      <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-2xl">
+        <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
           Forgot Password
         </h2>
         <form className="space-y-5">
@@ -23,14 +23,14 @@ export default function ForgotPassword() {
             <button
               type="button"
               onClick={() => navigate("/")}
-              className="flex-1 py-3 rounded-lg bg-gray-300 text-gray-700 font-medium hover:bg-gray-400 transition"
+              className="flex-1 py-3 font-medium text-gray-700 transition bg-gray-300 rounded-lg hover:bg-gray-400"
             >
               Cancel
             </button>
 
             <button
               type="button"
-              className="flex-1 py-3 rounded-lg bg-sky-600 text-white font-medium hover:bg-sky-700 transition"
+              className="flex-1 py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700"
             >
               Send OTP
             </button>

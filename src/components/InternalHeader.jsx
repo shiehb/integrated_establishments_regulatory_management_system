@@ -1,9 +1,34 @@
-import { Bell, User, Search, LogOut, Settings, Key } from "lucide-react";
+import { Bell, User, Search, LogOut, Key } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import api from "../services/api"; // ✅ axios instance
 
 export default function InternalHeader({
   userLevel = "public",
   userName = "John Doe",
 }) {
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      const refresh = localStorage.getItem("refresh");
+      if (refresh) {
+        await api.post("auth/logout/", { refresh }); // ✅ call backend logout
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      // 🔥 Always clear auth data
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
+      localStorage.removeItem("sidebarOpen");
+      localStorage.removeItem("user");
+      sessionStorage.clear();
+      localStorage.clear();
+
+      navigate("/login"); // redirect to login
+    }
+  };
+
   return (
     <header className="p-1 bg-white border-b border-gray-200">
       <div className="flex items-center justify-between mx-2">
@@ -14,7 +39,7 @@ export default function InternalHeader({
             <input
               type="text"
               placeholder="Search..."
-              className="w-full py-1 pl-10 pr-4 border border-gray-300 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+              className="w-full py-1 pl-10 pr-4 bg-gray-100 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -55,7 +80,10 @@ export default function InternalHeader({
                   Change Password
                 </button>
                 <div className="my-1 border-t border-gray-200"></div>
-                <button className="flex items-center w-full px-4 py-2 text-sm text-left text-red-600 bg-transparent hover:bg-gray-100">
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center w-full px-4 py-2 text-sm text-left text-red-600 bg-transparent hover:bg-gray-100"
+                >
                   <LogOut className="w-4 h-4 mr-2" />
                   Logout
                 </button>

@@ -1,7 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { loginUser } from "../services/api"; // 🔥 add API call
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -9,6 +10,29 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState([]);
   const [submitted, setSubmitted] = useState(false);
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitted(true);
+
+    const newErrors = [];
+    if (!email && !password) {
+      setErrors([]);
+      return;
+    }
+    if (!email) newErrors.push("Email is required.");
+    if (!password) newErrors.push("Password is required.");
+    setErrors(newErrors);
+    if (newErrors.length > 0) return;
+
+    try {
+      await loginUser(email, password); // 🔥 API login
+      navigate("/"); // redirect on success
+    } catch (err) {
+      setErrors(["Invalid email or password"]);
+    }
+  };
 
   return (
     <Layout>
@@ -28,22 +52,7 @@ export default function Login() {
               ))}
             </div>
           ) : null)}
-        <form
-          className="space-y-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setSubmitted(true);
-            const newErrors = [];
-            if (!email && !password) {
-              setErrors([]);
-              return;
-            }
-            if (!email) newErrors.push("Email is required.");
-            if (!password) newErrors.push("Password is required.");
-            setErrors(newErrors);
-            if (newErrors.length > 0) return;
-          }}
-        >
+        <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Email
@@ -95,7 +104,10 @@ export default function Login() {
             Forgot Password?
           </Link>
 
-          <button type="submit" className="w-full py-3 rounded-lg">
+          <button
+            type="submit"
+            className="w-full py-3 text-white rounded-lg bg-sky-600 hover:bg-sky-700"
+          >
             Log In
           </button>
         </form>

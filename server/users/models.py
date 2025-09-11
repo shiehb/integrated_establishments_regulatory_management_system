@@ -23,6 +23,7 @@ class UserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     USERLEVEL_CHOICES = [
+        ("Admin", "Admin"),
         ("Legal Unit", "Legal Unit"),
         ("Division Chief", "Division Chief"),
         ("Section Chief", "Section Chief"),

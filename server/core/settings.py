@@ -1,10 +1,11 @@
 """
 Django settings for core project.
 """
-
+from datetime import timedelta
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,9 +29,10 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',   # ✅ only once
+    'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'users',
 ]
@@ -58,6 +60,13 @@ REST_FRAMEWORK = {
     ),
 }
 
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),      
+    "ROTATE_REFRESH_TOKENS": True,                   
+    "BLACKLIST_AFTER_ROTATION": True,
+}
+
 # Load default password for new users
 DEFAULT_USER_PASSWORD = os.getenv("DEFAULT_USER_PASSWORD", "Temp1234")
 
@@ -65,6 +74,12 @@ ROOT_URLCONF = 'core.urls'
 
 # Allow all origins in dev (restrict in prod)
 CORS_ALLOW_ALL_ORIGINS = True 
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Vite dev
+    "https://your-frontend.com"  # production frontend
+]
+
 
 TEMPLATES = [
     {
@@ -80,6 +95,7 @@ TEMPLATES = [
         },
     },
 ]
+
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
@@ -104,7 +120,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = "Asia/Manila"
 USE_I18N = True
 USE_TZ = True
 

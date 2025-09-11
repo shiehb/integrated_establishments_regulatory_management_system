@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { registerUser } from "../../services/api"; // 🔥 API call
 
 export default function AddUser({ onClose }) {
   const [formData, setFormData] = useState({
@@ -22,7 +23,6 @@ export default function AddUser({ onClose }) {
     }
 
     setFormData((prev) => {
-      // auto-clear section if userLevel changes to a role without sections
       if (
         name === "userLevel" &&
         !["sectionchief", "unithead", "monitoringpersonnel"].includes(value)
@@ -33,7 +33,7 @@ export default function AddUser({ onClose }) {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitted(true);
 
@@ -51,8 +51,23 @@ export default function AddUser({ onClose }) {
       return;
     }
 
-    console.log("New User:", formData);
-    onClose();
+    try {
+      const payload = {
+        email: formData.email,
+        first_name: formData.firstName,
+        middle_name: formData.middleName,
+        last_name: formData.lastName,
+        userlevel: formData.userLevel,
+        ...(formData.section ? { section: formData.section } : {}), // ✅ only include if not empty
+      };
+      await registerUser(payload); // 🔥 create user in Django
+      alert("User registered successfully (default password set in backend)!");
+      onClose();
+    } catch (err) {
+      alert(
+        "Error creating user: " + (err.response?.data?.detail || "Unknown")
+      );
+    }
   };
 
   const Label = ({ field, children }) => (
@@ -187,13 +202,11 @@ export default function AddUser({ onClose }) {
               }`}
             >
               <option value="">Select Section</option>
-              <option value="airquality">Air Quality</option>
-              <option value="waterquality">Water Quality</option>
-              <option value="solidwaste">Solid Waste</option>
-              <option value="hazardouswaste">Hazardous Waste</option>
-              <option value="environmentalimpact">
-                Environmental Impact Assessment
-              </option>
+              <option value="PD-1586">PD-1586</option>
+              <option value="RA-6969">RA-6969</option>
+              <option value="RA-8749">RA-8749</option>
+              <option value="RA-9275">RA-9275</option>
+              <option value="RA-9003">RA-9003</option>
             </select>
           </div>
         </div>
