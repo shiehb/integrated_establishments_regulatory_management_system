@@ -37,30 +37,56 @@ export default function AddInspection({ establishments, onCancel, onSave }) {
       {/* Step 1: Select establishments + law */}
       {step === 1 && (
         <div className="grid grid-cols-3 gap-6">
+          {/* Law Selection - Now on the LEFT */}
+          <div className="col-span-1">
+            <div className="p-4 border border-gray-200 rounded-lg shadow-sm bg-gray-50">
+              <h3 className="mb-3 text-lg font-semibold text-sky-700">
+                Select Law / Section
+              </h3>
+              <select
+                value={selectedLaw}
+                onChange={(e) => setSelectedLaw(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-sky-500"
+              >
+                <option value="">-- Choose a Section --</option>
+                <option value="PD-1586">PD-1586 (EIA)</option>
+                <option value="RA-6969">RA-6969 (Toxic Substances)</option>
+                <option value="RA-8749">RA-8749 (Clean Air)</option>
+                <option value="RA-9275">RA-9275 (Clean Water)</option>
+                <option value="RA-9003">RA-9003 (Solid Waste)</option>
+              </select>
+              <p className="mt-2 text-sm text-gray-600">
+                Please select which law/section applies to this inspection.
+              </p>
+            </div>
+          </div>
+
+          {/* Establishments Table - Now on the RIGHT */}
           <div className="col-span-2">
             <h3 className="mb-2 font-medium">Select Establishments</h3>
-            <table className="w-full border border-gray-300 rounded-lg">
+            <table className="w-full border border-gray-300 rounded-lg shadow-sm">
               <thead>
                 <tr className="text-sm text-center text-white bg-sky-700">
                   <th className="w-10 border border-gray-300"></th>
-                  <th className="p-1 border border-gray-300">Name</th>
-                  <th className="p-1 border border-gray-300">
+                  <th className="p-2 border border-gray-300">Name</th>
+                  <th className="p-2 border border-gray-300">
                     Nature of Business
                   </th>
-                  <th className="p-1 border border-gray-300">City</th>
+                  <th className="p-2 border border-gray-300">Address</th>
                 </tr>
               </thead>
               <tbody>
                 {establishments.map((e) => (
                   <tr
                     key={e.id}
-                    className="text-xs text-center hover:bg-gray-50"
+                    className="text-xs text-center transition hover:bg-gray-50"
                   >
                     <td className="p-2 border border-gray-300">
                       <input
                         type="checkbox"
                         checked={selectedEstablishments.includes(e.id)}
                         onChange={() => toggleSelect(e.id)}
+                        className="cursor-pointer"
                       />
                     </td>
                     <td className="p-2 border border-gray-300">{e.name}</td>
@@ -68,28 +94,12 @@ export default function AddInspection({ establishments, onCancel, onSave }) {
                       {e.natureOfBusiness}
                     </td>
                     <td className="p-2 border border-gray-300">
-                      {e.address.city}
+                      {`${e.address.street}, ${e.address.barangay}, ${e.address.city}, ${e.address.province}, ${e.address.postalCode}`}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-
-          <div>
-            <h3 className="mb-2 font-medium">Select Law</h3>
-            <select
-              value={selectedLaw}
-              onChange={(e) => setSelectedLaw(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded"
-            >
-              <option value="">-- Select --</option>
-              <option value="PD-1586">PD-1586</option>
-              <option value="RA-6969">RA-6969</option>
-              <option value="RA-8749">RA-8749</option>
-              <option value="RA-9275">RA-9275</option>
-              <option value="RA-9003">RA-9003</option>
-            </select>
           </div>
         </div>
       )}
