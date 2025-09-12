@@ -31,16 +31,30 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     }
   };
 
+  // UsersList.jsx - update the toggleStatus function
   const toggleStatus = async (id) => {
     try {
       await toggleUserActive(id);
-      fetchUsers(); // <-- Just call fetchUsers here
+
+      // Show success notification
+      if (window.showNotification) {
+        const user = users.find((u) => u.id === id);
+        const action = user.is_active ? "deactivated" : "activated";
+        window.showNotification("success", `User ${action} successfully!`);
+      }
+
+      fetchUsers();
     } catch (err) {
       setLoading(false);
-      alert(
-        "Failed to update user status.\n" +
-          (err.response?.data?.detail || err.message)
-      );
+
+      // Show error notification
+      if (window.showNotification) {
+        window.showNotification(
+          "error",
+          "Failed to update user status: " +
+            (err.response?.data?.detail || err.message)
+        );
+      }
     }
   };
 

@@ -52,6 +52,7 @@ export default function AddUser({ onClose, onUserAdded }) {
     setShowConfirm(true);
   };
 
+  // AddUser.jsx - update the confirmAdd function
   const confirmAdd = async () => {
     try {
       const payload = {
@@ -63,14 +64,23 @@ export default function AddUser({ onClose, onUserAdded }) {
         ...(formData.section ? { section: formData.section } : {}),
       };
       await api.post("auth/register/", payload);
-      alert("✅ User added successfully!");
-      if (onUserAdded) onUserAdded(); // <-- trigger refresh
+
+      // Show success notification
+      if (window.showNotification) {
+        window.showNotification("success", "User added successfully!");
+      }
+
+      if (onUserAdded) onUserAdded();
       onClose();
     } catch (err) {
-      alert(
-        "❌ Error creating user: " +
-          (err.response?.data?.detail || JSON.stringify(err.response?.data))
-      );
+      // Show error notification
+      if (window.showNotification) {
+        window.showNotification(
+          "error",
+          "Error creating user: " +
+            (err.response?.data?.detail || JSON.stringify(err.response?.data))
+        );
+      }
     }
   };
 

@@ -69,6 +69,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     setShowConfirm(true);
   };
 
+  // EditUser.jsx - update the confirmEdit function
   const confirmEdit = async () => {
     try {
       const payload = {
@@ -80,14 +81,23 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
         ...(formData.section ? { section: formData.section } : {}),
       };
       await api.put(`auth/users/${userData.id}/`, payload);
-      alert("User updated successfully!");
-      if (onUserUpdated) onUserUpdated(); // <-- trigger refresh
+
+      // Show success notification
+      if (window.showNotification) {
+        window.showNotification("success", "User updated successfully!");
+      }
+
+      if (onUserUpdated) onUserUpdated();
       onClose();
     } catch (err) {
-      alert(
-        "Error updating user: " +
-          (err.response?.data?.detail || JSON.stringify(err.response?.data))
-      );
+      // Show error notification
+      if (window.showNotification) {
+        window.showNotification(
+          "error",
+          "Error updating user: " +
+            (err.response?.data?.detail || JSON.stringify(err.response?.data))
+        );
+      }
     }
   };
 

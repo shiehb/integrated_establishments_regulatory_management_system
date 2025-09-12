@@ -1,29 +1,168 @@
 import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { resetPasswordWithOtp } from "../services/api";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    email: "", // Will be auto-filled from localStorage
+    otp: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [errors, setErrors] = useState({});
+
+  // ✅ Automatically get email from localStorage on component mount
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("resetEmail");
+    if (savedEmail) {
+      setFormData((prev) => ({ ...prev, email: savedEmail }));
+    } else {
+      // If no email is found, redirect back to forgot password
+      navigate("/forgot-password");
+    }
+  }, [navigate]);
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+
+    // Clear error when user types
+    if (errors[e.target.name]) {
+      setErrors({
+        ...errors,
+        [e.target.name]: "",
+      });
+    }
+
+    // Clear general message when user types
+    if (message) {
+      setMessage("");
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.otp.trim()) {
+      newErrors.otp = "OTP is required";
+    } else if (formData.otp.length !== 6) {
+      newErrors.otp = "OTP must be 6 digits";
+    }
+
+    if (!formData.newPassword.trim()) {
+      newErrors.newPassword = "New password is required";
+    } else if (formData.newPassword.length < 8) {
+      newErrors.newPassword = "Password must be at least 8 characters";
+    } else if (!/(?=.*[a-z])/.test(formData.newPassword)) {
+      newErrors.newPassword =
+        "Password must contain at least one lowercase letter";
+    } else if (!/(?=.*[A-Z])/.test(formData.newPassword)) {
+      newErrors.newPassword =
+        "Password must contain at least one uppercase letter";
+    } else if (!/(?=.*\d)/.test(formData.newPassword)) {
+      newErrors.newPassword = "Password must contain at least one number";
+    } else if (!/(?=.*[!@#$%^&*])/.test(formData.newPassword)) {
+      newErrors.newPassword =
+        "Password must contain at least one special character";
+    }
+
+    if (!formData.confirmPassword.trim()) {
+      newErrors.confirmPassword = "Please confirm your password";
+    } else if (formData.confirmPassword !== formData.newPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setMessage("");
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await resetPasswordWithOtp(
+        formData.email,
+        formData.otp,
+        formData.newPassword
+      );
+
+      setMessage(response.detail);
+
+      // Clear the stored email after successful reset
+      localStorage.removeItem("resetEmail");
+
+      // Redirect to login after successful reset
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
+    } catch (error) {
+      setMessage(
+        error.response?.data?.detail ||
+          "Failed to reset password. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Layout>
-      <div className="w-full max-w-md bg-white shadow-lg rounded-2xl p-8">
-        <h2 className="text-2xl font-bold text-center mb-6 text-sky-600">
+      <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-2xl">
+        <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
           Reset Password
         </h2>
-        <form className="space-y-5">
+
+        {message && (
+          <div
+            className={`p-3 mb-4 rounded-lg text-center ${
+              message.includes("successfully")
+                ? "bg-green-100 text-green-800"
+                : "bg-red-100 text-red-800"
+            }`}
+          >
+            {message}
+          </div>
+        )}
+
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          {/* Email field is hidden but still included in the form */}
+          <input type="hidden" name="email" value={formData.email} />
+
           <div>
             <label className="block text-sm font-medium text-gray-700">
               6-Digit Code
             </label>
             <input
               type="text"
-              placeholder="Enter OTP code"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              name="otp"
+              placeholder="Enter OTP code sent to your email"
+              value={formData.otp}
+              onChange={handleChange}
+              required
+              maxLength={6}
+              className={`w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                errors.otp ? "border-red-500" : "border-gray-300"
+              }`}
             />
+            {errors.otp && (
+              <p className="mt-1 text-xs text-red-500">{errors.otp}</p>
+            )}
           </div>
 
           <div>
@@ -33,13 +172,19 @@ export default function ResetPassword() {
             <div className="relative">
               <input
                 type={showNewPassword ? "text" : "password"}
+                name="newPassword"
                 placeholder="Enter new password"
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                value={formData.newPassword}
+                onChange={handleChange}
+                required
+                className={`w-full border rounded-lg px-4 py-2 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                  errors.newPassword ? "border-red-500" : "border-gray-300"
+                }`}
               />
               <button
                 type="button"
                 onClick={() => setShowNewPassword(!showNewPassword)}
-                className="absolute inset-y-0 right-3 flex items-center h-full bg-transparent text-gray-500 hover:text-sky-600"
+                className="absolute inset-y-0 flex items-center h-full text-gray-500 bg-transparent right-3 hover:text-sky-600"
               >
                 {showNewPassword ? (
                   <EyeOff className="w-6 h-6" />
@@ -48,6 +193,9 @@ export default function ResetPassword() {
                 )}
               </button>
             </div>
+            {errors.newPassword && (
+              <p className="mt-1 text-xs text-red-500">{errors.newPassword}</p>
+            )}
           </div>
 
           <div>
@@ -57,13 +205,19 @@ export default function ResetPassword() {
             <div className="relative">
               <input
                 type={showConfirmPassword ? "text" : "password"}
+                name="confirmPassword"
                 placeholder="Confirm new password"
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+                className={`w-full border rounded-lg px-4 py-2 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                  errors.confirmPassword ? "border-red-500" : "border-gray-300"
+                }`}
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute inset-y-0 right-3 flex items-center h-full bg-transparent text-gray-500 hover:text-sky-600"
+                className="absolute inset-y-0 flex items-center h-full text-gray-500 bg-transparent right-3 hover:text-sky-600"
               >
                 {showConfirmPassword ? (
                   <EyeOff className="w-6 h-6" />
@@ -72,26 +226,49 @@ export default function ResetPassword() {
                 )}
               </button>
             </div>
+            {errors.confirmPassword && (
+              <p className="mt-1 text-xs text-red-500">
+                {errors.confirmPassword}
+              </p>
+            )}
           </div>
 
           {/* Action buttons side by side */}
           <div className="flex gap-4 pt-2">
             <button
               type="button"
-              onClick={() => navigate("/")}
-              className="flex-1 py-3 rounded-lg bg-gray-300 text-gray-700 font-medium hover:bg-gray-400 transition"
+              onClick={() => {
+                localStorage.removeItem("resetEmail");
+                navigate("/");
+              }}
+              className="flex-1 py-3 font-medium text-gray-700 transition bg-gray-300 rounded-lg hover:bg-gray-400"
             >
               Cancel
             </button>
 
             <button
-              type="button"
-              className="flex-1 py-3 rounded-lg bg-sky-600 text-white font-medium hover:bg-sky-700 transition"
+              type="submit"
+              disabled={loading}
+              className="flex-1 py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50"
             >
-              Reset Password
+              {loading ? "Processing..." : "Reset Password"}
             </button>
           </div>
         </form>
+
+        {/* Password Requirements */}
+        <div className="p-3 mt-5 rounded-lg bg-gray-50">
+          <h3 className="mb-1 text-xs font-medium text-gray-700">
+            Password Requirements:
+          </h3>
+          <ul className="text-xs text-gray-600">
+            <li>• Minimum 8 characters</li>
+            <li>• At least one uppercase letter (A-Z)</li>
+            <li>• At least one lowercase letter (a-z)</li>
+            <li>• At least one number (0-9)</li>
+            <li>• At least one special character (!@#$%^&* etc.)</li>
+          </ul>
+        </div>
       </div>
     </Layout>
   );

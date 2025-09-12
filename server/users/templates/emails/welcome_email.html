@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Welcome to Our System</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .header {
+        background-color: #f8f9fa;
+        padding: 20px;
+        text-align: center;
+      }
+      .content {
+        padding: 20px;
+        background-color: #fff;
+      }
+      .footer {
+        padding: 20px;
+        text-align: center;
+        font-size: 12px;
+        color: #666;
+      }
+      .password-warning {
+        background-color: #fff3cd;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 15px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Welcome to Our System!</h1>
+      </div>
+
+      <div class="content">
+        <p>
+          Hello {% if user.first_name %}{{ user.first_name }} {{ user.last_name
+          }}{% else %}{{ user.email }}{% endif %},
+        </p>
+
+        <p>
+          Your account has been successfully created. Here are your login
+          details:
+        </p>
+
+        <p><strong>Email:</strong> {{ user.email }}</p>
+        <p><strong>Temporary Password:</strong> {{ default_password }}</p>
+        <p><strong>User Level:</strong> {{ user.userlevel }}</p>
+        {% if user.section %}
+        <p><strong>Section:</strong> {{ user.section }}</p>
+        {% endif %}
+
+        <div class="password-warning">
+          <strong>Important:</strong> For security reasons, please change your
+          password after your first login.
+        </div>
+
+        <p>
+          You can login to the system here:
+          <a href="{{ login_url }}">{{ login_url }}</a>
+        </p>
+
+        <p>
+          If you have any questions, please contact the system administrator.
+        </p>
+      </div>
+
+      <div class="footer">
+        <p>This is an automated message. Please do not reply to this email.</p>
+      </div>
+    </div>
+  </body>
+</html>

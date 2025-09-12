@@ -1,3 +1,4 @@
+// main.jsx
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
@@ -15,11 +16,13 @@ import Users from "./pages/Users";
 import Establishments from "./pages/Establishments";
 import Inspections from "./pages/Inspections";
 import Map from "./pages/Map";
+import Layout from "./Layout"; // Import the Layout component
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
+        {/* Public routes without notifications */}
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
@@ -29,11 +32,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         />
         <Route path="/change-password" element={<ChangePassword />} />
 
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/users" element={<Users />} />
-        <Route path="/map" element={<Map />} />
-        <Route path="/establishments" element={<Establishments />} />
-        <Route path="/inspections" element={<Inspections />} />
+        {/* Protected routes with notifications */}
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Dashboard />} />
+          <Route path="/users" element={<Users />} />
+          <Route path="/map" element={<Map />} />
+          <Route path="/establishments" element={<Establishments />} />
+          <Route path="/inspections" element={<Inspections />} />
+        </Route>
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

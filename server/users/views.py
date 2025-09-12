@@ -8,6 +8,9 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from .utils.email_utils import send_user_welcome_email
+from .utils.otp_utils import generate_otp, verify_otp, send_otp_email
+from django.core.cache import cache
 
 User = get_user_model()
 
@@ -24,6 +27,11 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=data)
         if serializer.is_valid():
             user = serializer.save()  # password automatically set from .env
+            
+            # Send welcome email
+            default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
+            send_user_welcome_email(user, default_password)
+            
             refresh = RefreshToken.for_user(user)
             data = {
                 "user": UserSerializer(user).data,
@@ -119,3 +127,79 @@ def change_password(request):
     user.save()
 
     return Response({'detail': 'Password changed successfully.'})
+
+
+# OTP Views
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def send_otp(request):
+    email = request.data.get('email')
+    
+    if not email:
+        return Response({'detail': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response({'detail': 'User with this email does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Generate OTP
+    otp = generate_otp(email)
+    
+    # Send OTP email
+    if send_otp_email(email, otp):
+        return Response({'detail': 'OTP sent to your email.'}, status=status.HTTP_200_OK)
+    else:
+        return Response({'detail': 'Failed to send OTP email.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def verify_otp_view(request):
+    email = request.data.get('email')
+    otp = request.data.get('otp')
+    
+    if not email or not otp:
+        return Response({'detail': 'Email and OTP are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Verify OTP
+    if verify_otp(email, otp):
+        return Response({'detail': 'OTP verified successfully.'}, status=status.HTTP_200_OK)
+    else:
+        return Response({'detail': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.AllowAny])
+def reset_password_with_otp(request):
+    email = request.data.get('email')
+    otp = request.data.get('otp')
+    new_password = request.data.get('new_password')
+    
+    if not email or not otp or not new_password:
+        return Response({'detail': 'Email, OTP and new password are required.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Verify OTP first
+    if not verify_otp(email, otp):
+        return Response({'detail': 'Invalid or expired OTP.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response({'detail': 'User with this email does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check if new password is the same as default password
+    default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
+    if new_password == default_password:
+        return Response({'detail': 'Cannot use the default password.'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Set new password
+    user.set_password(new_password)
+    user.must_change_password = False
+    user.is_first_login = False
+    user.save()
+    
+    # Clear OTP from cache after successful reset
+    cache.delete(f"otp_{email}")
+    
+    return Response({'detail': 'Password reset successfully.'}, status=status.HTTP_200_OK)

@@ -1,5 +1,16 @@
 from django.urls import path
-from .views import RegisterView, ProfileView, UserListView, LogoutView, UserUpdateView
+from .views import (
+    RegisterView, 
+    ProfileView, 
+    UserListView, 
+    LogoutView, 
+    UserUpdateView,
+    send_otp,
+    verify_otp_view,
+    reset_password_with_otp,
+    toggle_user_active,
+    change_password
+)
 from .serializers import MyTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from . import views
@@ -12,6 +23,11 @@ urlpatterns = [
     path('list/', UserListView.as_view(), name='user-list'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('users/<int:id>/', UserUpdateView.as_view(), name='user-update'),
-    path('toggle-active/<int:pk>/', views.toggle_user_active, name='toggle-user-active'),
-    path('change-password/', views.change_password, name='change-password'),
+    path('toggle-active/<int:pk>/', toggle_user_active, name='toggle-user-active'),
+    path('change-password/', change_password, name='change-password'),
+    
+    # OTP endpoints
+    path('send-otp/', send_otp, name='send-otp'),
+    path('verify-otp/', verify_otp_view, name='verify-otp'),
+    path('reset-password-otp/', reset_password_with_otp, name='reset-password-otp'),
 ]

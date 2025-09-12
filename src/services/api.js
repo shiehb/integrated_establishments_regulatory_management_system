@@ -121,5 +121,31 @@ export const changePassword = async (newPassword) => {
   return res.data;
 };
 
+// ----------------------
+// OTP Functions
+// ----------------------
+
+// 🔐 Send OTP
+export const sendOtp = async (email) => {
+  const res = await api.post("auth/send-otp/", { email });
+  return res.data;
+};
+
+// ✅ Verify OTP
+export const verifyOtp = async (email, otp) => {
+  const res = await api.post("auth/verify-otp/", { email, otp });
+  return res.data;
+};
+
+// 🔑 Reset password with OTP
+export const resetPasswordWithOtp = async (email, otp, newPassword) => {
+  const res = await api.post("auth/reset-password-otp/", {
+    email,
+    otp,
+    new_password: newPassword,
+  });
+  return res.data;
+};
+
 // ✅ also export api instance
 export default api;
