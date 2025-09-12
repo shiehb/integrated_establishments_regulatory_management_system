@@ -1,30 +1,48 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import api from "../../services/api";
 
-export default function EditUser({ userData, onClose }) {
+export default function EditUser({ userData, onClose, onUserUpdated }) {
   const [formData, setFormData] = useState({
-    firstName: userData?.firstName || "",
-    middleName: userData?.middleName || "",
-    lastName: userData?.lastName || "",
+    firstName: userData?.first_name || "",
+    middleName: userData?.middle_name || "",
+    lastName: userData?.last_name || "",
     email: userData?.email || "",
-    userLevel: userData?.userLevel || "",
+    userLevel: userData?.userlevel || "",
     section: userData?.section || "",
   });
   const [submitted, setSubmitted] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  useEffect(() => {
+    console.log("User data received:", userData);
+    console.log("Form data initialized:", {
+      firstName: userData?.first_name,
+      middleName: userData?.middle_name,
+      lastName: userData?.last_name,
+      email: userData?.email,
+      userLevel: userData?.userlevel,
+      section: userData?.section,
+    });
+  }, [userData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
     let newValue = value;
     if (["firstName", "middleName", "lastName"].includes(name)) {
       newValue = value.toUpperCase();
-    } else if (name === "email") {
-      newValue = value.toLowerCase();
     }
-
     setFormData((prev) => {
+      // If userLevel is changed to Legal Unit or Division Chief, clear section
       if (
         name === "userLevel" &&
-        !["sectionchief", "unithead", "monitoringpersonnel"].includes(value)
+        ["Legal Unit", "Division Chief"].includes(value)
+      ) {
+        return { ...prev, [name]: newValue, section: "" };
+      }
+      // If userLevel is changed to other roles that require section, keep section as is
+      if (
+        name === "userLevel" &&
+        !["Section Chief", "Unit Head", "Monitoring Personnel"].includes(value)
       ) {
         return { ...prev, [name]: newValue, section: "" };
       }
@@ -40,19 +58,44 @@ export default function EditUser({ userData, onClose }) {
       !formData.firstName.trim() ||
       !formData.middleName.trim() ||
       !formData.lastName.trim() ||
-      !formData.email.trim() ||
       !formData.userLevel.trim() ||
-      (["sectionchief", "unithead", "monitoringpersonnel"].includes(
+      (["Section Chief", "Unit Head", "Monitoring Personnel"].includes(
         formData.userLevel
       ) &&
         !formData.section.trim())
     ) {
       return;
     }
-
-    console.log("Updated User:", formData);
-    onClose();
+    setShowConfirm(true);
   };
+
+  const confirmEdit = async () => {
+    try {
+      const payload = {
+        email: formData.email,
+        first_name: formData.firstName,
+        middle_name: formData.middleName,
+        last_name: formData.lastName,
+        userlevel: formData.userLevel,
+        ...(formData.section ? { section: formData.section } : {}),
+      };
+      await api.put(`auth/users/${userData.id}/`, payload);
+      alert("✅ User updated successfully!");
+      if (onUserUpdated) onUserUpdated(); // <-- trigger refresh
+      onClose();
+    } catch (err) {
+      alert(
+        "❌ Error updating user: " +
+          (err.response?.data?.detail || JSON.stringify(err.response?.data))
+      );
+    }
+  };
+
+  const isSectionEnabled = [
+    "Section Chief",
+    "Unit Head",
+    "Monitoring Personnel",
+  ].includes(formData.userLevel);
 
   const Label = ({ field, children }) => (
     <label className="flex items-center justify-between text-sm font-medium text-gray-700">
@@ -71,19 +114,13 @@ export default function EditUser({ userData, onClose }) {
     </label>
   );
 
-  const isSectionEnabled = [
-    "sectionchief",
-    "unithead",
-    "monitoringpersonnel",
-  ].includes(formData.userLevel);
-
   return (
     <div className="w-full max-w-2xl p-8 bg-white shadow-lg rounded-2xl">
       <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
         Edit User
       </h2>
       <form onSubmit={handleSubmit} className="space-y-5 text-sm">
-        {/* Row 1: Names */}
+        {/* Names */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <Label field="firstName">First Name</Label>
@@ -129,7 +166,7 @@ export default function EditUser({ userData, onClose }) {
           </div>
         </div>
 
-        {/* Row 2: Email */}
+        {/* Email (disabled) */}
         <div>
           <Label field="email">Email</Label>
           <input
@@ -141,7 +178,7 @@ export default function EditUser({ userData, onClose }) {
           />
         </div>
 
-        {/* Row 3: User Level + Section */}
+        {/* User Level + Section */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <Label field="userLevel">User Level</Label>
@@ -155,6 +192,7 @@ export default function EditUser({ userData, onClose }) {
                   : "border-gray-300"
               }`}
             >
+              <option value="">Select User Level</option>
               <option value="Legal Unit">Legal Unit</option>
               <option value="Division Chief">Division Chief</option>
               <option value="Section Chief">Section Chief</option>
@@ -162,7 +200,6 @@ export default function EditUser({ userData, onClose }) {
               <option value="Monitoring Personnel">Monitoring Personnel</option>
             </select>
           </div>
-
           <div>
             <Label field="section">Section</Label>
             <select
@@ -180,6 +217,7 @@ export default function EditUser({ userData, onClose }) {
                   : ""
               }`}
             >
+              <option value="">Select Section</option>
               <option value="PD-1586">PD-1586</option>
               <option value="RA-6969">RA-6969</option>
               <option value="RA-8749">RA-8749</option>
@@ -206,6 +244,34 @@ export default function EditUser({ userData, onClose }) {
           </button>
         </div>
       </form>
+
+      {/* ✅ Confirmation Dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-lg">
+            <h3 className="mb-2 text-lg font-semibold text-gray-800">
+              Confirm Action
+            </h3>
+            <p className="mb-4 text-gray-600">
+              Are you sure you want to <b>save changes</b> to this user?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmEdit}
+                className="px-4 py-2 text-white rounded bg-sky-600 hover:bg-sky-700"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

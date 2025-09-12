@@ -66,6 +66,8 @@ api.interceptors.response.use(
 // ----------------------
 // Named exports
 // ----------------------
+
+// 🔑 Login
 export const loginUser = async (email, password) => {
   const res = await api.post("auth/token/", { email, password });
   localStorage.setItem("access", res.data.access);
@@ -73,13 +75,41 @@ export const loginUser = async (email, password) => {
   return res.data;
 };
 
+// ➕ Register user
 export const registerUser = async (userData) => {
   const res = await api.post("auth/register/", userData);
   return res.data;
 };
 
+// 🙍 Profile
 export const getProfile = async () => {
   const res = await api.get("auth/me/");
+  return res.data;
+};
+
+// 📋 User list
+export const getUsers = async () => {
+  const res = await api.get("auth/list/");
+  return res.data;
+};
+
+// ✏️ Update user
+export const updateUser = async (id, userData) => {
+  const res = await api.put(`auth/users/${id}/`, userData);
+  return res.data;
+};
+
+// 🚪 Logout
+export const logoutUser = async (refreshToken) => {
+  const res = await api.post("auth/logout/", { refresh: refreshToken });
+  localStorage.removeItem("access");
+  localStorage.removeItem("refresh");
+  return res.data;
+};
+
+// 🚦 Toggle user active status
+export const toggleUserActive = async (id) => {
+  const res = await api.post(`auth/toggle-active/${id}/`);
   return res.data;
 };
 

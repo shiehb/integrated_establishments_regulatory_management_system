@@ -4,11 +4,15 @@ from rest_framework import status, permissions, generics
 from .serializers import RegisterSerializer, UserSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
-from django.conf import settings
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAdminUser
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
 class RegisterView(APIView):
-    permission_classes = [permissions.AllowAny]  # or IsAdminUser if only admins can create users
+    permission_classes = [permissions.AllowAny]  # Or IsAdminUser if only admins can register
 
     def post(self, request):
         # Ensure frontend cannot override the password
@@ -45,6 +49,13 @@ class UserListView(generics.ListAPIView):
         return User.objects.exclude(userlevel="Admin")
 
 
+class UserUpdateView(generics.RetrieveUpdateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = "id"  # URL will use /users/<id>/
+
+
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -52,10 +63,25 @@ class LogoutView(APIView):
         try:
             refresh_token = request.data.get("refresh")
             if not refresh_token:
-                return Response({"detail": "Refresh token required."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"detail": "Refresh token required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
             token = RefreshToken(refresh_token)
             token.blacklist()  # ⛔ blacklist refresh token
             return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
         except Exception:
             return Response({"detail": "Invalid token."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def toggle_user_active(request, pk):
+    try:
+        user = User.objects.get(pk=pk)
+        user.is_active = not user.is_active
+        user.save()
+        return Response({'is_active': user.is_active}, status=status.HTTP_200_OK)
+    except User.DoesNotExist:
+        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)

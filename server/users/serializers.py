@@ -48,4 +48,5 @@ class UserSerializer(serializers.ModelSerializer):
             'userlevel',
             'section',
             'date_joined',
+            'is_active',  # ✅ Added this field
         )

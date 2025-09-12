@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { registerUser } from "../../services/api"; // 🔥 API call
+import api from "../../services/api"; // ✅ use your api service
 
-export default function AddUser({ onClose }) {
+export default function AddUser({ onClose, onUserAdded }) {
   const [formData, setFormData] = useState({
     firstName: "",
     middleName: "",
@@ -11,17 +11,16 @@ export default function AddUser({ onClose }) {
     section: "",
   });
   const [submitted, setSubmitted] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
     let newValue = value;
     if (["firstName", "middleName", "lastName"].includes(name)) {
       newValue = value.toUpperCase();
     } else if (name === "email") {
       newValue = value.toLowerCase();
     }
-
     setFormData((prev) => {
       if (
         name === "userLevel" &&
@@ -33,7 +32,7 @@ export default function AddUser({ onClose }) {
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setSubmitted(true);
 
@@ -50,7 +49,10 @@ export default function AddUser({ onClose }) {
     ) {
       return;
     }
+    setShowConfirm(true);
+  };
 
+  const confirmAdd = async () => {
     try {
       const payload = {
         email: formData.email,
@@ -60,15 +62,23 @@ export default function AddUser({ onClose }) {
         userlevel: formData.userLevel,
         ...(formData.section ? { section: formData.section } : {}),
       };
-      await registerUser(payload);
-      alert("User registered successfully (default password set in backend)!");
+      await api.post("auth/register/", payload);
+      alert("✅ User added successfully!");
+      if (onUserAdded) onUserAdded(); // <-- trigger refresh
       onClose();
     } catch (err) {
       alert(
-        "Error creating user: " + (err.response?.data?.detail || "Unknown")
+        "❌ Error creating user: " +
+          (err.response?.data?.detail || JSON.stringify(err.response?.data))
       );
     }
   };
+
+  const isSectionEnabled = [
+    "Section Chief",
+    "Unit Head",
+    "Monitoring Personnel",
+  ].includes(formData.userLevel);
 
   const Label = ({ field, children }) => (
     <label className="flex items-center justify-between text-sm font-medium text-gray-700">
@@ -87,19 +97,13 @@ export default function AddUser({ onClose }) {
     </label>
   );
 
-  const isSectionEnabled = [
-    "Section Chief",
-    "Unit Head",
-    "Monitoring Personnel",
-  ].includes(formData.userLevel);
-
   return (
     <div className="w-full max-w-2xl p-8 bg-white shadow-lg rounded-2xl">
       <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
         Add User
       </h2>
       <form onSubmit={handleSubmit} className="space-y-5 text-sm">
-        {/* Row 1: Names */}
+        {/* Names */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <Label field="firstName">First Name</Label>
@@ -145,7 +149,7 @@ export default function AddUser({ onClose }) {
           </div>
         </div>
 
-        {/* Row 2: Email */}
+        {/* Email */}
         <div>
           <Label field="email">Email</Label>
           <input
@@ -161,7 +165,7 @@ export default function AddUser({ onClose }) {
           />
         </div>
 
-        {/* Row 3: User Level + Section */}
+        {/* User Level + Section */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <Label field="userLevel">User Level</Label>
@@ -183,7 +187,6 @@ export default function AddUser({ onClose }) {
               <option value="Monitoring Personnel">Monitoring Personnel</option>
             </select>
           </div>
-
           <div>
             <Label field="section">Section</Label>
             <select
@@ -228,6 +231,34 @@ export default function AddUser({ onClose }) {
           </button>
         </div>
       </form>
+
+      {/* ✅ Confirmation Dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-lg">
+            <h3 className="mb-2 text-lg font-semibold text-gray-800">
+              Confirm Action
+            </h3>
+            <p className="mb-4 text-gray-600">
+              Are you sure you want to <b>add</b> this user?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAdd}
+                className="px-4 py-2 text-white rounded bg-sky-600 hover:bg-sky-700"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
