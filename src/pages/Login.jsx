@@ -2,7 +2,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { loginUser } from "../services/api"; // 🔥 add API call
+import { loginUser, getProfile } from "../services/api"; // 🔥 add API call
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -27,8 +27,12 @@ export default function Login() {
     if (newErrors.length > 0) return;
 
     try {
-      await loginUser(email, password); // 🔥 API login
-      navigate("/"); // redirect on success
+      const loginRes = await loginUser(email, password);
+      if (loginRes.must_change_password) {
+        navigate("/force-change-password");
+      } else {
+        navigate("/");
+      }
     } catch (err) {
       setErrors(["Invalid email or password"]);
     }

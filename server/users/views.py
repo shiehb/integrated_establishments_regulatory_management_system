@@ -5,7 +5,8 @@ from .serializers import RegisterSerializer, UserSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from django.conf import settings
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -85,3 +86,25 @@ def toggle_user_active(request, pk):
         return Response({'is_active': user.is_active}, status=status.HTTP_200_OK)
     except User.DoesNotExist:
         return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    user = request.user
+    new_password = request.data.get('new_password')
+
+    if not new_password:
+        return Response({'detail': 'New password required.'}, status=400)
+
+    default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
+
+    if new_password == default_password:
+        return Response({'detail': 'Cannot use the default password again.'}, status=400)
+    user.set_password(new_password)
+    user.must_change_password = False
+    user.is_first_login = False
+    user.save()
+
+    return Response({'detail': 'Password changed successfully.'})
+

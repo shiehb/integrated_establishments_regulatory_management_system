@@ -113,5 +113,13 @@ export const toggleUserActive = async (id) => {
   return res.data;
 };
 
+// 🔑 Change password
+export const changePassword = async (newPassword) => {
+  const res = await api.post("auth/change-password/", {
+    new_password: newPassword,
+  });
+  return res.data;
+};
+
 // ✅ also export api instance
 export default api;
