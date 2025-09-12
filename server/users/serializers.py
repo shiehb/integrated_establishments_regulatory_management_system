@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User
+from .models import User, Notification
 from django.conf import settings
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -82,7 +82,7 @@ class UserSerializer(serializers.ModelSerializer):
         
         return data
 
-# serializers.py
+
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
@@ -102,3 +102,9 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         data['must_change_password'] = self.user.must_change_password
         return data
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = '__all__'

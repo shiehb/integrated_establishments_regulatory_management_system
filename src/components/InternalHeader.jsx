@@ -1,7 +1,8 @@
 import { Bell, User, Search, LogOut, Key } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import api from "../services/api"; // axios instance
-import { useState } from "react"; // Import useState
+import api, { getUnreadNotificationsCount } from "../services/api"; // axios instance
+import { useState, useEffect } from "react"; // Import useState and useEffect
+import Notifications from "./Notifications"; // Import the Notifications component
 
 export default function InternalHeader({
   userLevel = "public",
@@ -9,6 +10,28 @@ export default function InternalHeader({
 }) {
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false); // State for confirmation dialog
+  const [unreadCount, setUnreadCount] = useState(0); // State for unread notifications count
+
+  // Fetch unread notifications count on component mount and periodically
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await getUnreadNotificationsCount();
+        setUnreadCount(response.count);
+      } catch (error) {
+        console.error("Error fetching unread notifications count:", error);
+      }
+    };
+
+    // Fetch immediately
+    fetchUnreadCount();
+
+    // Set up polling to check for new notifications every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+
+    // Clean up interval on component unmount
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -61,13 +84,8 @@ export default function InternalHeader({
 
           {/* Right Side Actions */}
           <div className="flex items-center space-x-4">
-            {/* Notifications */}
-            <button className="relative p-2 text-gray-600 transition-colors bg-transparent rounded-lg hover:text-sky-600 hover:bg-gray-100">
-              <Bell className="w-5 h-5" />
-              <span className="absolute flex items-center justify-center w-4 h-4 text-xs text-white bg-red-500 rounded-full -top-0 -right-1">
-                3
-              </span>
-            </button>
+            {/* Notifications Component */}
+            <Notifications />
 
             {/* User Profile Dropdown */}
             <div className="relative group">

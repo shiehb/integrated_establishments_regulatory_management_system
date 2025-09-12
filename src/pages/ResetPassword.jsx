@@ -1,8 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 import { useState, useEffect } from "react";
-import { Eye, EyeOff } from "lucide-react";
-import { resetPasswordWithOtp } from "../services/api";
+import { Eye, EyeOff, RotateCcw } from "lucide-react";
+import { resetPasswordWithOtp, sendOtp } from "../services/api";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -15,19 +15,32 @@ export default function ResetPassword() {
     confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState({});
+  const [countdown, setCountdown] = useState(0); // Countdown in seconds
 
   // ✅ Automatically get email from localStorage on component mount
   useEffect(() => {
     const savedEmail = localStorage.getItem("resetEmail");
     if (savedEmail) {
       setFormData((prev) => ({ ...prev, email: savedEmail }));
+      // Start countdown when component loads
+      setCountdown(60); // 60 seconds countdown
     } else {
       // If no email is found, redirect back to forgot password
       navigate("/forgot-password");
     }
   }, [navigate]);
+
+  // Countdown timer effect
+  useEffect(() => {
+    let timer;
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   const handleChange = (e) => {
     setFormData({
@@ -121,6 +134,34 @@ export default function ResetPassword() {
     }
   };
 
+  const handleResendOtp = async () => {
+    if (countdown > 0) return; // Prevent resend during countdown
+
+    setResendLoading(true);
+    setMessage("");
+
+    try {
+      const response = await sendOtp(formData.email);
+      setMessage(response.detail);
+
+      // Reset countdown to 60 seconds
+      setCountdown(60);
+    } catch (error) {
+      setMessage(
+        error.response?.data?.detail ||
+          "Failed to resend OTP. Please try again."
+      );
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
   return (
     <Layout>
       <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-2xl">
@@ -131,7 +172,7 @@ export default function ResetPassword() {
         {message && (
           <div
             className={`p-3 mb-4 rounded-lg text-center ${
-              message.includes("successfully")
+              message.includes("sent") || message.includes("successfully")
                 ? "bg-green-100 text-green-800"
                 : "bg-red-100 text-red-800"
             }`}
@@ -145,9 +186,24 @@ export default function ResetPassword() {
           <input type="hidden" name="email" value={formData.email} />
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">
-              6-Digit Code
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">
+                6-Digit Code
+              </label>
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={countdown > 0 || resendLoading}
+                className="flex items-center text-xs bg-transparent text-sky-600 hover:text-sky-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                {resendLoading
+                  ? "Sending..."
+                  : countdown > 0
+                  ? `Resend in ${formatTime(countdown)}`
+                  : "Resend OTP"}
+              </button>
+            </div>
             <input
               type="text"
               name="otp"

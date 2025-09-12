@@ -31,6 +31,40 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     }
   };
 
+  // Function to format date as relative time or full date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+
+    if (diffInSeconds < 60) {
+      return `${diffInSeconds} second${diffInSeconds !== 1 ? "s" : ""} ago`;
+    }
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} minute${diffInMinutes !== 1 ? "s" : ""} ago`;
+    }
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) {
+      return `${diffInHours} hour${diffInHours !== 1 ? "s" : ""} ago`;
+    }
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays === 1) {
+      return "Yesterday";
+    }
+
+    if (diffInDays < 7) {
+      return `${diffInDays} days ago`;
+    }
+
+    // For dates older than 6 days, show full date
+    const options = { year: "numeric", month: "long", day: "numeric" };
+    return date.toLocaleDateString(undefined, options);
+  };
+
   // UsersList.jsx - update the toggleStatus function
   const toggleStatus = async (id) => {
     try {
@@ -112,10 +146,10 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                     : ""}
                 </td>
                 <td className="px-2 border border-gray-300">
-                  {new Date(u.date_joined).toDateString()}
+                  {formatDate(u.date_joined)}
                 </td>
                 <td className="px-2 border border-gray-300">
-                  {new Date().toDateString()}
+                  {u.updated_at ? formatDate(u.updated_at) : "Never updated"}
                 </td>
                 <td className="px-2 text-center border border-gray-300 w-28">
                   <span

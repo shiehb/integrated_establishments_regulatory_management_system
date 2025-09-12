@@ -122,6 +122,40 @@ export const changePassword = async (newPassword) => {
 };
 
 // ----------------------
+// Notification Functions
+// ----------------------
+
+// 🔔 Get all notifications
+export const getNotifications = async () => {
+  const res = await api.get("auth/notifications/");
+  return res.data;
+};
+
+// ✅ Mark notification as read
+export const markNotificationAsRead = async (id) => {
+  const res = await api.post(`auth/notifications/${id}/read/`);
+  return res.data;
+};
+
+// ✅ Mark all notifications as read
+export const markAllNotificationsAsRead = async () => {
+  const res = await api.post("auth/notifications/mark-all-read/");
+  return res.data;
+};
+
+// 🗑️ Delete all notifications
+export const deleteAllNotifications = async () => {
+  const res = await api.delete("auth/notifications/delete-all/");
+  return res.data;
+};
+
+// 🔢 Get unread notifications count
+export const getUnreadNotificationsCount = async () => {
+  const res = await api.get("auth/notifications/unread-count/");
+  return res.data;
+};
+
+// ----------------------
 // OTP Functions
 // ----------------------
 
