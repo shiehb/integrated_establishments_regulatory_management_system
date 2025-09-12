@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
@@ -14,6 +14,7 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import PolygonMap from "../components/establishments/PolygonMap";
 import { Map as MapIcon } from "lucide-react";
+import { getEstablishments } from "../services/api"; // Import the API function
 
 // Initialize leaflet-draw dynamically (client-side only)
 if (typeof window !== "undefined") {
@@ -39,45 +40,50 @@ function MapFocus({ establishment }) {
 
 export default function MapPage() {
   const mapRef = useRef(null);
-
-  const [establishments, setEstablishments] = useState([
-    {
-      id: 1,
-      name: "SAMPLE ESTABLISHMENT",
-      yearEstablished: "2020",
-      address: {
-        street: "123 MAIN ST",
-        barangay: "SANDY",
-        city: "QUEZON CITY",
-        province: "METRO MANILA",
-        postalCode: "1100",
-      },
-      coordinates: { latitude: 14.676, longitude: 121.0437 },
-      polygon: [
-        [14.676, 121.0437],
-        [14.677, 121.0445],
-        [14.6765, 121.045],
-        [14.6755, 121.044],
-      ],
-    },
-    {
-      id: 2,
-      name: "ANOTHER ESTABLISHMENT",
-      yearEstablished: "2018",
-      address: {
-        street: "456 SECOND ST",
-        barangay: "BAGONG SILANG",
-        city: "SAN PABLO",
-        province: "LAGUNA",
-        postalCode: "4000",
-      },
-      coordinates: { latitude: 14.0668, longitude: 121.326 },
-      polygon: null,
-    },
-  ]);
-
+  const [establishments, setEstablishments] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [focusedEstablishment, setFocusedEstablishment] = useState(null);
   const [showPolygonModal, setShowPolygonModal] = useState(false);
+
+  // Fetch establishments from API
+  useEffect(() => {
+    fetchEstablishments();
+  }, []);
+
+  const fetchEstablishments = async () => {
+    setLoading(true);
+    try {
+      const data = await getEstablishments();
+
+      // Transform API data to match your component structure
+      const transformedData = data.map((est) => ({
+        id: est.id,
+        name: est.name,
+        yearEstablished: est.year_established,
+        address: {
+          street: est.street_building || "",
+          barangay: est.barangay,
+          city: est.city,
+          province: est.province,
+          postalCode: est.postal_code,
+        },
+        coordinates: {
+          latitude: parseFloat(est.latitude),
+          longitude: parseFloat(est.longitude),
+        },
+        polygon: est.polygon || null,
+      }));
+
+      setEstablishments(transformedData);
+    } catch (err) {
+      console.error("Error fetching establishments:", err);
+      if (window.showNotification) {
+        window.showNotification("error", "Error fetching establishments");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePolygonSave = (polygon) => {
     if (!focusedEstablishment) return;
@@ -89,6 +95,22 @@ export default function MapPage() {
     setFocusedEstablishment((prev) => (prev ? { ...prev, polygon } : prev));
     setShowPolygonModal(false);
   };
+
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <LayoutWithSidebar userLevel="admin">
+          <div className="p-4 bg-white rounded shadow">
+            <div className="flex items-center justify-center h-64">
+              <p>Loading establishments...</p>
+            </div>
+          </div>
+        </LayoutWithSidebar>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
@@ -200,7 +222,7 @@ export default function MapPage() {
               {focusedEstablishment.name}
             </h3>
             <PolygonMap
-              existingPolygons={focusedEstablishment.polygon || []}
+              establishment={focusedEstablishment}
               onSave={handlePolygonSave}
               onClose={() => setShowPolygonModal(false)}
             />

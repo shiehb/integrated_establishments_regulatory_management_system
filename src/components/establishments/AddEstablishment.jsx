@@ -2,32 +2,13 @@ import { useState } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { createEstablishment } from "../../services/api";
 
 const markerIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
 });
-
-// Geocode: address -> lat/lng
-async function geocodeAddress(address, setFormData) {
-  if (!address) return;
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-    address
-  )}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (data.length > 0) {
-    const { lat, lon } = data[0];
-    setFormData((prev) => ({
-      ...prev,
-      coordinates: {
-        latitude: parseFloat(lat).toFixed(6),
-        longitude: parseFloat(lon).toFixed(6),
-      },
-    }));
-  }
-}
 
 // Reverse geocode: lat/lng -> address
 async function reverseGeocode(lat, lon, setFormData) {
@@ -99,7 +80,7 @@ function LocationMarker({ formData, setFormData }) {
   ) : null;
 }
 
-export default function AddEstablishment({ onClose }) {
+export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
   const [formData, setFormData] = useState({
     name: "",
     natureOfBusiness: "",
@@ -117,6 +98,7 @@ export default function AddEstablishment({ onClose }) {
     },
   });
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -135,24 +117,21 @@ export default function AddEstablishment({ onClose }) {
     setFormData((prev) => ({ ...prev, yearEstablished: val }));
   };
 
-  const handleAddressChange = async (e) => {
+  const handleAddressChange = (e) => {
     const { name, value } = e.target;
-    const newForm = {
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       address: {
-        ...formData.address,
+        ...prev.address,
         [name]: value.toUpperCase(),
       },
-    };
-    setFormData(newForm);
-
-    const address = `${newForm.address.streetBuilding}, ${newForm.address.barangay}, ${newForm.address.city}, ${newForm.address.province}`;
-    await geocodeAddress(address, setFormData);
+    }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitted(true);
+    setLoading(true);
 
     if (
       !formData.name.trim() ||
@@ -166,11 +145,46 @@ export default function AddEstablishment({ onClose }) {
       !formData.coordinates.latitude.trim() ||
       !formData.coordinates.longitude.trim()
     ) {
+      setLoading(false);
       return;
     }
 
-    console.log("New Establishment:", formData);
-    onClose();
+    try {
+      // Format data for API
+      const establishmentData = {
+        name: formData.name.trim(),
+        nature_of_business: formData.natureOfBusiness.trim(),
+        year_established: formData.yearEstablished.trim(),
+        province: formData.address.province.trim(),
+        city: formData.address.city.trim(),
+        barangay: formData.address.barangay.trim(),
+        street_building: formData.address.streetBuilding.trim(),
+        postal_code: formData.address.postalCode.trim(),
+        latitude: formData.coordinates.latitude,
+        longitude: formData.coordinates.longitude,
+      };
+
+      await createEstablishment(establishmentData);
+
+      // Show success notification
+      if (window.showNotification) {
+        window.showNotification("success", "Establishment added successfully!");
+      }
+
+      if (onEstablishmentAdded) onEstablishmentAdded();
+      onClose();
+    } catch (err) {
+      console.error("Error creating establishment:", err);
+      if (window.showNotification) {
+        window.showNotification(
+          "error",
+          "Error creating establishment: " +
+            (err.response?.data?.detail || JSON.stringify(err.response?.data))
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const Label = ({ field, children }) => (
@@ -366,14 +380,16 @@ export default function AddEstablishment({ onClose }) {
             type="button"
             onClick={onClose}
             className="flex-1 py-3 font-medium text-gray-700 bg-gray-300 rounded-lg hover:bg-gray-400"
+            disabled={loading}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="flex-1 py-3 font-medium text-white rounded-lg bg-sky-600 hover:bg-sky-700"
+            className="flex-1 py-3 font-medium text-white rounded-lg bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400"
+            disabled={loading}
           >
-            Save
+            {loading ? "Saving..." : "Save"}
           </button>
         </div>
       </form>

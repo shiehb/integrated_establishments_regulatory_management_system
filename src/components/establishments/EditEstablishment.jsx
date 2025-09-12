@@ -2,32 +2,13 @@ import { useState } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { updateEstablishment } from "../../services/api";
 
 const markerIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
 });
-
-// Geocode: address -> lat/lng
-async function geocodeAddress(address, setFormData) {
-  if (!address) return;
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-    address
-  )}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (data.length > 0) {
-    const { lat, lon } = data[0];
-    setFormData((prev) => ({
-      ...prev,
-      coordinates: {
-        latitude: parseFloat(lat).toFixed(6),
-        longitude: parseFloat(lon).toFixed(6),
-      },
-    }));
-  }
-}
 
 // Reverse geocode: lat/lng -> address
 async function reverseGeocode(lat, lon, setFormData) {
@@ -99,23 +80,30 @@ function LocationMarker({ formData, setFormData }) {
   ) : null;
 }
 
-export default function EditEstablishment({ establishmentData, onClose }) {
+export default function EditEstablishment({
+  establishmentData,
+  onClose,
+  onEstablishmentUpdated,
+}) {
   const [formData, setFormData] = useState({
+    id: establishmentData?.id || "",
     name: establishmentData?.name || "",
-    natureOfBusiness: establishmentData?.natureOfBusiness || "",
-    yearEstablished: establishmentData?.yearEstablished || "",
+    natureOfBusiness: establishmentData?.nature_of_business || "",
+    yearEstablished: establishmentData?.year_established || "",
     address: {
-      province: establishmentData?.address?.province || "",
-      city: establishmentData?.address?.city || "",
-      barangay: establishmentData?.address?.barangay || "",
-      streetBuilding: establishmentData?.address?.streetBuilding || "",
-      postalCode: establishmentData?.address?.postalCode || "",
+      province: establishmentData?.province || "",
+      city: establishmentData?.city || "",
+      barangay: establishmentData?.barangay || "",
+      streetBuilding: establishmentData?.street_building || "",
+      postalCode: establishmentData?.postal_code || "",
     },
     coordinates: {
-      latitude: establishmentData?.coordinates?.latitude || "",
-      longitude: establishmentData?.coordinates?.longitude || "",
+      latitude: establishmentData?.latitude || "",
+      longitude: establishmentData?.longitude || "",
     },
   });
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -134,23 +122,21 @@ export default function EditEstablishment({ establishmentData, onClose }) {
     setFormData((prev) => ({ ...prev, yearEstablished: val }));
   };
 
-  const handleAddressChange = async (e) => {
+  const handleAddressChange = (e) => {
     const { name, value } = e.target;
-    const newForm = {
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       address: {
-        ...formData.address,
+        ...prev.address,
         [name]: value.toUpperCase(),
       },
-    };
-    setFormData(newForm);
-
-    const address = `${newForm.address.streetBuilding}, ${newForm.address.barangay}, ${newForm.address.city}, ${newForm.address.province}`;
-    await geocodeAddress(address, setFormData);
+    }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitted(true);
+    setLoading(true);
 
     if (
       !formData.name.trim() ||
@@ -164,22 +150,67 @@ export default function EditEstablishment({ establishmentData, onClose }) {
       !formData.coordinates.latitude.trim() ||
       !formData.coordinates.longitude.trim()
     ) {
+      setLoading(false);
       return;
     }
 
-    console.log("Updated Establishment:", formData);
-    onClose();
+    try {
+      // Format data for API
+      const establishmentData = {
+        name: formData.name.trim(),
+        nature_of_business: formData.natureOfBusiness.trim(),
+        year_established: formData.yearEstablished.trim(),
+        province: formData.address.province.trim(),
+        city: formData.address.city.trim(),
+        barangay: formData.address.barangay.trim(),
+        street_building: formData.address.streetBuilding.trim(),
+        postal_code: formData.address.postalCode.trim(),
+        latitude: formData.coordinates.latitude,
+        longitude: formData.coordinates.longitude,
+      };
+
+      await updateEstablishment(formData.id, establishmentData);
+
+      // Show success notification
+      if (window.showNotification) {
+        window.showNotification(
+          "success",
+          "Establishment updated successfully!"
+        );
+      }
+
+      if (onEstablishmentUpdated) onEstablishmentUpdated();
+      onClose();
+    } catch (err) {
+      console.error("Error updating establishment:", err);
+      if (window.showNotification) {
+        window.showNotification(
+          "error",
+          "Error updating establishment: " +
+            (err.response?.data?.detail || JSON.stringify(err.response?.data))
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  function Label({ children }) {
-    return (
-      <label className="flex items-center justify-between text-sm font-medium text-gray-700">
-        <span>
-          {children} <span className="text-red-500">*</span>
-        </span>
-      </label>
-    );
-  }
+  const Label = ({ field, children }) => (
+    <label className="flex items-center justify-between text-sm font-medium text-gray-700">
+      <span>
+        {children} <span className="text-red-500">*</span>
+      </span>
+      {submitted &&
+        (field.includes(".")
+          ? !field
+              .split(".")
+              .reduce((o, i) => (o ? o[i] : ""), formData)
+              ?.trim()
+          : !formData[field]?.trim()) && (
+          <span className="text-xs text-red-500">Required</span>
+        )}
+    </label>
+  );
 
   return (
     <div className="grid w-full max-w-6xl grid-cols-1 gap-6 p-8 bg-white shadow-lg md:grid-cols-2 rounded-2xl">
@@ -190,7 +221,7 @@ export default function EditEstablishment({ establishmentData, onClose }) {
 
         {/* Name */}
         <div>
-          <Label>Name</Label>
+          <Label field="name">Name</Label>
           <input
             type="text"
             name="name"
@@ -203,8 +234,7 @@ export default function EditEstablishment({ establishmentData, onClose }) {
         {/* Business & Year Established */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label>Year Established</Label>
-
+            <Label field="yearEstablished">Year Established</Label>
             <input
               type="number"
               name="yearEstablished"
@@ -216,9 +246,8 @@ export default function EditEstablishment({ establishmentData, onClose }) {
               className="w-full p-2 border rounded-lg"
             />
           </div>
-
           <div>
-            <Label>Nature of Business</Label>
+            <Label field="natureOfBusiness">Nature of Business</Label>
             <input
               type="text"
               name="natureOfBusiness"
@@ -232,7 +261,7 @@ export default function EditEstablishment({ establishmentData, onClose }) {
         {/* Province & City */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label>Province</Label>
+            <Label field="address.province">Province</Label>
             <input
               type="text"
               name="province"
@@ -242,7 +271,7 @@ export default function EditEstablishment({ establishmentData, onClose }) {
             />
           </div>
           <div>
-            <Label>City</Label>
+            <Label field="address.city">City</Label>
             <input
               type="text"
               name="city"
@@ -256,7 +285,7 @@ export default function EditEstablishment({ establishmentData, onClose }) {
         {/* Barangay & Street */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label>Barangay</Label>
+            <Label field="address.barangay">Barangay</Label>
             <input
               type="text"
               name="barangay"
@@ -266,7 +295,7 @@ export default function EditEstablishment({ establishmentData, onClose }) {
             />
           </div>
           <div>
-            <Label>Street/Building</Label>
+            <Label field="address.streetBuilding">Street/Building</Label>
             <input
               type="text"
               name="streetBuilding"
@@ -308,13 +337,13 @@ export default function EditEstablishment({ establishmentData, onClose }) {
         {/* Coordinates */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label>Latitude</Label>
+            <Label field="coordinates.latitude">Latitude</Label>
             <input
               type="text"
               name="latitude"
               value={formData.coordinates.latitude}
               onChange={(e) => {
-                // Only allow numbers and a single dot
+                // Only allow numbers, dot, and at most one dot
                 let val = e.target.value
                   .replace(/[^0-9.]/g, "") // Remove non-numeric/non-dot
                   .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : "")); // Only one dot allowed
@@ -330,13 +359,13 @@ export default function EditEstablishment({ establishmentData, onClose }) {
             />
           </div>
           <div>
-            <Label>Longitude</Label>
+            <Label field="coordinates.longitude">Longitude</Label>
             <input
               type="text"
               name="longitude"
               value={formData.coordinates.longitude}
               onChange={(e) => {
-                // Only allow numbers and a single dot
+                // Only allow numbers, dot, and at most one dot
                 let val = e.target.value
                   .replace(/[^0-9.]/g, "")
                   .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : ""));
@@ -359,14 +388,16 @@ export default function EditEstablishment({ establishmentData, onClose }) {
             type="button"
             onClick={onClose}
             className="flex-1 py-3 font-medium text-gray-700 bg-gray-300 rounded-lg hover:bg-gray-400"
+            disabled={loading}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="flex-1 py-3 font-medium text-white rounded-lg bg-sky-600 hover:bg-sky-700"
+            className="flex-1 py-3 font-medium text-white rounded-lg bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400"
+            disabled={loading}
           >
-            Save Changes
+            {loading ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </form>

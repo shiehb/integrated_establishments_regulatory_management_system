@@ -122,6 +122,48 @@ export const changePassword = async (newPassword) => {
 };
 
 // ----------------------
+// Establishment Functions
+// ----------------------
+
+// 📋 Get all establishments
+export const getEstablishments = async () => {
+  const res = await api.get("establishments/");
+  return res.data;
+};
+
+// 📋 Get single establishment
+export const getEstablishment = async (id) => {
+  const res = await api.get(`establishments/${id}/`);
+  return res.data;
+};
+
+// ➕ Create establishment
+export const createEstablishment = async (establishmentData) => {
+  const res = await api.post("establishments/", establishmentData);
+  return res.data;
+};
+
+// ✏️ Update establishment
+export const updateEstablishment = async (id, establishmentData) => {
+  const res = await api.put(`establishments/${id}/`, establishmentData);
+  return res.data;
+};
+
+// 🗑️ Delete establishment
+export const deleteEstablishment = async (id) => {
+  const res = await api.delete(`establishments/${id}/`);
+  return res.data;
+};
+
+// 🔺 Set establishment polygon
+export const setEstablishmentPolygon = async (id, polygonData) => {
+  const res = await api.post(`establishments/${id}/set_polygon/`, {
+    polygon: polygonData,
+  });
+  return res.data;
+};
+
+// ----------------------
 // Notification Functions
 // ----------------------
 

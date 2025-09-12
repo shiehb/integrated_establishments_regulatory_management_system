@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
 import L from "leaflet";
 import * as turf from "@turf/turf";
+import { setEstablishmentPolygon } from "../../services/api";
 
 const markerIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
@@ -11,10 +12,11 @@ const markerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-export default function PolygonMap({ existingPolygons = [], onSave, onClose }) {
+export default function PolygonMap({ establishment, onSave, onClose }) {
   const mapRef = useRef(null);
   const drawnItemsRef = useRef(new L.FeatureGroup());
   const [areaLabel, setAreaLabel] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -45,10 +47,14 @@ export default function PolygonMap({ existingPolygons = [], onSave, onClose }) {
     map.addControl(drawControl);
 
     // ✅ Load existing polygon if available
-    if (existingPolygons && existingPolygons.length > 0) {
-      const poly = L.polygon(existingPolygons, { color: "blue" });
+    if (
+      establishment &&
+      establishment.polygon &&
+      establishment.polygon.length > 0
+    ) {
+      const poly = L.polygon(establishment.polygon, { color: "blue" });
       drawnItemsRef.current.addLayer(poly);
-      computeAreaLabel(existingPolygons);
+      computeAreaLabel(establishment.polygon);
     }
 
     // ✅ Listen for created polygons
@@ -80,7 +86,7 @@ export default function PolygonMap({ existingPolygons = [], onSave, onClose }) {
     return () => {
       map.off();
     };
-  }, [existingPolygons]);
+  }, [establishment]);
 
   const computeAreaLabel = (poly) => {
     if (!poly || poly.length < 3) return;
@@ -95,23 +101,70 @@ export default function PolygonMap({ existingPolygons = [], onSave, onClose }) {
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setLoading(true);
+
     if (drawnItemsRef.current.getLayers().length === 0) {
-      onSave(null);
+      try {
+        // If no polygon, clear any existing polygon
+        await setEstablishmentPolygon(establishment.id, null);
+
+        if (window.showNotification) {
+          window.showNotification("success", "Polygon cleared successfully!");
+        }
+
+        onSave(null);
+      } catch (err) {
+        console.error("Error clearing polygon:", err);
+        if (window.showNotification) {
+          window.showNotification(
+            "error",
+            "Error clearing polygon: " +
+              (err.response?.data?.detail || JSON.stringify(err.response?.data))
+          );
+        }
+      } finally {
+        setLoading(false);
+      }
       return;
     }
-    const layer = drawnItemsRef.current.getLayers()[0];
-    const coords = layer
-      .getLatLngs()[0]
-      .map((latlng) => [latlng.lat, latlng.lng]);
-    onSave(coords);
+
+    try {
+      const layer = drawnItemsRef.current.getLayers()[0];
+      const coords = layer
+        .getLatLngs()[0]
+        .map((latlng) => [latlng.lat, latlng.lng]);
+
+      await setEstablishmentPolygon(establishment.id, coords);
+
+      if (window.showNotification) {
+        window.showNotification("success", "Polygon saved successfully!");
+      }
+
+      onSave(coords);
+    } catch (err) {
+      console.error("Error saving polygon:", err);
+      if (window.showNotification) {
+        window.showNotification(
+          "error",
+          "Error saving polygon: " +
+            (err.response?.data?.detail || JSON.stringify(err.response?.data))
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="h-[600px] w-full">
       <MapContainer
-        center={[14.5995, 120.9842]} // Manila
-        zoom={13}
+        center={
+          establishment
+            ? [establishment.latitude, establishment.longitude]
+            : [14.5995, 120.9842]
+        } // Manila as fallback
+        zoom={15}
         style={{ height: "100%", width: "100%" }}
         whenCreated={(mapInstance) => (mapRef.current = mapInstance)}
       >
@@ -120,10 +173,15 @@ export default function PolygonMap({ existingPolygons = [], onSave, onClose }) {
           attribution="© OpenStreetMap contributors"
         />
 
-        {/* 📍 Sample marker */}
-        <Marker position={[14.5995, 120.9842]} icon={markerIcon}>
-          <Popup>Sample Pin (Manila)</Popup>
-        </Marker>
+        {/* 📍 Establishment marker */}
+        {establishment && (
+          <Marker
+            position={[establishment.latitude, establishment.longitude]}
+            icon={markerIcon}
+          >
+            <Popup>{establishment.name}</Popup>
+          </Marker>
+        )}
 
         {/* Area label */}
         {areaLabel && (
@@ -142,13 +200,15 @@ export default function PolygonMap({ existingPolygons = [], onSave, onClose }) {
       <div className="flex gap-2 mt-2">
         <button
           onClick={handleSave}
-          className="px-4 py-2 text-white bg-green-600 rounded hover:bg-green-700"
+          className="px-4 py-2 text-white bg-green-600 rounded hover:bg-green-700 disabled:bg-gray-400"
+          disabled={loading}
         >
-          Save Polygon
+          {loading ? "Saving..." : "Save Polygon"}
         </button>
         <button
           onClick={onClose}
           className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+          disabled={loading}
         >
           Close
         </button>
