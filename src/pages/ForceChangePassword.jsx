@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Layout from "../components/Layout";
-import { changePassword } from "../services/api"; // implement this in api.js
+import { changePassword } from "../services/api";
 
 export default function ForceChangePassword() {
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -11,7 +11,8 @@ export default function ForceChangePassword() {
     newPassword: "",
     confirmPassword: "",
   });
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -19,16 +20,60 @@ export default function ForceChangePassword() {
       ...formData,
       [e.target.name]: e.target.value,
     });
+    // Clear error when user types
+    if (errors[e.target.name]) {
+      setErrors({
+        ...errors,
+        [e.target.name]: "",
+      });
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.newPassword.trim()) {
+      newErrors.newPassword = "New password is required";
+    } else if (formData.newPassword.length < 8) {
+      newErrors.newPassword = "Password must be at least 8 characters";
+    } else if (!/(?=.*[a-z])/.test(formData.newPassword)) {
+      newErrors.newPassword =
+        "Password must contain at least one lowercase letter";
+    } else if (!/(?=.*[A-Z])/.test(formData.newPassword)) {
+      newErrors.newPassword =
+        "Password must contain at least one uppercase letter";
+    } else if (!/(?=.*\d)/.test(formData.newPassword)) {
+      newErrors.newPassword = "Password must contain at least one number";
+    } else if (!/(?=.*[!@#$%^&*])/.test(formData.newPassword)) {
+      newErrors.newPassword =
+        "Password must contain at least one special character";
+    }
+
+    if (!formData.confirmPassword.trim()) {
+      newErrors.confirmPassword = "Please confirm your password";
+    } else if (formData.confirmPassword !== formData.newPassword) {
+      newErrors.confirmPassword = "Passwords do not match";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // ...validation...
-    try {
-      await changePassword(formData.newPassword);
-      navigate("/"); // Go to dashboard after password change
-    } catch (err) {
-      setError(err.response?.data?.detail || "Failed to change password.");
+
+    if (validateForm()) {
+      setIsSubmitting(true);
+      try {
+        await changePassword(formData.newPassword);
+        navigate("/"); // Go to dashboard after password change
+      } catch (err) {
+        setErrors({
+          submit: err.response?.data?.detail || "Failed to change password.",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -44,8 +89,10 @@ export default function ForceChangePassword() {
           </p>
         </div>
 
-        {error && (
-          <div className="mb-4 text-sm text-center text-red-600">{error}</div>
+        {errors.submit && (
+          <div className="p-3 mb-4 text-sm text-center text-red-600 bg-red-100 rounded-lg">
+            {errors.submit}
+          </div>
         )}
 
         <form className="space-y-4" onSubmit={handleSubmit}>
@@ -60,7 +107,9 @@ export default function ForceChangePassword() {
                 value={formData.newPassword}
                 onChange={handleChange}
                 placeholder="Enter new password"
-                className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className={`w-full px-4 py-2 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                  errors.newPassword ? "border-red-500" : "border-gray-300"
+                }`}
                 required
               />
               <button
@@ -75,6 +124,9 @@ export default function ForceChangePassword() {
                 )}
               </button>
             </div>
+            {errors.newPassword && (
+              <p className="mt-1 text-xs text-red-500">{errors.newPassword}</p>
+            )}
           </div>
 
           <div>
@@ -88,7 +140,9 @@ export default function ForceChangePassword() {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 placeholder="Confirm new password"
-                className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className={`w-full px-4 py-2 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                  errors.confirmPassword ? "border-red-500" : "border-gray-300"
+                }`}
                 required
               />
               <button
@@ -103,13 +157,19 @@ export default function ForceChangePassword() {
                 )}
               </button>
             </div>
+            {errors.confirmPassword && (
+              <p className="mt-1 text-xs text-red-500">
+                {errors.confirmPassword}
+              </p>
+            )}
           </div>
 
           <button
             type="submit"
-            className="w-full py-2.5 rounded-lg bg-sky-600 text-white font-medium hover:bg-sky-700 transition mt-4"
+            className="w-full py-2.5 rounded-lg bg-sky-600 text-white font-medium hover:bg-sky-700 transition mt-4 disabled:bg-gray-400"
+            disabled={isSubmitting}
           >
-            Change Password
+            {isSubmitting ? "Changing Password..." : "Change Password"}
           </button>
         </form>
 

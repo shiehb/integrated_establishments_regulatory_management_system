@@ -32,7 +32,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       newValue = value.toUpperCase();
     }
     setFormData((prev) => {
-      // If userLevel is changed to Legal Unit or Division Chief, clear section
+      // If userLevel is changed to  Legal Unit, or Division Chief, clear section
       if (
         name === "userLevel" &&
         ["Legal Unit", "Division Chief"].includes(value)
@@ -80,12 +80,12 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
         ...(formData.section ? { section: formData.section } : {}),
       };
       await api.put(`auth/users/${userData.id}/`, payload);
-      alert("✅ User updated successfully!");
+      alert("User updated successfully!");
       if (onUserUpdated) onUserUpdated(); // <-- trigger refresh
       onClose();
     } catch (err) {
       alert(
-        "❌ Error updating user: " +
+        "Error updating user: " +
           (err.response?.data?.detail || JSON.stringify(err.response?.data))
       );
     }
@@ -245,7 +245,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
         </div>
       </form>
 
-      {/* ✅ Confirmation Dialog */}
+      {/* Confirmation Dialog */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-lg">

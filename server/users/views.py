@@ -56,6 +56,18 @@ class UserUpdateView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     lookup_field = "id"  # URL will use /users/<id>/
 
+    def perform_update(self, serializer):
+        # Get the validated data
+        validated_data = serializer.validated_data
+        
+        # If userlevel is being changed to Admin, Legal Unit, or Division Chief,
+        # ensure section is set to None
+        userlevel = validated_data.get('userlevel')
+        if userlevel in ["Admin", "Legal Unit", "Division Chief"]:
+            validated_data['section'] = None
+        
+        serializer.save()
+
 
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -107,4 +119,3 @@ def change_password(request):
     user.save()
 
     return Response({'detail': 'Password changed successfully.'})
-

@@ -20,14 +20,21 @@ class RegisterSerializer(serializers.ModelSerializer):
         userlevel = data.get("userlevel")
         section = data.get("section")
 
-        if userlevel in ["sectionchief", "unithead", "monitoringpersonnel"]:
+        # For Admin, Legal Unit, and Division Chief - section must be null/empty
+        if userlevel in ["Admin", "Legal Unit", "Division Chief"]:
+            if section:
+                raise serializers.ValidationError({
+                    "section": "Section must be empty for Admin, Legal Unit, and Division Chief users."
+                })
+            data["section"] = None  # Explicitly set to None
+        
+        # For Section Chief, Unit Head, and Monitoring Personnel - section is required
+        elif userlevel in ["Section Chief", "Unit Head", "Monitoring Personnel"]:
             if not section:
                 raise serializers.ValidationError({
-                    "section": "This field is required for this user level."
+                    "section": "This field is required for Section Chief, Unit Head, and Monitoring Personnel users."
                 })
-        else:
-            data["section"] = ""
-
+        
         return data
 
     def create(self, validated_data):
@@ -52,6 +59,29 @@ class UserSerializer(serializers.ModelSerializer):
             'is_active',  # ✅ Added this field
         )
 
+    def validate(self, data):
+        userlevel = data.get("userlevel")
+        section = data.get("section")
+
+        # If userlevel is being updated, check the section requirements
+        if userlevel:
+            # For Admin, Legal Unit, and Division Chief - section must be null/empty
+            if userlevel in ["Admin", "Legal Unit", "Division Chief"]:
+                if section:
+                    raise serializers.ValidationError({
+                        "section": "Section must be empty for Admin, Legal Unit, and Division Chief users."
+                    })
+                data["section"] = None  # Explicitly set to None
+            
+            # For Section Chief, Unit Head, and Monitoring Personnel - section is required
+            elif userlevel in ["Section Chief", "Unit Head", "Monitoring Personnel"]:
+                if not section:
+                    raise serializers.ValidationError({
+                        "section": "This field is required for Section Chief, Unit Head, and Monitoring Personnel users."
+                    })
+        
+        return data
+
 # serializers.py
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -72,4 +102,3 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
 
         data['must_change_password'] = self.user.must_change_password
         return data
-
