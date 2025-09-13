@@ -9,6 +9,11 @@ import EditUser from "../components/users/EditUser";
 export default function Users() {
   const [showAdd, setShowAdd] = useState(false);
   const [editUser, setEditUser] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const refreshUsers = () => {
+    setRefreshTrigger((prev) => prev + 1);
+  };
 
   return (
     <>
@@ -19,19 +24,27 @@ export default function Users() {
           <UsersList
             onAdd={() => setShowAdd(true)}
             onEdit={(u) => setEditUser(u)}
+            refreshTrigger={refreshTrigger}
           />
 
           {/* Add User Modal */}
           {showAdd && (
             <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-              <AddUser onClose={() => setShowAdd(false)} />
+              <AddUser
+                onClose={() => setShowAdd(false)}
+                onUserAdded={refreshUsers}
+              />
             </div>
           )}
 
           {/* Edit User Modal */}
           {editUser && (
             <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-              <EditUser user={editUser} onClose={() => setEditUser(null)} />
+              <EditUser
+                userData={editUser}
+                onClose={() => setEditUser(null)}
+                onUserUpdated={refreshUsers}
+              />
             </div>
           )}
         </div>

@@ -1,45 +1,38 @@
-import { useState, useEffect, useRef } from "react";
-import { MoreVertical, Pencil, Plus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Pencil, Map, Plus } from "lucide-react";
+import { getEstablishments } from "../../services/api";
 
-export default function EstablishmentList({ onAdd, onEdit }) {
-  const [establishments] = useState([
-    {
-      id: 1,
-      name: "SAMPLE ESTABLISHMENT",
-      natureOfBusiness: "RETAIL",
-      yearEstablished: "2020",
-      address: {
-        province: "METRO MANILA",
-        city: "QUEZON CITY",
-        barangay: "SANDY",
-        street: "123 MAIN ST",
-        postalCode: "1100",
-      },
-      coordinates: {
-        latitude: "14.6760",
-        longitude: "121.0437",
-      },
-      active: true,
-    },
-    {
-      id: 2,
-      name: "ANOTHER ESTABLISHMENT",
-      natureOfBusiness: "WHOLESALE",
-      yearEstablished: "2018",
-      address: {
-        province: "LAGUNA",
-        city: "SAN PABLO",
-        barangay: "BAGONG SILANG",
-        street: "456 SECOND ST",
-        postalCode: "4000",
-      },
-      coordinates: {
-        latitude: "14.0668",
-        longitude: "121.3260",
-      },
-      active: false,
-    },
-  ]);
+export default function EstablishmentList({
+  onAdd,
+  onEdit,
+  onPolygon,
+  refreshTrigger,
+}) {
+  const [establishments, setEstablishments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchEstablishments();
+  }, [refreshTrigger]);
+
+  const fetchEstablishments = async () => {
+    setLoading(true);
+    try {
+      const data = await getEstablishments();
+      setEstablishments(data);
+    } catch (err) {
+      console.error("Error fetching establishments:", err);
+      if (window.showNotification) {
+        window.showNotification("error", "Error fetching establishments");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <p className="p-4">Loading establishments...</p>;
+  }
 
   return (
     <div className="p-4 bg-white rounded shadow">
@@ -54,8 +47,8 @@ export default function EstablishmentList({ onAdd, onEdit }) {
         </button>
       </div>
 
-      {/* Table */}
-      <table className="w-full border border-gray-300 rounded-lg ">
+      {/* Table - Always show the header */}
+      <table className="w-full border border-gray-300 rounded-lg">
         <thead>
           <tr className="text-sm text-center text-white bg-sky-700">
             <th className="p-1 border border-gray-300">Name</th>
@@ -67,89 +60,63 @@ export default function EstablishmentList({ onAdd, onEdit }) {
           </tr>
         </thead>
         <tbody>
-          {establishments.map((e) => (
-            <tr
-              key={e.id}
-              className="p-1 text-xs border border-gray-300 hover:bg-gray-50"
-            >
-              <td className="px-2 border border-gray-300">{e.name}</td>
-              <td className="px-2 border border-gray-300">
-                {e.natureOfBusiness}
-              </td>
-              <td className="px-2 text-center border border-gray-300">
-                {e.yearEstablished}
-              </td>
-              <td className="px-2 border border-gray-300">
-                {e.address.street}, {e.address.barangay}, {e.address.city},{" "}
-                {e.address.province}, {e.address.postalCode}
-              </td>
-              <td className="px-2 text-center border border-gray-300">
-                {e.coordinates.latitude}, {e.coordinates.longitude}
-              </td>
-              <td className="relative w-16 p-1 text-center border border-gray-300">
-                <button
-                  onClick={() => onEdit(e)}
-                  className="flex items-center gap-2 px-2 py-1 hover:text-sky-700 rounded hover:bg-gray-200"
-                  title="Edit"
-                >
-                  <Pencil size={16} />
-                  <span>Edit</span>
-                </button>
+          {establishments.length === 0 ? (
+            // Show message when no establishments
+            <tr>
+              <td
+                colSpan="6"
+                className="px-2 py-4 text-center text-gray-500 border border-gray-300"
+              >
+                There are no establishments to display.
               </td>
             </tr>
-          ))}
+          ) : (
+            // Show establishments when available
+            establishments.map((e) => (
+              <tr
+                key={e.id}
+                className="p-1 text-xs border border-gray-300 hover:bg-gray-50"
+              >
+                <td className="px-2 border border-gray-300">{e.name}</td>
+                <td className="px-2 text-center border border-gray-300">
+                  {e.nature_of_business}
+                </td>
+                <td className="px-2 text-center border border-gray-300">
+                  {e.year_established}
+                </td>
+                <td className="px-2 border border-gray-300">
+                  {e.street_building}, {e.barangay}, {e.city}, {e.province},{" "}
+                  {e.postal_code}
+                </td>
+                <td className="px-2 text-center border border-gray-300">
+                  {e.latitude}, {e.longitude}
+                </td>
+                <td className="relative w-40 p-1 text-center border border-gray-300">
+                  <div className="flex justify-center gap-2">
+                    <button
+                      onClick={() => onEdit(e)}
+                      className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+                      title="Edit"
+                    >
+                      <Pencil size={14} />
+                      Edit
+                    </button>
+
+                    <button
+                      onClick={() => onPolygon(e)}
+                      className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+                      title="Polygon"
+                    >
+                      <Map size={14} />
+                      Polygon
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-/* Dropdown Menu Component */
-function Menu({ establishment, onEdit }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    }
-
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
-    } else {
-      document.removeEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [open]);
-
-  return (
-    <div className="relative inline-block" ref={menuRef}>
-      <button
-        onClick={() => setOpen((prev) => !prev)}
-        className="p-1 text-black bg-transparent rounded-full hover:bg-gray-200"
-      >
-        <MoreVertical size={18} />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 z-10 w-20 mt-2 bg-white border shadow-lg">
-          <button
-            onClick={() => {
-              onEdit(establishment);
-              setOpen(false);
-            }}
-            className="flex items-center w-full gap-2 px-4 py-2 text-left hover:bg-gray-200 hover:text-gray-600"
-          >
-            <Pencil size={16} />
-            <span>Edit</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }

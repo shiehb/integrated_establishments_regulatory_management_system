@@ -2,32 +2,13 @@ import { useState } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import { updateEstablishment } from "../../services/api";
 
 const markerIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
 });
-
-// Geocode: address -> lat/lng
-async function geocodeAddress(address, setFormData) {
-  if (!address) return;
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-    address
-  )}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (data.length > 0) {
-    const { lat, lon } = data[0];
-    setFormData((prev) => ({
-      ...prev,
-      coordinates: {
-        latitude: parseFloat(lat).toFixed(6),
-        longitude: parseFloat(lon).toFixed(6),
-      },
-    }));
-  }
-}
 
 // Reverse geocode: lat/lng -> address
 async function reverseGeocode(lat, lon, setFormData) {
@@ -54,7 +35,7 @@ async function reverseGeocode(lat, lon, setFormData) {
         barangay: (
           data.address.suburb ||
           data.address.neighbourhood ||
-          data.address.village || // ✅ added village fallback
+          data.address.village ||
           prev.address.barangay ||
           ""
         ).toUpperCase(),
@@ -99,24 +80,30 @@ function LocationMarker({ formData, setFormData }) {
   ) : null;
 }
 
-export default function EditEstablishment({ establishmentData, onClose }) {
+export default function EditEstablishment({
+  establishmentData,
+  onClose,
+  onEstablishmentUpdated,
+}) {
   const [formData, setFormData] = useState({
+    id: establishmentData?.id || "",
     name: establishmentData?.name || "",
-    natureOfBusiness: establishmentData?.natureOfBusiness || "",
-    yearEstablished: establishmentData?.yearEstablished || "",
+    natureOfBusiness: establishmentData?.nature_of_business || "",
+    yearEstablished: establishmentData?.year_established || "",
     address: {
-      province: establishmentData?.address?.province || "",
-      city: establishmentData?.address?.city || "",
-      barangay: establishmentData?.address?.barangay || "",
-      streetBuilding: establishmentData?.address?.streetBuilding || "",
-      postalCode: establishmentData?.address?.postalCode || "",
+      province: establishmentData?.province || "",
+      city: establishmentData?.city || "",
+      barangay: establishmentData?.barangay || "",
+      streetBuilding: establishmentData?.street_building || "",
+      postalCode: establishmentData?.postal_code || "",
     },
     coordinates: {
-      latitude: establishmentData?.coordinates?.latitude || "",
-      longitude: establishmentData?.coordinates?.longitude || "",
+      latitude: establishmentData?.latitude || "",
+      longitude: establishmentData?.longitude || "",
     },
   });
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -126,36 +113,30 @@ export default function EditEstablishment({ establishmentData, onClose }) {
     }));
   };
 
-  const handleAddressChange = async (e) => {
-    const { name, value } = e.target;
-    const newForm = {
-      ...formData,
-      address: {
-        ...formData.address,
-        [name]: value.toUpperCase(),
-      },
-    };
-    setFormData(newForm);
-
-    // Geocode when editing address
-    const address = `${newForm.address.streetBuilding}, ${newForm.address.barangay}, ${newForm.address.city}, ${newForm.address.province}`;
-    await geocodeAddress(address, setFormData);
+  const handleYearChange = (e) => {
+    let val = e.target.value.replace(/\D/g, ""); // only digits
+    if (val.length > 4) val = val.slice(0, 4); // max 4 digits
+    if (parseInt(val) > new Date().getFullYear()) {
+      val = new Date().getFullYear().toString(); // cap at current year
+    }
+    setFormData((prev) => ({ ...prev, yearEstablished: val }));
   };
 
-  const handleCoordinatesChange = (e) => {
+  const handleAddressChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      coordinates: {
-        ...prev.coordinates,
-        [name]: value,
+      address: {
+        ...prev.address,
+        [name]: value.toUpperCase(),
       },
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitted(true);
+    setLoading(true);
 
     if (
       !formData.name.trim() ||
@@ -169,43 +150,104 @@ export default function EditEstablishment({ establishmentData, onClose }) {
       !formData.coordinates.latitude.trim() ||
       !formData.coordinates.longitude.trim()
     ) {
+      setLoading(false);
       return;
     }
 
-    console.log("Updated Establishment:", formData);
-    onClose();
+    try {
+      // Format data for API
+      const establishmentData = {
+        name: formData.name.trim(),
+        nature_of_business: formData.natureOfBusiness.trim(),
+        year_established: formData.yearEstablished.trim(),
+        province: formData.address.province.trim(),
+        city: formData.address.city.trim(),
+        barangay: formData.address.barangay.trim(),
+        street_building: formData.address.streetBuilding.trim(),
+        postal_code: formData.address.postalCode.trim(),
+        latitude: formData.coordinates.latitude,
+        longitude: formData.coordinates.longitude,
+      };
+
+      await updateEstablishment(formData.id, establishmentData);
+
+      // Show success notification
+      if (window.showNotification) {
+        window.showNotification(
+          "success",
+          "Establishment updated successfully!"
+        );
+      }
+
+      if (onEstablishmentUpdated) onEstablishmentUpdated();
+      onClose();
+    } catch (err) {
+      console.error("Error updating establishment:", err);
+      if (window.showNotification) {
+        window.showNotification(
+          "error",
+          "Error updating establishment: " +
+            (err.response?.data?.detail || JSON.stringify(err.response?.data))
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const Label = ({ children }) => (
+  const Label = ({ field, children }) => (
     <label className="flex items-center justify-between text-sm font-medium text-gray-700">
       <span>
         {children} <span className="text-red-500">*</span>
       </span>
+      {submitted &&
+        (field.includes(".")
+          ? !field
+              .split(".")
+              .reduce((o, i) => (o ? o[i] : ""), formData)
+              ?.trim()
+          : !formData[field]?.trim()) && (
+          <span className="text-xs text-red-500">Required</span>
+        )}
     </label>
   );
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-6xl p-8 bg-white shadow-lg rounded-2xl">
-      {/* Left: Form */}
+    <div className="grid w-full max-w-6xl grid-cols-1 gap-6 p-8 bg-white shadow-lg md:grid-cols-2 rounded-2xl">
       <form onSubmit={handleSubmit} className="space-y-5 text-sm">
         <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
           Edit Establishment
         </h2>
 
-        {/* Row 1: Name & Business */}
+        {/* Name */}
+        <div>
+          <Label field="name">Name</Label>
+          <input
+            type="text"
+            name="name"
+            value={formData.name}
+            onChange={handleChange}
+            className="w-full p-2 border rounded-lg"
+          />
+        </div>
+
+        {/* Business & Year Established */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label>Name</Label>
+            <Label field="yearEstablished">Year Established</Label>
             <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
+              type="number"
+              name="yearEstablished"
+              value={formData.yearEstablished}
+              onChange={handleYearChange}
+              min="1900"
+              max={new Date().getFullYear()}
+              placeholder="YYYY"
               className="w-full p-2 border rounded-lg"
             />
           </div>
           <div>
-            <Label>Nature of Business</Label>
+            <Label field="natureOfBusiness">Nature of Business</Label>
             <input
               type="text"
               name="natureOfBusiness"
@@ -216,22 +258,10 @@ export default function EditEstablishment({ establishmentData, onClose }) {
           </div>
         </div>
 
-        {/* Row 2: Year */}
-        <div>
-          <Label>Year Established</Label>
-          <input
-            type="text"
-            name="yearEstablished"
-            value={formData.yearEstablished}
-            onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
-          />
-        </div>
-
-        {/* Row 3: Province & City */}
+        {/* Province & City */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label>Province</Label>
+            <Label field="address.province">Province</Label>
             <input
               type="text"
               name="province"
@@ -241,7 +271,7 @@ export default function EditEstablishment({ establishmentData, onClose }) {
             />
           </div>
           <div>
-            <Label>City</Label>
+            <Label field="address.city">City</Label>
             <input
               type="text"
               name="city"
@@ -252,10 +282,10 @@ export default function EditEstablishment({ establishmentData, onClose }) {
           </div>
         </div>
 
-        {/* Row 4: Barangay & Street */}
+        {/* Barangay & Street */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label>Barangay</Label>
+            <Label field="address.barangay">Barangay</Label>
             <input
               type="text"
               name="barangay"
@@ -265,7 +295,7 @@ export default function EditEstablishment({ establishmentData, onClose }) {
             />
           </div>
           <div>
-            <Label>Street/Building</Label>
+            <Label field="address.streetBuilding">Street/Building</Label>
             <input
               type="text"
               name="streetBuilding"
@@ -276,37 +306,77 @@ export default function EditEstablishment({ establishmentData, onClose }) {
           </div>
         </div>
 
-        {/* Row 5: Postal Code */}
-        <div>
-          <Label>Postal Code</Label>
-          <input
-            type="text"
-            name="postalCode"
-            value={formData.address.postalCode}
-            onChange={handleAddressChange}
-            className="w-full p-2 border rounded-lg"
-          />
-        </div>
-
-        {/* Row 6: Coordinates */}
+        {/* Postal Code */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <Label>Latitude</Label>
+            <Label field="address.postalCode">Postal Code</Label>
+            <input
+              type="text"
+              name="postalCode"
+              value={formData.address.postalCode}
+              onChange={(e) => {
+                // Only allow numbers and max 4 digits
+                let val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                setFormData((prev) => ({
+                  ...prev,
+                  address: {
+                    ...prev.address,
+                    postalCode: val,
+                  },
+                }));
+              }}
+              className="w-full p-2 border rounded-lg"
+              maxLength={4}
+              inputMode="numeric"
+              pattern="\d{4}"
+            />
+          </div>
+          <div />
+        </div>
+
+        {/* Coordinates */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div>
+            <Label field="coordinates.latitude">Latitude</Label>
             <input
               type="text"
               name="latitude"
               value={formData.coordinates.latitude}
-              onChange={handleCoordinatesChange}
+              onChange={(e) => {
+                // Only allow numbers, dot, and at most one dot
+                let val = e.target.value
+                  .replace(/[^0-9.]/g, "") // Remove non-numeric/non-dot
+                  .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : "")); // Only one dot allowed
+                setFormData((prev) => ({
+                  ...prev,
+                  coordinates: {
+                    ...prev.coordinates,
+                    latitude: val,
+                  },
+                }));
+              }}
               className="w-full p-2 border rounded-lg"
             />
           </div>
           <div>
-            <Label>Longitude</Label>
+            <Label field="coordinates.longitude">Longitude</Label>
             <input
               type="text"
               name="longitude"
               value={formData.coordinates.longitude}
-              onChange={handleCoordinatesChange}
+              onChange={(e) => {
+                // Only allow numbers, dot, and at most one dot
+                let val = e.target.value
+                  .replace(/[^0-9.]/g, "")
+                  .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : ""));
+                setFormData((prev) => ({
+                  ...prev,
+                  coordinates: {
+                    ...prev.coordinates,
+                    longitude: val,
+                  },
+                }));
+              }}
               className="w-full p-2 border rounded-lg"
             />
           </div>
@@ -318,19 +388,21 @@ export default function EditEstablishment({ establishmentData, onClose }) {
             type="button"
             onClick={onClose}
             className="flex-1 py-3 font-medium text-gray-700 bg-gray-300 rounded-lg hover:bg-gray-400"
+            disabled={loading}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="flex-1 py-3 font-medium text-white rounded-lg bg-sky-600 hover:bg-sky-700"
+            className="flex-1 py-3 font-medium text-white rounded-lg bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400"
+            disabled={loading}
           >
-            Save Changes
+            {loading ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </form>
 
-      {/* Right: Map */}
+      {/* Map */}
       <div className="h-[600px] w-full rounded-lg overflow-hidden shadow">
         <MapContainer
           center={[
