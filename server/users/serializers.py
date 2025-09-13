@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import User, Notification
+from .models import User 
+from notifications.models import Notification  # <-- Add this line
 from django.conf import settings
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 

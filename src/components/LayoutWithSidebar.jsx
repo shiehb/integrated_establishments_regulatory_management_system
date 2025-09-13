@@ -9,17 +9,27 @@ export default function LayoutWithSidebar({ children }) {
     return savedState !== null ? JSON.parse(savedState) : true;
   });
 
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(() => {
+    const cached = localStorage.getItem("profile");
+    return cached ? JSON.parse(cached) : null;
+  });
 
+  // ✅ Save sidebar state
   useEffect(() => {
     localStorage.setItem("sidebarOpen", JSON.stringify(sidebarOpen));
   }, [sidebarOpen]);
 
+  // ✅ Fetch profile only if not cached
   useEffect(() => {
-    getProfile()
-      .then((data) => setProfile(data))
-      .catch(() => setProfile(null));
-  }, []);
+    if (!profile) {
+      getProfile()
+        .then((data) => {
+          setProfile(data);
+          localStorage.setItem("profile", JSON.stringify(data)); // cache it
+        })
+        .catch(() => setProfile(null));
+    }
+  }, [profile]);
 
   return (
     <div className="flex flex-col">

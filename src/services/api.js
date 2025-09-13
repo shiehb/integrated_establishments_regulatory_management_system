@@ -164,36 +164,45 @@ export const setEstablishmentPolygon = async (id, polygonData) => {
 };
 
 // ----------------------
-// Notification Functions
+// Notification Functions (UPDATED)
 // ----------------------
 
 // 🔔 Get all notifications
 export const getNotifications = async () => {
-  const res = await api.get("auth/notifications/");
+  const res = await api.get("notifications/"); // Changed from "auth/notifications/"
   return res.data;
 };
 
 // ✅ Mark notification as read
 export const markNotificationAsRead = async (id) => {
-  const res = await api.post(`auth/notifications/${id}/read/`);
+  const res = await api.post(`notifications/${id}/read/`); // Changed from "auth/notifications/"
   return res.data;
 };
 
 // ✅ Mark all notifications as read
 export const markAllNotificationsAsRead = async () => {
-  const res = await api.post("auth/notifications/mark-all-read/");
+  const res = await api.post("notifications/mark-all-read/"); // Changed from "auth/notifications/"
   return res.data;
 };
 
 // 🗑️ Delete all notifications
 export const deleteAllNotifications = async () => {
-  const res = await api.delete("auth/notifications/delete-all/");
+  const res = await api.delete("notifications/delete-all/"); // Changed from "auth/notifications/"
   return res.data;
 };
 
 // 🔢 Get unread notifications count
 export const getUnreadNotificationsCount = async () => {
-  const res = await api.get("auth/notifications/unread-count/");
+  const res = await api.get("notifications/unread-count/"); // Changed from "auth/notifications/"
+  return res.data;
+};
+
+// 📋 Get establishment notifications
+export const getEstablishmentNotifications = async () => {
+  const res = await api.get("notifications/", {
+    // Changed from "auth/notifications/"
+    params: { notification_type: "new_establishment" },
+  });
   return res.data;
 };
 

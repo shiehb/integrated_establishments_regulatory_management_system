@@ -1,9 +1,10 @@
+# users/views.py
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, generics
-from .serializers import RegisterSerializer, UserSerializer, NotificationSerializer
+from .serializers import RegisterSerializer, UserSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, Notification
+from .models import User
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from django.conf import settings
@@ -11,6 +12,9 @@ from django.contrib.auth import get_user_model
 from .utils.email_utils import send_user_welcome_email
 from .utils.otp_utils import generate_otp, verify_otp, send_otp_email
 from django.core.cache import cache
+
+# Import Notification from the new notifications app
+from notifications.models import Notification
 
 User = get_user_model()
 
@@ -222,56 +226,3 @@ def reset_password_with_otp(request):
     cache.delete(f"otp_{email}")
     
     return Response({'detail': 'Password reset successfully.'}, status=status.HTTP_200_OK)
-
-
-# Notification Views
-class NotificationListView(generics.ListAPIView):
-    serializer_class = NotificationSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_queryset(self):
-        return Notification.objects.filter(recipient=self.request.user).order_by('-created_at')
-
-
-class MarkNotificationAsReadView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def post(self, request, pk):
-        try:
-            notification = Notification.objects.get(pk=pk, recipient=request.user)
-            notification.is_read = True
-            notification.save()
-            return Response({'status': 'marked as read'})
-        except Notification.DoesNotExist:
-            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def mark_all_notifications_read(request):
-    try:
-        # Mark all unread notifications for the current user as read
-        Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
-        return Response({'status': 'all notifications marked as read'})
-    except Exception as e:
-        return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def unread_notifications_count(request):
-    try:
-        count = Notification.objects.filter(recipient=request.user, is_read=False).count()
-        return Response({'count': count})
-    except Exception as e:
-        return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-    
-@api_view(['DELETE'])
-@permission_classes([IsAuthenticated])
-def delete_all_notifications(request):
-    try:
-        # Delete all notifications for the current user
-        Notification.objects.filter(recipient=request.user).delete()
-        return Response({'status': 'all notifications deleted'})
-    except Exception as e:
-        return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)

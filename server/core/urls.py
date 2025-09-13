@@ -4,6 +4,7 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/auth/', include('users.urls')),  # Your existing auth URLs
-    path('api/', include('establishments.urls')),  # Add this line
+    path('api/auth/', include('users.urls')),  # User authentication endpoints
+    path('api/notifications/', include('notifications.urls')),  # Notification endpoints
+    path('api/', include('establishments.urls')),  # Establishments endpoints
 ]

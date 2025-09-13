@@ -1,3 +1,4 @@
+# users/urls.py
 from django.urls import path
 from .views import (
     RegisterView, 
@@ -10,15 +11,9 @@ from .views import (
     reset_password_with_otp,
     toggle_user_active,
     change_password,
-    NotificationListView,
-    MarkNotificationAsReadView,
-    mark_all_notifications_read,
-    unread_notifications_count,
-    delete_all_notifications,
 )
 from .serializers import MyTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from . import views
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -36,10 +31,4 @@ urlpatterns = [
     path('verify-otp/', verify_otp_view, name='verify-otp'),
     path('reset-password-otp/', reset_password_with_otp, name='reset-password-otp'),
     
-    # Notification endpoints
-    path('notifications/', NotificationListView.as_view(), name='notification-list'),
-    path('notifications/<int:pk>/read/', MarkNotificationAsReadView.as_view(), name='mark-notification-read'),
-    path('notifications/mark-all-read/', mark_all_notifications_read, name='mark-all-notifications-read'),
-    path('notifications/unread-count/', unread_notifications_count, name='unread-notifications-count'),
-    path('notifications/delete-all/', delete_all_notifications, name='delete-all-notifications'),
 ]
