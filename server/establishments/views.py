@@ -15,14 +15,33 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        establishment = serializer.save()
-        
-        # Send notifications to specific user roles
-        self.send_establishment_creation_notification(establishment, request.user)
-        
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        try:
+            serializer.is_valid(raise_exception=True)
+            establishment = serializer.save()
+            
+            # Send notifications to specific user roles
+            self.send_establishment_creation_notification(establishment, request.user)
+            
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        except Exception as e:
+            # Return validation errors with proper format
+            return Response(
+                {'error': str(e) if hasattr(e, 'detail') else serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    def update(self, request, *args, **kwargs):
+        try:
+            return super().update(request, *args, **kwargs)
+        except Exception as e:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data)
+            serializer.is_valid(raise_exception=False)
+            return Response(
+                {'error': str(e) if hasattr(e, 'detail') else serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     def send_establishment_creation_notification(self, establishment, created_by):
         # Users who should be notified about new establishments
