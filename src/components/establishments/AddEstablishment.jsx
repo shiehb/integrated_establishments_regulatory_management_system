@@ -99,6 +99,7 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
   });
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -106,6 +107,10 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
       ...prev,
       [name]: value.toUpperCase(),
     }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
   };
 
   const handleYearChange = (e) => {
@@ -132,6 +137,7 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
     e.preventDefault();
     setSubmitted(true);
     setLoading(true);
+    setErrors({});
 
     if (
       !formData.name.trim() ||
@@ -175,7 +181,16 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
       onClose();
     } catch (err) {
       console.error("Error creating establishment:", err);
-      if (window.showNotification) {
+
+      // Handle duplicate name error
+      if (
+        err.response?.data?.error?.name ||
+        err.response?.data?.name ||
+        err.response?.data?.error?.includes("name") ||
+        err.response?.data?.error?.includes("already exists")
+      ) {
+        setErrors({ name: "An establishment with this name already exists." });
+      } else if (window.showNotification) {
         window.showNotification(
           "error",
           "Error creating establishment: " +
@@ -219,8 +234,13 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
             name="name"
             value={formData.name}
             onChange={handleChange}
-            className="w-full p-2 border rounded-lg"
+            className={`w-full p-2 border rounded-lg ${
+              errors.name ? "border-red-500" : ""
+            }`}
           />
+          {errors.name && (
+            <p className="mt-1 text-xs text-red-500">{errors.name}</p>
+          )}
         </div>
 
         {/* Business & Year Established */}

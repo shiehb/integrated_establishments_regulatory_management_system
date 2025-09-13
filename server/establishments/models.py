@@ -1,8 +1,9 @@
 # establishments/models.py
 from django.db import models
+from django.core.exceptions import ValidationError
 
 class Establishment(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, unique=True)
     nature_of_business = models.CharField(max_length=255)
     year_established = models.CharField(max_length=4)
     
@@ -28,7 +29,16 @@ class Establishment(models.Model):
     def __str__(self):
         return self.name
 
+    def clean(self):
+        # Check for case-insensitive duplicates
+        if Establishment.objects.filter(
+            name__iexact=self.name
+        ).exclude(pk=self.pk).exists():
+            raise ValidationError({'name': 'An establishment with this name already exists.'})
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()  # Run validation before saving
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ['-created_at']
-
-        
