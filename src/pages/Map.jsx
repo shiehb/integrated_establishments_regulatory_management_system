@@ -129,10 +129,12 @@ export default function MapPage() {
             <div className="overflow-y-auto">
               <table className="w-full border border-gray-300 rounded-lg">
                 <thead>
-                  <tr className="text-sm text-center text-white bg-sky-700">
+                  <tr className="text-sm text-left text-white bg-sky-700">
                     <th className="p-1 border border-gray-300">Name</th>
                     <th className="p-1 border border-gray-300">Address</th>
-                    <th className="p-1 border border-gray-300">Coordinates</th>
+                    <th className="p-1 text-center border border-gray-300">
+                      Coordinates
+                    </th>
                     <th className="p-1 border border-gray-300"></th>
                   </tr>
                 </thead>
@@ -145,7 +147,9 @@ export default function MapPage() {
                       }`}
                       onClick={() => setFocusedEstablishment(e)}
                     >
-                      <td className="p-2 border border-gray-300">{e.name}</td>
+                      <td className="p-2 font-semibold border border-gray-300">
+                        {e.name}
+                      </td>
                       <td className="p-2 text-left border border-gray-300">
                         {`${e.address.street}, ${e.address.barangay}, ${e.address.city}`}
                       </td>

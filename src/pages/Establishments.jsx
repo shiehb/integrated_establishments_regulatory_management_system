@@ -1,3 +1,4 @@
+// Establishments.jsx
 import { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -6,12 +7,13 @@ import EstablishmentList from "../components/establishments/EstablishmentList";
 import AddEstablishment from "../components/establishments/AddEstablishment";
 import EditEstablishment from "../components/establishments/EditEstablishment";
 import PolygonMap from "../components/establishments/PolygonMap";
-import { getEstablishments } from "../services/api";
+import { getEstablishments, getProfile } from "../services/api";
 
 export default function Establishments() {
   const [showAdd, setShowAdd] = useState(false);
   const [editEstablishment, setEditEstablishment] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [userRole, setUserRole] = useState("");
 
   // 🔹 for Polygon modal
   const [showPolygon, setShowPolygon] = useState(false);
@@ -20,10 +22,20 @@ export default function Establishments() {
   // 🔹 establishments state
   const [establishments, setEstablishments] = useState([]);
 
-  // 🔹 Fetch establishments on component mount and refresh
+  // 🔹 Fetch user profile and establishments on component mount
   useEffect(() => {
+    fetchUserProfile();
     fetchEstablishments();
   }, [refreshTrigger]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const profile = await getProfile();
+      setUserRole(profile.userlevel);
+    } catch (err) {
+      console.error("Error fetching user profile:", err);
+    }
+  };
 
   const fetchEstablishments = async () => {
     try {
@@ -35,6 +47,13 @@ export default function Establishments() {
         window.showNotification("error", "Error fetching establishments");
       }
     }
+  };
+
+  // 🔹 Check if user can add/edit establishments
+  const canEditEstablishments = () => {
+    return ["Admin", "Division Chief", "Section Chief", "Unit Head"].includes(
+      userRole
+    );
   };
 
   // 🔹 handle save polygon
@@ -68,10 +87,11 @@ export default function Establishments() {
               setShowPolygon(true);
             }}
             refreshTrigger={refreshTrigger}
+            canEditEstablishments={canEditEstablishments()}
           />
 
-          {/* Add Establishment Modal */}
-          {showAdd && (
+          {/* Add Establishment Modal - Only show for authorized users */}
+          {showAdd && canEditEstablishments() && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
               <AddEstablishment
                 onClose={() => setShowAdd(false)}
@@ -80,8 +100,8 @@ export default function Establishments() {
             </div>
           )}
 
-          {/* Edit Establishment Modal */}
-          {editEstablishment && (
+          {/* Edit Establishment Modal - Only show for authorized users */}
+          {editEstablishment && canEditEstablishments() && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
               <EditEstablishment
                 establishmentData={editEstablishment}
@@ -91,7 +111,7 @@ export default function Establishments() {
             </div>
           )}
 
-          {/* Polygon Modal */}
+          {/* Polygon Modal - Show for all authenticated users */}
           {showPolygon && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
               <div className="bg-white p-4 rounded-lg w-4/5 h-[700px]">
