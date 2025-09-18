@@ -1,8 +1,5 @@
-export default function ViewInspection({ inspection, onClose }) {
-  const est = inspection.establishments[0] || {};
-  // inspection might carry lawHistory, additional_laws, next_inspection_date
-  const lawHistory = est.law_history || inspection.law_history || [];
-  const nextInspection = inspection.next_inspection_date || "-";
+export default function ViewInspection({ inspection, onClose, onOpenForm }) {
+  const establishment = inspection.establishments[0];
 
   return (
     <div className="w-full max-w-4xl p-6 bg-white rounded-lg shadow-lg">
@@ -21,55 +18,35 @@ export default function ViewInspection({ inspection, onClose }) {
         </thead>
         <tbody>
           <tr className="text-xs text-center">
-            <td className="p-2 border border-gray-300">{est.name}</td>
+            <td className="p-2 border border-gray-300">{establishment.name}</td>
             <td className="p-2 border border-gray-300">
-              {est.natureOfBusiness}
+              {establishment.natureOfBusiness}
             </td>
-            <td className="p-2 border border-gray-300">{`${
-              est.address?.street || ""
-            }, ${est.address?.barangay || ""}, ${est.address?.city || ""}, ${
-              est.address?.province || ""
-            }`}</td>
-            <td className="p-2 border border-gray-300">{`${
-              est.coordinates?.latitude || "-"
-            }, ${est.coordinates?.longitude || "-"}`}</td>
+            <td className="p-2 border border-gray-300">
+              {`${establishment.address.street}, ${establishment.address.barangay}, ${establishment.address.city}, ${establishment.address.province}, ${establishment.address.postalCode}`}
+            </td>
+            <td className="p-2 border border-gray-300">
+              {establishment.coordinates.latitude},{" "}
+              {establishment.coordinates.longitude}
+            </td>
           </tr>
         </tbody>
       </table>
 
-      <div className="grid grid-cols-2 gap-4 mt-4">
-        <div>
-          <p>
-            <strong>Primary Section:</strong> {inspection.section}
-          </p>
-          <p>
-            <strong>Status:</strong> {inspection.status}
-          </p>
-          <p>
-            <strong>Next Inspection Date:</strong> {nextInspection}
-          </p>
-        </div>
+      <p className="mt-4">
+        <strong>Section:</strong> {inspection.section}
+      </p>
+      <p>
+        <strong>Status:</strong> {inspection.status}
+      </p>
 
-        <div>
-          <p>
-            <strong>Law History</strong>
-          </p>
-          {lawHistory.length === 0 ? (
-            <p className="text-sm text-gray-500">No law history recorded.</p>
-          ) : (
-            <ul className="text-sm list-disc list-inside">
-              {lawHistory.map((h, i) => (
-                <li key={i}>
-                  {h.law} — last inspected: {h.last_inspected_date || "-"} —
-                  next: {h.next_inspection_date || "-"}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      <div className="flex justify-end mt-6">
+      <div className="flex justify-end gap-2 mt-6">
+        <button
+          onClick={() => onOpenForm(inspection)}
+          className="px-4 py-2 text-white rounded bg-sky-600 hover:bg-sky-700"
+        >
+          Open Inspection Form
+        </button>
         <button
           onClick={onClose}
           className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"

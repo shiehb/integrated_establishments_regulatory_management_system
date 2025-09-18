@@ -1,117 +1,100 @@
-import React, { useEffect, useState } from "react";
-import { fetchInspectionLists } from "../../services/api";
+import { Eye, Pencil } from "lucide-react";
 
-/**
- * Props:
- *   inspections (optional): if provided, we render from props
- *   onAdd(): called when user clicks New button
- *   onEdit(inspection): edit one inspection
- *   onView(inspection): view one inspection
- */
-export default function InspectionList({
-  inspections: propInspections,
-  onAdd,
-  onEdit,
-  onView,
-}) {
-  const [inspections, setInspections] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const data = await fetchInspectionLists();
-      setInspections(data);
-    } catch (err) {
-      console.error("Error loading inspections", err);
-      setInspections([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    // If inspections are passed as props, use them
-    if (propInspections) {
-      setInspections(propInspections);
-    } else {
-      load();
-    }
-  }, [propInspections]);
+export default function InspectionList({ inspections, onAdd, onEdit, onView }) {
+  // Flatten the inspections to show each establishment in a separate row
+  const flattenedInspections = inspections.flatMap((inspection) =>
+    inspection.establishments.map((establishment) => ({
+      id: inspection.id,
+      establishment,
+      section: inspection.section,
+      status: inspection.status,
+    }))
+  );
 
   return (
     <div className="p-4 bg-white rounded shadow">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">Inspection Lists</h2>
-        {onAdd && (
-          <button
-            onClick={onAdd}
-            className="px-3 py-2 text-white rounded bg-sky-600 hover:bg-sky-700"
-          >
-            + New
-          </button>
-        )}
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-2xl font-bold text-sky-600">Inspections</h1>
+        <button
+          onClick={onAdd}
+          className="flex items-center gap-2 px-2 py-2 text-white rounded-lg bg-sky-600 hover:bg-sky-700"
+        >
+          + New Inspection
+        </button>
       </div>
 
-      {loading && <div>Loading...</div>}
-
-      {!loading && inspections.length === 0 && (
-        <div className="p-6 text-center text-gray-500">
-          No inspections found.
-        </div>
-      )}
-
-      {!loading && inspections.length > 0 && (
-        <table className="w-full text-sm border">
-          <thead className="text-white bg-sky-700">
-            <tr>
-              <th className="p-2 text-left border">ID</th>
-              <th className="p-2 text-left border">Law</th>
-              <th className="p-2 text-left border">Establishment</th>
-              <th className="p-2 text-left border">Status</th>
-              <th className="p-2 text-left border">Created</th>
-              <th className="p-2 text-left border">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {inspections.map((ins) => (
-              <tr key={ins.id} className="hover:bg-gray-50">
-                <td className="p-2 border">{ins.id}</td>
-                <td className="p-2 border">{ins.law}</td>
-                <td className="p-2 border">
-                  {ins.metadata?.establishmentName || "-"}
+      {/* Table */}
+      <table className="w-full border border-gray-300 rounded-lg">
+        <thead>
+          <tr className="text-sm text-center text-white bg-sky-700">
+            <th className="p-1 border">ID</th>
+            <th className="p-1 border">Name</th>
+            <th className="p-1 border">Nature of Business</th>
+            <th className="p-1 border">Address</th>
+            <th className="p-1 border">Coordinates</th>
+            <th className="p-1 border">Section</th>
+            <th className="p-1 border">Status</th>
+            <th className="p-1 border"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {flattenedInspections.map(
+            ({ id, establishment, section, status }) => (
+              <tr
+                key={`${id}-${establishment.id}`}
+                className="text-xs text-center hover:bg-gray-50"
+              >
+                <td className="px-2 border border-gray-300">{id}</td>
+                <td className="px-2 border border-gray-300">
+                  {establishment.name}
                 </td>
-                <td className="p-2 border">{ins.status}</td>
-                <td className="p-2 border">
-                  {ins.created_at
-                    ? new Date(ins.created_at).toLocaleDateString()
-                    : "-"}
+                <td className="px-2 border border-gray-300">
+                  {establishment.natureOfBusiness}
                 </td>
-                <td className="p-2 border">
-                  <div className="flex gap-2">
-                    {onView && (
-                      <button
-                        onClick={() => onView(ins)}
-                        className="px-2 py-1 text-xs text-white rounded bg-sky-600 hover:bg-sky-700"
-                      >
-                        View
-                      </button>
-                    )}
-                    {onEdit && (
-                      <button
-                        onClick={() => onEdit(ins)}
-                        className="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300"
-                      >
-                        Edit
-                      </button>
-                    )}
+                <td className="px-2 border border-gray-300">
+                  {`${establishment.address.street}, ${establishment.address.barangay}, ${establishment.address.city}, ${establishment.address.province}, ${establishment.address.postalCode}`}
+                </td>
+                <td className="px-2 border border-gray-300">
+                  {`${establishment.coordinates.latitude}, ${establishment.coordinates.longitude}`}
+                </td>
+                <td className="px-2 border border-gray-300">{section}</td>
+                <td className="px-2 border border-gray-300">{status}</td>
+                <td className="relative p-1 text-center border border-gray-300 w-35">
+                  <div className="flex justify-center gap-2">
+                    <button
+                      onClick={() =>
+                        onView({
+                          id,
+                          establishments: [establishment],
+                          section,
+                          status,
+                        })
+                      }
+                      className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+                    >
+                      <Eye size={14} /> View
+                    </button>
+                    <button
+                      onClick={() =>
+                        onEdit({
+                          id,
+                          establishments: [establishment],
+                          section,
+                          status,
+                        })
+                      }
+                      className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+                    >
+                      <Pencil size={14} /> Edit
+                    </button>
                   </div>
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+            )
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

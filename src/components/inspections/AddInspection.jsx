@@ -1,50 +1,40 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 
-/**
- Props:
-  - establishments: array of establishment objects (should include id, name, address, coordinates, natureOfBusiness)
-  - onCancel()
-  - onSave(array newInspectionsPayload) -> called with payload ready to send to backend
-  - lawReinspectionRules (optional): object mapping law -> months until next reinspection
-*/
 export default function AddInspection({
-  establishments = [],
+  establishments,
   onCancel,
   onSave,
-  lawReinspectionRules = {
-    "PD-1586": 12,
-    "RA-6969": 6,
-    "RA-8749": 12,
-    "RA-9275": 12,
-    "RA-9003": 12,
-  },
+  getLastInspectionLaw,
 }) {
   const [step, setStep] = useState(1);
   const [selectedEstablishments, setSelectedEstablishments] = useState([]);
-  const [selectedLaw, setSelectedLaw] = useState("");
-  // additional laws per establishment (map estId -> array of extra laws)
-  const [extraLaws, setExtraLaws] = useState({});
+  const [establishmentLaws, setEstablishmentLaws] = useState({}); // { establishmentId: law }
 
-  // helper: toggle main selection
   const toggleSelect = (id) => {
     setSelectedEstablishments((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
-  };
 
-  // toggle extra law for an establishment
-  const toggleExtraLaw = (estId, law) => {
-    setExtraLaws((prev) => {
-      const current = prev[estId] || [];
-      if (current.includes(law)) {
-        return { ...prev, [estId]: current.filter((l) => l !== law) };
-      } else {
-        return { ...prev, [estId]: [...current, law] };
+    // When selecting an establishment, pre-fill with its last inspection law if available
+    if (!establishmentLaws[id]) {
+      const lastLaw = getLastInspectionLaw(id);
+      if (lastLaw) {
+        setEstablishmentLaws((prev) => ({
+          ...prev,
+          [id]: lastLaw,
+        }));
       }
-    });
+    }
   };
 
-  // generate inspection id (kept from your original but stable)
+  const handleLawChange = (establishmentId, law) => {
+    setEstablishmentLaws((prev) => ({
+      ...prev,
+      [establishmentId]: law,
+    }));
+  };
+
+  // Map law → prefix for ID generation
   const sectionPrefixes = {
     "PD-1586": "EIA",
     "RA-6969": "TOX",
@@ -52,37 +42,13 @@ export default function AddInspection({
     "RA-9275": "WATER",
     "RA-9003": "WASTE",
   };
+
   const generateInspectionId = (section, index) => {
     const prefix = sectionPrefixes[section] || "GEN";
     const year = new Date().getFullYear();
-    const timestamp = Date.now().toString().slice(-5);
+    const timestamp = Date.now().toString().slice(-4);
     return `${prefix}-${year}-${timestamp}-${index}`;
   };
-
-  const calculateNextInspection = (law, baseDate = new Date()) => {
-    const months = lawReinspectionRules[law] ?? 12;
-    const d = new Date(baseDate);
-    d.setMonth(d.getMonth() + months);
-    // normalize to yyyy-mm-dd
-    return d.toISOString().split("T")[0];
-  };
-
-  // convenience: law options
-  const lawOptions = useMemo(
-    () => [
-      { id: "PD-1586", label: "PD-1586 (EIA)" },
-      { id: "RA-6969", label: "RA-6969 (Toxic Substances)" },
-      { id: "RA-8749", label: "RA-8749 (Clean Air)" },
-      { id: "RA-9275", label: "RA-9275 (Clean Water)" },
-      { id: "RA-9003", label: "RA-9003 (Solid Waste)" },
-    ],
-    []
-  );
-
-  // Build preview rows for step 2
-  const selectedRows = establishments.filter((e) =>
-    selectedEstablishments.includes(e.id)
-  );
 
   return (
     <div className="w-full p-4 overflow-y-auto bg-white">
@@ -90,50 +56,26 @@ export default function AddInspection({
         New Inspection – Step {step}
       </h2>
 
+      {/* Step 1: Select establishments with individual law selection */}
       {step === 1 && (
-        <div className="grid grid-cols-3 gap-6">
-          <div className="col-span-1">
-            <div className="p-4 border border-gray-200 rounded-lg shadow-sm bg-gray-50">
-              <h3 className="mb-3 text-lg font-semibold text-sky-700">
-                Select Law / Section (Primary)
-              </h3>
-              <select
-                value={selectedLaw}
-                onChange={(e) => setSelectedLaw(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-sky-500"
-              >
-                <option value="">-- Choose a Section --</option>
-                {lawOptions.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-2 text-sm text-gray-600">
-                Primary law will be applied to all selected establishments.
-                After the first inspection, the system records next reinspection
-                date. You may add *additional* laws per establishment below.
-              </p>
-            </div>
-          </div>
-
-          {/* establishments list */}
-          <div className="col-span-2">
-            <h3 className="mb-2 font-medium">Select Establishments</h3>
-            <table className="w-full border border-gray-300 rounded-lg shadow-sm">
-              <thead>
-                <tr className="text-sm text-center text-white bg-sky-700">
-                  <th className="w-10 border border-gray-300"></th>
-                  <th className="p-2 border border-gray-300">Name</th>
-                  <th className="p-2 border border-gray-300">
-                    Nature of Business
-                  </th>
-                  <th className="p-2 border border-gray-300">Address</th>
-                  <th className="p-2 border border-gray-300">Extra Laws</th>
-                </tr>
-              </thead>
-              <tbody>
-                {establishments.map((e) => (
+        <div>
+          <h3 className="mb-4 font-medium">Select Establishments and Laws</h3>
+          <table className="w-full border border-gray-300 rounded-lg shadow-sm">
+            <thead>
+              <tr className="text-sm text-center text-white bg-sky-700">
+                <th className="w-10 border border-gray-300"></th>
+                <th className="p-2 border border-gray-300">Name</th>
+                <th className="p-2 border border-gray-300">
+                  Nature of Business
+                </th>
+                <th className="p-2 border border-gray-300">Address</th>
+                <th className="p-2 border border-gray-300">Select Law</th>
+              </tr>
+            </thead>
+            <tbody>
+              {establishments.map((e) => {
+                const lastLaw = getLastInspectionLaw(e.id);
+                return (
                   <tr
                     key={e.id}
                     className="text-xs text-center transition hover:bg-gray-50"
@@ -148,40 +90,40 @@ export default function AddInspection({
                     </td>
                     <td className="p-2 border border-gray-300">{e.name}</td>
                     <td className="p-2 border border-gray-300">
-                      {e.natureOfBusiness || e.nature_of_business}
+                      {e.natureOfBusiness}
                     </td>
                     <td className="p-2 border border-gray-300">
-                      {`${e.address?.street || e.street_building || ""}, ${
-                        e.address?.barangay || e.barangay || ""
-                      }, ${e.address?.city || e.city || ""}, ${
-                        e.address?.province || e.province || ""
-                      }`}
+                      {`${e.address.street}, ${e.address.barangay}, ${e.address.city}, ${e.address.province}, ${e.address.postalCode}`}
                     </td>
-
                     <td className="p-2 border border-gray-300">
-                      {/* additional laws checkboxes */}
-                      <div className="flex flex-wrap justify-center gap-1">
-                        {lawOptions.map((l) => (
-                          <label
-                            key={l.id}
-                            className="inline-flex items-center gap-1 text-xs"
-                          >
-                            <input
-                              type="checkbox"
-                              disabled={!selectedEstablishments.includes(e.id)}
-                              checked={(extraLaws[e.id] || []).includes(l.id)}
-                              onChange={() => toggleExtraLaw(e.id, l.id)}
-                            />
-                            <span>{l.id}</span>
-                          </label>
-                        ))}
-                      </div>
+                      <select
+                        value={establishmentLaws[e.id] || ""}
+                        onChange={(event) =>
+                          handleLawChange(e.id, event.target.value)
+                        }
+                        className="w-full p-1 border border-gray-300 rounded"
+                        disabled={!selectedEstablishments.includes(e.id)}
+                      >
+                        <option value="">-- Select Law --</option>
+                        <option value="PD-1586">PD-1586 (EIA)</option>
+                        <option value="RA-6969">
+                          RA-6969 (Toxic Substances)
+                        </option>
+                        <option value="RA-8749">RA-8749 (Clean Air)</option>
+                        <option value="RA-9275">RA-9275 (Clean Water)</option>
+                        <option value="RA-9003">RA-9003 (Solid Waste)</option>
+                      </select>
+                      {lastLaw && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Last inspection: {lastLaw}
+                        </p>
+                      )}
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -194,38 +136,43 @@ export default function AddInspection({
               <tr className="text-sm text-center text-white bg-sky-700">
                 <th className="p-1 border">Inspection ID</th>
                 <th className="p-1 border">Name</th>
-                <th className="p-1 border">Primary Law</th>
-                <th className="p-1 border">Additional Laws</th>
-                <th className="p-1 border">Next Inspection Date</th>
+                <th className="p-1 border">Nature</th>
+                <th className="p-1 border">Address</th>
+                <th className="p-1 border">Coordinates</th>
+                <th className="p-1 border">Section</th>
                 <th className="p-1 border">Status</th>
               </tr>
             </thead>
             <tbody>
-              {selectedRows.map((e, index) => {
-                const id = generateInspectionId(selectedLaw, index);
-                const extras = extraLaws[e.id] || [];
-                const nextDate = calculateNextInspection(selectedLaw);
-                return (
-                  <tr key={id} className="text-xs text-center">
-                    <td className="p-2 border border-gray-300">{id}</td>
+              {establishments
+                .filter((e) => selectedEstablishments.includes(e.id))
+                .map((e, index) => (
+                  <tr key={e.id} className="text-xs text-center">
+                    <td className="p-2 border border-gray-300">
+                      {generateInspectionId(establishmentLaws[e.id], index)}
+                    </td>
                     <td className="p-2 border border-gray-300">{e.name}</td>
                     <td className="p-2 border border-gray-300">
-                      {selectedLaw}
+                      {e.natureOfBusiness}
                     </td>
                     <td className="p-2 border border-gray-300">
-                      {extras.join(", ") || "-"}
+                      {`${e.address.street}, ${e.address.barangay}, ${e.address.city}, ${e.address.province}, ${e.address.postalCode}`}
                     </td>
-                    <td className="p-2 border border-gray-300">{nextDate}</td>
+                    <td className="p-2 border border-gray-300">
+                      {e.coordinates.latitude}, {e.coordinates.longitude}
+                    </td>
+                    <td className="p-2 border border-gray-300">
+                      {establishmentLaws[e.id]}
+                    </td>
                     <td className="p-2 border border-gray-300">Pending</td>
                   </tr>
-                );
-              })}
+                ))}
             </tbody>
           </table>
         </div>
       )}
 
-      {/* Footer */}
+      {/* Footer buttons */}
       <div className="flex justify-end gap-3 mt-8">
         <button
           onClick={onCancel}
@@ -237,7 +184,10 @@ export default function AddInspection({
         {step === 1 && (
           <button
             onClick={() => setStep(2)}
-            disabled={selectedEstablishments.length === 0 || !selectedLaw}
+            disabled={
+              selectedEstablishments.length === 0 ||
+              selectedEstablishments.some((id) => !establishmentLaws[id])
+            }
             className="p-2 px-4 text-white rounded bg-sky-600 hover:bg-sky-700 disabled:opacity-50"
           >
             Next
@@ -247,58 +197,21 @@ export default function AddInspection({
         {step === 2 && (
           <button
             onClick={() => {
-              // Build backend payload:
-              // - inspectionList (single object)
-              // - items: per establishment: primary law + extra laws + nextInspectionDate
-              const now = new Date().toISOString();
-              const payload = {
-                created_at: now,
-                created_by: "CURRENT_USER_ID", // replace by auth user id in real integration
-                law: selectedLaw,
-                status: "PENDING",
-                items: selectedRows.map((e, idx) => {
-                  const id = generateInspectionId(selectedLaw, idx);
-                  const extras = extraLaws[e.id] || [];
-                  const nextInspectionDate =
-                    calculateNextInspection(selectedLaw);
-                  // Also prepare establishment law history updates
-                  const establishmentLaws = [
-                    {
-                      establishment_id: e.id,
-                      law: selectedLaw,
-                      last_inspected_date: null, // will be set upon completion
-                      next_inspection_date: nextInspectionDate,
-                    },
-                    // extras
-                    ...extras.map((law) => ({
-                      establishment_id: e.id,
-                      law,
-                      last_inspected_date: null,
-                      next_inspection_date: calculateNextInspection(law),
-                    })),
-                  ];
+              // Create separate inspection for each selected establishment
+              const newInspections = establishments
+                .filter((e) => selectedEstablishments.includes(e.id))
+                .map((e, index) => ({
+                  id: generateInspectionId(establishmentLaws[e.id], index),
+                  establishmentId: e.id,
+                  section: establishmentLaws[e.id],
+                  status: "PENDING",
+                }));
 
-                  return {
-                    id,
-                    establishment_id: e.id,
-                    establishment_name: e.name,
-                    primary_law: selectedLaw,
-                    additional_laws: extras,
-                    status: "PENDING",
-                    scheduled_date: null,
-                    next_inspection_date: nextInspectionDate,
-                    created_at: now,
-                    establishment_laws: establishmentLaws,
-                  };
-                }),
-              };
-
-              // pass to parent for API call
-              onSave(payload);
+              onSave(newInspections);
             }}
             className="p-2 px-4 text-white bg-green-600 rounded hover:bg-green-700"
           >
-            Confirm & Create
+            Confirm
           </button>
         )}
       </div>
