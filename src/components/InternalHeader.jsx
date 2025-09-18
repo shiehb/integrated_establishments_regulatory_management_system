@@ -1,18 +1,19 @@
 import { Bell, User, Search, LogOut, Key } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import api, { getUnreadNotificationsCount } from "../services/api"; // axios instance
-import { useState, useEffect } from "react"; // Import useState and useEffect
-import Notifications from "./Notifications"; // Import the Notifications component
+import api, { getUnreadNotificationsCount } from "../services/api";
+import { useState, useEffect } from "react";
+import Notifications from "./Notifications";
 
 export default function InternalHeader({
   userLevel = "public",
   userName = "John Doe",
+  onSearch, // 🔹 callback prop
 }) {
   const navigate = useNavigate();
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false); // State for confirmation dialog
-  const [unreadCount, setUnreadCount] = useState(0); // State for unread notifications count
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState(""); // 🔹 state for search input
 
-  // Fetch unread notifications count on component mount and periodically
   useEffect(() => {
     const fetchUnreadCount = async () => {
       try {
@@ -22,14 +23,8 @@ export default function InternalHeader({
         console.error("Error fetching unread notifications count:", error);
       }
     };
-
-    // Fetch immediately
     fetchUnreadCount();
-
-    // Set up polling to check for new notifications every 30 seconds
     const interval = setInterval(fetchUnreadCount, 30000);
-
-    // Clean up interval on component unmount
     return () => clearInterval(interval);
   }, []);
 
@@ -37,33 +32,28 @@ export default function InternalHeader({
     try {
       const refresh = localStorage.getItem("refresh");
       if (refresh) {
-        await api.post("auth/logout/", { refresh }); // call backend logout
+        await api.post("auth/logout/", { refresh });
       }
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      // Always clear auth data
-      localStorage.removeItem("access");
-      localStorage.removeItem("refresh");
-      localStorage.removeItem("sidebarOpen");
-      localStorage.removeItem("user");
-      sessionStorage.clear();
       localStorage.clear();
-
-      navigate("/login"); // redirect to login
+      sessionStorage.clear();
+      navigate("/login");
     }
   };
 
-  const handleLogoutClick = () => {
-    setShowLogoutConfirm(true); // Show confirmation dialog
-  };
+  const handleLogoutClick = () => setShowLogoutConfirm(true);
+  const handleCancelLogout = () => setShowLogoutConfirm(false);
+  const handleChangePassword = () => navigate("/change-password");
 
-  const handleCancelLogout = () => {
-    setShowLogoutConfirm(false); // Hide confirmation dialog
-  };
-
-  const handleChangePassword = () => {
-    navigate("/change-password"); // Navigate to change password page
+  // 🔹 search handler
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    if (onSearch) {
+      onSearch(value); // pass query to parent
+    }
   };
 
   return (
@@ -77,19 +67,20 @@ export default function InternalHeader({
               <input
                 type="text"
                 placeholder="Search..."
-                className="w-full py-1 pl-10 pr-4 bg-gray-100 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                value={searchQuery}
+                onChange={handleSearchChange} // 🔹 bind handler
+                className="w-full py-1 pl-10 pr-4 bg-gray-100 border border-gray-300 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               />
             </div>
           </div>
 
           {/* Right Side Actions */}
-          <div className="flex items-center space-x-4">
-            {/* Notifications Component */}
+          <div className="flex items-center space-x-2 ">
             <Notifications />
 
             {/* User Profile Dropdown */}
             <div className="relative group">
-              <button className="flex items-center px-2 space-x-2 text-gray-700 transition-colors bg-transparent rounded-lg hover:bg-gray-100">
+              <button className="flex items-center px-2 space-x-2 text-gray-700 transition-colors bg-transparent rounded-lg hover:bg-gray-200">
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-sky-600">
                   <User className="w-4 h-4 text-white" />
                 </div>
@@ -101,16 +92,16 @@ export default function InternalHeader({
                 </div>
               </button>
 
-              {/* Dropdown Menu */}
+              {/* Dropdown */}
               <div className="absolute right-0 z-50 invisible mt-4 transition-all duration-200 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 w-43 top-full group-hover:opacity-100 group-hover:visible">
                 <div className="py-2">
-                  <button className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 bg-transparent hover:bg-gray-100">
+                  <button className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
                     <User className="w-4 h-4 mr-2" />
                     Profile
                   </button>
                   <button
                     onClick={handleChangePassword}
-                    className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 bg-transparent hover:bg-gray-100"
+                    className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100"
                   >
                     <Key className="w-4 h-4 mr-2" />
                     Change Password
@@ -118,7 +109,7 @@ export default function InternalHeader({
                   <div className="my-1 border-t border-gray-200"></div>
                   <button
                     onClick={handleLogoutClick}
-                    className="flex items-center w-full px-4 py-2 text-sm text-left text-red-600 bg-transparent hover:bg-gray-100"
+                    className="flex items-center w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100"
                   >
                     <LogOut className="w-4 h-4 mr-2" />
                     Logout
@@ -130,7 +121,7 @@ export default function InternalHeader({
         </div>
       </header>
 
-      {/* Logout Confirmation Dialog */}
+      {/* Logout Confirmation */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-lg">

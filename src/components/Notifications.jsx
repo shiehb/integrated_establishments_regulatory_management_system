@@ -180,11 +180,11 @@ export default function Notifications() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
-        className="relative p-2 text-gray-600 transition-colors bg-transparent rounded-lg hover:text-sky-600 hover:bg-gray-100"
+        className="relative p-2 text-gray-600 transition-colors bg-gray-100 rounded-lg hover:text-sky-600 hover:bg-gray-200"
         onClick={handleDropdownToggle}
         aria-label="Notifications"
       >
-        <Bell className="w-5 h-5" />
+        <Bell className="w-5 h-5 " />
         {unreadCount > 0 && (
           <span className="absolute flex items-center justify-center w-4 h-4 text-xs text-white bg-red-500 rounded-full -top-0 -right-1">
             {unreadCount > 9 ? "9+" : unreadCount}

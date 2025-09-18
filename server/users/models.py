@@ -45,11 +45,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     middle_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     userlevel = models.CharField(max_length=50, choices=USERLEVEL_CHOICES, blank=True)
-    section = models.CharField(max_length=50, choices=SECTION_CHOICES, null=True)
+    section = models.CharField(max_length=50, choices=SECTION_CHOICES, null=True, blank=True)
 
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     date_joined = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)  # NEW: Auto-update timestamp
     is_first_login = models.BooleanField(default=True)
     must_change_password = models.BooleanField(default=False)
 
@@ -60,3 +61,9 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f"{self.email} ({self.userlevel})"
+
+    def save(self, *args, **kwargs):
+        # Update the updated_at field on every save
+        if self.pk:  # Only update if the object already exists
+            self.updated_at = timezone.now()
+        super().save(*args, **kwargs)

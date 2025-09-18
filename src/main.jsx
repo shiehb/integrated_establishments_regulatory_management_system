@@ -16,24 +16,65 @@ import Users from "./pages/Users";
 import Establishments from "./pages/Establishments";
 import Inspections from "./pages/Inspections";
 import Map from "./pages/Map";
-import Layout from "./Layout"; // Import the Layout component
+import Layout from "./Layout";
+import PublicRoute from "./components/PublicRoute";
+import PrivateRoute from "./components/PrivateRoute";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
         {/* Public routes without notifications */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route
+          path="/login"
+          element={
+            <PublicRoute restricted={true}>
+              <Login />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <PublicRoute>
+              <ForgotPassword />
+            </PublicRoute>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <PublicRoute>
+              <ResetPassword />
+            </PublicRoute>
+          }
+        />
         <Route
           path="/force-change-password"
-          element={<ForceChangePassword />}
+          element={
+            <PublicRoute>
+              <ForceChangePassword />
+            </PublicRoute>
+          }
         />
-        <Route path="/change-password" element={<ChangePassword />} />
+        <Route
+          path="/change-password"
+          element={
+            <PrivateRoute>
+              <ChangePassword />
+            </PrivateRoute>
+          }
+        />
 
         {/* Protected routes with notifications */}
-        <Route path="/" element={<Layout />}>
+        <Route
+          path="/"
+          element={
+            <PrivateRoute>
+              <Layout />
+            </PrivateRoute>
+          }
+        >
           <Route index element={<Dashboard />} />
           <Route path="/users" element={<Users />} />
           <Route path="/map" element={<Map />} />

@@ -1,7 +1,31 @@
+// LayoutWithSidebar.jsx
 import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import InternalHeader from "./InternalHeader";
-import { getProfile } from "../services/api"; // 🔥 API call
+import { getProfile } from "../services/api";
+
+// Helper: set cache with expiry
+function setCache(key, value, ttlMinutes) {
+  const expiry = Date.now() + ttlMinutes * 60 * 1000; // TTL in ms
+  localStorage.setItem(key, JSON.stringify({ value, expiry }));
+}
+
+// Helper: get cache and check expiry
+function getCache(key) {
+  const cached = localStorage.getItem(key);
+  if (!cached) return null;
+
+  try {
+    const { value, expiry } = JSON.parse(cached);
+    if (Date.now() > expiry) {
+      localStorage.removeItem(key); // expired → remove
+      return null;
+    }
+    return value;
+  } catch {
+    return null;
+  }
+}
 
 export default function LayoutWithSidebar({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -10,8 +34,7 @@ export default function LayoutWithSidebar({ children }) {
   });
 
   const [profile, setProfile] = useState(() => {
-    const cached = localStorage.getItem("profile");
-    return cached ? JSON.parse(cached) : null;
+    return getCache("profile"); // ⏳ get cached profile with expiry
   });
 
   // ✅ Save sidebar state
@@ -19,13 +42,13 @@ export default function LayoutWithSidebar({ children }) {
     localStorage.setItem("sidebarOpen", JSON.stringify(sidebarOpen));
   }, [sidebarOpen]);
 
-  // ✅ Fetch profile only if not cached
+  // ✅ Fetch profile if not cached or expired
   useEffect(() => {
     if (!profile) {
       getProfile()
         .then((data) => {
           setProfile(data);
-          localStorage.setItem("profile", JSON.stringify(data)); // cache it
+          setCache("profile", data, 10); // ⏳ cache for 10 minutes
         })
         .catch(() => setProfile(null));
     }

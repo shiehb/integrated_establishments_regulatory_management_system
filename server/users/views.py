@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from .utils.email_utils import send_user_welcome_email
 from .utils.otp_utils import generate_otp, verify_otp, send_otp_email
 from django.core.cache import cache
+from django.utils import timezone
 
 # Import Notification from the new notifications app
 from notifications.models import Notification
@@ -78,7 +79,7 @@ class UserListView(generics.ListAPIView):
 
     def get_queryset(self):
         # ✅ Exclude Admin accounts from the user list
-        return User.objects.exclude(userlevel="Admin")
+        return User.objects.exclude(userlevel="Admin").order_by('-updated_at')  # NEW: Order by updated_at
 
 
 class UserUpdateView(generics.RetrieveUpdateAPIView):
@@ -97,6 +98,7 @@ class UserUpdateView(generics.RetrieveUpdateAPIView):
         if userlevel in ["Admin", "Legal Unit", "Division Chief"]:
             validated_data['section'] = None
         
+        # This will automatically update the updated_at field due to auto_now=True
         serializer.save()
 
 
@@ -125,8 +127,12 @@ def toggle_user_active(request, pk):
     try:
         user = User.objects.get(pk=pk)
         user.is_active = not user.is_active
+        user.updated_at = timezone.now()  # NEW: Explicitly update timestamp
         user.save()
-        return Response({'is_active': user.is_active}, status=status.HTTP_200_OK)
+        return Response({
+            'is_active': user.is_active,
+            'updated_at': user.updated_at  # NEW: Return updated timestamp
+        }, status=status.HTTP_200_OK)
     except User.DoesNotExist:
         return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -144,12 +150,17 @@ def change_password(request):
 
     if new_password == default_password:
         return Response({'detail': 'Cannot use the default password again.'}, status=400)
+    
     user.set_password(new_password)
     user.must_change_password = False
     user.is_first_login = False
+    user.updated_at = timezone.now()  # NEW: Explicitly update timestamp
     user.save()
 
-    return Response({'detail': 'Password changed successfully.'})
+    return Response({
+        'detail': 'Password changed successfully.',
+        'updated_at': user.updated_at  # NEW: Return updated timestamp
+    })
 
 
 # OTP Views
@@ -220,9 +231,13 @@ def reset_password_with_otp(request):
     user.set_password(new_password)
     user.must_change_password = False
     user.is_first_login = False
+    user.updated_at = timezone.now()  # NEW: Explicitly update timestamp
     user.save()
     
     # Clear OTP from cache after successful reset
     cache.delete(f"otp_{email}")
     
-    return Response({'detail': 'Password reset successfully.'}, status=status.HTTP_200_OK)
+    return Response({
+        'detail': 'Password reset successfully.',
+        'updated_at': user.updated_at  # NEW: Return updated timestamp
+    }, status=status.HTTP_200_OK)

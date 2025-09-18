@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import User 
-from notifications.models import Notification  # <-- Add this line
+from notifications.models import Notification
 from django.conf import settings
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -27,7 +27,7 @@ class RegisterSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     "section": "Section must be empty for Admin, Legal Unit, and Division Chief users."
                 })
-            data["section"] = None  # Explicitly set to None
+            data["section"] = None
         
         # For Section Chief, Unit Head, and Monitoring Personnel - section is required
         elif userlevel in ["Section Chief", "Unit Head", "Monitoring Personnel"]:
@@ -57,7 +57,8 @@ class UserSerializer(serializers.ModelSerializer):
             'userlevel',
             'section',
             'date_joined',
-            'is_active',  # ✅ Added this field
+            'updated_at',  # NEW: Include updated_at field
+            'is_active',
         )
 
     def validate(self, data):
@@ -72,7 +73,7 @@ class UserSerializer(serializers.ModelSerializer):
                     raise serializers.ValidationError({
                         "section": "Section must be empty for Admin, Legal Unit, and Division Chief users."
                     })
-                data["section"] = None  # Explicitly set to None
+                data["section"] = None
             
             # For Section Chief, Unit Head, and Monitoring Personnel - section is required
             elif userlevel in ["Section Chief", "Unit Head", "Monitoring Personnel"]:
@@ -99,7 +100,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Force password change if first login or still using default password
         if self.user.is_first_login or self.user.check_password(default_password):
             self.user.must_change_password = True
-            self.user.save()
+            self.user.save()  # This will update updated_at
 
         data['must_change_password'] = self.user.must_change_password
         return data
