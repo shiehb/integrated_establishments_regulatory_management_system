@@ -15,6 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import Users from "./pages/Users";
 import Establishments from "./pages/Establishments";
 import Inspections from "./pages/Inspections";
+import Billing from "./pages/Billing";
 import Map from "./pages/Map";
 import Layout from "./Layout";
 import PublicRoute from "./components/PublicRoute";
@@ -80,6 +81,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="/map" element={<Map />} />
           <Route path="/establishments" element={<Establishments />} />
           <Route path="/inspections" element={<Inspections />} />
+          <Route path="/billing" element={<Billing />} />
         </Route>
       </Routes>
     </BrowserRouter>

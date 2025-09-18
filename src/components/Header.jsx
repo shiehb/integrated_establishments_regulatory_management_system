@@ -20,7 +20,7 @@ export default function Header() {
               Integrated Establishment Regulatory Management System
             </h1>
             <h1 className="text-xs font-semibold md:text-sm">
-              Environmental Management Bureau
+              Environmental Management Bureau Region I
             </h1>
             <h2 className="text-xs italic font-semibold tracking-wide md:text-xs">
               Department of Environmental and Natural Resources

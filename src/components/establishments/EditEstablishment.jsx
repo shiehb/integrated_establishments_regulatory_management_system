@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { updateEstablishment } from "../../services/api";
+import ConfirmationDialog from "../common/ConfirmationDialog";
 
 const markerIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
@@ -105,6 +106,7 @@ export default function EditEstablishment({
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -138,12 +140,11 @@ export default function EditEstablishment({
     }));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     setSubmitted(true);
-    setLoading(true);
     setErrors({});
-
+    // Validate required fields
     if (
       !formData.name.trim() ||
       !formData.natureOfBusiness.trim() ||
@@ -156,13 +157,15 @@ export default function EditEstablishment({
       !formData.coordinates.latitude.trim() ||
       !formData.coordinates.longitude.trim()
     ) {
-      setLoading(false);
       return;
     }
+    setShowConfirm(true);
+  };
 
+  const confirmEdit = async () => {
+    setLoading(true);
     try {
-      // Format data for API
-      const establishmentData = {
+      await updateEstablishment(formData.id, {
         name: formData.name.trim(),
         nature_of_business: formData.natureOfBusiness.trim(),
         year_established: formData.yearEstablished.trim(),
@@ -173,18 +176,13 @@ export default function EditEstablishment({
         postal_code: formData.address.postalCode.trim(),
         latitude: formData.coordinates.latitude,
         longitude: formData.coordinates.longitude,
-      };
-
-      await updateEstablishment(formData.id, establishmentData);
-
-      // Show success notification
+      });
       if (window.showNotification) {
         window.showNotification(
           "success",
           "Establishment updated successfully!"
         );
       }
-
       if (onEstablishmentUpdated) onEstablishmentUpdated();
       onClose();
     } catch (err) {
@@ -207,6 +205,7 @@ export default function EditEstablishment({
       }
     } finally {
       setLoading(false);
+      setShowConfirm(false);
     }
   };
 
@@ -228,202 +227,211 @@ export default function EditEstablishment({
   );
 
   return (
-    <div className="grid w-full max-w-6xl grid-cols-1 gap-6 p-8 bg-white shadow-lg md:grid-cols-2 rounded-2xl">
-      <form onSubmit={handleSubmit} className="space-y-5 text-sm">
-        <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
-          Edit Establishment
-        </h2>
+    <div className="grid w-full max-w-6xl grid-cols-1 md:grid-cols-2 gap-6 p-8 bg-white shadow-lg rounded-2xl">
+      {/* Form first, map second */}
+      <div className="order-1">
+        <form onSubmit={handleSubmit} className="space-y-5 text-sm">
+          <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
+            Edit Establishment
+          </h2>
 
-        {/* Name */}
-        <div>
-          <Label field="name">Name</Label>
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            className={`w-full p-2 border rounded-lg ${
-              errors.name ? "border-red-500" : ""
-            }`}
-          />
-          {errors.name && (
-            <p className="mt-1 text-xs text-red-500">{errors.name}</p>
-          )}
-        </div>
-
-        {/* Business & Year Established */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {/* Name of Establishment */}
           <div>
-            <Label field="yearEstablished">Year Established</Label>
-            <input
-              type="number"
-              name="yearEstablished"
-              value={formData.yearEstablished}
-              onChange={handleYearChange}
-              min="1900"
-              max={new Date().getFullYear()}
-              placeholder="YYYY"
-              className="w-full p-2 border rounded-lg"
-            />
-          </div>
-          <div>
-            <Label field="natureOfBusiness">Nature of Business</Label>
+            <Label field="name">Name of Establishment</Label>
             <input
               type="text"
-              name="natureOfBusiness"
-              value={formData.natureOfBusiness}
+              name="name"
+              value={formData.name}
               onChange={handleChange}
-              className="w-full p-2 border rounded-lg"
+              className={`w-full p-2 border rounded-lg ${
+                errors.name ? "border-red-500" : ""
+              }`}
             />
+            {errors.name && (
+              <p className="mt-1 text-xs text-red-500">{errors.name}</p>
+            )}
           </div>
-        </div>
 
-        {/* Province & City */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <Label field="address.province">Province</Label>
-            <input
-              type="text"
-              name="province"
-              value={formData.address.province}
-              onChange={handleAddressChange}
-              className="w-full p-2 border rounded-lg"
-            />
+          {/* Business & Year Established */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <Label field="natureOfBusiness">Nature of Business</Label>
+              <input
+                type="text"
+                name="natureOfBusiness"
+                value={formData.natureOfBusiness}
+                onChange={handleChange}
+                className="w-full p-2 border rounded-lg"
+              />
+            </div>
+            <div>
+              <Label field="yearEstablished">Year Established</Label>
+              <input
+                type="number"
+                name="yearEstablished"
+                value={formData.yearEstablished}
+                onChange={handleYearChange}
+                min="1900"
+                max={new Date().getFullYear()}
+                placeholder="YYYY"
+                className="w-full p-2 border rounded-lg"
+              />
+            </div>
           </div>
-          <div>
-            <Label field="address.city">City</Label>
-            <input
-              type="text"
-              name="city"
-              value={formData.address.city}
-              onChange={handleAddressChange}
-              className="w-full p-2 border rounded-lg"
-            />
-          </div>
-        </div>
 
-        {/* Barangay & Street */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <Label field="address.barangay">Barangay</Label>
-            <input
-              type="text"
-              name="barangay"
-              value={formData.address.barangay}
-              onChange={handleAddressChange}
-              className="w-full p-2 border rounded-lg"
-            />
+          {/* Province & City */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <Label field="address.province">Province</Label>
+              <input
+                type="text"
+                name="province"
+                value={formData.address.province}
+                onChange={handleAddressChange}
+                className="w-full p-2 border rounded-lg"
+              />
+            </div>
+            <div>
+              <Label field="address.city">City</Label>
+              <input
+                type="text"
+                name="city"
+                value={formData.address.city}
+                onChange={handleAddressChange}
+                className="w-full p-2 border rounded-lg"
+              />
+            </div>
           </div>
-          <div>
-            <Label field="address.streetBuilding">Street/Building</Label>
-            <input
-              type="text"
-              name="streetBuilding"
-              value={formData.address.streetBuilding}
-              onChange={handleAddressChange}
-              className="w-full p-2 border rounded-lg"
-            />
-          </div>
-        </div>
 
-        {/* Postal Code */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <Label field="address.postalCode">Postal Code</Label>
-            <input
-              type="text"
-              name="postalCode"
-              value={formData.address.postalCode}
-              onChange={(e) => {
-                // Only allow numbers and max 4 digits
-                let val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                setFormData((prev) => ({
-                  ...prev,
-                  address: {
-                    ...prev.address,
-                    postalCode: val,
-                  },
-                }));
-              }}
-              className="w-full p-2 border rounded-lg"
-              maxLength={4}
-              inputMode="numeric"
-              pattern="\d{4}"
-            />
+          {/* Barangay & Street */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <Label field="address.barangay">Barangay</Label>
+              <input
+                type="text"
+                name="barangay"
+                value={formData.address.barangay}
+                onChange={handleAddressChange}
+                className="w-full p-2 border rounded-lg"
+              />
+            </div>
+            <div>
+              <Label field="address.streetBuilding">Street/Building</Label>
+              <input
+                type="text"
+                name="streetBuilding"
+                value={formData.address.streetBuilding}
+                onChange={handleAddressChange}
+                className="w-full p-2 border rounded-lg"
+              />
+            </div>
           </div>
-          <div />
-        </div>
 
-        {/* Coordinates */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <Label field="coordinates.latitude">Latitude</Label>
-            <input
-              type="text"
-              name="latitude"
-              value={formData.coordinates.latitude}
-              onChange={(e) => {
-                // Only allow numbers, dot, and at most one dot
-                let val = e.target.value
-                  .replace(/[^0-9.]/g, "") // Remove non-numeric/non-dot
-                  .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : "")); // Only one dot allowed
-                setFormData((prev) => ({
-                  ...prev,
-                  coordinates: {
-                    ...prev.coordinates,
-                    latitude: val,
-                  },
-                }));
-              }}
-              className="w-full p-2 border rounded-lg"
-            />
+          {/* Postal Code */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <Label field="address.postalCode">Postal Code</Label>
+              <input
+                type="text"
+                name="postalCode"
+                value={formData.address.postalCode}
+                onChange={(e) => {
+                  // Only allow numbers and max 4 digits
+                  let val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                  setFormData((prev) => ({
+                    ...prev,
+                    address: {
+                      ...prev.address,
+                      postalCode: val,
+                    },
+                  }));
+                }}
+                className="w-full p-2 border rounded-lg"
+                maxLength={4}
+                inputMode="numeric"
+                pattern="\d{4}"
+              />
+            </div>
+            <div />
           </div>
-          <div>
-            <Label field="coordinates.longitude">Longitude</Label>
-            <input
-              type="text"
-              name="longitude"
-              value={formData.coordinates.longitude}
-              onChange={(e) => {
-                // Only allow numbers, dot, and at most one dot
-                let val = e.target.value
-                  .replace(/[^0-9.]/g, "")
-                  .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : ""));
-                setFormData((prev) => ({
-                  ...prev,
-                  coordinates: {
-                    ...prev.coordinates,
-                    longitude: val,
-                  },
-                }));
-              }}
-              className="w-full p-2 border rounded-lg"
-            />
+
+          {/* Coordinates */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <Label field="coordinates.latitude">Latitude</Label>
+              <input
+                type="text"
+                name="latitude"
+                value={formData.coordinates.latitude}
+                onChange={(e) => {
+                  // Only allow numbers, dot, and at most one dot
+                  let val = e.target.value
+                    .replace(/[^0-9.]/g, "") // Remove non-numeric/non-dot
+                    .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : "")); // Only one dot allowed
+                  setFormData((prev) => ({
+                    ...prev,
+                    coordinates: {
+                      ...prev.coordinates,
+                      latitude: val,
+                    },
+                  }));
+                }}
+                className="w-full p-2 border rounded-lg"
+              />
+            </div>
+            <div>
+              <Label field="coordinates.longitude">Longitude</Label>
+              <input
+                type="text"
+                name="longitude"
+                value={formData.coordinates.longitude}
+                onChange={(e) => {
+                  // Only allow numbers, dot, and at most one dot
+                  let val = e.target.value
+                    .replace(/[^0-9.]/g, "")
+                    .replace(/^([^.]*\.)|\./g, (m, g1) => (g1 ? g1 : ""));
+                  setFormData((prev) => ({
+                    ...prev,
+                    coordinates: {
+                      ...prev.coordinates,
+                      longitude: val,
+                    },
+                  }));
+                }}
+                className="w-full p-2 border rounded-lg"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Buttons */}
-        <div className="flex gap-4 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-3 font-medium text-gray-700 bg-gray-300 rounded-lg hover:bg-gray-400"
-            disabled={loading}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="flex-1 py-3 font-medium text-white rounded-lg bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400"
-            disabled={loading}
-          >
-            {loading ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
-      </form>
-
-      {/* Map */}
-      <div className="h-[600px] w-full rounded-lg overflow-hidden shadow">
+          {/* Buttons */}
+          <div className="flex gap-4 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-3 font-medium text-gray-700 bg-gray-300 rounded-lg hover:bg-gray-400"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 py-3 font-medium text-white rounded-lg bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400"
+              disabled={loading}
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
+        <ConfirmationDialog
+          open={showConfirm}
+          title="Confirm Action"
+          message="Are you sure you want to save changes to this establishment?"
+          loading={loading}
+          onCancel={() => setShowConfirm(false)}
+          onConfirm={confirmEdit}
+        />
+      </div>
+      <div className="order-2 h-[600px] w-full rounded-lg overflow-hidden shadow">
         <MapContainer
           center={[
             formData.coordinates.latitude || 12.8797,

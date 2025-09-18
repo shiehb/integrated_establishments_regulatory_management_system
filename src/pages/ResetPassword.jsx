@@ -83,9 +83,6 @@ export default function ResetPassword() {
         "Password must contain at least one uppercase letter";
     } else if (!/(?=.*\d)/.test(formData.newPassword)) {
       newErrors.newPassword = "Password must contain at least one number";
-    } else if (!/(?=.*[!@#$%^&*])/.test(formData.newPassword)) {
-      newErrors.newPassword =
-        "Password must contain at least one special character";
     }
 
     if (!formData.confirmPassword.trim()) {
@@ -322,7 +319,6 @@ export default function ResetPassword() {
             <li>• At least one uppercase letter (A-Z)</li>
             <li>• At least one lowercase letter (a-z)</li>
             <li>• At least one number (0-9)</li>
-            <li>• At least one special character (!@#$%^&* etc.)</li>
           </ul>
         </div>
       </div>

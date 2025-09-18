@@ -203,7 +203,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
 
             {filtersOpen && (
               <div
-                className="absolute right-0 z-20 p-3 mt-2 bg-white border rounded shadow w-72"
+                className="absolute right-0 z-20 p-3 mt-2 bg-white border rounded shadow w-82"
                 onMouseEnter={() => {
                   if (filterTimeout.current)
                     clearTimeout(filterTimeout.current);

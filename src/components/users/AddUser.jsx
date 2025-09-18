@@ -1,5 +1,6 @@
 import { useState } from "react";
-import api from "../../services/api"; // ✅ use your api service
+import api from "../../services/api";
+import ConfirmationDialog from "../common/ConfirmationDialog"; // <-- Add this import
 
 export default function AddUser({ onClose, onUserAdded }) {
   const [formData, setFormData] = useState({
@@ -12,6 +13,7 @@ export default function AddUser({ onClose, onUserAdded }) {
   });
   const [submitted, setSubmitted] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -54,6 +56,7 @@ export default function AddUser({ onClose, onUserAdded }) {
 
   // AddUser.jsx - update the confirmAdd function
   const confirmAdd = async () => {
+    setLoading(true);
     try {
       const payload = {
         email: formData.email,
@@ -81,6 +84,8 @@ export default function AddUser({ onClose, onUserAdded }) {
             (err.response?.data?.detail || JSON.stringify(err.response?.data))
         );
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -243,32 +248,14 @@ export default function AddUser({ onClose, onUserAdded }) {
       </form>
 
       {/* ✅ Confirmation Dialog */}
-      {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-lg">
-            <h3 className="mb-2 text-lg font-semibold text-gray-800">
-              Confirm Action
-            </h3>
-            <p className="mb-4 text-gray-600">
-              Are you sure you want to <b>add</b> this user?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmAdd}
-                className="px-4 py-2 text-white rounded bg-sky-600 hover:bg-sky-700"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationDialog
+        open={showConfirm}
+        title="Confirm Action"
+        message="Are you sure you want to add this user?"
+        loading={loading}
+        onCancel={() => setShowConfirm(false)}
+        onConfirm={confirmAdd}
+      />
     </div>
   );
 }

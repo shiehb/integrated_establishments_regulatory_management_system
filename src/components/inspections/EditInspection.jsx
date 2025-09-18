@@ -1,41 +1,89 @@
-import { useState } from "react";
+// src/components/inspections/EditInspection.jsx
+import React from "react";
+import { useForm, FormProvider } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import GeneralInformation from "./forms/GeneralInformation";
+import ComplianceStatus from "./forms/ComplianceStatus";
+import SummaryOfFindingsAndObservations from "./forms/SummaryOfFindingsAndObservations";
+import Recommendations from "./forms/Recommendations";
+import { updateInspectionList } from "../../services/api";
 
-export default function EditInspection({ inspection, onClose, onSave }) {
-  const [section, setSection] = useState(inspection.section);
+const schema = z.object({
+  establishmentName: z.string().min(1),
+  address: z.string().min(1),
+  environmentalLaws: z.array(z.string()).min(1),
+});
+
+export default function EditInspection({ inspection, onSaved, onCancel }) {
+  const methods = useForm({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      establishmentName: inspection?.metadata?.establishmentName || "",
+      address: inspection?.metadata?.address || "",
+      coordinates: inspection?.metadata?.coordinates || "",
+      natureOfBusiness: inspection?.metadata?.natureOfBusiness || "",
+      yearEstablished: inspection?.metadata?.yearEstablished || "",
+      inspectionDateTime: inspection?.created_at || "",
+      environmentalLaws: inspection?.details?.environmentalLaws || [],
+      permits: inspection?.details?.permits || {},
+      findings: inspection?.details?.findings || {},
+      recommendations: inspection?.details?.recommendations || {},
+    },
+  });
+
+  const submit = async (data) => {
+    try {
+      const payload = {
+        metadata: {
+          establishmentName: data.establishmentName,
+          address: data.address,
+          coordinates: data.coordinates,
+        },
+        details: {
+          environmentalLaws: data.environmentalLaws,
+          permits: data.permits,
+          findings: data.findings,
+          recommendations: data.recommendations,
+        },
+      };
+      await updateInspectionList(inspection.id, payload);
+      alert("Updated");
+      onSaved && onSaved();
+    } catch (err) {
+      console.error(err);
+      alert("Error updating");
+    }
+  };
 
   return (
-    <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
-      <h2 className="mb-4 text-xl font-bold text-sky-600">
-        Edit Inspection {inspection.id}
-      </h2>
-
-      <label className="block mb-2 font-medium">Section</label>
-      <select
-        value={section}
-        onChange={(e) => setSection(e.target.value)}
-        className="w-full p-2 mb-4 border rounded"
+    <FormProvider {...methods}>
+      <form
+        onSubmit={methods.handleSubmit(submit)}
+        className="max-w-4xl p-6 mx-auto space-y-6 bg-white rounded shadow"
       >
-        <option value="PD-1586">PD-1586</option>
-        <option value="RA-6969">RA-6969</option>
-        <option value="RA-8749">RA-8749</option>
-        <option value="RA-9275">RA-9275</option>
-        <option value="RA-9003">RA-9003</option>
-      </select>
+        <h2 className="text-2xl font-bold">Edit Inspection {inspection.id}</h2>
+        <GeneralInformation />
+        <ComplianceStatus />
+        <SummaryOfFindingsAndObservations />
+        <Recommendations />
 
-      <div className="flex justify-end gap-2">
-        <button
-          onClick={onClose}
-          className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={() => onSave(section)}
-          className="px-4 py-2 text-white bg-green-600 rounded hover:bg-green-700"
-        >
-          Save
-        </button>
-      </div>
-    </div>
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 bg-gray-200 rounded"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-4 py-2 text-white rounded bg-sky-600"
+          >
+            Save
+          </button>
+        </div>
+      </form>
+    </FormProvider>
   );
 }

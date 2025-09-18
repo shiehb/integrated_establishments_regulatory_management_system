@@ -50,20 +50,110 @@ class RegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def create_new_user_notifications(self, new_user):
-        # Users who should be notified about new registrations
-        notify_userlevels = ["Admin", "Division Chief", "Section Chief", "Unit Head"]
+        # Get all Division Chiefs (they always get notified for any new user)
+        division_chiefs = User.objects.filter(userlevel="Division Chief", is_active=True)
         
-        # Get all users with these levels
-        users_to_notify = User.objects.filter(userlevel__in=notify_userlevels, is_active=True)
+        # Get relevant users based on the new user's level
+        if new_user.userlevel == "Division Chief":
+            # Notify all Division Chiefs
+            for recipient in division_chiefs:
+                Notification.objects.create(
+                    recipient=recipient,
+                    sender=new_user,
+                    notification_type='new_user',
+                    title='New Division Chief Created',
+                    message=f'A new Division Chief ({new_user.email}) has been created in the system.'
+                )
         
-        for recipient in users_to_notify:
-            Notification.objects.create(
-                recipient=recipient,
-                sender=new_user,
-                notification_type='new_user',
-                title='New User Registration',
-                message=f'A new user ({new_user.email}) has been registered in the system with userlevel: {new_user.userlevel}.'
+        elif new_user.userlevel == "Section Chief":
+            # Notify all Division Chiefs
+            for recipient in division_chiefs:
+                Notification.objects.create(
+                    recipient=recipient,
+                    sender=new_user,
+                    notification_type='new_user',
+                    title='New Section Chief Created',
+                    message=f'A new Section Chief ({new_user.email}) has been created for section: {new_user.section}.'
+                )
+        
+        elif new_user.userlevel == "Unit Head":
+            # Notify all Division Chiefs
+            for recipient in division_chiefs:
+                Notification.objects.create(
+                    recipient=recipient,
+                    sender=new_user,
+                    notification_type='new_user',
+                    title='New Unit Head Created',
+                    message=f'A new Unit Head ({new_user.email}) has been created for section: {new_user.section}.'
+                )
+            
+            # Also notify Section Chiefs in the same section
+            section_chiefs = User.objects.filter(
+                userlevel="Section Chief", 
+                section=new_user.section, 
+                is_active=True
             )
+            for recipient in section_chiefs:
+                Notification.objects.create(
+                    recipient=recipient,
+                    sender=new_user,
+                    notification_type='new_user',
+                    title='New Unit Head Created',
+                    message=f'A new Unit Head ({new_user.email}) has been created in your section: {new_user.section}.'
+                )
+        
+        elif new_user.userlevel == "Monitoring Personnel":
+            # Notify all Division Chiefs
+            for recipient in division_chiefs:
+                Notification.objects.create(
+                    recipient=recipient,
+                    sender=new_user,
+                    notification_type='new_user',
+                    title='New Monitoring Personnel Created',
+                    message=f'New Monitoring Personnel ({new_user.email}) has been created for section: {new_user.section}.'
+                )
+            
+            # Notify Section Chiefs in the same section
+            section_chiefs = User.objects.filter(
+                userlevel="Section Chief", 
+                section=new_user.section, 
+                is_active=True
+            )
+            for recipient in section_chiefs:
+                Notification.objects.create(
+                    recipient=recipient,
+                    sender=new_user,
+                    notification_type='new_user',
+                    title='New Monitoring Personnel Created',
+                    message=f'New Monitoring Personnel ({new_user.email}) has been created in your section: {new_user.section}.'
+                )
+            
+            # Notify Unit Heads in the same section
+            unit_heads = User.objects.filter(
+                userlevel="Unit Head", 
+                section=new_user.section, 
+                is_active=True
+            )
+            for recipient in unit_heads:
+                Notification.objects.create(
+                    recipient=recipient,
+                    sender=new_user,
+                    notification_type='new_user',
+                    title='New Monitoring Personnel Created',
+                    message=f'New Monitoring Personnel ({new_user.email}) has been created in your section: {new_user.section}.'
+                )
+        
+        # For Admin and Legal Unit, you might want different notification logic
+        elif new_user.userlevel in ["Admin", "Legal Unit"]:
+            # Notify all Division Chiefs about Admin/Legal Unit creation
+            for recipient in division_chiefs:
+                Notification.objects.create(
+                    recipient=recipient,
+                    sender=new_user,
+                    notification_type='new_user',
+                    title=f'New {new_user.userlevel} Created',
+                    message=f'A new {new_user.userlevel} ({new_user.email}) has been created in the system.'
+                )
 
 
 class ProfileView(APIView):

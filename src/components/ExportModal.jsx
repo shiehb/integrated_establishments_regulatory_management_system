@@ -1,149 +1,216 @@
 import { useState } from "react";
-import jsPDF from "jspdf";
+import { FileText, FileSpreadsheet, X } from "lucide-react";
+import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function ExportModal({
   open,
   onClose,
-  title = "Data Export Report",
-  columns = [],
-  rows = [],
-  fileName = "export",
-  companyName = "My Company",
-  companySubtitle = "Management Information System",
-  logo = null, // pass base64 or image URL
+  title, // coming from parent (ex: "Users", "Establishments")
+  fileName,
+  columns,
+  rows,
 }) {
-  const [exportFormat, setExportFormat] = useState("csv");
+  const [exportType, setExportType] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+
+  // ✅ Normalize the title (remove "Export", "Report", extra spaces)
+  const normalizeTitle = (t) =>
+    t
+      .replace(/export/gi, "")
+      .replace(/report/gi, "")
+      .trim();
+
+  const reportTitle = `${normalizeTitle(title)} List`;
 
   // ✅ CSV Export
   const handleExportCSV = () => {
-    let csvContent =
-      "data:text/csv;charset=utf-8," +
-      [columns, ...rows].map((e) => e.join(",")).join("\n");
-
-    const link = document.createElement("a");
-    link.href = encodeURI(csvContent);
-    link.download = `${fileName}.csv`;
-    link.click();
-  };
-
-  // ✅ PDF Export with company header
-  const handleExportPDF = async () => {
-    const doc = new jsPDF();
-
-    let yOffset = 15;
-
-    // 🔹 Add Logo if provided
-    if (logo) {
-      try {
-        doc.addImage(logo, "PNG", 14, 10, 20, 20); // (img, format, x, y, w, h)
-      } catch (e) {
-        console.warn("Logo could not be loaded:", e);
-      }
-      yOffset = 35;
-    }
-
-    // 🔹 Company Name
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text(companyName, logo ? 40 : 14, 18);
-
-    // 🔹 Company Subtitle
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(companySubtitle, logo ? 40 : 14, 24);
-
-    // 🔹 Report Title
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text(title, 14, yOffset);
-    yOffset += 8;
-
-    // 🔹 Generated Date
-    doc.setFontSize(9);
-    doc.setTextColor(100);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, yOffset);
-    yOffset += 5;
-
-    // 🔹 Table
-    autoTable(doc, {
-      head: [columns],
-      body: rows,
-      startY: yOffset + 2,
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [23, 107, 239] },
-      alternateRowStyles: { fillColor: [240, 240, 240] },
+    const csvRows = [];
+    csvRows.push(columns.join(","));
+    rows.forEach((row) => {
+      csvRows.push(row.map((cell) => `"${cell}"`).join(","));
     });
 
-    // 🔹 Footer (page numbers)
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(9);
-      doc.setTextColor(150);
-      doc.text(
-        `Page ${i} of ${pageCount}`,
-        doc.internal.pageSize.width - 40,
-        doc.internal.pageSize.height - 10
-      );
-    }
+    const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", `${fileName}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
-    doc.save(`${fileName}.pdf`);
+  // ✅ PDF Export
+  const handleExportPDF = () => {
+    try {
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [330.2, 215.9], // 8.5 x 13 inches
+      });
+
+      doc.setFont("times", "normal");
+
+      // === REPORT INFO (top right) ===
+      const safeDate = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+      const exportId = `RPT-${Date.now()}`;
+      doc.setFontSize(8);
+      doc.setFont("times", "bold");
+      doc.text(`${exportId}`, 200, 12, { align: "right" });
+      doc.text(`${safeDate}`, 200, 16, { align: "right" });
+      doc.setFont("times", "normal");
+
+      // === HEADER TEXT ===
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text(
+        "Integrated Establishment Regulatory Management System",
+        108,
+        24,
+        { align: "center" }
+      );
+      doc.text("Department of Environmental and Natural Resources", 108, 29, {
+        align: "center",
+      });
+      doc.text("Environmental Management Bureau Region I", 108, 34, {
+        align: "center",
+      });
+
+      // === REPORT TITLE (ALL CAPS, bold, underlined) ===
+      doc.setFont("times", "bold");
+      doc.setFontSize(12);
+      const titleUpper = reportTitle.toUpperCase();
+      doc.text(titleUpper, 108, 42, { align: "center" });
+      const titleWidth = doc.getTextWidth(titleUpper);
+      doc.line(108 - titleWidth / 2, 44, 108 + titleWidth / 2, 44);
+      doc.setFont("times", "normal");
+
+      // === TABLE ===
+      let startY = 48;
+      autoTable(doc, {
+        head: [columns],
+        body: rows,
+        startY: startY,
+        styles: {
+          fontSize: 8,
+          font: "times",
+          cellPadding: 1,
+          lineWidth: 0.2,
+          textColor: [0, 0, 0],
+          fillColor: [255, 255, 255],
+        },
+        headStyles: {
+          fillColor: [200, 200, 200],
+          textColor: [0, 0, 0],
+          fontSize: 10,
+          font: "times",
+          cellPadding: 1,
+          fontStyle: "bold",
+        },
+        margin: { left: 10, right: 10 },
+        tableLineWidth: 0.2,
+      });
+
+      // === FOOTER ===
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(10);
+        doc.text(`Page ${i} of ${pageCount}`, 200, 325, { align: "right" });
+        // doc.text(
+        //   `Generated by Integrated Establishment Regulatory Management System`,
+        //   14,
+        //   325
+        // );
+      }
+
+      // ✅ Open in browser tab instead of saving
+      const blobUrl = doc.output("bloburl");
+      window.open(blobUrl, "_blank");
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      alert("PDF export failed. Check console for details.");
+    }
   };
 
   const handleConfirmExport = () => {
-    if (exportFormat === "csv") handleExportCSV();
-    else handleExportPDF();
+    if (exportType === "csv") {
+      handleExportCSV();
+    } else if (exportType === "pdf") {
+      handleExportPDF();
+    }
+    setExportType(null);
+    setConfirming(false);
     onClose();
   };
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-      <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-lg">
-        <h3 className="mb-3 text-lg font-semibold text-gray-800">
-          Export Data
-        </h3>
-        <p className="mb-3 text-gray-600">
-          Exporting <b>{rows.length}</b> records. Choose format:
-        </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="relative p-6 bg-white rounded-lg shadow-lg w-82">
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute text-gray-400 top-3 right-3 hover:text-gray-600"
+        >
+          <X size={20} />
+        </button>
 
-        <div className="flex flex-col gap-2 mb-4">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              value="csv"
-              checked={exportFormat === "csv"}
-              onChange={() => setExportFormat("csv")}
-            />
-            CSV (Excel)
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              value="pdf"
-              checked={exportFormat === "pdf"}
-              onChange={() => setExportFormat("pdf")}
-            />
-            PDF
-          </label>
-        </div>
+        <h2 className="mb-4 text-lg font-semibold">{reportTitle}</h2>
 
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirmExport}
-            className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700"
-          >
-            Export
-          </button>
-        </div>
+        {!confirming ? (
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => {
+                setExportType("csv");
+                setConfirming(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
+            >
+              <FileSpreadsheet size={16} /> Export as CSV ({reportTitle})
+            </button>
+            <button
+              onClick={() => {
+                setExportType("pdf");
+                setConfirming(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
+            >
+              <FileText size={16} /> Export as PDF ({reportTitle})
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p className="mb-4">
+              Are you sure you want to export as{" "}
+              <span className="font-semibold uppercase">{exportType}</span>?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setExportType(null);
+                  setConfirming(false);
+                }}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmExport}
+                className="px-4 py-2 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -18,11 +18,13 @@ class NotificationListView(generics.ListAPIView):
     def get_queryset(self):
         return Notification.objects.filter(recipient=self.request.user).order_by('-created_at')
 
-
 class MarkNotificationAsReadView(generics.UpdateAPIView):
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
     queryset = Notification.objects.all()
+    
+    def post(self, request, *args, **kwargs):  # Add POST method
+        return self.update(request, *args, **kwargs)
     
     def update(self, request, *args, **kwargs):
         notification = self.get_object()
@@ -44,7 +46,6 @@ def mark_all_notifications_read(request):
     except Exception as e:
         return Response({'detail': str(e)}, status=400)
 
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def unread_notifications_count(request):
@@ -54,7 +55,17 @@ def unread_notifications_count(request):
     except Exception as e:
         return Response({'detail': str(e)}, status=400)
 
-
+# notifications/views.py - Add this function
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_notification(request, pk):
+    try:
+        notification = Notification.objects.get(pk=pk, recipient=request.user)
+        notification.delete()
+        return Response({'status': 'notification deleted'})
+    except Notification.DoesNotExist:
+        return Response({'detail': 'Notification not found.'}, status=status.HTTP_404_NOT_FOUND)
+    
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_all_notifications(request):

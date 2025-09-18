@@ -185,6 +185,12 @@ export const markAllNotificationsAsRead = async () => {
   return res.data;
 };
 
+// 🗑️ Delete single notification
+export const deleteNotification = async (id) => {
+  const res = await api.delete(`notifications/${id}/delete/`);
+  return res.data;
+};
+
 // 🗑️ Delete all notifications
 export const deleteAllNotifications = async () => {
   const res = await api.delete("notifications/delete-all/"); // Changed from "auth/notifications/"
@@ -231,6 +237,71 @@ export const resetPasswordWithOtp = async (email, otp, newPassword) => {
   });
   return res.data;
 };
+
+// Mock API service for inspections (no backend required)
+
+let mockInspections = [
+  {
+    id: "EIA-2025-0001",
+    law: "PD-1586",
+    status: "PENDING",
+    created_at: new Date().toISOString(),
+    metadata: { establishmentName: "Sample Establishment" },
+    details: {},
+  },
+];
+
+let idCounter = 2;
+
+// 🔹 Fetch all inspections
+export async function fetchInspectionLists() {
+  return Promise.resolve(mockInspections);
+}
+
+// 🔹 Create a new inspection list
+export async function createInspectionList(payload) {
+  const newInspection = {
+    id: `${payload.law || "GEN"}-${new Date().getFullYear()}-${idCounter
+      .toString()
+      .padStart(4, "0")}`,
+    ...payload,
+    created_at: new Date().toISOString(),
+    status: "PENDING",
+  };
+  idCounter++;
+  mockInspections.push(newInspection);
+  return Promise.resolve(newInspection);
+}
+
+// 🔹 Get one inspection by ID
+export async function fetchInspectionList(id) {
+  const insp = mockInspections.find((i) => i.id === id);
+  return Promise.resolve(insp);
+}
+
+// 🔹 Update inspection by ID
+export async function updateInspectionList(id, updates) {
+  mockInspections = mockInspections.map((i) =>
+    i.id === id ? { ...i, ...updates } : i
+  );
+  return Promise.resolve(mockInspections.find((i) => i.id === id));
+}
+
+// 🔹 Forward inspection (just change status)
+export async function forwardInspectionList(id, fromUser, toUser) {
+  mockInspections = mockInspections.map((i) =>
+    i.id === id ? { ...i, status: "FORWARDED" } : i
+  );
+  return Promise.resolve(mockInspections.find((i) => i.id === id));
+}
+
+// 🔹 Complete inspection item
+export async function completeInspectionItem(id, payload) {
+  mockInspections = mockInspections.map((i) =>
+    i.id === id ? { ...i, status: "COMPLETED", ...payload } : i
+  );
+  return Promise.resolve(mockInspections.find((i) => i.id === id));
+}
 
 // ✅ also export api instance
 export default api;

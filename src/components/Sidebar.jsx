@@ -11,8 +11,8 @@ import {
 
 // Common sidebar menu for all roles
 const baseMenu = [
-  { name: "Users", path: "/users", icon: Users, adminOnly: true }, // ✅ Only Admin
   { name: "Dashboard", path: "/", icon: LayoutDashboard },
+  { name: "Users", path: "/users", icon: Users, adminOnly: true },
   { name: "Map", path: "/map", icon: MapPin },
   { name: "Establishments", path: "/establishments", icon: Building },
   { name: "Inspections", path: "/inspections", icon: InspectIcon },

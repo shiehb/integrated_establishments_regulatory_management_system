@@ -42,13 +42,15 @@ export default function Inspections() {
     },
   ]);
 
-  // 🔹 Inspections state - now each inspection has only one establishment
+  // 🔹 Inspections state
   const [inspections, setInspections] = useState([
     {
       id: "EIA-2025-0001",
-      establishmentId: 1, // Changed from establishments array to single establishmentId
+      establishmentId: 1,
       section: "PD-1586",
       status: "PENDING",
+      details: {},
+      metadata: {},
     },
   ]);
 
@@ -61,29 +63,30 @@ export default function Inspections() {
     "RA-9003": "WASTE", // Ecological Solid Waste
   };
 
-  // 🔹 Generate new inspection ID based on section
+  // 🔹 Generate new inspection ID based on law/section
   const generateInspectionId = (section) => {
     const prefix = sectionPrefixes[section] || "GEN";
     const year = new Date().getFullYear();
-
-    // Count existing inspections for this section type
     const sectionCount =
       inspections.filter((insp) => insp.section === section).length + 1;
     const seq = sectionCount.toString().padStart(4, "0");
-
     return `${prefix}-${year}-${seq}`;
   };
 
-  // 🔹 Save new inspections (multiple when multiple establishments selected)
+  // 🔹 Save new inspections
   const handleSaveInspection = (inspectionsData) => {
-    // inspectionsData is now an array of inspection objects
-    setInspections((prev) => [...prev, ...inspectionsData]);
+    const withIds = inspectionsData.map((data) => ({
+      ...data,
+      id: generateInspectionId(data.section),
+      status: "PENDING",
+    }));
+    setInspections((prev) => [...prev, ...withIds]);
   };
 
-  // 🔹 Update inspection section
-  const handleUpdateInspection = (id, section) => {
+  // 🔹 Update inspection
+  const handleUpdateInspection = (id, updates) => {
     setInspections((prev) =>
-      prev.map((insp) => (insp.id === id ? { ...insp, section } : insp))
+      prev.map((insp) => (insp.id === id ? { ...insp, ...updates } : insp))
     );
   };
 
@@ -127,8 +130,8 @@ export default function Inspections() {
               <EditInspection
                 inspection={editInspection}
                 onClose={() => setEditInspection(null)}
-                onSave={(section) => {
-                  handleUpdateInspection(editInspection.id, section);
+                onSave={(updates) => {
+                  handleUpdateInspection(editInspection.id, updates);
                   setEditInspection(null);
                 }}
               />

@@ -51,9 +51,6 @@ export default function ChangePassword() {
         "Password must contain at least one uppercase letter";
     } else if (!/(?=.*\d)/.test(formData.newPassword)) {
       newErrors.newPassword = "Password must contain at least one number";
-    } else if (!/(?=.*[!@#$%^&*])/.test(formData.newPassword)) {
-      newErrors.newPassword =
-        "Password must contain at least one special character";
     } else if (formData.newPassword === formData.oldPassword) {
       newErrors.newPassword = "New password cannot be the same as old password";
     }
@@ -246,8 +243,6 @@ export default function ChangePassword() {
             <li>• At least one uppercase letter (A-Z)</li>
             <li>• At least one lowercase letter (a-z)</li>
             <li>• At least one number (0-9)</li>
-            <li>• At least one special character (!@#$%^&* etc.)</li>
-            <li>• Should not match your old password</li>
           </ul>
         </div>
       </div>
