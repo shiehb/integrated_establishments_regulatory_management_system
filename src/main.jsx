@@ -81,7 +81,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="/map" element={<Map />} />
           <Route path="/establishments" element={<Establishments />} />
           <Route path="/inspections" element={<Inspections />} />
-          <Route path="/billing" element={<Billing />} />
+          <Route path="/compliance" element={<Billing />} />
         </Route>
       </Routes>
     </BrowserRouter>
