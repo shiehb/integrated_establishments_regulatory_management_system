@@ -2,7 +2,7 @@ import logo from "../assets/logo1.svg";
 
 export default function Header() {
   return (
-    <header className="bg-white shadow-md border-b-1 text-sky-700">
+    <header className="bg-white border-b-1 text-sky-700">
       <div className="container px-2 py-1">
         <div className="flex flex-col items-center gap-4 md:flex-row md:items-center">
           {/* Logo */}

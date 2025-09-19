@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from "react";
-import Header from "../../Header";
-import Footer from "../../Footer";
+import Layout from "../../Layout";
 
 const LAWS = [
   { id: "PD-1586", label: "PD-1586" },
@@ -96,14 +95,13 @@ const initialPermits = [
     expiryDate: "",
   },
 ];
-
 const initialComplianceItems = [
   {
     lawId: "PD-1586",
     lawCitation:
       "PD-1586: Environmental Compliance Certificate (ECC) Conditionalities",
     conditionId: "PD-1586-1",
-    conditionNumber: "1",
+    conditionNumber: "",
     complianceRequirement: "Provide EIS document",
     compliant: "N/A",
     remarks: "",
@@ -135,7 +133,7 @@ const initialComplianceItems = [
 function SectionHeader({ title }) {
   return (
     <div className="mb-4">
-      <h2 className="text-2xl font-bold text-black">{title}</h2>
+      <h2 className="text-2xl font-bold text-sky-700">{title}</h2>
       <div className="mt-2 border-b border-black" />
     </div>
   );
@@ -171,7 +169,7 @@ function GeneralInformation({ data, setData, onLawFilterChange }) {
         <label className="block mb-2 text-black">
           Applicable Environmental Laws (check all that apply)
         </label>
-        <div className="flex flex-wrap gap-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
           {LAWS.map((law) => (
             <label key={law.id} className="flex items-center space-x-2">
               <input
@@ -809,7 +807,7 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
       conditionId: nextId,
       conditionNumber: "",
       complianceRequirement: "",
-      compliant: "N/A",
+      compliant: "No",
       remarks: "",
     };
     setItems([...items, newItem]);
@@ -831,6 +829,7 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
       )}
       {selectedLaws.map((lawId) => {
         const lawItems = items.filter((it) => it.lawId === lawId);
+        const showActions = lawId === "PD-1586";
         return (
           <div key={lawId} className="mb-8">
             <div className="mb-2 text-lg font-bold text-black">{lawId}</div>
@@ -846,7 +845,9 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
                     </th>
                     <th className="p-2 border border-black">Compliant</th>
                     <th className="p-2 border border-black">Remarks</th>
-                    <th className="p-2 border border-black">Actions</th>
+                    {showActions && (
+                      <th className="p-2 border border-black">Actions</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -881,23 +882,29 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
                           )}
                         </td>
                         <td className="p-2 align-top border border-black">
-                          <textarea
-                            value={
-                              items[globalIndex].complianceRequirement || ""
-                            }
-                            onChange={(e) =>
-                              updateItem(
-                                globalIndex,
-                                "complianceRequirement",
-                                e.target.value
-                              )
-                            }
-                            className="w-full border border-black px-2 py-1 min-h-[60px] bg-white text-black"
-                          />
+                          {item.lawId === "PD-1586" ? (
+                            <textarea
+                              value={
+                                items[globalIndex].complianceRequirement || ""
+                              }
+                              onChange={(e) =>
+                                updateItem(
+                                  globalIndex,
+                                  "complianceRequirement",
+                                  e.target.value
+                                )
+                              }
+                              className="w-full border border-black px-2 py-1 min-h-[60px] bg-white text-black"
+                            />
+                          ) : (
+                            <div className="px-2 py-1 min-h-[60px]">
+                              {item.complianceRequirement}
+                            </div>
+                          )}
                         </td>
                         <td className="p-2 align-top border border-black">
                           <div className="flex flex-col gap-2">
-                            {["Yes", "No", "N/A"].map((opt) => (
+                            {["Yes", "No"].map((opt) => (
                               <label
                                 key={opt}
                                 className="flex items-center gap-2"
@@ -917,32 +924,36 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
                           </div>
                         </td>
                         <td className="p-2 align-top border border-black">
-                          <input
+                          <textarea
                             value={items[globalIndex].remarks || ""}
                             onChange={(e) =>
                               updateItem(globalIndex, "remarks", e.target.value)
                             }
-                            className="w-full px-2 py-1 text-black bg-white border border-black"
+                            placeholder="Enter remarks..."
+                            className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px]"
                           />
                         </td>
-                        <td className="p-2 border border-black">
-                          {item.lawId === "PD-1586" && (
+                        {showActions && (
+                          <td className="p-2 border border-black">
                             <button
                               onClick={() =>
                                 removeByConditionId(item.conditionId)
                               }
-                              className="px-3 py-1 text-black bg-white border border-black"
+                              className="px-2 py-1 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
                             >
                               Remove
                             </button>
-                          )}
-                        </td>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
                   {lawItems.length === 0 && (
                     <tr>
-                      <td colSpan="5" className="p-4 text-center text-black">
+                      <td
+                        colSpan={showActions ? 5 : 4}
+                        className="p-4 text-center text-black"
+                      >
                         No compliance items for {lawId}.
                       </td>
                     </tr>
@@ -967,40 +978,24 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
     </section>
   );
 }
-
 /* ---------------------------
    Summary Of Findings and Observations
    ---------------------------*/
 function SummaryOfFindingsAndObservations({ systems, setSystems, lawFilter }) {
-  // Filter systems by selected laws
+  // Always show "Commitment/s from previous Technical Conference"
   const filteredSystems = useMemo(() => {
     if (!lawFilter || lawFilter.length === 0) return systems;
-    return systems.filter((s) => lawFilter.includes(s.lawId));
+    return systems.filter(
+      (s) =>
+        lawFilter.includes(s.lawId) ||
+        s.system === "Commitment/s from previous Technical Conference"
+    );
   }, [systems, lawFilter]);
 
-  const toggleStatus = (index, status) => {
+  const setRadioStatus = (index, status) => {
     const clone = [...systems];
-    const item = { ...clone[index] };
-    if (status === "compliant") {
-      item.compliant = !item.compliant;
-      if (item.compliant) {
-        item.nonCompliant = false;
-        item.notApplicable = false;
-      }
-    } else if (status === "nonCompliant") {
-      item.nonCompliant = !item.nonCompliant;
-      if (item.nonCompliant) {
-        item.compliant = false;
-        item.notApplicable = false;
-      }
-    } else {
-      item.notApplicable = !item.notApplicable;
-      if (item.notApplicable) {
-        item.compliant = false;
-        item.nonCompliant = false;
-      }
-    }
-    clone[index] = item;
+    clone[index].compliant = status === "compliant";
+    clone[index].nonCompliant = status === "nonCompliant";
     setSystems(clone);
   };
 
@@ -1026,42 +1021,35 @@ function SummaryOfFindingsAndObservations({ systems, setSystems, lawFilter }) {
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2">
                     <input
-                      type="checkbox"
+                      type="radio"
+                      name={`finding-status-${s.system}`}
                       checked={systems[globalIndex].compliant}
-                      onChange={() => toggleStatus(globalIndex, "compliant")}
-                      className="w-4 h-4"
+                      onChange={() => setRadioStatus(globalIndex, "compliant")}
+                      className="w-4 h-4 border-black"
                     />
                     <span className="text-sm text-black">Compliant</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <input
-                      type="checkbox"
+                      type="radio"
+                      name={`finding-status-${s.system}`}
                       checked={systems[globalIndex].nonCompliant}
-                      onChange={() => toggleStatus(globalIndex, "nonCompliant")}
-                      className="w-4 h-4"
+                      onChange={() =>
+                        setRadioStatus(globalIndex, "nonCompliant")
+                      }
+                      className="w-4 h-4 border-black"
                     />
                     <span className="text-sm text-black">Non-Compliant</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={systems[globalIndex].notApplicable}
-                      onChange={() =>
-                        toggleStatus(globalIndex, "notApplicable")
-                      }
-                      className="w-4 h-4"
-                    />
-                    <span className="text-sm text-black">N/A</span>
                   </label>
                 </div>
               </div>
 
               <div className="mt-2">
                 <textarea
-                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px]"
-                  value={systems[globalIndex].remarks}
+                  value={systems[globalIndex].remarks || ""}
                   onChange={(e) => updateRemarks(globalIndex, e.target.value)}
                   placeholder="Enter remarks..."
+                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px]"
                 />
               </div>
             </div>
@@ -1129,6 +1117,31 @@ function Recommendations({ recState, setRecState }) {
         )}
       </div>
     </section>
+  );
+}
+
+/* ---------------------------
+   Internal Header
+   ---------------------------*/
+function InternalHeader({ onSave, onClose }) {
+  return (
+    <header className="fixed left-0 z-10 flex items-center justify-between w-full px-6 py-2 bg-white border-b-1 top-18 ">
+      <div className="text-xl font-bold text-sky-700">Inspection Form</div>
+      <div className="flex gap-4">
+        <button
+          onClick={onClose}
+          className="px-2 py-1 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
+        >
+          Close Form
+        </button>
+        <button
+          onClick={onSave}
+          className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+        >
+          Save
+        </button>
+      </div>
+    </header>
   );
 }
 
@@ -1221,6 +1234,13 @@ export default function App() {
       notApplicable: false,
       remarks: "",
     },
+    {
+      system: "Commitment/s from previous Technical Conference",
+      compliant: false,
+      nonCompliant: false,
+      notApplicable: false,
+      remarks: "",
+    },
   ]);
   const [recommendationState, setRecommendationState] = useState({
     checked: [],
@@ -1232,66 +1252,63 @@ export default function App() {
     setLawFilter(selectedLaws);
   };
 
+  const handleSave = () => {
+    console.log({
+      general,
+      purpose,
+      permits,
+      complianceItems,
+      systems,
+      recommendationState,
+    });
+    alert("Form state logged to console (see devtools).");
+  };
+
+  const handleClose = () => {
+    // You can add navigation or modal logic here
+    alert("Form closed.");
+  };
+
   return (
     <div className="min-h-screen bg-white">
-      {/* Scrollable Content */}
-      <div className="pt-24 pb-20">
-        <div className="max-w-6xl p-6 mx-auto">
-          <GeneralInformation
-            data={general}
-            setData={setGeneral}
-            onLawFilterChange={handleLawFilterChange}
-          />
-          <PurposeOfInspection state={purpose} setState={setPurpose} />
-
-          {/* Only show these sections if laws are selected */}
-          {lawFilter.length > 0 && (
-            <>
-              <ComplianceStatus
-                permits={permits}
-                setPermits={setPermits}
-                lawFilter={lawFilter}
-              />
-              <SummaryOfCompliance
-                items={complianceItems}
-                setItems={setComplianceItems}
-                lawFilter={lawFilter}
-              />
-              <SummaryOfFindingsAndObservations
-                systems={systems}
-                setSystems={setSystems}
-                lawFilter={lawFilter}
-              />
-            </>
-          )}
-
-          {/* Recommendations always shown */}
-          <Recommendations
-            recState={recommendationState}
-            setRecState={setRecommendationState}
-          />
-
-          <div className="flex gap-3 mt-6">
-            <button
-              onClick={() => {
-                // simple local "save" demo: log to console
-                console.log({
-                  general,
-                  purpose,
-                  permits,
-                  complianceItems,
-                  systems,
-                  recommendationState,
-                });
-                alert("Form state logged to console (see devtools).");
-              }}
-              className="px-4 py-2 text-black bg-white border border-black"
-            >
-              Save (console)
-            </button>
+      <Layout>
+        {/* Fixed Header */}
+        <InternalHeader onSave={handleSave} onClose={handleClose} />
+        {/* Scrollable Content */}
+        <div>
+          <div className="max-w-6xl mx-auto">
+            <GeneralInformation
+              data={general}
+              setData={setGeneral}
+              onLawFilterChange={handleLawFilterChange}
+            />
+            <PurposeOfInspection state={purpose} setState={setPurpose} />
+            {lawFilter.length > 0 && (
+              <>
+                <ComplianceStatus
+                  permits={permits}
+                  setPermits={setPermits}
+                  lawFilter={lawFilter}
+                />
+                <SummaryOfCompliance
+                  items={complianceItems}
+                  setItems={setComplianceItems}
+                  lawFilter={lawFilter}
+                />
+                <SummaryOfFindingsAndObservations
+                  systems={systems}
+                  setSystems={setSystems}
+                  lawFilter={lawFilter}
+                />
+              </>
+            )}
+            <Recommendations
+              recState={recommendationState}
+              setRecState={setRecommendationState}
+            />
           </div>
         </div>
-      </div>
+      </Layout>
     </div>
   );
 }
