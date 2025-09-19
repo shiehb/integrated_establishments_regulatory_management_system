@@ -1,48 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
 import InspectionList from "../components/inspections/InspectionList";
-import AddInspection from "../components/inspections/AddInspection";
+import InspectionWizard from "../components/inspections/InspectionWizard";
 import EditInspection from "../components/inspections/EditInspection";
 import ViewInspection from "../components/inspections/ViewInspection";
 import InspectionForm from "../components/inspections/form";
+import { getEstablishments } from "../services/api"; // Import the API function
 
 export default function Inspections() {
-  const [showAdd, setShowAdd] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [editInspection, setEditInspection] = useState(null);
   const [viewInspection, setViewInspection] = useState(null);
   const [currentFormInspection, setCurrentFormInspection] = useState(null);
-
-  // 🔹 Sample establishments
-  const [establishments] = useState([
-    {
-      id: 1,
-      name: "SAMPLE ESTABLISHMENT",
-      natureOfBusiness: "RETAIL",
-      address: {
-        province: "METRO MANILA",
-        city: "QUEZON CITY",
-        barangay: "SANDY",
-        street: "123 MAIN ST",
-        postalCode: "1100",
-      },
-      coordinates: { latitude: "14.6760", longitude: "121.0437" },
-    },
-    {
-      id: 2,
-      name: "ANOTHER ESTABLISHMENT",
-      natureOfBusiness: "WHOLESALE",
-      address: {
-        province: "LAGUNA",
-        city: "SAN PABLO",
-        barangay: "BAGONG SILANG",
-        street: "456 SECOND ST",
-        postalCode: "4000",
-      },
-      coordinates: { latitude: "14.0668", longitude: "121.3260" },
-    },
-  ]);
+  const [establishments, setEstablishments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // 🔹 Inspections state - now each inspection has only one establishment
   const [inspections, setInspections] = useState([
@@ -53,6 +26,41 @@ export default function Inspections() {
       status: "PENDING",
     },
   ]);
+
+  // 🔹 Fetch establishments on component mount
+  useEffect(() => {
+    fetchEstablishments();
+  }, []);
+
+  const fetchEstablishments = async () => {
+    setLoading(true);
+    try {
+      const data = await getEstablishments();
+      // Transform API data to match the expected format
+      const formattedEstablishments = data.map((est) => ({
+        id: est.id,
+        name: est.name,
+        natureOfBusiness: est.nature_of_business,
+        yearEstablished: est.year_established,
+        address: {
+          province: est.province,
+          city: est.city,
+          barangay: est.barangay,
+          street: est.street_building,
+          postalCode: est.postal_code,
+        },
+        coordinates: {
+          latitude: est.latitude,
+          longitude: est.longitude,
+        },
+      }));
+      setEstablishments(formattedEstablishments);
+    } catch (err) {
+      console.error("Error fetching establishments:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 🔹 Map law → prefix
   const sectionPrefixes = {
@@ -91,6 +99,7 @@ export default function Inspections() {
   const handleSaveInspection = (inspectionsData) => {
     // inspectionsData is now an array of inspection objects
     setInspections((prev) => [...prev, ...inspectionsData]);
+    setShowWizard(false);
   };
 
   // 🔹 Update inspection section
@@ -120,25 +129,35 @@ export default function Inspections() {
     setCurrentFormInspection(null);
   };
 
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <LayoutWithSidebar userLevel="admin">
+          <div className="p-4">Loading establishments...</div>
+        </LayoutWithSidebar>
+        <Footer />
+      </>
+    );
+  }
+
   return (
     <>
       <Header />
       <LayoutWithSidebar userLevel="admin">
         <div>
-          {showAdd ? (
-            <AddInspection
+          {showWizard ? (
+            <InspectionWizard
               establishments={establishments}
-              onCancel={() => setShowAdd(false)}
-              onSave={(inspectionsData) => {
-                handleSaveInspection(inspectionsData);
-                setShowAdd(false);
-              }}
+              onCancel={() => setShowWizard(false)}
+              onSave={handleSaveInspection}
               getLastInspectionLaw={getLastInspectionLaw}
+              existingInspections={inspections}
             />
           ) : (
             <InspectionList
               inspections={inspectionsWithDetails}
-              onAdd={() => setShowAdd(true)}
+              onAdd={() => setShowWizard(true)}
               onEdit={(insp) => setEditInspection(insp)}
               onView={(insp) => setViewInspection(insp)}
             />
@@ -186,8 +205,10 @@ export default function Inspections() {
                 </div>
                 <InspectionForm
                   inspectionData={currentFormInspection}
+                  establishment={establishments.find(
+                    (e) => e.id === currentFormInspection.establishmentId
+                  )}
                   onSave={(formData) => {
-                    // Save form data associated with this inspection
                     console.log(
                       "Saving form for inspection:",
                       currentFormInspection.id,

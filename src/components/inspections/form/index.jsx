@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Layout from "../../Layout";
 
 const LAWS = [
@@ -95,6 +95,7 @@ const initialPermits = [
     expiryDate: "",
   },
 ];
+
 const initialComplianceItems = [
   {
     lawId: "PD-1586",
@@ -142,9 +143,51 @@ function SectionHeader({ title }) {
 /* ---------------------------
    General Information
    ---------------------------*/
-function GeneralInformation({ data, setData, onLawFilterChange }) {
+function GeneralInformation({
+  data,
+  setData,
+  onLawFilterChange,
+  inspectionData,
+}) {
+  // Auto-fill data when inspectionData changes
+  useEffect(() => {
+    if (
+      inspectionData &&
+      inspectionData.establishments &&
+      inspectionData.establishments.length > 0
+    ) {
+      const establishment = inspectionData.establishments[0];
+      const address = establishment.address;
+      const coordinates = establishment.coordinates;
+
+      const newData = {
+        ...data,
+        establishmentName: establishment.name,
+        address: `${address.street}, ${address.barangay}, ${address.city}, ${address.province}, ${address.postalCode}`,
+        coordinates: `${coordinates.latitude}, ${coordinates.longitude}`,
+        natureOfBusiness: establishment.natureOfBusiness,
+        yearEstablished: establishment.year_established || "", // Use year_established from API data
+        environmentalLaws: [inspectionData.section], // Set the law from inspection
+      };
+
+      setData(newData);
+
+      // Notify parent component about the law filter change
+      if (onLawFilterChange) {
+        onLawFilterChange([inspectionData.section]);
+      }
+    }
+  }, [inspectionData]);
+
   const toggleLaw = (lawId) => {
     const selected = data.environmentalLaws || [];
+    const isInitialLaw = inspectionData && inspectionData.section === lawId;
+
+    // Prevent unchecking the initial law from inspection
+    if (isInitialLaw && selected.includes(lawId)) {
+      return;
+    }
+
     const exists = selected.includes(lawId);
     const updated = exists
       ? selected.filter((l) => l !== lawId)
@@ -159,7 +202,18 @@ function GeneralInformation({ data, setData, onLawFilterChange }) {
   };
 
   const updateField = (field, value) => {
-    setData({ ...data, [field]: value });
+    // Only allow updating fields that aren't auto-filled
+    const autoFilledFields = [
+      "establishmentName",
+      "address",
+      "coordinates",
+      "natureOfBusiness",
+      "yearEstablished", // Add yearEstablished to auto-filled fields
+    ];
+
+    if (!autoFilledFields.includes(field)) {
+      setData({ ...data, [field]: value });
+    }
   };
 
   return (
@@ -170,17 +224,27 @@ function GeneralInformation({ data, setData, onLawFilterChange }) {
           Applicable Environmental Laws (check all that apply)
         </label>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-          {LAWS.map((law) => (
-            <label key={law.id} className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={(data.environmentalLaws || []).includes(law.id)}
-                onChange={() => toggleLaw(law.id)}
-                className="w-4 h-4 border-black"
-              />
-              <span className="text-black">{law.label}</span>
-            </label>
-          ))}
+          {LAWS.map((law) => {
+            const isInitialLaw =
+              inspectionData && inspectionData.section === law.id;
+            const isChecked = (data.environmentalLaws || []).includes(law.id);
+
+            return (
+              <label key={law.id} className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => toggleLaw(law.id)}
+                  className="w-4 h-4 border-black"
+                  disabled={isInitialLaw && isChecked} // Only disable if it's the initial law and checked
+                />
+                <span className="text-black">{law.label}</span>
+                {isInitialLaw && isChecked && (
+                  <span className="text-xs text-gray-500">(Required)</span>
+                )}
+              </label>
+            );
+          })}
         </div>
       </div>
 
@@ -190,10 +254,11 @@ function GeneralInformation({ data, setData, onLawFilterChange }) {
           Name of Establishment
         </label>
         <input
-          className="w-full px-2 py-1 text-black bg-white border border-black"
+          className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
           value={data.establishmentName}
           onChange={(e) => updateField("establishmentName", e.target.value)}
           placeholder="Enter establishment name"
+          readOnly // Make field read-only
         />
       </div>
 
@@ -202,10 +267,11 @@ function GeneralInformation({ data, setData, onLawFilterChange }) {
         <div>
           <label className="block mb-1 text-sm text-black">Address</label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
             value={data.address}
             onChange={(e) => updateField("address", e.target.value)}
             placeholder="Complete address"
+            readOnly // Make field read-only
           />
         </div>
         <div>
@@ -213,10 +279,11 @@ function GeneralInformation({ data, setData, onLawFilterChange }) {
             Coordinates (Decimal)
           </label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
             value={data.coordinates}
             onChange={(e) => updateField("coordinates", e.target.value)}
             placeholder="Latitude, Longitude"
+            readOnly // Make field read-only
           />
         </div>
       </div>
@@ -227,9 +294,10 @@ function GeneralInformation({ data, setData, onLawFilterChange }) {
           Nature of Business
         </label>
         <input
-          className="w-full px-2 py-1 text-black bg-white border border-black"
+          className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
           value={data.natureOfBusiness}
           onChange={(e) => updateField("natureOfBusiness", e.target.value)}
+          readOnly // Make field read-only
         />
       </div>
 
@@ -241,10 +309,11 @@ function GeneralInformation({ data, setData, onLawFilterChange }) {
           </label>
           <input
             type="number"
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
             value={data.yearEstablished}
             onChange={(e) => updateField("yearEstablished", e.target.value)}
             placeholder="YYYY"
+            readOnly // Make field read-only
           />
         </div>
         <div>
@@ -1148,7 +1217,7 @@ function InternalHeader({ onSave, onClose }) {
 /* ---------------------------
    Main App
    ---------------------------*/
-export default function App() {
+export default function App({ inspectionData }) {
   const [general, setGeneral] = useState({
     establishmentName: "",
     address: "",
@@ -1281,6 +1350,7 @@ export default function App() {
               data={general}
               setData={setGeneral}
               onLawFilterChange={handleLawFilterChange}
+              inspectionData={inspectionData}
             />
             <PurposeOfInspection state={purpose} setState={setPurpose} />
             {lawFilter.length > 0 && (

@@ -219,7 +219,7 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
   );
 
   return (
-    <div className="grid w-full max-w-6xl grid-cols-1 md:grid-cols-2 gap-6 p-8 bg-white shadow-lg rounded-2xl">
+    <div className="grid w-full max-w-6xl grid-cols-1 gap-6 p-8 bg-white shadow-lg md:grid-cols-2 rounded-2xl">
       {/* Form first, map second */}
       <div className="order-1">
         <form onSubmit={handleSubmit} className="space-y-5 text-sm">

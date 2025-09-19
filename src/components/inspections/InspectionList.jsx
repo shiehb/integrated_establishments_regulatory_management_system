@@ -30,7 +30,6 @@ export default function InspectionList({ inspections, onAdd, onEdit, onView }) {
           <tr className="text-sm text-center text-white bg-sky-700">
             <th className="p-1 border">ID</th>
             <th className="p-1 border">Name</th>
-            <th className="p-1 border">Nature of Business</th>
             <th className="p-1 border">Address</th>
             <th className="p-1 border">Coordinates</th>
             <th className="p-1 border">Section</th>
@@ -48,9 +47,6 @@ export default function InspectionList({ inspections, onAdd, onEdit, onView }) {
                 <td className="px-2 border border-gray-300">{id}</td>
                 <td className="px-2 border border-gray-300">
                   {establishment.name}
-                </td>
-                <td className="px-2 border border-gray-300">
-                  {establishment.natureOfBusiness}
                 </td>
                 <td className="px-2 border border-gray-300">
                   {`${establishment.address.street}, ${establishment.address.barangay}, ${establishment.address.city}, ${establishment.address.province}, ${establishment.address.postalCode}`}

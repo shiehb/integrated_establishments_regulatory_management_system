@@ -1,3 +1,4 @@
+// PolygonMap.jsx
 import { useEffect, useRef, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -12,7 +13,12 @@ const markerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-export default function PolygonMap({ establishment, onSave, onClose }) {
+export default function PolygonMap({
+  establishment,
+  onSave,
+  onClose,
+  showButtons = true,
+}) {
   const mapRef = useRef(null);
   const drawnItemsRef = useRef(new L.FeatureGroup());
   const [areaLabel, setAreaLabel] = useState(null);
@@ -157,7 +163,7 @@ export default function PolygonMap({ establishment, onSave, onClose }) {
   };
 
   return (
-    <div className="h-[600px] w-full">
+    <div className="h-[585px] w-full">
       <MapContainer
         center={
           establishment
@@ -197,22 +203,25 @@ export default function PolygonMap({ establishment, onSave, onClose }) {
         )}
       </MapContainer>
 
-      <div className="flex gap-2 mt-2">
-        <button
-          onClick={handleSave}
-          className="px-4 py-2 text-white bg-green-600 rounded hover:bg-green-700 disabled:bg-gray-400"
-          disabled={loading}
-        >
-          {loading ? "Saving..." : "Save Polygon"}
-        </button>
-        <button
-          onClick={onClose}
-          className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-          disabled={loading}
-        >
-          Close
-        </button>
-      </div>
+      {/* Only show buttons if showButtons prop is true */}
+      {showButtons && (
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-white bg-green-600 rounded hover:bg-green-700 disabled:bg-gray-400"
+            disabled={loading}
+          >
+            {loading ? "Saving..." : "Save Polygon"}
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+            disabled={loading}
+          >
+            Close
+          </button>
+        </div>
+      )}
     </div>
   );
 }
