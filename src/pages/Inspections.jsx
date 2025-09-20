@@ -15,17 +15,8 @@ export default function Inspections() {
   const [viewInspection, setViewInspection] = useState(null);
   const [currentFormInspection, setCurrentFormInspection] = useState(null);
   const [establishments, setEstablishments] = useState([]);
+  const [inspections, setInspections] = useState([]); // Remove mock data
   const [loading, setLoading] = useState(true);
-
-  // 🔹 Inspections state - now each inspection has only one establishment
-  const [inspections, setInspections] = useState([
-    {
-      id: "EIA-2025-0001",
-      establishmentId: 1, // Changed from establishments array to single establishmentId
-      section: "PD-1586",
-      status: "PENDING",
-    },
-  ]);
 
   // 🔹 Fetch establishments on component mount
   useEffect(() => {
@@ -41,7 +32,7 @@ export default function Inspections() {
         id: est.id,
         name: est.name,
         natureOfBusiness: est.nature_of_business,
-        yearEstablished: est.year_established,
+        yearEstablished: est.year_established, // Make sure this is included
         address: {
           province: est.province,
           city: est.city,

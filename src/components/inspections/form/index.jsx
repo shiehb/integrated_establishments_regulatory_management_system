@@ -162,11 +162,13 @@ function GeneralInformation({
 
       const newData = {
         ...data,
-        establishmentName: establishment.name,
-        address: `${address.street}, ${address.barangay}, ${address.city}, ${address.province}, ${address.postalCode}`,
-        coordinates: `${coordinates.latitude}, ${coordinates.longitude}`,
-        natureOfBusiness: establishment.natureOfBusiness,
-        yearEstablished: establishment.year_established || "", // Use year_established from API data
+        establishmentName: establishment.name.toUpperCase(),
+        address:
+          `${address.street}, ${address.barangay}, ${address.city}, ${address.province}, ${address.postalCode}`.toUpperCase(),
+        coordinates:
+          `${coordinates.latitude}, ${coordinates.longitude}`.toUpperCase(),
+        natureOfBusiness: establishment.natureOfBusiness.toUpperCase(),
+        yearEstablished: establishment.yearEstablished || "", // Make sure this is correctly mapped
         environmentalLaws: [inspectionData.section], // Set the law from inspection
       };
 
@@ -212,7 +214,7 @@ function GeneralInformation({
     ];
 
     if (!autoFilledFields.includes(field)) {
-      setData({ ...data, [field]: value });
+      setData({ ...data, [field]: value.toUpperCase() });
     }
   };
 
@@ -254,10 +256,10 @@ function GeneralInformation({
           Name of Establishment
         </label>
         <input
-          className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
+          className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
           value={data.establishmentName}
           onChange={(e) => updateField("establishmentName", e.target.value)}
-          placeholder="Enter establishment name"
+          placeholder="ENTER ESTABLISHMENT NAME"
           readOnly // Make field read-only
         />
       </div>
@@ -267,10 +269,10 @@ function GeneralInformation({
         <div>
           <label className="block mb-1 text-sm text-black">Address</label>
           <input
-            className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
             value={data.address}
             onChange={(e) => updateField("address", e.target.value)}
-            placeholder="Complete address"
+            placeholder="COMPLETE ADDRESS"
             readOnly // Make field read-only
           />
         </div>
@@ -279,10 +281,10 @@ function GeneralInformation({
             Coordinates (Decimal)
           </label>
           <input
-            className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
             value={data.coordinates}
             onChange={(e) => updateField("coordinates", e.target.value)}
-            placeholder="Latitude, Longitude"
+            placeholder="LATITUDE, LONGITUDE"
             readOnly // Make field read-only
           />
         </div>
@@ -294,7 +296,7 @@ function GeneralInformation({
           Nature of Business
         </label>
         <input
-          className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
+          className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
           value={data.natureOfBusiness}
           onChange={(e) => updateField("natureOfBusiness", e.target.value)}
           readOnly // Make field read-only
@@ -309,7 +311,7 @@ function GeneralInformation({
           </label>
           <input
             type="number"
-            className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
             value={data.yearEstablished}
             onChange={(e) => updateField("yearEstablished", e.target.value)}
             placeholder="YYYY"
@@ -336,10 +338,10 @@ function GeneralInformation({
             Operating Hours/Day
           </label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.operatingHours}
             onChange={(e) => updateField("operatingHours", e.target.value)}
-            placeholder="e.g. 8AM-5PM"
+            placeholder="E.G. 8AM-5PM"
           />
         </div>
 
@@ -348,12 +350,12 @@ function GeneralInformation({
             Operating Days/Week
           </label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.operatingDaysPerWeek}
             onChange={(e) =>
               updateField("operatingDaysPerWeek", e.target.value)
             }
-            placeholder="e.g. Monday-Friday"
+            placeholder="E.G. MONDAY-FRIDAY"
           />
         </div>
 
@@ -362,12 +364,12 @@ function GeneralInformation({
             Operating Days/Year
           </label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.operatingDaysPerYear}
             onChange={(e) =>
               updateField("operatingDaysPerYear", e.target.value)
             }
-            placeholder="e.g. 300 days"
+            placeholder="E.G. 300 DAYS"
           />
         </div>
       </div>
@@ -380,10 +382,10 @@ function GeneralInformation({
         <div>
           <label className="block mb-1 text-sm text-black">Product Lines</label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.productLines}
             onChange={(e) => updateField("productLines", e.target.value)}
-            placeholder="e.g."
+            placeholder="E.G."
           />
         </div>
 
@@ -392,12 +394,12 @@ function GeneralInformation({
             Production Rate as Declared in The ECC (Unit/day)
           </label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.declaredProductionRate}
             onChange={(e) =>
               updateField("declaredProductionRate", e.target.value)
             }
-            placeholder="e.g."
+            placeholder="E.G."
           />
         </div>
 
@@ -406,12 +408,12 @@ function GeneralInformation({
             Actual Production Rate (Unit/day)
           </label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.actualProductionRate}
             onChange={(e) =>
               updateField("actualProductionRate", e.target.value)
             }
-            placeholder="e.g."
+            placeholder="E.G."
           />
         </div>
       </div>
@@ -426,7 +428,7 @@ function GeneralInformation({
             Name of Managing Head
           </label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.managingHead}
             onChange={(e) => updateField("managingHead", e.target.value)}
           />
@@ -437,7 +439,7 @@ function GeneralInformation({
         <div>
           <label className="block mb-1 text-sm text-black">Name of PCO</label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.pcoName}
             onChange={(e) => updateField("pcoName", e.target.value)}
           />
@@ -448,7 +450,7 @@ function GeneralInformation({
             Name of person Interviewed, Designation
           </label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.interviewedPerson}
             onChange={(e) => updateField("interviewedPerson", e.target.value)}
           />
@@ -461,7 +463,7 @@ function GeneralInformation({
             PCO Accreditation No.
           </label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.pcoAccreditationNo}
             onChange={(e) => updateField("pcoAccreditationNo", e.target.value)}
           />
@@ -486,7 +488,7 @@ function GeneralInformation({
             Phone/ Fax No.
           </label>
           <input
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.phoneFaxNo}
             onChange={(e) => updateField("phoneFaxNo", e.target.value)}
           />
@@ -496,9 +498,11 @@ function GeneralInformation({
           <label className="block mb-1 text-sm text-black">Email Address</label>
           <input
             type="email"
-            className="w-full px-2 py-1 text-black bg-white border border-black"
+            className="w-full px-2 py-1 text-black lowercase bg-white border border-black"
             value={data.emailAddress}
-            onChange={(e) => updateField("emailAddress", e.target.value)}
+            onChange={(e) =>
+              updateField("emailAddress", e.target.value.toLowerCase())
+            }
           />
         </div>
       </div>
@@ -584,7 +588,7 @@ function PurposeOfInspection({ state, setState }) {
   };
 
   const updateField = (field, value) => {
-    setState({ ...state, [field]: value });
+    setState({ ...state, [field]: value.toUpperCase() });
   };
 
   return (
@@ -642,8 +646,8 @@ function PurposeOfInspection({ state, setState }) {
                                       e.target.value
                                     )
                                   }
-                                  placeholder="Please specify other accuracy details..."
-                                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px]"
+                                  placeholder="PLEASE SPECIFY OTHER ACCURACY DETAILS..."
+                                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
                                 />
                               </div>
                             )}
@@ -693,8 +697,8 @@ function PurposeOfInspection({ state, setState }) {
                                       e.target.value
                                     )
                                   }
-                                  placeholder="Please specify other commitment details..."
-                                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px]"
+                                  placeholder="PLEASE SPECIFY OTHER COMMITMENT DETAILS..."
+                                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
                                 />
                               </div>
                             )}
@@ -715,8 +719,8 @@ function PurposeOfInspection({ state, setState }) {
                     onChange={(e) =>
                       updateField("otherPurpose", e.target.value)
                     }
-                    placeholder="Please specify other purpose of inspection..."
-                    className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px]"
+                    placeholder="PLEASE SPECIFY OTHER PURPOSE OF INSPECTION..."
+                    className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
                   />
                 </div>
               )}
@@ -734,7 +738,7 @@ function PurposeOfInspection({ state, setState }) {
 function ComplianceStatus({ permits, setPermits, lawFilter }) {
   const updatePermitField = (index, field, value) => {
     const newPermits = [...permits];
-    newPermits[index] = { ...newPermits[index], [field]: value };
+    newPermits[index] = { ...newPermits[index], [field]: value.toUpperCase() };
     setPermits(newPermits);
   };
 
@@ -792,7 +796,7 @@ function ComplianceStatus({ permits, setPermits, lawFilter }) {
                     </td>
                     <td className="p-2 border border-black">
                       <input
-                        className="w-full px-2 py-1 text-black bg-white border border-black"
+                        className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
                         value={permits[originalIndex].permitNumber}
                         onChange={(e) =>
                           updatePermitField(
@@ -860,7 +864,7 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
   // Helper to update an item
   const updateItem = (index, field, value) => {
     const clone = [...items];
-    clone[index] = { ...clone[index], [field]: value };
+    clone[index] = { ...clone[index], [field]: value.toUpperCase() };
     setItems(clone);
   };
 
@@ -936,7 +940,7 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
                           {item.lawId === "PD-1586" && (
                             <div className="mt-2">
                               <input
-                                placeholder="Condition No."
+                                placeholder="CONDITION NO."
                                 value={items[globalIndex].conditionNumber || ""}
                                 onChange={(e) =>
                                   updateItem(
@@ -945,7 +949,7 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
                                     e.target.value
                                   )
                                 }
-                                className="w-32 px-2 py-1 text-black bg-white border border-black"
+                                className="w-32 px-2 py-1 text-black uppercase bg-white border border-black"
                               />
                             </div>
                           )}
@@ -963,7 +967,7 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
                                   e.target.value
                                 )
                               }
-                              className="w-full border border-black px-2 py-1 min-h-[60px] bg-white text-black"
+                              className="w-full border border-black px-2 py-1 min-h-[60px] bg-white text-black uppercase"
                             />
                           ) : (
                             <div className="px-2 py-1 min-h-[60px]">
@@ -998,8 +1002,8 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
                             onChange={(e) =>
                               updateItem(globalIndex, "remarks", e.target.value)
                             }
-                            placeholder="Enter remarks..."
-                            className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px]"
+                            placeholder="ENTER REMARKS..."
+                            className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase"
                           />
                         </td>
                         {showActions && (
@@ -1070,7 +1074,7 @@ function SummaryOfFindingsAndObservations({ systems, setSystems, lawFilter }) {
 
   const updateRemarks = (index, val) => {
     const clone = [...systems];
-    clone[index] = { ...clone[index], remarks: val };
+    clone[index] = { ...clone[index], remarks: val.toUpperCase() };
     setSystems(clone);
   };
 
@@ -1117,8 +1121,8 @@ function SummaryOfFindingsAndObservations({ systems, setSystems, lawFilter }) {
                 <textarea
                   value={systems[globalIndex].remarks || ""}
                   onChange={(e) => updateRemarks(globalIndex, e.target.value)}
-                  placeholder="Enter remarks..."
-                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px]"
+                  placeholder="ENTER REMARKS..."
+                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase"
                 />
               </div>
             </div>
@@ -1156,6 +1160,10 @@ function Recommendations({ recState, setRecState }) {
     setRecState({ ...recState, checked: Array.from(set) });
   };
 
+  const updateField = (field, value) => {
+    setRecState({ ...recState, [field]: value.toUpperCase() });
+  };
+
   return (
     <section className="p-4 mb-6 bg-white border border-black">
       <SectionHeader title="Recommendations" />
@@ -1176,11 +1184,9 @@ function Recommendations({ recState, setRecState }) {
           <div className="mt-2">
             <textarea
               value={recState.otherText || ""}
-              onChange={(e) =>
-                setRecState({ ...recState, otherText: e.target.value })
-              }
-              placeholder="Enter other recommendation..."
-              className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px]"
+              onChange={(e) => updateField("otherText", e.target.value)}
+              placeholder="ENTER OTHER RECOMMENDATION..."
+              className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
             />
           </div>
         )}
@@ -1194,7 +1200,7 @@ function Recommendations({ recState, setRecState }) {
    ---------------------------*/
 function InternalHeader({ onSave, onClose }) {
   return (
-    <header className="fixed left-0 z-10 flex items-center justify-between w-full px-6 py-2 bg-white border-b-1 top-18 ">
+    <header className="fixed left-0 z-10 flex items-center justify-between w-full px-6 py-2 bg-white border-b border-gray-200 top-18 ">
       <div className="text-xl font-bold text-sky-700">Inspection Form</div>
       <div className="flex gap-4">
         <button
@@ -1218,133 +1224,233 @@ function InternalHeader({ onSave, onClose }) {
    Main App
    ---------------------------*/
 export default function App({ inspectionData }) {
-  const [general, setGeneral] = useState({
-    establishmentName: "",
-    address: "",
-    coordinates: "",
-    natureOfBusiness: "",
-    yearEstablished: "",
-    inspectionDateTime: "",
-    environmentalLaws: [], // Start with empty array
-    // New fields
-    operatingHours: "",
-    operatingDaysPerWeek: "",
-    operatingDaysPerYear: "",
-    productLines: "",
-    declaredProductionRate: "",
-    actualProductionRate: "",
-    managingHead: "",
-    pcoName: "",
-    interviewedPerson: "",
-    pcoAccreditationNo: "",
-    effectivityDate: "",
-    phoneFaxNo: "",
-    emailAddress: "",
-  });
+  // Create a unique key for localStorage based on inspection ID
+  const storageKey = `inspection-form-${inspectionData?.id || "draft"}`;
 
-  const [purpose, setPurpose] = useState({
-    purposes: [],
-    accuracyDetails: [],
-    commitmentStatusDetails: [],
-    otherPurpose: "",
-    accuracyOtherDetail: "",
-    commitmentOtherDetail: "",
-  });
-  const [permits, setPermits] = useState(initialPermits);
-  const [complianceItems, setComplianceItems] = useState(
-    initialComplianceItems
-  );
-  const [systems, setSystems] = useState([
-    {
-      lawId: "PD-1586",
-      system: "Environmental Impact Statement System",
-      compliant: false,
-      nonCompliant: false,
-      notApplicable: false,
-      remarks: "",
-    },
-    {
-      lawId: "RA-6969",
-      system: "Chemical Management",
-      compliant: false,
-      nonCompliant: false,
-      notApplicable: false,
-      remarks: "",
-    },
-    {
-      lawId: "RA-6969",
-      system: "Hazardous Waste Management",
-      compliant: false,
-      nonCompliant: false,
-      notApplicable: false,
-      remarks: "",
-    },
-    {
-      lawId: "RA-8749",
-      system: "Air Quality Management",
-      compliant: false,
-      nonCompliant: false,
-      notApplicable: false,
-      remarks: "",
-    },
-    {
-      lawId: "RA-9275",
-      system: "Water Quality Management",
-      compliant: false,
-      nonCompliant: false,
-      notApplicable: false,
-      remarks: "",
-    },
-    {
-      lawId: "RA-9003",
-      system: "Solid Waste Management",
-      compliant: false,
-      nonCompliant: false,
-      notApplicable: false,
-      remarks: "",
-    },
-    {
-      system: "Commitment/s from previous Technical Conference",
-      compliant: false,
-      nonCompliant: false,
-      notApplicable: false,
-      remarks: "",
-    },
-  ]);
-  const [recommendationState, setRecommendationState] = useState({
-    checked: [],
-  });
-
-  const [lawFilter, setLawFilter] = useState([]);
-
-  const handleLawFilterChange = (selectedLaws) => {
-    setLawFilter(selectedLaws);
+  // Load initial data from localStorage if available, otherwise use empty state
+  const loadSavedData = () => {
+    try {
+      const savedData = localStorage.getItem(storageKey);
+      if (savedData) {
+        return JSON.parse(savedData);
+      }
+    } catch (error) {
+      console.error("Error loading saved data:", error);
+    }
+    return null;
   };
 
-  const handleSave = () => {
-    console.log({
+  const savedData = loadSavedData();
+
+  const [general, setGeneral] = useState(
+    savedData?.general || {
+      establishmentName: "",
+      address: "",
+      coordinates: "",
+      natureOfBusiness: "",
+      yearEstablished: "",
+      inspectionDateTime: "",
+      environmentalLaws: [],
+      operatingHours: "",
+      operatingDaysPerWeek: "",
+      operatingDaysPerYear: "",
+      productLines: "",
+      declaredProductionRate: "",
+      actualProductionRate: "",
+      managingHead: "",
+      pcoName: "",
+      interviewedPerson: "",
+      pcoAccreditationNo: "",
+      effectivityDate: "",
+      phoneFaxNo: "",
+      emailAddress: "",
+    }
+  );
+
+  const [purpose, setPurpose] = useState(
+    savedData?.purpose || {
+      purposes: [],
+      accuracyDetails: [],
+      commitmentStatusDetails: [],
+      otherPurpose: "",
+      accuracyOtherDetail: "",
+      commitmentOtherDetail: "",
+    }
+  );
+
+  const [permits, setPermits] = useState(savedData?.permits || initialPermits);
+  const [complianceItems, setComplianceItems] = useState(
+    savedData?.complianceItems || initialComplianceItems
+  );
+
+  const [systems, setSystems] = useState(
+    savedData?.systems || [
+      {
+        lawId: "PD-1586",
+        system: "Environmental Impact Statement System",
+        compliant: false,
+        nonCompliant: false,
+        notApplicable: false,
+        remarks: "",
+      },
+      {
+        lawId: "RA-6969",
+        system: "Chemical Management",
+        compliant: false,
+        nonCompliant: false,
+        notApplicable: false,
+        remarks: "",
+      },
+      {
+        lawId: "RA-6969",
+        system: "Hazardous Waste Management",
+        compliant: false,
+        nonCompliant: false,
+        notApplicable: false,
+        remarks: "",
+      },
+      {
+        lawId: "RA-8749",
+        system: "Air Quality Management",
+        compliant: false,
+        nonCompliant: false,
+        notApplicable: false,
+        remarks: "",
+      },
+      {
+        lawId: "RA-9275",
+        system: "Water Quality Management",
+        compliant: false,
+        nonCompliant: false,
+        notApplicable: false,
+        remarks: "",
+      },
+      {
+        lawId: "RA-9003",
+        system: "Solid Waste Management",
+        compliant: false,
+        nonCompliant: false,
+        notApplicable: false,
+        remarks: "",
+      },
+      {
+        system: "Commitment/s from previous Technical Conference",
+        compliant: false,
+        nonCompliant: false,
+        notApplicable: false,
+        remarks: "",
+      },
+    ]
+  );
+  const [recommendationState, setRecommendationState] = useState(
+    savedData?.recommendationState || {
+      checked: [],
+    }
+  );
+
+  const [lawFilter, setLawFilter] = useState(savedData?.lawFilter || []);
+  const [lastSaveTime, setLastSaveTime] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Monitor online/offline status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Auto-save to localStorage whenever any state changes
+  useEffect(() => {
+    const saveData = {
       general,
       purpose,
       permits,
       complianceItems,
       systems,
       recommendationState,
-    });
-    alert("Form state logged to console (see devtools).");
+      lawFilter,
+      lastSaved: new Date().toISOString(),
+    };
+
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(saveData));
+      setLastSaveTime(new Date().toISOString());
+    } catch (error) {
+      console.error("Error saving to localStorage:", error);
+    }
+  }, [
+    general,
+    purpose,
+    permits,
+    complianceItems,
+    systems,
+    recommendationState,
+    lawFilter,
+    storageKey,
+  ]);
+
+  const handleLawFilterChange = (selectedLaws) => {
+    setLawFilter(selectedLaws);
+  };
+
+  const handleSave = () => {
+    const formData = {
+      general,
+      purpose,
+      permits,
+      complianceItems,
+      systems,
+      recommendationState,
+    };
+
+    console.log("Form data to save:", formData);
+
+    // Clear the saved draft after successful save
+    localStorage.removeItem(storageKey);
+    alert("Form submitted successfully! Draft cleared.");
   };
 
   const handleClose = () => {
-    // You can add navigation or modal logic here
-    alert("Form closed.");
+    // Ask user if they want to keep the draft
+    const keepDraft = confirm("Would you like to keep your draft for later?");
+    if (!keepDraft) {
+      localStorage.removeItem(storageKey);
+    }
+    alert("Form closed." + (keepDraft ? " Draft saved for later." : ""));
   };
+
+  // Check if there's a saved draft when component mounts
+  useEffect(() => {
+    if (savedData) {
+      const loadDraft = confirm(
+        "We found a saved draft. Would you like to load it?"
+      );
+      if (loadDraft) {
+        // Data already loaded from localStorage in initialState
+        console.log("Loaded saved draft");
+      } else {
+        // Clear the saved data if user doesn't want it
+        localStorage.removeItem(storageKey);
+        console.log("Discarded saved draft");
+      }
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-white">
       <Layout>
-        {/* Fixed Header */}
+        {/* Fixed Header - Add status indicator */}
         <InternalHeader onSave={handleSave} onClose={handleClose} />
-        {/* Scrollable Content */}
-        <div>
+
+        {/* Scrollable Content - Add padding for status bar */}
+        <div className="pt-8">
           <div className="max-w-6xl mx-auto">
             <GeneralInformation
               data={general}

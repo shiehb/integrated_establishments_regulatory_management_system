@@ -17,20 +17,18 @@ export default function Billing() {
     <>
       <Header />
       <LayoutWithSidebar userLevel="legal-unit">
-        <div className="p-4">
-          {!selectedReport ? (
-            <NonComplianceList
-              key={refreshTrigger}
-              onSelectReport={setSelectedReport}
-            />
-          ) : (
-            <InspectionReportView
-              report={selectedReport}
-              onBack={() => setSelectedReport(null)}
-              onBillingCreated={refreshData}
-            />
-          )}
-        </div>
+        {!selectedReport ? (
+          <NonComplianceList
+            key={refreshTrigger}
+            onSelectReport={setSelectedReport}
+          />
+        ) : (
+          <InspectionReportView
+            report={selectedReport}
+            onBack={() => setSelectedReport(null)}
+            onBillingCreated={refreshData}
+          />
+        )}
       </LayoutWithSidebar>
       <Footer />
     </>

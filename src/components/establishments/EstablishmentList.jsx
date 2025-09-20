@@ -234,8 +234,7 @@ export default function EstablishmentList({
                   {e.postal_code}
                 </td>
                 <td className="px-2 text-center border border-gray-300">
-                  <span className="font-semibold">Lat:</span> {e.latitude},{" "}
-                  <span className="font-semibold">Lng:</span> {e.longitude}
+                  {e.latitude}, {e.longitude}
                 </td>
                 <td className="px-2 border border-gray-300">
                   {e.nature_of_business}
