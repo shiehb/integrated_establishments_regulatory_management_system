@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from "react";
-import Layout from "../../Layout";
 
 const LAWS = [
   { id: "PD-1586", label: "PD-1586" },
@@ -1194,13 +1193,12 @@ function Recommendations({ recState, setRecState }) {
     </section>
   );
 }
-
 /* ---------------------------
    Internal Header
    ---------------------------*/
 function InternalHeader({ onSave, onClose }) {
   return (
-    <header className="fixed left-0 z-10 flex items-center justify-between w-full px-6 py-2 bg-white border-b border-gray-200 top-18 ">
+    <header className="fixed left-0 z-10 flex items-center justify-between w-full px-6 py-2 bg-white border-b border-gray-200 top-18">
       <div className="text-xl font-bold text-sky-700">Inspection Form</div>
       <div className="flex gap-4">
         <button
@@ -1445,46 +1443,42 @@ export default function App({ inspectionData }) {
 
   return (
     <div className="min-h-screen bg-white">
-      <Layout>
-        {/* Fixed Header - Add status indicator */}
-        <InternalHeader onSave={handleSave} onClose={handleClose} />
+      {/* Fixed Header - Add status indicator */}
+      <InternalHeader onSave={handleSave} onClose={handleClose} />
 
-        {/* Scrollable Content - Add padding for status bar */}
-        <div className="pt-8">
-          <div className="max-w-6xl mx-auto">
-            <GeneralInformation
-              data={general}
-              setData={setGeneral}
-              onLawFilterChange={handleLawFilterChange}
-              inspectionData={inspectionData}
+      {/* Scrollable Content - Add padding for status bar */}
+      <div className="p-2">
+        <GeneralInformation
+          data={general}
+          setData={setGeneral}
+          onLawFilterChange={handleLawFilterChange}
+          inspectionData={inspectionData}
+        />
+        <PurposeOfInspection state={purpose} setState={setPurpose} />
+        {lawFilter.length > 0 && (
+          <>
+            <ComplianceStatus
+              permits={permits}
+              setPermits={setPermits}
+              lawFilter={lawFilter}
             />
-            <PurposeOfInspection state={purpose} setState={setPurpose} />
-            {lawFilter.length > 0 && (
-              <>
-                <ComplianceStatus
-                  permits={permits}
-                  setPermits={setPermits}
-                  lawFilter={lawFilter}
-                />
-                <SummaryOfCompliance
-                  items={complianceItems}
-                  setItems={setComplianceItems}
-                  lawFilter={lawFilter}
-                />
-                <SummaryOfFindingsAndObservations
-                  systems={systems}
-                  setSystems={setSystems}
-                  lawFilter={lawFilter}
-                />
-              </>
-            )}
-            <Recommendations
-              recState={recommendationState}
-              setRecState={setRecommendationState}
+            <SummaryOfCompliance
+              items={complianceItems}
+              setItems={setComplianceItems}
+              lawFilter={lawFilter}
             />
-          </div>
-        </div>
-      </Layout>
+            <SummaryOfFindingsAndObservations
+              systems={systems}
+              setSystems={setSystems}
+              lawFilter={lawFilter}
+            />
+          </>
+        )}
+        <Recommendations
+          recState={recommendationState}
+          setRecState={setRecommendationState}
+        />
+      </div>
     </div>
   );
 }

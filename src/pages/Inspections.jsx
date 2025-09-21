@@ -6,7 +6,7 @@ import InspectionList from "../components/inspections/InspectionList";
 import InspectionWizard from "../components/inspections/InspectionWizard";
 import EditInspection from "../components/inspections/EditInspection";
 import ViewInspection from "../components/inspections/ViewInspection";
-import InspectionForm from "../components/inspections/form";
+import InspectionDisplay from "../components/inspections/InspectionDisplay";
 import { getEstablishments } from "../services/api"; // Import the API function
 
 export default function Inspections() {
@@ -182,11 +182,9 @@ export default function Inspections() {
           {/* Inspection Form Modal */}
           {currentFormInspection && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-              <div className="w-full h-full p-6 overflow-auto bg-white">
-                <div className="flex justify-between mb-4">
-                  <h2 className="text-2xl font-bold">
-                    Inspection Form - {currentFormInspection.id}
-                  </h2>
+              <div className="w-full h-full p-1 overflow-hidden bg-white">
+                <InspectionDisplay inspectionData={currentFormInspection} />
+                <div className="absolute top-4 right-4">
                   <button
                     onClick={handleCloseForm}
                     className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
@@ -194,20 +192,6 @@ export default function Inspections() {
                     Close Form
                   </button>
                 </div>
-                <InspectionForm
-                  inspectionData={currentFormInspection}
-                  establishment={establishments.find(
-                    (e) => e.id === currentFormInspection.establishmentId
-                  )}
-                  onSave={(formData) => {
-                    console.log(
-                      "Saving form for inspection:",
-                      currentFormInspection.id,
-                      formData
-                    );
-                    handleCloseForm();
-                  }}
-                />
               </div>
             </div>
           )}

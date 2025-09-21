@@ -117,9 +117,15 @@ export default function ResetPassword() {
       // Clear the stored email after successful reset
       localStorage.removeItem("resetEmail");
 
-      // Redirect to login after successful reset
+      // Redirect to login with success message
       setTimeout(() => {
-        navigate("/login");
+        navigate("/login", {
+          state: {
+            message:
+              "Password reset successfully! Please login with your new password.",
+            email: formData.email, // Pre-fill email in login form
+          },
+        });
       }, 2000);
     } catch (error) {
       const errorMessage =

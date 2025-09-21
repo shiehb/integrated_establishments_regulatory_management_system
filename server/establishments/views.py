@@ -66,10 +66,34 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         establishment = self.get_object()
         polygon_data = request.data.get('polygon')
         
-        if polygon_data:
+        # Handle empty or null polygon data
+        if polygon_data is not None:
+            # Validate that polygon_data is a list
+            if not isinstance(polygon_data, list):
+                return Response(
+                    {'error': 'Polygon data must be a list of coordinates'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate each coordinate pair
+            for coord in polygon_data:
+                if not isinstance(coord, list) or len(coord) != 2:
+                    return Response(
+                        {'error': 'Each coordinate must be a [lat, lng] pair'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                try:
+                    float(coord[0]), float(coord[1])
+                except (ValueError, TypeError):
+                    return Response(
+                        {'error': 'Coordinates must be valid numbers'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
             establishment.polygon = polygon_data
             establishment.save()
             return Response({'status': 'polygon set'})
+        
         return Response({'error': 'No polygon data provided'}, status=400)
     
     @action(detail=False, methods=['get'])

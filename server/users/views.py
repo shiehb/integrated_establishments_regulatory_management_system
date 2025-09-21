@@ -260,6 +260,31 @@ def change_password(request):
         'updated_at': user.updated_at
     })
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def first_time_change_password(request):
+    user = request.user
+    new_password = request.data.get('new_password')
+
+    if not new_password:
+        return Response({'detail': 'New password is required.'}, status=400)
+
+    default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
+
+    if new_password == default_password:
+        return Response({'detail': 'Cannot use the default password again.'}, status=400)
+    
+    user.set_password(new_password)
+    user.must_change_password = False
+    user.is_first_login = False
+    user.updated_at = timezone.now()
+    user.save()
+
+    return Response({
+        'detail': 'Password changed successfully.',
+        'updated_at': user.updated_at
+    })
+
 
 # OTP Views
 @api_view(['POST'])

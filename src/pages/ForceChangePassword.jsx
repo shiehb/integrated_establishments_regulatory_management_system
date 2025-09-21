@@ -1,8 +1,9 @@
+// ForceChangePassword.jsx - Updated version
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Layout from "../components/Layout";
-import { changePassword } from "../services/api";
+import { changePassword, firstTimeChangePassword } from "../services/api"; // Add firstTimeChangePassword
 
 export default function ForceChangePassword() {
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -62,7 +63,8 @@ export default function ForceChangePassword() {
     if (validateForm()) {
       setIsSubmitting(true);
       try {
-        await changePassword(formData.newPassword);
+        // Use firstTimeChangePassword instead of changePassword
+        await firstTimeChangePassword(formData.newPassword);
 
         // Show success notification
         if (window.showNotification) {

@@ -21,15 +21,23 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-shadow.png",
 });
 
-export default function PolygonMap({ establishment, onSave, userRole }) {
+export default function PolygonMap({
+  establishment,
+  onSave,
+  userRole,
+  editMode,
+}) {
   const featureGroupRef = useRef();
   const [mapLayers, setMapLayers] = useState([]);
 
-  // ✅ Role check with Monitoring Personel added
+  // ✅ Role check with Monitoring Personnel added
   const canEditEstablishments = () => {
-    return ["Section Chief", "Unit Head", "Monitoring Personel"].includes(
-      userRole
-    );
+    return [
+      "Division Chief",
+      "Section Chief",
+      "Unit Head",
+      "Monitoring Personnel",
+    ].includes(userRole);
   };
 
   // ✅ Filter out invalid coordinates (undefined, null, NaN)
@@ -85,11 +93,11 @@ export default function PolygonMap({ establishment, onSave, userRole }) {
         .map((latlng) => [latlng.lat, latlng.lng])
         .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng));
     }
-    if (onSave) onSave(polygonData);
+    if (onSave) onSave(polygonData || []);
   };
 
   const _onCreate = (e) => {
-    if (!canEditEstablishments()) return;
+    if (!canEditEstablishments() || !editMode) return;
     const { layerType, layer } = e;
     if (layerType === "polygon") {
       try {
@@ -111,7 +119,7 @@ export default function PolygonMap({ establishment, onSave, userRole }) {
   };
 
   const _onEdit = (e) => {
-    if (!canEditEstablishments()) return;
+    if (!canEditEstablishments() || !editMode) return;
     try {
       const { _layers } = e.layers;
       const editedLayers = Object.values(_layers).map(
@@ -130,7 +138,7 @@ export default function PolygonMap({ establishment, onSave, userRole }) {
   };
 
   const _onDelete = () => {
-    if (!canEditEstablishments()) return;
+    if (!canEditEstablishments() || !editMode) return;
     setMapLayers([]);
     notifyParent([]);
   };
@@ -196,8 +204,8 @@ export default function PolygonMap({ establishment, onSave, userRole }) {
           />
         ))}
 
-        {/* Drawing controls only for authorized roles */}
-        {canEditEstablishments() && (
+        {/* Drawing controls only for authorized roles AND in edit mode */}
+        {canEditEstablishments() && editMode && (
           <FeatureGroup ref={featureGroupRef}>
             <EditControl
               position="topright"

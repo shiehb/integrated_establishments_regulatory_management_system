@@ -6,7 +6,7 @@ import EstablishmentList from "../components/establishments/EstablishmentList";
 import AddEstablishment from "../components/establishments/AddEstablishment";
 import EditEstablishment from "../components/establishments/EditEstablishment";
 import PolygonMap from "../components/establishments/PolygonMap";
-import ConfirmationDialog from "../components/common/ConfirmationDialog"; // shared dialog
+import ConfirmationDialog from "../components/common/ConfirmationDialog";
 import {
   getEstablishments,
   getProfile,
@@ -22,6 +22,8 @@ export default function Establishments() {
   // 🔹 View state: 'list' or 'polygon'
   const [currentView, setCurrentView] = useState("list");
   const [polygonEstablishment, setPolygonEstablishment] = useState(null);
+  const [polygonEditMode, setPolygonEditMode] = useState(false);
+  const [hasPolygonChanges, setHasPolygonChanges] = useState(false);
 
   // 🔹 establishments state
   const [establishments, setEstablishments] = useState([]);
@@ -68,8 +70,38 @@ export default function Establishments() {
       "Division Chief",
       "Section Chief",
       "Unit Head",
-      "Monitoring Personel",
+      "Monitoring Personnel",
     ].includes(userRole);
+  };
+
+  // 🔹 Check if polygon has changes
+  const checkPolygonChanges = (newPolygon) => {
+    if (!polygonEstablishment) return false;
+
+    const originalPolygon = polygonEstablishment.originalPolygon || [];
+    const currentPolygon = newPolygon || polygonEstablishment.polygon || [];
+
+    // If both are empty, no changes
+    if (originalPolygon.length === 0 && currentPolygon.length === 0) {
+      return false;
+    }
+
+    // If lengths are different, definitely changes
+    if (originalPolygon.length !== currentPolygon.length) {
+      return true;
+    }
+
+    // Check if any coordinate has changed
+    for (let i = 0; i < originalPolygon.length; i++) {
+      const [origLat, origLng] = originalPolygon[i];
+      const [currLat, currLng] = currentPolygon[i];
+
+      if (origLat !== currLat || origLng !== currLng) {
+        return true;
+      }
+    }
+
+    return false;
   };
 
   // 🔹 save polygon with API call
@@ -88,8 +120,8 @@ export default function Establishments() {
             : e
         )
       );
-      setCurrentView("list");
-      setPolygonEstablishment(null);
+      setPolygonEditMode(false);
+      setHasPolygonChanges(false);
       setRefreshTrigger((prev) => prev + 1);
       if (window.showNotification) {
         window.showNotification("success", "Polygon saved successfully!");
@@ -107,14 +139,48 @@ export default function Establishments() {
 
   // 🔹 handle polygon view
   const handleShowPolygon = (est) => {
-    setPolygonEstablishment(est);
+    setPolygonEstablishment({
+      ...est,
+      originalPolygon: est.polygon ? [...est.polygon] : [],
+    });
     setCurrentView("polygon");
+    setPolygonEditMode(false);
+    setHasPolygonChanges(false);
   };
 
-  // 🔹 handle cancel polygon
+  // 🔹 handle cancel polygon and return to list
   const handleCancelPolygon = () => {
     setCurrentView("list");
     setPolygonEstablishment(null);
+    setPolygonEditMode(false);
+    setHasPolygonChanges(false);
+  };
+
+  // 🔹 handle cancel polygon edit (keep in polygon view but exit edit mode)
+  const handleCancelPolygonEdit = () => {
+    setPolygonEditMode(false);
+    setHasPolygonChanges(false);
+    // Reset polygon to original state
+    if (polygonEstablishment && polygonEstablishment.originalPolygon) {
+      setPolygonEstablishment((prev) => ({
+        ...prev,
+        polygon: [...prev.originalPolygon],
+      }));
+    }
+  };
+
+  // 🔹 handle start editing polygon
+  const handleStartPolygonEdit = () => {
+    setPolygonEditMode(true);
+  };
+
+  // 🔹 handle polygon changes
+  const handlePolygonChange = (polygon) => {
+    setPolygonEstablishment((prev) => (prev ? { ...prev, polygon } : prev));
+
+    // Check if there are changes compared to original
+    const hasChanges = checkPolygonChanges(polygon);
+    setHasPolygonChanges(hasChanges);
   };
 
   // 🔹 handle establishment added/updated
@@ -135,35 +201,68 @@ export default function Establishments() {
               onPolygon={handleShowPolygon}
               refreshTrigger={refreshTrigger}
               canEditEstablishments={canEditEstablishments()}
+              canEditPolygons={canEditPolygons()}
             />
           ) : (
             <div className="p-4 bg-white rounded shadow">
               <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold text-sky-600">
-                  {canEditPolygons()
-                    ? `Draw Polygon for ${polygonEstablishment.name}`
+                  {polygonEditMode
+                    ? `Editing Polygon for ${polygonEstablishment.name}`
                     : `Viewing Polygon for ${polygonEstablishment.name}`}
                 </h1>
                 <div className="flex gap-2">
                   {canEditPolygons() ? (
                     <>
-                      <button
-                        onClick={handleCancelPolygon}
-                        className="px-2 py-1 text-gray-700 bg-gray-300 rounded hover:bg-gray-400"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => setShowConfirm(true)}
-                        className="px-2 py-1 text-white rounded bg-sky-600 hover:bg-sky-700"
-                      >
-                        Save Polygon
-                      </button>
+                      {/* View Mode - Show Create/Update button and Back to List */}
+                      {!polygonEditMode && (
+                        <>
+                          <button
+                            onClick={handleCancelPolygon}
+                            className="px-3 py-1 text-gray-700 bg-gray-300 rounded hover:bg-gray-400"
+                          >
+                            Back to List
+                          </button>
+                          <button
+                            onClick={handleStartPolygonEdit}
+                            className="px-3 py-1 text-white rounded bg-sky-600 hover:bg-sky-700"
+                          >
+                            {polygonEstablishment.polygon &&
+                            polygonEstablishment.polygon.length > 0
+                              ? "Update Polygon"
+                              : "Create Polygon"}
+                          </button>
+                        </>
+                      )}
+
+                      {/* Edit Mode - Show Save/Cancel buttons (hide Back to List) */}
+                      {polygonEditMode && (
+                        <>
+                          <button
+                            onClick={handleCancelPolygonEdit}
+                            className="px-3 py-1 text-gray-700 bg-gray-300 rounded hover:bg-gray-400"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => setShowConfirm(true)}
+                            disabled={!hasPolygonChanges}
+                            className={`px-3 py-1 text-white rounded ${
+                              hasPolygonChanges
+                                ? "bg-sky-600 hover:bg-sky-700"
+                                : "bg-gray-400 cursor-not-allowed"
+                            }`}
+                          >
+                            Save Polygon
+                          </button>
+                        </>
+                      )}
                     </>
                   ) : (
+                    // For users who can't edit polygons, always show Back to List
                     <button
                       onClick={handleCancelPolygon}
-                      className="px-2 py-1 text-gray-700 bg-gray-300 rounded hover:bg-gray-400"
+                      className="px-3 py-1 text-gray-700 bg-gray-300 rounded hover:bg-gray-400"
                     >
                       Back to List
                     </button>
@@ -173,11 +272,8 @@ export default function Establishments() {
               <PolygonMap
                 establishment={polygonEstablishment}
                 userRole={userRole}
-                onSave={(polygon) =>
-                  setPolygonEstablishment((prev) =>
-                    prev ? { ...prev, polygon } : prev
-                  )
-                }
+                editMode={polygonEditMode}
+                onSave={handlePolygonChange}
               />
             </div>
           )}

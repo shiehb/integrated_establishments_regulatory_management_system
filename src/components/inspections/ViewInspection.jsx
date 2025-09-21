@@ -2,7 +2,7 @@ export default function ViewInspection({ inspection, onClose, onOpenForm }) {
   const establishment = inspection.establishments[0];
 
   return (
-    <div className="w-full max-w-4xl p-6 bg-white rounded-lg shadow-lg">
+    <div className="w-full h-full p-6 bg-white rounded-lg shadow-lg">
       <h2 className="mb-4 text-xl font-bold text-sky-600">
         Inspection {inspection.id}
       </h2>

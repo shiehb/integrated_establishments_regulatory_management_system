@@ -124,6 +124,23 @@ export const toggleUserActive = async (id) => {
   }
 };
 
+export const firstTimeChangePassword = async (newPassword) => {
+  try {
+    const res = await api.post("auth/first-time-change-password/", {
+      new_password: newPassword,
+    });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.new_password?.[0] ||
+        "Failed to change password. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
 // 🔑 Change password
 export const changePassword = async (oldPassword, newPassword) => {
   try {
@@ -182,7 +199,7 @@ export const deleteEstablishment = async (id) => {
 // 🔺 Set establishment polygon (store in database as JSON)
 export const setEstablishmentPolygon = async (id, polygonData) => {
   const res = await api.post(`establishments/${id}/set_polygon/`, {
-    polygon: polygonData,
+    polygon: polygonData || [],
   });
   return res.data;
 };
