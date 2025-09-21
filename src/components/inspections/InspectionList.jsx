@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Eye, Pencil, Search, Filter, X } from "lucide-react";
+import { Eye, Pencil, Search, Filter } from "lucide-react";
 
 export default function InspectionList({ inspections, onAdd, onEdit, onView }) {
   // Flatten the inspections to show each establishment in a separate row
@@ -110,11 +110,6 @@ export default function InspectionList({ inspections, onAdd, onEdit, onView }) {
               className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
             >
               <Filter size={14} /> Filters
-              {(sectionFilter.length > 0 || statusFilter.length > 0) && (
-                <span className="flex items-center justify-center w-4 h-4 text-xs bg-red-500 rounded-full">
-                  {sectionFilter.length + statusFilter.length}
-                </span>
-              )}
             </button>
 
             {filtersOpen && (
@@ -179,34 +174,6 @@ export default function InspectionList({ inspections, onAdd, onEdit, onView }) {
           </button>
         </div>
       </div>
-
-      {/* Active filters display */}
-      {(sectionFilter.length > 0 || statusFilter.length > 0) && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {sectionFilter.map((section) => (
-            <span
-              key={section}
-              className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-200 rounded"
-            >
-              Section: {section}
-              <button onClick={() => toggleSection(section)}>
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-          {statusFilter.map((status) => (
-            <span
-              key={status}
-              className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-200 rounded"
-            >
-              Status: {status}
-              <button onClick={() => toggleStatus(status)}>
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
 
       {/* Table */}
       <table className="w-full border border-gray-300 rounded-lg">

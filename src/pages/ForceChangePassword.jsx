@@ -63,10 +63,24 @@ export default function ForceChangePassword() {
       setIsSubmitting(true);
       try {
         await changePassword(formData.newPassword);
+
+        // Show success notification
+        if (window.showNotification) {
+          window.showNotification("success", "Password changed successfully!");
+        }
+
         navigate("/"); // Go to dashboard after password change
       } catch (err) {
+        const errorMessage =
+          err.response?.data?.detail || "Failed to change password.";
+
+        // Show error notification
+        if (window.showNotification) {
+          window.showNotification("error", errorMessage);
+        }
+
         setErrors({
-          submit: err.response?.data?.detail || "Failed to change password.",
+          submit: errorMessage,
         });
       } finally {
         setIsSubmitting(false);

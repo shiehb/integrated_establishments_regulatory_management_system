@@ -348,7 +348,7 @@ export default function NonComplianceList({ onSelectReport }) {
       ) : (
         <table className="w-full border border-gray-300 rounded-lg">
           <thead>
-            <tr className="text-sm text-center text-white bg-sky-700">
+            <tr className="text-sm text-left text-white bg-sky-700">
               <th className="w-6 p-1 text-center border border-gray-300">
                 <input
                   type="checkbox"
@@ -363,14 +363,14 @@ export default function NonComplianceList({ onSelectReport }) {
               <th className="p-1 border border-gray-300">Date</th>
               <th className="p-1 border border-gray-300">Findings</th>
               <th className="p-1 border border-gray-300">Status</th>
-              <th className="p-1 border border-gray-300">Actions</th>
+              <th className="p-1 border w-10 border-gray-300">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredReports.map((r) => (
               <tr
                 key={r.id}
-                className="text-xs text-center border border-gray-300 hover:bg-gray-50"
+                className="text-xs text-left border border-gray-300 hover:bg-gray-50"
               >
                 <td className="text-center border border-gray-300">
                   <input
@@ -390,7 +390,7 @@ export default function NonComplianceList({ onSelectReport }) {
                     {r.findings}
                   </div>
                 </td>
-                <td className="px-2 border border-gray-300">
+                <td className="px-2 border text-center border-gray-300">
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold border border-gray-400 rounded ${
                       r.status === "Resolved"

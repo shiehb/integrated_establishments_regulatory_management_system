@@ -34,8 +34,17 @@ export default function InternalHeader({
       if (refresh) {
         await api.post("auth/logout/", { refresh });
       }
+
+      // Show success notification
+      if (window.showNotification) {
+        window.showNotification("success", "Logged out successfully!");
+      }
     } catch (error) {
       console.error("Logout error:", error);
+      // Show error notification
+      if (window.showNotification) {
+        window.showNotification("error", "Logout failed. Please try again.");
+      }
     } finally {
       localStorage.clear();
       sessionStorage.clear();
@@ -95,10 +104,6 @@ export default function InternalHeader({
               {/* Dropdown */}
               <div className="absolute right-0 invisible mt-4 transition-all duration-200 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 z-999 w-43 top-full group-hover:opacity-100 group-hover:visible">
                 <div className="py-2">
-                  <button className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                    <User className="w-4 h-4 mr-2" />
-                    Profile
-                  </button>
                   <button
                     onClick={handleChangePassword}
                     className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100"

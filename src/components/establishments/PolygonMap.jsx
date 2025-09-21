@@ -1,227 +1,221 @@
-// PolygonMap.jsx
 import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  FeatureGroup,
+  Polygon,
+} from "react-leaflet";
+import { EditControl } from "react-leaflet-draw";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
 import L from "leaflet";
-import * as turf from "@turf/turf";
-import { setEstablishmentPolygon } from "../../services/api";
+import osm from "../map/osm-provider";
 
-const markerIcon = new L.Icon({
+// Fix Leaflet marker icons
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon-2x.png",
   iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
+  shadowUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-shadow.png",
 });
 
-export default function PolygonMap({
-  establishment,
-  onSave,
-  onClose,
-  showButtons = true,
-}) {
-  const mapRef = useRef(null);
-  const drawnItemsRef = useRef(new L.FeatureGroup());
-  const [areaLabel, setAreaLabel] = useState(null);
-  const [loading, setLoading] = useState(false);
+export default function PolygonMap({ establishment, onSave, userRole }) {
+  const featureGroupRef = useRef();
+  const [mapLayers, setMapLayers] = useState([]);
 
+  // ✅ Role check with Monitoring Personel added
+  const canEditEstablishments = () => {
+    return ["Section Chief", "Unit Head", "Monitoring Personel"].includes(
+      userRole
+    );
+  };
+
+  // ✅ Filter out invalid coordinates (undefined, null, NaN)
+  const filterValidCoordinates = (polygonData) => {
+    if (!polygonData || !Array.isArray(polygonData)) return [];
+
+    return polygonData.filter(([lat, lng]) => {
+      return (
+        lat !== undefined &&
+        lng !== undefined &&
+        !isNaN(parseFloat(lat)) &&
+        !isNaN(parseFloat(lng))
+      );
+    });
+  };
+
+  // ✅ Convert coordinates to LatLng objects safely
+  const convertToLatLngs = (coordinates) => {
+    return coordinates
+      .map(([lat, lng]) => ({
+        lat: parseFloat(lat),
+        lng: parseFloat(lng),
+      }))
+      .filter((point) => !isNaN(point.lat) && !isNaN(point.lng));
+  };
+
+  // Load saved polygon if exists
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
+    if (establishment?.polygon && establishment.polygon.length > 0) {
+      // Filter out invalid coordinates
+      const validPolygon = filterValidCoordinates(establishment.polygon);
 
-    // ✅ Add drawn items layer to map
-    map.addLayer(drawnItemsRef.current);
-
-    // ✅ Add leaflet-draw toolbar
-    const drawControl = new L.Control.Draw({
-      draw: {
-        polygon: {
-          allowIntersection: false,
-          showArea: true,
-          shapeOptions: { color: "blue" },
-        },
-        polyline: false,
-        rectangle: false,
-        circle: false,
-        circlemarker: false,
-        marker: false,
-      },
-      edit: {
-        featureGroup: drawnItemsRef.current,
-        remove: true,
-      },
-    });
-    map.addControl(drawControl);
-
-    // ✅ Load existing polygon if available
-    if (
-      establishment &&
-      establishment.polygon &&
-      establishment.polygon.length > 0
-    ) {
-      const poly = L.polygon(establishment.polygon, { color: "blue" });
-      drawnItemsRef.current.addLayer(poly);
-      computeAreaLabel(establishment.polygon);
+      if (validPolygon.length > 0) {
+        setMapLayers([
+          {
+            id: "saved",
+            latlngs: convertToLatLngs(validPolygon),
+          },
+        ]);
+      } else {
+        setMapLayers([]);
+      }
+    } else {
+      setMapLayers([]);
     }
-
-    // ✅ Listen for created polygons
-    map.on(L.Draw.Event.CREATED, (e) => {
-      drawnItemsRef.current.clearLayers(); // allow only one polygon
-      drawnItemsRef.current.addLayer(e.layer);
-
-      const coords = e.layer
-        .getLatLngs()[0]
-        .map((latlng) => [latlng.lat, latlng.lng]);
-      computeAreaLabel(coords);
-    });
-
-    // ✅ Listen for edited polygons
-    map.on(L.Draw.Event.EDITED, (e) => {
-      e.layers.eachLayer((layer) => {
-        const coords = layer
-          .getLatLngs()[0]
-          .map((latlng) => [latlng.lat, latlng.lng]);
-        computeAreaLabel(coords);
-      });
-    });
-
-    // ✅ Listen for deleted polygons
-    map.on(L.Draw.Event.DELETED, () => {
-      setAreaLabel(null);
-    });
-
-    return () => {
-      map.off();
-    };
   }, [establishment]);
 
-  const computeAreaLabel = (poly) => {
-    if (!poly || poly.length < 3) return;
-    const coords = poly.map((p) => [p[1], p[0]]);
-    const turfPoly = turf.polygon([coords]);
-    const area = turf.area(turfPoly);
-    const center = turf.centerOfMass(turfPoly).geometry.coordinates;
-    setAreaLabel({
-      lat: center[1],
-      lng: center[0],
-      area: area.toFixed(2),
-    });
+  const notifyParent = (layers) => {
+    let polygonData = null;
+    if (layers.length > 0) {
+      // Convert back to array format and filter invalid coordinates
+      polygonData = layers[0].latlngs
+        .map((latlng) => [latlng.lat, latlng.lng])
+        .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng));
+    }
+    if (onSave) onSave(polygonData);
   };
 
-  const handleSave = async () => {
-    setLoading(true);
-
-    if (drawnItemsRef.current.getLayers().length === 0) {
+  const _onCreate = (e) => {
+    if (!canEditEstablishments()) return;
+    const { layerType, layer } = e;
+    if (layerType === "polygon") {
       try {
-        // If no polygon, clear any existing polygon
-        await setEstablishmentPolygon(establishment.id, null);
+        const { _leaflet_id } = layer;
+        const latlngs = layer.getLatLngs()[0];
 
-        if (window.showNotification) {
-          window.showNotification("success", "Polygon cleared successfully!");
-        }
-
-        onSave(null);
-      } catch (err) {
-        console.error("Error clearing polygon:", err);
-        if (window.showNotification) {
-          window.showNotification(
-            "error",
-            "Error clearing polygon: " +
-              (err.response?.data?.detail || JSON.stringify(err.response?.data))
-          );
-        }
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    try {
-      const layer = drawnItemsRef.current.getLayers()[0];
-      const coords = layer
-        .getLatLngs()[0]
-        .map((latlng) => [latlng.lat, latlng.lng]);
-
-      await setEstablishmentPolygon(establishment.id, coords);
-
-      if (window.showNotification) {
-        window.showNotification("success", "Polygon saved successfully!");
-      }
-
-      onSave(coords);
-    } catch (err) {
-      console.error("Error saving polygon:", err);
-      if (window.showNotification) {
-        window.showNotification(
-          "error",
-          "Error saving polygon: " +
-            (err.response?.data?.detail || JSON.stringify(err.response?.data))
+        // Filter out any invalid coordinates
+        const validLatLngs = latlngs.filter(
+          (latlng) => !isNaN(latlng.lat) && !isNaN(latlng.lng)
         );
+
+        const newLayers = [{ id: _leaflet_id, latlngs: validLatLngs }];
+        setMapLayers(newLayers);
+        notifyParent(newLayers);
+      } catch (error) {
+        console.error("Error creating polygon:", error);
       }
-    } finally {
-      setLoading(false);
     }
   };
+
+  const _onEdit = (e) => {
+    if (!canEditEstablishments()) return;
+    try {
+      const { _layers } = e.layers;
+      const editedLayers = Object.values(_layers).map(
+        ({ _leaflet_id, editing }) => ({
+          id: _leaflet_id,
+          latlngs: editing.latlngs[0].filter(
+            (latlng) => !isNaN(latlng.lat) && !isNaN(latlng.lng)
+          ),
+        })
+      );
+      setMapLayers(editedLayers);
+      notifyParent(editedLayers);
+    } catch (error) {
+      console.error("Error editing polygon:", error);
+    }
+  };
+
+  const _onDelete = () => {
+    if (!canEditEstablishments()) return;
+    setMapLayers([]);
+    notifyParent([]);
+  };
+
+  // ✅ Get valid center coordinates
+  const getCenter = () => {
+    if (establishment?.latitude && establishment?.longitude) {
+      const lat = parseFloat(establishment.latitude);
+      const lng = parseFloat(establishment.longitude);
+
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return [lat, lng];
+      }
+    }
+    return [14.676, 121.0437]; // Default center
+  };
+
+  // ✅ Get valid marker position
+  const getMarkerPosition = () => {
+    if (establishment?.latitude && establishment?.longitude) {
+      const lat = parseFloat(establishment.latitude);
+      const lng = parseFloat(establishment.longitude);
+
+      if (!isNaN(lat) && !isNaN(lng)) {
+        return [lat, lng];
+      }
+    }
+    return null;
+  };
+
+  const markerPosition = getMarkerPosition();
 
   return (
-    <div className="h-[585px] w-full">
+    <div className="relative h-[calc(100vh-230px)] w-full">
       <MapContainer
-        center={
-          establishment
-            ? [establishment.latitude, establishment.longitude]
-            : [14.5995, 120.9842]
-        } // Manila as fallback
-        zoom={15}
-        style={{ height: "100%", width: "100%" }}
-        whenCreated={(mapInstance) => (mapRef.current = mapInstance)}
+        center={getCenter()}
+        zoom={18}
+        style={{ height: "100%", width: "100%", zIndex: 0 }}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="© OpenStreetMap contributors"
+          url={osm.maptiler.url}
+          attribution={osm.maptiler.attribution}
         />
 
-        {/* 📍 Establishment marker */}
-        {establishment && (
-          <Marker
-            position={[establishment.latitude, establishment.longitude]}
-            icon={markerIcon}
-          >
+        {/* Establishment pin - only render if valid coordinates */}
+        {markerPosition && (
+          <Marker position={markerPosition}>
             <Popup>{establishment.name}</Popup>
           </Marker>
         )}
 
-        {/* Area label */}
-        {areaLabel && (
-          <Marker
-            position={[areaLabel.lat, areaLabel.lng]}
-            icon={L.divIcon({
-              className: "polygon-label",
-              html: `<div style="background:white;padding:2px 6px;border-radius:4px;border:1px solid #555;">
-                       ${areaLabel.area} m²
-                     </div>`,
-            })}
+        {/* Draw saved polygon - only render if valid coordinates */}
+        {mapLayers.map((poly) => (
+          <Polygon
+            key={poly.id}
+            positions={poly.latlngs}
+            pathOptions={{
+              color: "#3388ff",
+              weight: 3,
+              opacity: 0.8,
+              fillOpacity: 0.2,
+            }}
           />
+        ))}
+
+        {/* Drawing controls only for authorized roles */}
+        {canEditEstablishments() && (
+          <FeatureGroup ref={featureGroupRef}>
+            <EditControl
+              position="topright"
+              onCreated={_onCreate}
+              onEdited={_onEdit}
+              onDeleted={_onDelete}
+              draw={{
+                rectangle: false,
+                circle: false,
+                circlemarker: false,
+                marker: false,
+                polyline: false,
+                polygon: true,
+              }}
+            />
+          </FeatureGroup>
         )}
       </MapContainer>
-
-      {/* Only show buttons if showButtons prop is true */}
-      {showButtons && (
-        <div className="flex gap-2 mt-2">
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 text-white bg-green-600 rounded hover:bg-green-700 disabled:bg-gray-400"
-            disabled={loading}
-          >
-            {loading ? "Saving..." : "Save Polygon"}
-          </button>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-            disabled={loading}
-          >
-            Close
-          </button>
-        </div>
-      )}
     </div>
   );
 }

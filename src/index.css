@@ -19,47 +19,6 @@
     @apply text-sky-600 hover:text-sky-700 font-medium;
   }
 }
-
-/* ✅ Fix Leaflet z-index layering */
-.leaflet-tile-pane {
-  z-index: 0 !important;
-}
-.leaflet-overlay-pane {
-  z-index: 200 !important;
-}
-.leaflet-marker-pane {
-  z-index: 300 !important;
-}
-.leaflet-popup-pane {
-  z-index: 1000 !important;
-}
-
-/* Controls & draw toolbar always above map */
-.leaflet-top,
-.leaflet-bottom,
-.leaflet-control,
-.leaflet-draw-toolbar {
-  z-index: 2000 !important;
-}
-
-/* Modal overlay always above everything */
-.modal-overlay,
-.confirmation-dialog-overlay {
-  z-index: 9999 !important;
-}
-
-/* Force cursor back to default */
-.leaflet-container,
-.leaflet-container:active,
-.leaflet-dragging .leaflet-container,
-.leaflet-grab,
-.leaflet-grabbing,
-.leaflet-marker-icon,
-.leaflet-marker-shadow,
-.leaflet-interactive {
-  cursor: default !important;
-}
-
 /* Add to your CSS file */
 .loader {
   border: 2px solid #f3f3f3;
@@ -77,4 +36,35 @@
   100% {
     transform: rotate(360deg);
   }
+}
+
+.leaflet-draw-toolbar {
+  margin-top: 12px;
+  margin-right: 12px;
+}
+
+.leaflet-draw-toolbar a {
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.leaflet-draw-toolbar a:hover {
+  background-color: #f8f9fa;
+}
+
+.polygon-label {
+  background: transparent !important;
+  border: none !important;
+}
+/* Lower Leaflet layers so modals/dialogs appear on top */
+.leaflet-container {
+  z-index: 0 !important;
+}
+
+.leaflet-top,
+.leaflet-bottom,
+.leaflet-control {
+  z-index: 400 !important;
 }

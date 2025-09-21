@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { createEstablishment } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
+import osm from "../map/osm-provider"; // ✅ use OSM provider
 
 const markerIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
@@ -429,12 +430,12 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
             formData.coordinates.latitude || 12.8797,
             formData.coordinates.longitude || 121.774,
           ]}
-          zoom={formData.coordinates.latitude ? 15 : 6}
+          zoom={formData.coordinates.latitude ? 18 : 6}
           style={{ height: "100%", width: "100%" }}
         >
           <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution="© OpenStreetMap contributors"
+            url={osm.maptiler.url}
+            attribution={osm.maptiler.attribution}
           />
           <LocationMarker formData={formData} setFormData={setFormData} />
         </MapContainer>

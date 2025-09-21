@@ -149,5 +149,12 @@ USE_TZ = True
 # Static files
 STATIC_URL = 'static/'
 
+# Media files (for future use if needed)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Ensure media directory exists
+os.makedirs(MEDIA_ROOT, exist_ok=True)
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

@@ -10,17 +10,16 @@ export default function Layout() {
     const id = Date.now();
     setNotifications((prev) => [...prev, { id, type, message }]);
 
-    // Auto-remove after 10 seconds
+    // Auto-remove after 5 seconds
     setTimeout(() => {
       removeNotification(id);
-    }, 10000);
+    }, 5000);
   }, []);
 
   const removeNotification = (id) => {
     setNotifications((prev) => prev.filter((notif) => notif.id !== id));
   };
 
-  // Make the notification function available globally
   useEffect(() => {
     window.showNotification = addNotification;
     return () => {
@@ -31,14 +30,17 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Outlet />
-      {notifications.map((notif) => (
-        <Notification
-          key={notif.id}
-          type={notif.type}
-          message={notif.message}
-          onClose={() => removeNotification(notif.id)}
-        />
-      ))}
+      <div className="fixed z-50 flex flex-col gap-2 top-4 right-4">
+        {notifications.map((notif, index) => (
+          <Notification
+            key={notif.id}
+            type={notif.type}
+            message={notif.message}
+            onClose={() => removeNotification(notif.id)}
+            style={{ transform: `translateY(${index * 70}px)` }}
+          />
+        ))}
+      </div>
     </div>
   );
 }

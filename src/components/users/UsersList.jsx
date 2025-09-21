@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import api, { toggleUserActive } from "../../services/api";
 import ExportModal from "../ExportModal";
+import ConfirmationDialog from "../common/ConfirmationDialog";
 
 export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   const [users, setUsers] = useState([]);
@@ -457,10 +458,31 @@ function Menu({ user, onEdit, onToggleStatus }) {
   }, [open, showConfirm]);
 
   const handleStatusClick = () => setShowConfirm(true);
-  const handleConfirm = () => {
-    onToggleStatus(user.id);
-    setShowConfirm(false);
-    setOpen(false);
+  const handleConfirm = async () => {
+    try {
+      await onToggleStatus(user.id);
+
+      // Show success notification
+      if (window.showNotification) {
+        window.showNotification(
+          "success",
+          `User ${user.is_active ? "deactivated" : "activated"} successfully!`
+        );
+      }
+    } catch (error) {
+      // Show error notification
+      if (window.showNotification) {
+        window.showNotification(
+          "error",
+          `Failed to ${user.is_active ? "deactivate" : "activate"} user: ${
+            error.message
+          }`
+        );
+      }
+    } finally {
+      setShowConfirm(false);
+      setOpen(false);
+    }
   };
   const handleCancel = () => setShowConfirm(false);
 

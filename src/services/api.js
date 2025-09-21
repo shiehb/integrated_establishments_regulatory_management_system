@@ -109,16 +109,40 @@ export const logoutUser = async (refreshToken) => {
 
 // 🚦 Toggle user active status
 export const toggleUserActive = async (id) => {
-  const res = await api.post(`auth/toggle-active/${id}/`);
-  return res.data;
+  try {
+    const response = await api.post(`auth/toggle-active/${id}/`);
+    return response.data;
+  } catch (error) {
+    // Enhance error message for better notifications
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to update user status. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
 // 🔑 Change password
-export const changePassword = async (newPassword) => {
-  const res = await api.post("auth/change-password/", {
-    new_password: newPassword,
-  });
-  return res.data;
+export const changePassword = async (oldPassword, newPassword) => {
+  try {
+    const res = await api.post("auth/change-password/", {
+      old_password: oldPassword,
+      new_password: newPassword,
+    });
+    return res.data;
+  } catch (error) {
+    // Enhance error message for better notifications
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.new_password?.[0] ||
+        error.response?.data?.old_password?.[0] ||
+        "Failed to change password. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
 // ----------------------
@@ -155,7 +179,7 @@ export const deleteEstablishment = async (id) => {
   return res.data;
 };
 
-// 🔺 Set establishment polygon
+// 🔺 Set establishment polygon (store in database as JSON)
 export const setEstablishmentPolygon = async (id, polygonData) => {
   const res = await api.post(`establishments/${id}/set_polygon/`, {
     polygon: polygonData,

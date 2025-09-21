@@ -109,7 +109,7 @@ export default function InspectionWizard({
       ref={wizardRef}
     >
       {/* Header with title and buttons on the same line */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         <h2 className="text-2xl font-bold text-sky-600">
           New Inspection – Step {step} of 3
         </h2>
@@ -154,7 +154,7 @@ export default function InspectionWizard({
       </div>
 
       {/* Progress indicator */}
-      <div className="flex mb-6">
+      <div className="flex mb-2">
         <div
           className={`flex-1 h-2 mx-1 ${
             step >= 1 ? "bg-sky-600" : "bg-gray-300"
@@ -183,16 +183,16 @@ export default function InspectionWizard({
           ) : (
             <table className="w-full border border-gray-300 rounded-lg shadow-sm">
               <thead>
-                <tr className="text-sm text-center text-white bg-sky-700">
-                  <th className="w-10 border border-gray-300"></th>
-                  <th className="p-2 border border-gray-300">
+                <tr className="text-sm text-left text-white bg-sky-700">
+                  <th className="w-5 border border-gray-300"></th>
+                  <th className="p-1 border border-gray-300">
                     Name of Establishments
                   </th>
-                  <th className="p-2 border border-gray-300">
+                  <th className="p-1 border border-gray-300">
                     Nature of Business
                   </th>
-                  <th className="p-2 border border-gray-300">Address</th>
-                  <th className="p-2 border border-gray-300">
+                  <th className="p-1 border border-gray-300">Address</th>
+                  <th className="p-1 border border-gray-300">
                     Last Inspection
                   </th>
                 </tr>
@@ -201,7 +201,7 @@ export default function InspectionWizard({
                 {availableEstablishments.map((e) => (
                   <tr
                     key={e.id}
-                    className="text-xs text-center transition hover:bg-gray-50"
+                    className="text-xs text-left transition hover:bg-gray-50"
                   >
                     <td className="p-2 border border-gray-300">
                       <input
@@ -211,14 +211,16 @@ export default function InspectionWizard({
                         className="cursor-pointer"
                       />
                     </td>
-                    <td className="p-2 border border-gray-300">{e.name}</td>
+                    <td className="p-2 font-semibold border border-gray-300">
+                      {e.name}
+                    </td>
                     <td className="p-2 border border-gray-300">
                       {e.natureOfBusiness}
                     </td>
                     <td className="p-2 border border-gray-300">
-                      {`${e.address.street}, ${e.address.barangay}, ${e.address.city}`}
+                      {`${e.address.street}, ${e.address.barangay}, ${e.address.city}, ${e.address.province}, ${e.address.postalCode}`}
                     </td>
-                    <td className="p-2 border border-gray-300">
+                    <td className="p-2 text-center border border-gray-300">
                       {getLastInspectionLaw(e.id) || "None"}
                     </td>
                   </tr>
@@ -238,13 +240,13 @@ export default function InspectionWizard({
             <div className="overflow-y-auto border border-gray-300 rounded max-h-96">
               <table className="w-full border border-gray-300 rounded-lg">
                 <thead>
-                  <tr className="text-sm text-center text-white bg-sky-700">
-                    <th className="p-2 border border-gray-300">
+                  <tr className="text-sm text-left text-white bg-sky-700">
+                    <th className="p-1 border border-gray-300">
                       Name of Establishments
                     </th>
-                    <th className="p-2 border border-gray-300">Address</th>
-                    <th className="p-2 border border-gray-300">Coordinates</th>
-                    <th className="p-2 border border-gray-300">Action</th>
+                    <th className="p-1 border border-gray-300">Address</th>
+                    <th className="p-1 border border-gray-300">Coordinates</th>
+                    <th className="p-1 border border-gray-300">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -253,13 +255,15 @@ export default function InspectionWizard({
                     .map((e) => (
                       <tr
                         key={e.id}
-                        className="text-xs text-center transition hover:bg-gray-50"
+                        className="text-xs text-left transition hover:bg-gray-50"
                       >
-                        <td className="p-2 border border-gray-300">{e.name}</td>
+                        <td className="p-2 font-semibold border border-gray-300">
+                          {e.name}
+                        </td>
                         <td className="p-2 border border-gray-300">
                           {`${e.address.street}, ${e.address.barangay}, ${e.address.city}, ${e.address.province}, ${e.address.postalCode}`}
                         </td>
-                        <td className="p-2 border border-gray-300">
+                        <td className="p-2 text-center border border-gray-300">
                           {e.coordinates.latitude && e.coordinates.longitude ? (
                             <>
                               {e.coordinates.latitude},{" "}
@@ -288,7 +292,7 @@ export default function InspectionWizard({
 
           {/* Right column - Law selection (1/3 width) */}
           <div>
-            <h3 className="mb-4 font-medium">
+            <h3 className="mt-6 mb-4 font-medium">
               Select Law for All Establishments
             </h3>
 
@@ -345,7 +349,7 @@ export default function InspectionWizard({
           <h3 className="mb-4 font-medium">Review Inspections</h3>
 
           <div className="p-4 mb-4 rounded bg-blue-50">
-            <p className="text-sm text-blue-800">
+            <p className="text-sm text-sky-700">
               <strong>
                 Creating {selectedEstablishments.length} inspections
               </strong>{" "}
@@ -355,8 +359,8 @@ export default function InspectionWizard({
 
           <table className="w-full border rounded-lg">
             <thead>
-              <tr className="text-sm text-center text-white bg-sky-700">
-                <th className="p-1 border">Inspection ID</th>
+              <tr className="text-sm text-left text-white bg-sky-700">
+                <th className="p-1 border w-35">Inspection ID</th>
                 <th className="p-1 border">Name of Establishments</th>
                 <th className="p-1 border">Nature</th>
                 <th className="p-1 border">Section</th>
@@ -367,11 +371,13 @@ export default function InspectionWizard({
               {establishments
                 .filter((e) => selectedEstablishments.includes(e.id))
                 .map((e, index) => (
-                  <tr key={e.id} className="text-xs text-center">
-                    <td className="p-2 border border-gray-300">
+                  <tr key={e.id} className="text-xs text-left">
+                    <td className="p-2 text-center border border-gray-300">
                       {generateInspectionId(selectedLaw, index)}
                     </td>
-                    <td className="p-2 border border-gray-300">{e.name}</td>
+                    <td className="p-2 font-semibold border border-gray-300">
+                      {e.name}
+                    </td>
                     <td className="p-2 border border-gray-300">
                       {e.natureOfBusiness}
                     </td>

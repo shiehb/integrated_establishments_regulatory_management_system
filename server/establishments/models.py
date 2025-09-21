@@ -18,7 +18,7 @@ class Establishment(models.Model):
     latitude = models.DecimalField(max_digits=9, decimal_places=6)
     longitude = models.DecimalField(max_digits=9, decimal_places=6)
     
-    # Store polygon as JSON instead of GIS field
+    # Store polygon as JSON in database
     polygon = models.JSONField(blank=True, null=True)
     
     # Status and timestamps

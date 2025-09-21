@@ -231,25 +231,33 @@ def toggle_user_active(request, pk):
 @permission_classes([IsAuthenticated])
 def change_password(request):
     user = request.user
+    old_password = request.data.get('old_password')
     new_password = request.data.get('new_password')
 
-    if not new_password:
-        return Response({'detail': 'New password required.'}, status=400)
+    if not old_password or not new_password:
+        return Response({'detail': 'Both old and new password are required.'}, status=400)
+
+    # Verify old password
+    if not user.check_password(old_password):
+        return Response({'detail': 'Old password is incorrect.'}, status=400)
 
     default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
 
     if new_password == default_password:
         return Response({'detail': 'Cannot use the default password again.'}, status=400)
     
+    if new_password == old_password:
+        return Response({'detail': 'New password cannot be the same as old password.'}, status=400)
+    
     user.set_password(new_password)
     user.must_change_password = False
     user.is_first_login = False
-    user.updated_at = timezone.now()  # NEW: Explicitly update timestamp
+    user.updated_at = timezone.now()
     user.save()
 
     return Response({
         'detail': 'Password changed successfully.',
-        'updated_at': user.updated_at  # NEW: Return updated timestamp
+        'updated_at': user.updated_at
     })
 
 

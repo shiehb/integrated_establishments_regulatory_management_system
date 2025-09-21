@@ -31,7 +31,7 @@ export default function EditInspection({ inspection, onClose, onSave }) {
         </button>
         <button
           onClick={() => onSave(section)}
-          className="px-4 py-2 text-white bg-green-600 rounded hover:bg-green-700"
+          className="px-4 py-2 text-white rounded bg-sky-600 hover:bg-sky-700"
         >
           Save
         </button>

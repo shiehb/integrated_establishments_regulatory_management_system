@@ -1,4 +1,3 @@
-// Establishments.jsx
 import { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -7,7 +6,12 @@ import EstablishmentList from "../components/establishments/EstablishmentList";
 import AddEstablishment from "../components/establishments/AddEstablishment";
 import EditEstablishment from "../components/establishments/EditEstablishment";
 import PolygonMap from "../components/establishments/PolygonMap";
-import { getEstablishments, getProfile } from "../services/api";
+import ConfirmationDialog from "../components/common/ConfirmationDialog"; // shared dialog
+import {
+  getEstablishments,
+  getProfile,
+  setEstablishmentPolygon,
+} from "../services/api";
 
 export default function Establishments() {
   const [showAdd, setShowAdd] = useState(false);
@@ -21,6 +25,10 @@ export default function Establishments() {
 
   // 🔹 establishments state
   const [establishments, setEstablishments] = useState([]);
+
+  // 🔹 confirmation dialog state
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // 🔹 Fetch user profile and establishments on component mount
   useEffect(() => {
@@ -49,22 +57,52 @@ export default function Establishments() {
     }
   };
 
-  // 🔹 Check if user can add/edit establishments
+  // 🔹 Check if user can add/edit establishments (form only)
   const canEditEstablishments = () => {
-    return ["Admin", "Division Chief", "Section Chief", "Unit Head"].includes(
-      userRole
-    );
+    return ["Division Chief", "Section Chief", "Unit Head"].includes(userRole);
   };
 
-  // 🔹 handle save polygon
-  const handleSavePolygon = (coords) => {
-    setEstablishments((prev) =>
-      prev.map((e) =>
-        e.id === polygonEstablishment.id ? { ...e, polygon: coords } : e
-      )
-    );
-    setCurrentView("list");
-    setRefreshTrigger((prev) => prev + 1); // Refresh the list
+  // 🔹 Check if user can edit polygons
+  const canEditPolygons = () => {
+    return [
+      "Division Chief",
+      "Section Chief",
+      "Unit Head",
+      "Monitoring Personel",
+    ].includes(userRole);
+  };
+
+  // 🔹 save polygon with API call
+  const confirmSavePolygon = async () => {
+    if (!polygonEstablishment) return;
+    setLoading(true);
+    try {
+      await setEstablishmentPolygon(
+        polygonEstablishment.id,
+        polygonEstablishment.polygon || []
+      );
+      setEstablishments((prev) =>
+        prev.map((e) =>
+          e.id === polygonEstablishment.id
+            ? { ...e, polygon: polygonEstablishment.polygon || [] }
+            : e
+        )
+      );
+      setCurrentView("list");
+      setPolygonEstablishment(null);
+      setRefreshTrigger((prev) => prev + 1);
+      if (window.showNotification) {
+        window.showNotification("success", "Polygon saved successfully!");
+      }
+    } catch (err) {
+      console.error("Error saving polygon:", err);
+      if (window.showNotification) {
+        window.showNotification("error", "Failed to save polygon");
+      }
+    } finally {
+      setLoading(false);
+      setShowConfirm(false);
+    }
   };
 
   // 🔹 handle polygon view
@@ -73,9 +111,10 @@ export default function Establishments() {
     setCurrentView("polygon");
   };
 
-  // 🔹 handle back to list
-  const handleBackToList = () => {
+  // 🔹 handle cancel polygon
+  const handleCancelPolygon = () => {
     setCurrentView("list");
+    setPolygonEstablishment(null);
   };
 
   // 🔹 handle establishment added/updated
@@ -91,7 +130,6 @@ export default function Establishments() {
           {/* Show either the list view or polygon view */}
           {currentView === "list" ? (
             <EstablishmentList
-              establishments={establishments}
               onAdd={() => setShowAdd(true)}
               onEdit={(est) => setEditEstablishment(est)}
               onPolygon={handleShowPolygon}
@@ -99,42 +137,47 @@ export default function Establishments() {
               canEditEstablishments={canEditEstablishments()}
             />
           ) : (
-            <div className="p-4 pb-0 bg-white rounded shadow">
-              <div className="flex items-center justify-between mb-2">
+            <div className="p-4 bg-white rounded shadow">
+              <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold text-sky-600">
-                  Edit Polygon - {polygonEstablishment.name}
+                  {canEditPolygons()
+                    ? `Draw Polygon for ${polygonEstablishment.name}`
+                    : `Viewing Polygon for ${polygonEstablishment.name}`}
                 </h1>
                 <div className="flex gap-2">
-                  <button
-                    onClick={handleBackToList}
-                    className="flex-1 px-2 py-1 font-medium text-gray-700 bg-gray-300 rounded-lg hover:bg-gray-400"
-                  >
-                    Close
-                  </button>
-                  <button
-                    onClick={() => {
-                      // Get the polygon data and save it
-                      const layer = drawnItemsRef.current.getLayers()[0];
-                      if (layer) {
-                        const coords = layer
-                          .getLatLngs()[0]
-                          .map((latlng) => [latlng.lat, latlng.lng]);
-                        handleSavePolygon(coords);
-                      } else {
-                        handleSavePolygon(null);
-                      }
-                    }}
-                    className="px-2 py-1 text-white rounded bg-sky-600 hover:bg-sky-700"
-                  >
-                    Save Polygon
-                  </button>
+                  {canEditPolygons() ? (
+                    <>
+                      <button
+                        onClick={handleCancelPolygon}
+                        className="px-2 py-1 text-gray-700 bg-gray-300 rounded hover:bg-gray-400"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => setShowConfirm(true)}
+                        className="px-2 py-1 text-white rounded bg-sky-600 hover:bg-sky-700"
+                      >
+                        Save Polygon
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={handleCancelPolygon}
+                      className="px-2 py-1 text-gray-700 bg-gray-300 rounded hover:bg-gray-400"
+                    >
+                      Back to List
+                    </button>
+                  )}
                 </div>
               </div>
               <PolygonMap
                 establishment={polygonEstablishment}
-                onSave={handleSavePolygon}
-                onClose={handleBackToList}
-                showButtons={false}
+                userRole={userRole}
+                onSave={(polygon) =>
+                  setPolygonEstablishment((prev) =>
+                    prev ? { ...prev, polygon } : prev
+                  )
+                }
               />
             </div>
           )}
@@ -142,9 +185,9 @@ export default function Establishments() {
       </LayoutWithSidebar>
       <Footer />
 
-      {/* Add Establishment Modal - Only show for authorized users */}
+      {/* Add Establishment Modal */}
       {showAdd && canEditEstablishments() && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <AddEstablishment
             onClose={() => setShowAdd(false)}
             onEstablishmentAdded={handleEstablishmentChanged}
@@ -152,9 +195,9 @@ export default function Establishments() {
         </div>
       )}
 
-      {/* Edit Establishment Modal - Only show for authorized users */}
+      {/* Edit Establishment Modal */}
       {editEstablishment && canEditEstablishments() && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
           <EditEstablishment
             establishmentData={editEstablishment}
             onClose={() => setEditEstablishment(null)}
@@ -162,6 +205,16 @@ export default function Establishments() {
           />
         </div>
       )}
+
+      {/* ✅ Confirmation Dialog for Saving Polygon */}
+      <ConfirmationDialog
+        open={showConfirm}
+        title="Confirm Action"
+        message="Are you sure you want to save changes to this polygon?"
+        loading={loading}
+        onCancel={() => setShowConfirm(false)}
+        onConfirm={confirmSavePolygon}
+      />
     </>
   );
 }
