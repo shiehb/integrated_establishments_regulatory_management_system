@@ -41,18 +41,18 @@ export default function HelpSearch({ topics, onSearch, value, setValue }) {
       <div className="relative">
         {/* Search Icon */}
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        
+
         <input
           type="text"
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="Search help topics..."
-          className="w-full border border-gray-300 pl-10 pr-10 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+          className="w-full border border-gray-300 pl-10 pr-10 py-2 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
           onFocus={() => setShowSuggestions(true)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
         />
-        
+
         {/* Clear Button */}
         {value && (
           <button
@@ -60,13 +60,13 @@ export default function HelpSearch({ topics, onSearch, value, setValue }) {
             className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 transition-colors"
             title="Clear search"
           >
-            <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+            <X className="w-4 h-4 text-sky-700 hover:text-gray-600" />
           </button>
         )}
       </div>
 
       {showSuggestions && value && (
-        <ul className="absolute left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+        <ul className="absolute left-0 right-0 mt-4 bg-white border rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
           {filteredSuggestions.length > 0 ? (
             filteredSuggestions.map((topic) => (
               <li

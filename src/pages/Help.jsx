@@ -8,7 +8,11 @@ import HelpSearch from "../components/help/HelpSearch";
 import HelpSidebar from "../components/help/HelpSidebar";
 import { helpTopics } from "../data/helpData";
 import { helpCategories } from "../data/helpCategories";
-import { filterTopicsByUserLevel, filterCategoriesByUserLevel, normalizeUserLevel } from "../utils/helpUtils";
+import {
+  filterTopicsByUserLevel,
+  filterCategoriesByUserLevel,
+  normalizeUserLevel,
+} from "../utils/helpUtils";
 import { getProfile } from "../services/api";
 
 export default function Help() {
@@ -32,48 +36,55 @@ export default function Help() {
     console.log("Debug - Normalized level:", normalizedLevel);
     const filtered = filterTopicsByUserLevel(helpTopics, normalizedLevel);
     console.log("Debug - Filtered topics count:", filtered.length);
-    console.log("Debug - Filtered topics:", filtered.map(t => t.title));
+    console.log(
+      "Debug - Filtered topics:",
+      filtered.map((t) => t.title)
+    );
     return filtered;
   }, [profile?.userlevel]);
-  
+
   const [filteredTopics, setFilteredTopics] = useState([]);
 
   // Define handleSearch before useEffect
-  const handleSearch = useCallback((query, autoExpand = false) => {
-    if (!query) {
-      setFilteredTopics(accessibleTopics);
-      setActiveId(null);
-      return;
-    }
+  const handleSearch = useCallback(
+    (query, autoExpand = false) => {
+      if (!query) {
+        setFilteredTopics(accessibleTopics);
+        setActiveId(null);
+        return;
+      }
 
-    const filtered = accessibleTopics.filter(
-      (topic) =>
-        topic.title.toLowerCase().includes(query.toLowerCase()) ||
-        topic.description.toLowerCase().includes(query.toLowerCase()) ||
-        topic.tags.some((tag) =>
-          tag.toLowerCase().includes(query.toLowerCase())
-        )
-    );
+      const filtered = accessibleTopics.filter(
+        (topic) =>
+          topic.title.toLowerCase().includes(query.toLowerCase()) ||
+          topic.description.toLowerCase().includes(query.toLowerCase()) ||
+          topic.tags.some((tag) =>
+            tag.toLowerCase().includes(query.toLowerCase())
+          )
+      );
 
-    if (filtered.length > 0) {
-      setFilteredTopics(filtered);
-      if (autoExpand) setActiveId(filtered[0].id);
-    } else {
-      setFilteredTopics([]);
-      setActiveId(null);
-    }
-  }, [accessibleTopics]);
+      if (filtered.length > 0) {
+        setFilteredTopics(filtered);
+        if (autoExpand) setActiveId(filtered[0].id);
+      } else {
+        setFilteredTopics([]);
+        setActiveId(null);
+      }
+    },
+    [accessibleTopics]
+  );
 
   // Build categories from helpCategories.js + accessible topics - memoized
-  const categories = useMemo(() => 
-    filterCategoriesByUserLevel(
-      helpCategories.map((cat) => ({
-    name: cat.name,
-    key: cat.key,
-        items: accessibleTopics.filter((t) => t.category === cat.key),
-      })),
-      accessibleTopics
-    ), 
+  const categories = useMemo(
+    () =>
+      filterCategoriesByUserLevel(
+        helpCategories.map((cat) => ({
+          name: cat.name,
+          key: cat.key,
+          items: accessibleTopics.filter((t) => t.category === cat.key),
+        })),
+        accessibleTopics
+      ),
     [accessibleTopics]
   );
 
@@ -125,12 +136,12 @@ export default function Help() {
         {/* Main help content */}
         <div className="flex-1 flex flex-col max-h-full">
           {/* Sticky header with search */}
-          <div className="sticky top-0 bg-gray-50 z-40 py-2 border-b-gray-300 shadow-lg">
+          <div className="sticky top-0 bg-sky-700 z-40 py-2 border-b-gray-300 shadow-lg">
             {/* Back Button */}
-            <div className="flex items-center justify-between mb-2">
+            <div className=" items-center justify-between absolute top-4 left-4 right-6 flex">
               <button
                 onClick={() => navigate(-1)}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-sky-700 bg-white border  rounded-lg hover:text-gray-600 hover:bg-gray-200 transition-colors"
                 title="Go back"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -138,15 +149,10 @@ export default function Help() {
               </button>
               <div className="flex-1"></div>
             </div>
-            
-            <h1 className="text-3xl font-bold text-sky-700 text-center">
-              Help & User Manual
+
+            <h1 className="text-3xl font-bold text-white text-center">
+              Help Center
             </h1>
-            {profile && (
-              <p className="text-center text-sm text-gray-600 mt-2">
-                User Level: {profile.userlevel} | Accessible Topics: {accessibleTopics.length}
-              </p>
-            )}
 
             <div className="max-w-lg mx-auto mt-4">
               <HelpSearch

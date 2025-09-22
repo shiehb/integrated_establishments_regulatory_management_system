@@ -99,11 +99,15 @@ export default function HelpSection({ topics, activeId, setActiveId }) {
                                     </p>
                                   )}
                                   {step.image && (
-                                    <img
-                                      src={step.image}
-                                      alt={step.title}
-                                      className="mt-2 rounded-md border max-h-40"
-                                    />
+                                    <div className="flex justify-center mt-2 ">
+                                      {" "}
+                                      {/* Added container for centering */}
+                                      <img
+                                        src={step.image}
+                                        alt={step.title}
+                                        className="rounded-md border max-h-80 object-contain" /* Added max-h-80 and object-contain */
+                                      />
+                                    </div>
                                   )}
                                 </li>
                               ))}

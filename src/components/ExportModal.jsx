@@ -1,4 +1,6 @@
 import { useState } from "react";
+import logo1 from "/assets/document/logo1.png";
+import logo2 from "/assets/document/logo2.png";
 import { FileText, FileSpreadsheet, X } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -10,12 +12,11 @@ export default function ExportModal({
   fileName,
   columns,
   rows,
-  customPdfGenerator, // New prop for custom PDF generation
+  customPdfGenerator,
 }) {
   const [exportType, setExportType] = useState(null);
   const [confirming, setConfirming] = useState(false);
 
-  // Normalize the title
   const normalizeTitle = (t) =>
     t
       .replace(/export/gi, "")
@@ -23,6 +24,28 @@ export default function ExportModal({
       .trim();
 
   const reportTitle = `${normalizeTitle(title)} List`;
+
+  // Function to convert image URL to base64
+  const getBase64Image = (imgUrl) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        const dataURL = canvas.toDataURL("image/png");
+        resolve(dataURL);
+      };
+      img.onerror = () => {
+        console.warn("Failed to load image:", imgUrl);
+        resolve(null); // Return null if image fails to load
+      };
+      img.src = imgUrl;
+    });
+  };
 
   // CSV Export
   const handleExportCSV = () => {
@@ -42,7 +65,7 @@ export default function ExportModal({
   };
 
   // PDF Export
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     try {
       const doc = new jsPDF({
         orientation: "portrait",
@@ -50,45 +73,73 @@ export default function ExportModal({
         format: [330.2, 215.9],
       });
 
-      // Use custom PDF generator if provided, otherwise use default
       if (customPdfGenerator) {
         customPdfGenerator(doc, columns, rows);
       } else {
-        // Default PDF generator
         doc.setFont("times", "normal");
 
-        // Report info (top right)
+        // Convert images to base64
+        const logo1Base64 = await getBase64Image(logo1);
+        const logo2Base64 = await getBase64Image(logo2);
+
+        // Calculate page width for positioning
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        // Add logos - logo1 on left, logo2 on right
+        if (logo1Base64) {
+          doc.addImage(logo1Base64, "PNG", 35, 18, 18, 18); // Left side
+        }
+        if (logo2Base64) {
+          doc.addImage(logo2Base64, "PNG", pageWidth - 50, 18, 18, 18); // Right side (pageWidth - 50mm from right)
+        }
+
+        // Report info (centered between logos)
         const safeDate = new Date().toISOString().split("T")[0];
         const exportId = `RPT-${Date.now()}`;
         doc.setFontSize(8);
         doc.setFont("times", "bold");
-        doc.text(`${exportId}`, 200, 12, { align: "right" });
-        doc.text(`${safeDate}`, 200, 16, { align: "right" });
+        doc.text(`${exportId}`, pageWidth - 15, 12, { align: "right" });
+        doc.text(`${safeDate}`, pageWidth - 15, 16, { align: "right" });
         doc.setFont("times", "normal");
 
-        // Header text
+        // Header text (centered)
         doc.setFontSize(12);
         doc.setTextColor(0, 0, 0);
         doc.text(
           "Integrated Establishment Regulatory Management System",
-          108,
+          pageWidth / 2,
           24,
           { align: "center" }
         );
-        doc.text("Department of Environmental and Natural Resources", 108, 29, {
-          align: "center",
-        });
-        doc.text("Environmental Management Bureau Region I", 108, 34, {
-          align: "center",
-        });
+        doc.text(
+          "Department of Environmental and Natural Resources",
+          pageWidth / 2,
+          29,
+          {
+            align: "center",
+          }
+        );
+        doc.text(
+          "Environmental Management Bureau Region I",
+          pageWidth / 2,
+          34,
+          {
+            align: "center",
+          }
+        );
 
         // Report title
         doc.setFont("times", "bold");
         doc.setFontSize(12);
         const titleUpper = reportTitle.toUpperCase();
-        doc.text(titleUpper, 108, 42, { align: "center" });
+        doc.text(titleUpper, pageWidth / 2, 42, { align: "center" });
         const titleWidth = doc.getTextWidth(titleUpper);
-        doc.line(108 - titleWidth / 2, 44, 108 + titleWidth / 2, 44);
+        doc.line(
+          pageWidth / 2 - titleWidth / 2,
+          44,
+          pageWidth / 2 + titleWidth / 2,
+          44
+        );
         doc.setFont("times", "normal");
 
         // Table
@@ -121,11 +172,12 @@ export default function ExportModal({
         for (let i = 1; i <= pageCount; i++) {
           doc.setPage(i);
           doc.setFontSize(10);
-          doc.text(`Page ${i} of ${pageCount}`, 200, 325, { align: "right" });
+          doc.text(`Page ${i} of ${pageCount}`, pageWidth - 15, 325, {
+            align: "right",
+          });
         }
       }
 
-      // Open in browser tab
       const blobUrl = doc.output("bloburl");
       window.open(blobUrl, "_blank");
     } catch (err) {
@@ -134,11 +186,11 @@ export default function ExportModal({
     }
   };
 
-  const handleConfirmExport = () => {
+  const handleConfirmExport = async () => {
     if (exportType === "csv") {
       handleExportCSV();
     } else if (exportType === "pdf") {
-      handleExportPDF();
+      await handleExportPDF();
     }
     setExportType(null);
     setConfirming(false);

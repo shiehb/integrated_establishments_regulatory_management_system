@@ -208,18 +208,23 @@ export const helpTopics = [
         title: "Access Change Password",
         description:
           "Click on your user dropdown and select 'Change Password'.",
+        image: "/assets/help/changepassword/step_1.png",
       },
       {
         title: "Enter Current Password",
-        description: "Provide your current password for security verification.",
+        description:
+          "Provide your current password for security verification. ",
+        image: "../assets/help/changepassword/step_2.png",
       },
       {
         title: "Set New Password",
         description: "Enter your new password and confirm it.",
+        image: "../assets/help/changepassword/step_3.png",
       },
       {
         title: "Save Changes",
         description: "Click 'Save' to update your password.",
+        image: "../assets/help/changepassword/step_4.png",
       },
     ],
   },
@@ -261,7 +266,8 @@ export const helpTopics = [
   {
     id: 9,
     title: "System Configuration",
-    description: "Guide for system administrators to configure the application.",
+    description:
+      "Guide for system administrators to configure the application.",
     category: "system",
     tags: ["system", "config", "admin"],
     access: ["admin"], // Only admin can access system configuration

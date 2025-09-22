@@ -43,7 +43,7 @@ export default function HelpCard({
                 <img
                   src={step.image}
                   alt={step.title}
-                  className="mt-3 rounded-lg border w-full max-w-2xl"
+                  className="mt-3 rounded-lg border w-full  max-w-2xl"
                 />
               )}
             </div>
