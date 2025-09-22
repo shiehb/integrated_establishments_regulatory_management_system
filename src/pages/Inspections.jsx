@@ -7,7 +7,7 @@ import InspectionWizard from "../components/inspections/InspectionWizard";
 import EditInspection from "../components/inspections/EditInspection";
 import ViewInspection from "../components/inspections/ViewInspection";
 import InspectionDisplay from "../components/inspections/InspectionDisplay";
-import { getEstablishments } from "../services/api"; // Import the API function
+import { getEstablishments } from "../services/api";
 
 export default function Inspections() {
   const [showWizard, setShowWizard] = useState(false);

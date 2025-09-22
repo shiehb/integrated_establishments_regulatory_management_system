@@ -18,6 +18,7 @@ import Inspections from "./pages/Inspections";
 import Billing from "./pages/Billing";
 import Map from "./pages/Map";
 import Layout from "./Layout";
+import Help from "./pages/Help";
 import PublicRoute from "./components/PublicRoute";
 import PrivateRoute from "./components/PrivateRoute";
 
@@ -82,6 +83,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="/establishments" element={<Establishments />} />
           <Route path="/inspections" element={<Inspections />} />
           <Route path="/compliance" element={<Billing />} />
+          <Route path="/help" element={<Help />} />
         </Route>
       </Routes>
     </BrowserRouter>

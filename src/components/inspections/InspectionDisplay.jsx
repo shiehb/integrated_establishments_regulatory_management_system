@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import Layout from "../Layout";
+import LayoutForm from "../LayoutForm";
 import InspectionForm from "./InspectionForm";
 import PolygonMap from "../establishments/PolygonMap";
 import ImageUpload from "../ImageUpload";
@@ -19,7 +19,7 @@ export default function InspectionDisplay({ inspectionData }) {
   }, [inspectionData]);
 
   return (
-    <Layout>
+    <LayoutForm>
       <div className="flex flex-col w-full h-full mt-10 bg-gray-100">
         <div className="flex flex-col flex-1 gap-2 overflow-hidden md:flex-row">
           {/* Left Panel - Inspection Form (scrollable) */}
@@ -71,6 +71,6 @@ export default function InspectionDisplay({ inspectionData }) {
           </div>
         </div>
       </div>
-    </Layout>
+    </LayoutForm>
   );
 }
