@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
@@ -13,6 +13,7 @@ import {
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { getEstablishments } from "../services/api";
+import { useSearch } from "../contexts/SearchContext";
 
 // Fix for default markers in react-leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -58,6 +59,7 @@ export default function MapPage() {
   const [establishments, setEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [focusedEstablishment, setFocusedEstablishment] = useState(null);
+  const { searchQuery } = useSearch();
 
   // Fetch establishments from API
   useEffect(() => {
@@ -78,6 +80,23 @@ export default function MapPage() {
       setLoading(false);
     }
   };
+
+  // Filter establishments based on search query
+  const filteredEstablishments = useMemo(() => {
+    if (!searchQuery) return establishments;
+    
+    return establishments.filter((e) => {
+      const query = searchQuery.toLowerCase();
+      return (
+        e.name.toLowerCase().includes(query) ||
+        `${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}, ${e.postal_code}`
+          .toLowerCase()
+          .includes(query) ||
+        e.nature_of_business.toLowerCase().includes(query) ||
+        String(e.year_established).includes(query)
+      );
+    });
+  }, [establishments, searchQuery]);
 
   if (loading) {
     return (
@@ -121,7 +140,7 @@ export default function MapPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {establishments.map((e) => (
+                  {filteredEstablishments.map((e) => (
                     <tr
                       key={e.id}
                       className={`p-1 text-xs border border-gray-300 hover:bg-gray-50 cursor-pointer ${
@@ -161,7 +180,7 @@ export default function MapPage() {
                 <MapFocus establishment={focusedEstablishment} />
 
                 {/* Show polygons or pins */}
-                {establishments.map((e) =>
+                {filteredEstablishments.map((e) =>
                   e.polygon && e.polygon.length > 0 ? (
                     <Polygon
                       key={`poly-${e.id}`}

@@ -5,6 +5,7 @@ export const helpTopics = [
     description: "Step by step guide to add a new establishment.",
     category: "establishment",
     tags: ["add", "establishment", "form"],
+    access: ["admin", "Division Chief", "Section Chief", "Unit Head"], // Admin and these roles can add establishments
     steps: [
       {
         title: "Open the Establishments Page",
@@ -33,10 +34,146 @@ export const helpTopics = [
   },
   {
     id: 2,
+    title: "How to Edit Establishment",
+    description: "Guide for modifying existing establishment details.",
+    category: "establishment",
+    tags: ["edit", "establishment", "update"],
+    access: ["admin", "Division Chief", "Section Chief", "Unit Head"],
+    steps: [
+      {
+        title: "Navigate to Establishments",
+        description: "Go to the Establishments page from the sidebar.",
+      },
+      {
+        title: "Find the Establishment",
+        description:
+          "Use the search function or browse the list to find the establishment you want to edit.",
+      },
+      {
+        title: "Click Edit Button",
+        description: "Click the 'Edit' button next to the establishment name.",
+      },
+      {
+        title: "Update Information",
+        description: "Modify the necessary fields and click 'Save' to update.",
+      },
+    ],
+  },
+  {
+    id: 3,
+    title: "How to View and Edit Polygons",
+    description:
+      "Learn how to view and manage establishment boundary polygons.",
+    category: "establishment",
+    tags: ["polygon", "map", "boundaries"],
+    access: [
+      "admin",
+      "Division Chief",
+      "Section Chief",
+      "Unit Head",
+      "Monitoring Personnel",
+    ],
+    steps: [
+      {
+        title: "Access Polygon View",
+        description:
+          "Click the 'Polygon' button next to any establishment in the list.",
+      },
+      {
+        title: "View Existing Polygon",
+        description:
+          "If a polygon exists, it will be displayed on the map in blue.",
+      },
+      {
+        title: "Edit Polygon",
+        description:
+          "Click 'Create Polygon' or 'Update Polygon' to enter edit mode.",
+      },
+      {
+        title: "Draw or Modify",
+        description:
+          "Click on the map to add points, or drag existing points to modify the polygon.",
+      },
+      {
+        title: "Save Changes",
+        description: "Click 'Save Polygon' to store your changes.",
+      },
+    ],
+  },
+  {
+    id: 4,
+    title: "How to Create Inspections",
+    description: "Step by step guide to create new inspections.",
+    category: "inspection",
+    tags: ["inspection", "create", "wizard"],
+    access: [
+      "admin",
+      "Division Chief",
+      "Section Chief",
+      "Unit Head",
+      "Monitoring Personnel",
+    ],
+    steps: [
+      {
+        title: "Navigate to Inspections",
+        description: "Go to the Inspections page from the sidebar.",
+      },
+      {
+        title: "Start New Inspection",
+        description: "Click the 'New Inspection' button.",
+      },
+      {
+        title: "Select Establishments",
+        description:
+          "Choose one or more establishments to inspect from the list.",
+      },
+      {
+        title: "Choose Law Section",
+        description:
+          "Select the appropriate law section (PD-1586, RA-6969, etc.) for the inspection.",
+      },
+      {
+        title: "Complete the Wizard",
+        description: "Follow the wizard steps to create the inspection record.",
+      },
+    ],
+  },
+  {
+    id: 5,
+    title: "How to Manage Users",
+    description: "Guide for adding, editing, and managing user accounts.",
+    category: "user",
+    tags: ["user", "management", "admin"],
+    access: ["admin"], // Only admin can manage users
+    steps: [
+      {
+        title: "Access Users Page",
+        description: "Navigate to 'Users' from the sidebar (admin only).",
+      },
+      {
+        title: "Add New User",
+        description:
+          "Click 'Add User' button and fill in the required information.",
+      },
+      {
+        title: "Assign Role and Section",
+        description:
+          "Select appropriate user role and section from the dropdown menus.",
+      },
+      {
+        title: "Set User Status",
+        description:
+          "Activate or deactivate users as needed using the action menu.",
+      },
+    ],
+  },
+  {
+    id: 6,
     title: "How to Edit Profile",
     description: "Guide for editing user profile and avatar.",
     category: "user",
     tags: ["profile", "edit", "avatar"],
+    access: [], // Available to all users
     steps: [
       {
         title: "Go to Profile Settings",
@@ -60,50 +197,86 @@ export const helpTopics = [
     ],
   },
   {
-    id: 3,
-    title: "Manage User Roles",
-    description: "How to assign and update user roles.",
+    id: 7,
+    title: "How to Change Password",
+    description: "Step by step guide to change your account password.",
     category: "user",
-    tags: ["roles", "user", "permissions"],
+    tags: ["password", "security", "account"],
+    access: [], // Available to all users
     steps: [
       {
-        title: "Navigate to Users",
-        description: "Go to the Admin Panel and click 'Users'.",
-      },
-      {
-        title: "Select a User",
-        description: "Find the user you want to update and click 'Edit'.",
-      },
-      {
-        title: "Assign Role",
+        title: "Access Change Password",
         description:
-          "Choose a role (Admin, Inspector, Legal, etc.) from the dropdown.",
+          "Click on your user dropdown and select 'Change Password'.",
       },
       {
-        title: "Save",
-        description: "Click 'Save' to apply the changes.",
+        title: "Enter Current Password",
+        description: "Provide your current password for security verification.",
+      },
+      {
+        title: "Set New Password",
+        description: "Enter your new password and confirm it.",
+      },
+      {
+        title: "Save Changes",
+        description: "Click 'Save' to update your password.",
       },
     ],
   },
   {
-    id: 4,
-    title: "System Settings",
-    description: "Configuration guide for system administrators.",
-    category: "system",
-    tags: ["settings", "system", "config"],
+    id: 8,
+    title: "Understanding User Roles",
+    description: "Learn about different user roles and their permissions.",
+    category: "user",
+    tags: ["roles", "permissions", "access"],
+    access: ["admin", "Division Chief", "Section Chief"],
     steps: [
       {
-        title: "Go to System Settings",
-        description: "Navigate to Settings > System.",
-        image: "/assets/help/system/settings_step1.png",
+        title: "Legal Unit",
+        description:
+          "Has access to legal documents and compliance reports. Cannot modify establishments or create inspections.",
       },
       {
-        title: "Update Configurations",
-        description: "Change timezone, email server, or security options.",
+        title: "Division Chief",
+        description:
+          "Full access to manage establishments, users, and inspections. Can create and edit all content.",
       },
       {
-        title: "Save",
-        description: "Click 'Save' to apply updates.",
+        title: "Section Chief",
+        description:
+          "Can manage establishments and create inspections within their section. Limited user management.",
+      },
+      {
+        title: "Unit Head",
+        description:
+          "Can add/edit establishments and create inspections. No user management access.",
+      },
+      {
+        title: "Monitoring Personnel",
+        description:
+          "Can create inspections and edit polygons. Cannot add/edit establishment details.",
+      },
+    ],
+  },
+  {
+    id: 9,
+    title: "System Configuration",
+    description: "Guide for system administrators to configure the application.",
+    category: "system",
+    tags: ["system", "config", "admin"],
+    access: ["admin"], // Only admin can access system configuration
+    steps: [
+      {
+        title: "Access Admin Panel",
+        description: "Navigate to the admin section from the main menu.",
+      },
+      {
+        title: "Configure Settings",
+        description: "Modify system-wide settings and preferences.",
+      },
+      {
+        title: "Manage Database",
+        description: "Perform database maintenance and backups.",
       },
     ],
   },

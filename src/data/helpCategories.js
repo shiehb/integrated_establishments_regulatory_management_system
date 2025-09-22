@@ -5,6 +5,10 @@ export const helpCategories = [
     name: "Establishment",
   },
   {
+    key: "inspection",
+    name: "Inspection",
+  },
+  {
     key: "user",
     name: "User Management",
   },

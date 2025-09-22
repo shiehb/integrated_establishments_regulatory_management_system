@@ -1,16 +1,17 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Pencil,
   Map,
   Plus,
   Download,
-  Search,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Filter,
 } from "lucide-react";
 import { getEstablishments } from "../../services/api";
 import ExportModal from "../ExportModal";
+import { useSearch } from "../../contexts/SearchContext";
 
 export default function EstablishmentList({
   onAdd,
@@ -21,9 +22,11 @@ export default function EstablishmentList({
 }) {
   const [establishments, setEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { searchQuery } = useSearch();
 
-  // ✅ Search
-  const [search, setSearch] = useState("");
+  // 🎚 Filters
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [provinceFilter, setProvinceFilter] = useState([]);
 
   // ✅ Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
@@ -35,6 +38,23 @@ export default function EstablishmentList({
   useEffect(() => {
     fetchEstablishments();
   }, [refreshTrigger]);
+
+  // Add this useEffect to handle clicks outside the filter dropdown
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (filtersOpen && !e.target.closest('.filter-dropdown')) {
+        setFiltersOpen(false);
+      }
+    }
+
+    if (filtersOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [filtersOpen]);
 
   const fetchEstablishments = async () => {
     setLoading(true);
@@ -71,11 +91,18 @@ export default function EstablishmentList({
     );
   };
 
+  // Toggle province filter
+  const toggleProvince = (province) => {
+    setProvinceFilter((prev) =>
+      prev.includes(province) ? prev.filter((p) => p !== province) : [...prev, province]
+    );
+  };
+
   // ✅ Filter + Sort
   const filteredEstablishments = useMemo(() => {
     let list = establishments.filter((e) => {
-      const query = search.toLowerCase();
-      return (
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = (
         e.name.toLowerCase().includes(query) ||
         `${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}, ${e.postal_code}`
           .toLowerCase()
@@ -83,6 +110,10 @@ export default function EstablishmentList({
         e.nature_of_business.toLowerCase().includes(query) ||
         String(e.year_established).includes(query)
       );
+
+      const matchesProvince = provinceFilter.length === 0 || provinceFilter.includes(e.province);
+
+      return matchesSearch && matchesProvince;
     });
 
     if (sortConfig.key) {
@@ -102,7 +133,7 @@ export default function EstablishmentList({
     }
 
     return list;
-  }, [establishments, search, sortConfig]);
+  }, [establishments, searchQuery, provinceFilter, sortConfig]);
 
   // ✅ Selection
   const toggleSelect = (id) => {
@@ -130,19 +161,47 @@ export default function EstablishmentList({
         <h1 className="text-2xl font-bold text-sky-600">Establishments</h1>
 
         <div className="flex flex-wrap items-center w-full gap-2 sm:w-auto">
-          {/* 🔎 Search bar */}
-          <div className="relative w-full sm:w-64">
-            <Search
-              className="absolute text-gray-400 -translate-y-1/2 left-2 top-1/2"
-              size={16}
-            />
-            <input
-              type="text"
-              placeholder="Search establishments..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full py-1 pl-8 pr-2 text-sm border rounded"
-            />
+          {/* 🎚 Filters dropdown */}
+          <div className="relative filter-dropdown">
+            <button
+              onClick={() => setFiltersOpen((prev) => !prev)}
+              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+            >
+              <Filter size={14} /> Filters
+            </button>
+
+            {filtersOpen && (
+              <div className="absolute right-0 z-20 p-3 mt-2 bg-white border rounded shadow w-48">
+                {/* 🔘 Province + Clear All */}
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-sm font-semibold">Province</h4>
+                  <button
+                    onClick={() => {
+                      setProvinceFilter([]);
+                      setFiltersOpen(false);
+                    }}
+                    className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                  >
+                    Clear All
+                  </button>
+                </div>
+                {[
+                  "LA UNION",
+                  "PANGASINAN", 
+                  "ILOCOS SUR",
+                  "ILOCOS NORTE"
+                ].map((province) => (
+                  <label key={province} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={provinceFilter.includes(province)}
+                      onChange={() => toggleProvince(province)}
+                    />
+                    {province}
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
           {selectedEstablishments.length > 0 && (

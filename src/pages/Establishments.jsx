@@ -25,12 +25,13 @@ export default function Establishments() {
   const [polygonEditMode, setPolygonEditMode] = useState(false);
   const [hasPolygonChanges, setHasPolygonChanges] = useState(false);
 
-  // 🔹 establishments state
-  const [establishments, setEstablishments] = useState([]);
+  // 🔹 establishments state (used in polygon functionality)
+  const [, setEstablishments] = useState([]);
 
   // 🔹 confirmation dialog state
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+
 
   // 🔹 Fetch user profile and establishments on component mount
   useEffect(() => {

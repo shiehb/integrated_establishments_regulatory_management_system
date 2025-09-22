@@ -3,32 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { Bell, User, Search, LogOut, Key, HelpCircle, X } from "lucide-react";
 import api, { getUnreadNotificationsCount } from "../services/api";
 import Notifications from "./Notifications";
-import { helpTopics } from "../data/helpData"; // import topics for suggestions
+import { useSearch } from "../contexts/SearchContext";
+import { helpTopics } from "../data/helpData";
+import { filterTopicsByUserLevel, normalizeUserLevel } from "../utils/helpUtils";
 
 export default function InternalHeader({
   userLevel = "public",
   userName = "John Doe",
-  onSearch,
 }) {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState("");
+  const { searchQuery, updateSearchQuery } = useSearch();
   const [unreadCount, setUnreadCount] = useState(0);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
-
-  // ✅ Utility: filter topics by userLevel
-  const getFilteredTopicsByUserLevel = () => {
-    if (!userLevel) return [];
-
-    // Admin sees everything
-    if (userLevel.toLowerCase() === "admin") return helpTopics;
-
-    // Others: only if allowed
-    return helpTopics.filter((topic) => {
-      if (!topic.access || topic.access.length === 0) return true;
-      return topic.access.includes(userLevel);
-    });
-  };
 
   // Fetch unread notifications
   useEffect(() => {
@@ -63,18 +50,23 @@ export default function InternalHeader({
     }
   };
 
-  // --- Help Modal Search ---
-  const handleHelpSearch = (e) => {
-    setSearchQuery(e.target.value);
+  // Global search handler
+  const handleGlobalSearch = (e) => {
+    updateSearchQuery(e.target.value);
   };
 
-  // ✅ Apply filtering here
-  const accessibleTopics = getFilteredTopicsByUserLevel();
+  // Help Modal Search
+  const [helpSearchQuery, setHelpSearchQuery] = useState("");
+  const handleHelpSearch = (e) => {
+    setHelpSearchQuery(e.target.value);
+  };
 
+  // Filter topics by user level first, then by search query
+  const accessibleTopics = filterTopicsByUserLevel(helpTopics, normalizeUserLevel(userLevel));
   const filteredSuggestions = accessibleTopics.filter(
     (topic) =>
-      topic.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      topic.description.toLowerCase().includes(searchQuery.toLowerCase())
+      topic.title.toLowerCase().includes(helpSearchQuery.toLowerCase()) ||
+      topic.description.toLowerCase().includes(helpSearchQuery.toLowerCase())
   );
 
   const handleSuggestionClick = (topicTitle) => {
@@ -92,9 +84,9 @@ export default function InternalHeader({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder="Search establishments, users, inspections..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleGlobalSearch}
                 className="w-full py-1 pl-10 pr-4 bg-gray-100 border border-gray-300 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition"
               />
             </div>
@@ -178,9 +170,9 @@ export default function InternalHeader({
               <input
                 type="text"
                 placeholder="Search help topics..."
-                value={searchQuery}
+                value={helpSearchQuery}
                 onChange={handleHelpSearch}
-                className="w-full py-2 pl-10 pr-4 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full py-2 pl-10 pr-4 border border-gray-00 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
               />
             </div>
             {/* Suggestions */}

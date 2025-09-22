@@ -1,7 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Eye, Pencil, Search, Filter } from "lucide-react";
+import { Eye, Pencil, Filter } from "lucide-react";
+import { useSearch } from "../../contexts/SearchContext";
 
 export default function InspectionList({ inspections, onAdd, onEdit, onView }) {
+  const { searchQuery } = useSearch();
+  
   // Flatten the inspections to show each establishment in a separate row
   const flattenedInspections = inspections.flatMap((inspection) =>
     inspection.establishments.map((establishment) => ({
@@ -11,9 +14,6 @@ export default function InspectionList({ inspections, onAdd, onEdit, onView }) {
       status: inspection.status,
     }))
   );
-
-  // State for filtering
-  const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sectionFilter, setSectionFilter] = useState([]);
   const [statusFilter, setStatusFilter] = useState([]);
@@ -41,16 +41,16 @@ export default function InspectionList({ inspections, onAdd, onEdit, onView }) {
     return flattenedInspections.filter((inspection) => {
       // Search filter
       const matchesSearch =
-        inspection.id.toLowerCase().includes(search.toLowerCase()) ||
+        inspection.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         inspection.establishment.name
           .toLowerCase()
-          .includes(search.toLowerCase()) ||
+          .includes(searchQuery.toLowerCase()) ||
         inspection.establishment.address.street
           .toLowerCase()
-          .includes(search.toLowerCase()) ||
+          .includes(searchQuery.toLowerCase()) ||
         inspection.establishment.address.city
           .toLowerCase()
-          .includes(search.toLowerCase());
+          .includes(searchQuery.toLowerCase());
 
       // Section filter
       const matchesSection =
@@ -63,7 +63,7 @@ export default function InspectionList({ inspections, onAdd, onEdit, onView }) {
 
       return matchesSearch && matchesSection && matchesStatus;
     });
-  }, [flattenedInspections, search, sectionFilter, statusFilter]);
+  }, [flattenedInspections, searchQuery, sectionFilter, statusFilter]);
 
   // Toggle functions for filters
   const toggleSection = (section) => {
@@ -88,20 +88,6 @@ export default function InspectionList({ inspections, onAdd, onEdit, onView }) {
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-2xl font-bold text-sky-600">Inspections</h1>
         <div className="flex items-center gap-2">
-          {/* Search bar */}
-          <div className="relative">
-            <Search
-              className="absolute text-gray-400 -translate-y-1/2 left-2 top-1/2"
-              size={16}
-            />
-            <input
-              type="text"
-              placeholder="Search inspections..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="py-1 pl-8 pr-2 text-sm border rounded"
-            />
-          </div>
 
           {/* Filter button */}
           <div className="relative" ref={filterRef}>

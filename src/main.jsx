@@ -21,11 +21,13 @@ import Layout from "./Layout";
 import Help from "./pages/Help";
 import PublicRoute from "./components/PublicRoute";
 import PrivateRoute from "./components/PrivateRoute";
+import { SearchProvider } from "./contexts/SearchContext";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      <Routes>
+      <SearchProvider>
+        <Routes>
         {/* Public routes without notifications */}
         <Route
           path="/login"
@@ -85,7 +87,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="/compliance" element={<Billing />} />
           <Route path="/help" element={<Help />} />
         </Route>
-      </Routes>
+        </Routes>
+      </SearchProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

@@ -10,18 +10,16 @@ import {
   ArrowDown,
   Download,
   Filter,
-  Search,
 } from "lucide-react";
 import api, { toggleUserActive } from "../../services/api";
 import ExportModal from "../ExportModal";
 import ConfirmationDialog from "../common/ConfirmationDialog";
+import { useSearch } from "../../contexts/SearchContext";
 
 export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // 🔎 Search
-  const [search, setSearch] = useState("");
+  const { searchQuery } = useSearch();
 
   // 🎚 Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -83,8 +81,8 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
         const fullName =
           `${u.first_name} ${u.middle_name} ${u.last_name}`.toLowerCase();
         return (
-          fullName.includes(search.toLowerCase()) ||
-          u.email.toLowerCase().includes(search.toLowerCase())
+          fullName.includes(searchQuery.toLowerCase()) ||
+          u.email.toLowerCase().includes(searchQuery.toLowerCase())
         );
       })
       .filter((u) =>
@@ -115,7 +113,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
         if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
         return 0;
       });
-  }, [users, search, roleFilter, statusFilter, dateFrom, dateTo, sortConfig]);
+  }, [users, searchQuery, roleFilter, statusFilter, dateFrom, dateTo, sortConfig]);
 
   // Sorting handler
   const handleSort = (key) => {
@@ -178,20 +176,6 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
       <div className="flex flex-wrap items-end justify-between gap-2 mb-3">
         <h1 className="text-2xl font-bold text-sky-600">Users Management</h1>
         <div className="flex flex-wrap items-center gap-2">
-          {/* 🔎 Search bar */}
-          <div className="relative w-full sm:w-64">
-            <Search
-              className="absolute text-gray-400 -translate-y-1/2 left-2 top-1/2"
-              size={16}
-            />
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full py-1 pl-8 pr-2 text-sm border rounded"
-            />
-          </div>
 
           {/* 🎚 Filters dropdown */}
           <div className="relative">
@@ -224,7 +208,6 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                       setStatusFilter([]);
                       setDateFrom("");
                       setDateTo("");
-                      setSearch("");
                       setFiltersOpen(false);
                     }}
                     className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
