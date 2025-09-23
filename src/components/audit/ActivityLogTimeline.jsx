@@ -195,7 +195,7 @@ export default function ActivityLogTimeline({ activityLog }) {
                 return (
                   <tr
                     key={log.id}
-                    className="transition border-b border-gray-200 hover:bg-gray-50"
+                    className="transition border-b border-gray-200 hover:bg-gray-100"
                   >
                     {/* Date + Time */}
                     <td className="px-3 py-1 text-gray-600 w-15 whitespace-nowrap">
