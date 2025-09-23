@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Pencil,
   Map,
@@ -42,7 +42,7 @@ export default function EstablishmentList({
   // Add this useEffect to handle clicks outside the filter dropdown
   useEffect(() => {
     function handleClickOutside(e) {
-      if (filtersOpen && !e.target.closest('.filter-dropdown')) {
+      if (filtersOpen && !e.target.closest(".filter-dropdown")) {
         setFiltersOpen(false);
       }
     }
@@ -94,7 +94,9 @@ export default function EstablishmentList({
   // Toggle province filter
   const toggleProvince = (province) => {
     setProvinceFilter((prev) =>
-      prev.includes(province) ? prev.filter((p) => p !== province) : [...prev, province]
+      prev.includes(province)
+        ? prev.filter((p) => p !== province)
+        : [...prev, province]
     );
   };
 
@@ -102,16 +104,16 @@ export default function EstablishmentList({
   const filteredEstablishments = useMemo(() => {
     let list = establishments.filter((e) => {
       const query = searchQuery.toLowerCase();
-      const matchesSearch = (
+      const matchesSearch =
         e.name.toLowerCase().includes(query) ||
         `${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}, ${e.postal_code}`
           .toLowerCase()
           .includes(query) ||
         e.nature_of_business.toLowerCase().includes(query) ||
-        String(e.year_established).includes(query)
-      );
+        String(e.year_established).includes(query);
 
-      const matchesProvince = provinceFilter.length === 0 || provinceFilter.includes(e.province);
+      const matchesProvince =
+        provinceFilter.length === 0 || provinceFilter.includes(e.province);
 
       return matchesSearch && matchesProvince;
     });
@@ -171,7 +173,7 @@ export default function EstablishmentList({
             </button>
 
             {filtersOpen && (
-              <div className="absolute right-0 z-20 p-3 mt-2 bg-white border rounded shadow w-48">
+              <div className="absolute right-0 z-20 w-48 p-3 mt-2 bg-white border rounded shadow">
                 {/* 🔘 Province + Clear All */}
                 <div className="flex items-center justify-between mb-1">
                   <h4 className="text-sm font-semibold">Province</h4>
@@ -185,21 +187,21 @@ export default function EstablishmentList({
                     Clear All
                   </button>
                 </div>
-                {[
-                  "LA UNION",
-                  "PANGASINAN", 
-                  "ILOCOS SUR",
-                  "ILOCOS NORTE"
-                ].map((province) => (
-                  <label key={province} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={provinceFilter.includes(province)}
-                      onChange={() => toggleProvince(province)}
-                    />
-                    {province}
-                  </label>
-                ))}
+                {["LA UNION", "PANGASINAN", "ILOCOS SUR", "ILOCOS NORTE"].map(
+                  (province) => (
+                    <label
+                      key={province}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={provinceFilter.includes(province)}
+                        onChange={() => toggleProvince(province)}
+                      />
+                      {province}
+                    </label>
+                  )
+                )}
               </div>
             )}
           </div>

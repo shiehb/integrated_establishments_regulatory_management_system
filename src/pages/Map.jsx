@@ -9,6 +9,7 @@ import {
   Popup,
   Polygon,
   useMap,
+  LayersControl,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -84,7 +85,7 @@ export default function MapPage() {
   // Filter establishments based on search query
   const filteredEstablishments = useMemo(() => {
     if (!searchQuery) return establishments;
-    
+
     return establishments.filter((e) => {
       const query = searchQuery.toLowerCase();
       return (
@@ -126,7 +127,7 @@ export default function MapPage() {
             </h1>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-230px)]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-238px)]">
             {/* Left: Establishments Table */}
             <div className="overflow-y-auto">
               <table className="w-full border border-gray-300 rounded-lg">
@@ -165,21 +166,37 @@ export default function MapPage() {
               </table>
             </div>
 
-            {/* Right: Map with pins and polygons */}
+            {/* Right: Map with street and satellite layers */}
             <div className="overflow-hidden rounded shadow">
               <MapContainer
-                center={[14.676, 121.0437]}
-                zoom={6}
+                center={[16.597668, 120.322477]}
+                zoom={8}
                 style={{ width: "100%", height: "100%" }}
                 whenCreated={(mapInstance) => (mapRef.current = mapInstance)}
+                maxZoom={22}
               >
-                <TileLayer
-                  url="https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=Usuq2JxAdrdQy7GmBVyr"
-                  attribution="© MapTiler © OpenStreetMap contributors"
-                />
+                <LayersControl position="topright">
+                  {/* Base Layers */}
+                  <LayersControl.BaseLayer checked name="Street Map">
+                    <TileLayer
+                      url="https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=Usuq2JxAdrdQy7GmBVyr"
+                      attribution="© MapTiler © OpenStreetMap contributors"
+                    />
+                  </LayersControl.BaseLayer>
+
+                  <LayersControl.BaseLayer name="Satellite">
+                    <TileLayer
+                      url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+                      maxZoom={20}
+                      subdomains={["mt1", "mt2", "mt3"]}
+                      attribution="© Google"
+                    />
+                  </LayersControl.BaseLayer>
+                </LayersControl>
+
                 <MapFocus establishment={focusedEstablishment} />
 
-                {/* Show polygons or pins */}
+                {/* Show establishments */}
                 {filteredEstablishments.map((e) =>
                   e.polygon && e.polygon.length > 0 ? (
                     <Polygon

@@ -9,6 +9,7 @@ import {
   filterTopicsByUserLevel,
   normalizeUserLevel,
 } from "../utils/helpUtils";
+import ConfirmationDialog from "./common/ConfirmationDialog"; // Import the ConfirmationDialog
 
 export default function InternalHeader({
   userLevel = "public",
@@ -19,6 +20,10 @@ export default function InternalHeader({
   const [unreadCount, setUnreadCount] = useState(0);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+
+  // Dropdown states
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   // Fetch unread notifications
   useEffect(() => {
@@ -80,20 +85,29 @@ export default function InternalHeader({
     navigate(`/help?query=${encodeURIComponent(topicTitle)}`);
   };
 
+  // Manual click toggle handlers
+  const handleNotificationsClick = () => {
+    setShowNotifications(!showNotifications);
+  };
+
+  const handleUserDropdownClick = () => {
+    setShowUserDropdown(!showUserDropdown);
+  };
+
   return (
     <>
-      <header className="p-2 bg-white border-b border-gray-200 sticky top-0 z-50">
+      <header className="sticky top-0 z-50 p-2 bg-white border-b border-gray-200">
         <div className="flex items-center justify-between mx-4">
           {/* Search Bar */}
           <div className="flex-1 max-w-md">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
               <input
                 type="text"
                 placeholder="Search establishments, users, inspections..."
                 value={searchQuery}
                 onChange={handleGlobalSearch}
-                className="w-full py-1 pl-10 pr-4 bg-gray-100 border border-gray-300 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition"
+                className="w-full py-1 pl-10 pr-4 transition bg-gray-100 border border-gray-300 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -102,12 +116,21 @@ export default function InternalHeader({
           <div className="flex items-center space-x-3">
             {/* Notifications */}
             <div title="Notifications" className="relative">
-              <Notifications unreadCount={unreadCount} />
+              <div onClick={handleNotificationsClick}>
+                <Notifications
+                  unreadCount={unreadCount}
+                  showDropdown={showNotifications}
+                  onClose={() => setShowNotifications(false)}
+                />
+              </div>
             </div>
 
             {/* User Dropdown */}
-            <div className="relative group">
-              <button className="flex items-center px-2 space-x-2 text-gray-700 transition-colors bg-transparent rounded-lg hover:bg-gray-200">
+            <div className="relative">
+              <button
+                onClick={handleUserDropdownClick}
+                className="flex items-center px-2 space-x-2 text-gray-700 transition-colors bg-transparent rounded-lg hover:bg-gray-200"
+              >
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-sky-600">
                   <User className="w-4 h-4 text-white" />
                 </div>
@@ -120,25 +143,33 @@ export default function InternalHeader({
               </button>
 
               {/* Dropdown menu */}
-              <div className="absolute right-0 invisible mt-4 transition-all duration-200 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 z-50 w-44 top-full group-hover:opacity-100 group-hover:visible">
-                <div className="py-2">
-                  <button
-                    onClick={() => navigate("/change-password")}
-                    className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100"
-                  >
-                    <Key className="w-4 h-4 mr-2" />
-                    Change Password
-                  </button>
-                  <div className="my-1 border-t border-gray-200"></div>
-                  <button
-                    onClick={() => setShowLogoutConfirm(true)}
-                    className="flex items-center w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100"
-                  >
-                    <LogOut className="w-4 h-4 mr-2" />
-                    Logout
-                  </button>
+              {showUserDropdown && (
+                <div className="absolute right-0 z-50 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg ">
+                  <div className="py-2">
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        navigate("/change-password");
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100"
+                    >
+                      <Key className="w-4 h-4 mr-2" />
+                      Change Password
+                    </button>
+                    <div className="my-1 border-t border-gray-200"></div>
+                    <button
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        setShowLogoutConfirm(true);
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100"
+                    >
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Logout
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -147,25 +178,25 @@ export default function InternalHeader({
       {/* --- Floating Help Bubble (bottom-right) --- */}
       <button
         onClick={() => setShowHelpModal(true)}
-        className="fixed bottom-10 right-4 z-40 w-8 h-8 rounded-full bg-sky-600 hover:bg-sky-700 shadow-lg flex items-center justify-center transition-all duration-200 hover:scale-105"
+        className="fixed z-40 flex items-center justify-center w-8 h-8 transition-all duration-200 rounded-full shadow-lg bottom-10 right-4 bg-sky-600 hover:bg-sky-700 hover:scale-105"
         title="Help"
       >
-        <HelpCircle className="w-7 h-7 text-white" />
+        <HelpCircle className="text-white w-7 h-7" />
       </button>
 
       {/* --- Help Modal (bottom-right widget) --- */}
       {showHelpModal && (
-        <div className="fixed bottom-10 right-4 z-50">
+        <div className="fixed z-50 bottom-10 right-4">
           <div className="w-100 max-h-[60vh] min-h-[50vh] flex flex-col p-2 bg-white rounded border border-gray-500 relative">
             {/* Header */}
-            <div className="flex items-center justify-between p-2 border-b border-gray-200 bg-sky-50 rounded-t-lg">
-              <h2 className="text-lg font-semibold text-sky-700 flex items-center">
+            <div className="flex items-center justify-between p-2 border-b border-gray-200 rounded-t-lg bg-sky-50">
+              <h2 className="flex items-center text-lg font-semibold text-sky-700">
                 <HelpCircle className="w-5 h-5 mr-2" />
                 Help Center
               </h2>
               <button
                 onClick={() => setShowHelpModal(false)}
-                className="p-1 rounded-full hover:bg-gray-200 transition-colors"
+                className="p-1 transition-colors rounded-full hover:bg-gray-200"
               >
                 <X className="w-5 h-5 text-gray-600" />
               </button>
@@ -174,13 +205,13 @@ export default function InternalHeader({
             {/* Search bar */}
             <div className="p-2">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
                 <input
                   type="text"
                   placeholder="Search help topics..."
                   value={helpSearchQuery}
                   onChange={handleHelpSearch}
-                  className="w-full py-1 pl-10 pr-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  className="w-full py-1 pl-10 pr-4 transition bg-gray-100 border border-gray-300 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                   autoFocus
                 />
               </div>
@@ -195,23 +226,23 @@ export default function InternalHeader({
                       <li
                         key={topic.id}
                         onClick={() => handleSuggestionClick(topic.title)}
-                        className="p-3 rounded-lg hover:bg-sky-50 cursor-pointer transition-colors border border-transparent hover:border-sky-200"
+                        className="p-1 transition-colors border border-transparent rounded-lg cursor-pointer hover:bg-sky-50 hover:border-sky-200"
                       >
-                        <div className="font-medium text-gray-900 text-sm">
+                        <div className="text-sm font-medium text-gray-900">
                           {topic.title}
                         </div>
-                        <div className="text-gray-600 text-xs mt-1 line-clamp-2">
+                        <div className="mt-1 text-xs text-gray-600 line-clamp-2">
                           {topic.description}
                         </div>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="py-8 text-center text-gray-500">
                     <HelpCircle className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                     <p className="text-sm">No help topics found</p>
                     {helpSearchQuery && (
-                      <p className="text-xs mt-1">Try different keywords</p>
+                      <p className="mt-1 text-xs">Try different keywords</p>
                     )}
                   </div>
                 )}
@@ -225,7 +256,7 @@ export default function InternalHeader({
                   setShowHelpModal(false);
                   navigate("/help");
                 }}
-                className="w-full py-2 text-sm text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition-colors flex items-center justify-center font-medium"
+                className="flex items-center justify-center w-full py-2 text-sm font-medium transition-colors rounded-lg text-sky-600 hover:text-sky-700 hover:bg-sky-50"
               >
                 <HelpCircle className="w-4 h-4 mr-2" />
                 Open Full Help Page
@@ -235,33 +266,17 @@ export default function InternalHeader({
         </div>
       )}
 
-      {/* Logout Confirmation */}
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-lg">
-            <h3 className="mb-2 text-lg font-semibold text-gray-800">
-              Confirm Logout
-            </h3>
-            <p className="mb-4 text-gray-600">
-              Are you sure you want to logout?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowLogoutConfirm(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 text-white bg-red-600 rounded hover:bg-red-700"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Logout Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showLogoutConfirm}
+        title="Confirm Logout"
+        message="Are you sure you want to logout?"
+        loading={false}
+        confirmText="Logout"
+        cancelText="Cancel"
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={handleLogout}
+      />
     </>
   );
 }

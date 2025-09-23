@@ -18,14 +18,17 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         try:
             serializer.is_valid(raise_exception=True)
             establishment = serializer.save()
-            
+
+            # Attach the acting user for activity log
+            establishment._action_user = request.user
+            establishment.save()
+
             # Send notifications to specific user roles
             self.send_establishment_creation_notification(establishment, request.user)
             
             headers = self.get_success_headers(serializer.data)
             return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         except Exception as e:
-            # Return validation errors with proper format
             return Response(
                 {'error': str(e) if hasattr(e, 'detail') else serializer.errors},
                 status=status.HTTP_400_BAD_REQUEST
@@ -33,7 +36,16 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
     
     def update(self, request, *args, **kwargs):
         try:
-            return super().update(request, *args, **kwargs)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
+            serializer.is_valid(raise_exception=True)
+            establishment = serializer.save()
+
+            # Attach the acting user for activity log
+            establishment._action_user = request.user
+            establishment.save()
+
+            return Response(serializer.data)
         except Exception as e:
             instance = self.get_object()
             serializer = self.get_serializer(instance, data=request.data)
@@ -51,7 +63,6 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         users_to_notify = User.objects.filter(userlevel__in=notify_userlevels, is_active=True)
         
         for recipient in users_to_notify:
-            # Import from notifications app
             from notifications.models import Notification
             Notification.objects.create(
                 recipient=recipient,
@@ -66,31 +77,20 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         establishment = self.get_object()
         polygon_data = request.data.get('polygon')
         
-        # Handle empty or null polygon data
         if polygon_data is not None:
-            # Validate that polygon_data is a list
             if not isinstance(polygon_data, list):
-                return Response(
-                    {'error': 'Polygon data must be a list of coordinates'}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response({'error': 'Polygon data must be a list of coordinates'}, status=status.HTTP_400_BAD_REQUEST)
             
-            # Validate each coordinate pair
             for coord in polygon_data:
                 if not isinstance(coord, list) or len(coord) != 2:
-                    return Response(
-                        {'error': 'Each coordinate must be a [lat, lng] pair'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                    return Response({'error': 'Each coordinate must be a [lat, lng] pair'}, status=status.HTTP_400_BAD_REQUEST)
                 try:
                     float(coord[0]), float(coord[1])
                 except (ValueError, TypeError):
-                    return Response(
-                        {'error': 'Coordinates must be valid numbers'}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                    return Response({'error': 'Coordinates must be valid numbers'}, status=status.HTTP_400_BAD_REQUEST)
             
             establishment.polygon = polygon_data
+            establishment._action_user = request.user  # log who updated polygon
             establishment.save()
             return Response({'status': 'polygon set'})
         

@@ -12,6 +12,14 @@ const markerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
+// Allowed provinces
+const ALLOWED_PROVINCES = [
+  "LA UNION",
+  "ILOCOS SUR",
+  "ILOCOS NORTE",
+  "PANGASINAN",
+];
+
 // Reverse geocode: lat/lng -> address
 async function reverseGeocode(lat, lon, setFormData) {
   const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
@@ -139,12 +147,32 @@ export default function EditEstablishment({
         [name]: value.toUpperCase(),
       },
     }));
+
+    // Clear province error when user starts typing
+    if (name === "province" && errors.province) {
+      setErrors((prev) => ({ ...prev, province: "" }));
+    }
+  };
+
+  const validateProvince = (province) => {
+    const provinceUpper = province.toUpperCase().trim();
+    if (!ALLOWED_PROVINCES.includes(provinceUpper)) {
+      return `Province must be one of: ${ALLOWED_PROVINCES.join(", ")}`;
+    }
+    return "";
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setSubmitted(true);
     setErrors({});
+
+    // Validate province
+    const provinceError = validateProvince(formData.address.province);
+    if (provinceError) {
+      setErrors((prev) => ({ ...prev, province: provinceError }));
+    }
+
     // Validate required fields
     if (
       !formData.name.trim() ||
@@ -156,7 +184,8 @@ export default function EditEstablishment({
       !formData.address.streetBuilding.trim() ||
       !formData.address.postalCode.trim() ||
       !formData.coordinates.latitude.trim() ||
-      !formData.coordinates.longitude.trim()
+      !formData.coordinates.longitude.trim() ||
+      provinceError
     ) {
       return;
     }
@@ -289,8 +318,20 @@ export default function EditEstablishment({
                 name="province"
                 value={formData.address.province}
                 onChange={handleAddressChange}
-                className="w-full p-2 border rounded-lg"
+                className={`w-full p-2 border rounded-lg ${
+                  errors.province ? "border-red-500" : ""
+                }`}
+                list="province-list"
+                placeholder="Select from list"
               />
+              <datalist id="province-list">
+                {ALLOWED_PROVINCES.map((province) => (
+                  <option key={province} value={province} />
+                ))}
+              </datalist>
+              {errors.province && (
+                <p className="mt-1 text-xs text-red-500">{errors.province}</p>
+              )}
             </div>
             <div>
               <Label field="address.city">City</Label>

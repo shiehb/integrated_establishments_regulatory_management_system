@@ -1,8 +1,8 @@
 from django.apps import AppConfig
 
-class UsersConfig(AppConfig):
+class AuditConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'users'
+    name = 'audit'
 
     def ready(self):
-        import users.signals  # ensures signals are connected
+        import audit.signals

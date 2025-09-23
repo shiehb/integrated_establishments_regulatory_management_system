@@ -6,6 +6,7 @@ import {
   Popup,
   FeatureGroup,
   Polygon,
+  LayersControl,
 } from "react-leaflet";
 import { EditControl } from "react-leaflet-draw";
 import "leaflet/dist/leaflet.css";
@@ -172,16 +173,31 @@ export default function PolygonMap({
   const markerPosition = getMarkerPosition();
 
   return (
-    <div className="relative h-[calc(100vh-230px)] w-full">
+    <div className="relative h-[calc(100vh-238px)] w-full">
       <MapContainer
         center={getCenter()}
         zoom={18}
         style={{ height: "100%", width: "100%", zIndex: 0 }}
+        maxZoom={22}
       >
-        <TileLayer
-          url={osm.maptiler.url}
-          attribution={osm.maptiler.attribution}
-        />
+        <LayersControl position="topright">
+          {/* Base Layers */}
+          <LayersControl.BaseLayer checked name="Street Map">
+            <TileLayer
+              url={osm.maptiler.url}
+              attribution={osm.maptiler.attribution}
+            />
+          </LayersControl.BaseLayer>
+
+          <LayersControl.BaseLayer name="Satellite">
+            <TileLayer
+              url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+              maxZoom={20}
+              subdomains={["mt1", "mt2", "mt3"]}
+              attribution="© Google"
+            />
+          </LayersControl.BaseLayer>
+        </LayersControl>
 
         {/* Establishment pin - only render if valid coordinates */}
         {markerPosition && (

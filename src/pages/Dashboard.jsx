@@ -1,40 +1,104 @@
+import { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
-import { useEffect, useState } from "react";
-import { getProfile } from "../services/api"; // 🔥 API profile
+import { getProfile } from "../services/api";
+
+import AdminDashboard from "../components/dashboard/AdminDashboard";
+import LegalUnitDashboard from "../components/dashboard/LegalUnitDashboard";
+import DivisionChiefDashboard from "../components/dashboard/DivisionChiefDashboard";
+import SectionChiefDashboard from "../components/dashboard/SectionChiefDashboard";
+import UnitHeadDashboard from "../components/dashboard/UnitHeadDashboard";
+import MonitoringPersonnelDashboard from "../components/dashboard/MonitoringPersonnelDashboard";
 
 export default function Dashboard() {
-  const [profile, setProfile] = useState(null);
+  const [userLevel, setUserLevel] = useState("public");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getProfile()
-      .then(setProfile)
-      .catch(() => setProfile(null));
+    const fetchUserProfile = async () => {
+      try {
+        const accessToken = localStorage.getItem("access");
+        if (!accessToken) {
+          setUserLevel("public");
+          setLoading(false);
+          return;
+        }
+
+        const profile = await getProfile();
+        const level = profile.userlevel || "public";
+
+        setUserLevel(level);
+        localStorage.setItem("userLevel", level);
+      } catch (err) {
+        console.error("Error fetching user profile:", err);
+        const fallbackLevel = localStorage.getItem("userLevel") || "public";
+        setUserLevel(fallbackLevel);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserProfile();
   }, []);
+
+  const renderDashboard = () => {
+    switch (userLevel) {
+      case "Admin":
+        return <AdminDashboard />;
+      case "Legal Unit":
+        return <LegalUnitDashboard />;
+      case "Division Chief":
+        return <DivisionChiefDashboard />;
+      case "Section Chief":
+        return <SectionChiefDashboard />;
+      case "Unit Head":
+        return <UnitHeadDashboard />;
+      case "Monitoring Personnel":
+        return <MonitoringPersonnelDashboard />;
+      default:
+        return <DefaultDashboard />;
+    }
+  };
+
+  if (loading) {
+    return (
+      <>
+        <Header userLevel={userLevel} />
+        <LayoutWithSidebar userLevel={userLevel}>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-lg text-gray-600">Loading dashboard...</div>
+          </div>
+        </LayoutWithSidebar>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
-      <Header />
-      <LayoutWithSidebar userLevel="admin">
-        <div className="p-4 bg-white rounded-lg shadow-md">
-          <h1 className="mb-4 text-2xl font-bold text-sky-600">Dashboard</h1>
-          {profile ? (
-            <div>
-              <p>Email: {profile.email}</p>
-              <p>
-                Name: {profile.first_name} {profile.middle_name}{" "}
-                {profile.last_name}
-              </p>
-              <p>User Level: {profile.userlevel}</p>
-              <p>Section: {profile.section}</p>
-            </div>
-          ) : (
-            <p>Loading profile...</p>
-          )}
-        </div>
+      <Header userLevel={userLevel} />
+      <LayoutWithSidebar userLevel={userLevel}>
+        <div>{renderDashboard()}</div>
       </LayoutWithSidebar>
       <Footer />
     </>
+  );
+}
+
+function DefaultDashboard() {
+  return (
+    <div className="flex items-center justify-center bg-gray-100 h-[calc(100vh-158px)]">
+      <div className="text-center">
+        <div className="inline-block p-8 bg-white border border-gray-200 rounded-lg shadow-sm">
+          <h2 className="mb-2 text-xl font-semibold text-gray-800">
+            Dashboard Not Available
+          </h2>
+          <p className="mb-4 text-gray-600">
+            Please contact administrator for access.
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }

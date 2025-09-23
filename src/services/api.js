@@ -64,6 +64,22 @@ api.interceptors.response.use(
 );
 
 // ----------------------
+// Activity Log Functions
+// ----------------------
+
+// 📋 Get all activity logs
+export const getActivityLogs = async () => {
+  const res = await api.get("activity-logs/");
+  return res.data;
+};
+
+// 📋 Get activity logs with filters (optional)
+export const getFilteredActivityLogs = async (params) => {
+  const res = await api.get("activity-logs/", { params });
+  return res.data;
+};
+
+// ----------------------
 // Named exports
 // ----------------------
 
