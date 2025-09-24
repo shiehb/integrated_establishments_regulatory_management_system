@@ -113,7 +113,15 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
         if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
         return 0;
       });
-  }, [users, searchQuery, roleFilter, statusFilter, dateFrom, dateTo, sortConfig]);
+  }, [
+    users,
+    searchQuery,
+    roleFilter,
+    statusFilter,
+    dateFrom,
+    dateTo,
+    sortConfig,
+  ]);
 
   // Sorting handler
   const handleSort = (key) => {
@@ -176,7 +184,6 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
       <div className="flex flex-wrap items-end justify-between gap-2 mb-3">
         <h1 className="text-2xl font-bold text-sky-600">Users Management</h1>
         <div className="flex flex-wrap items-center gap-2">
-
           {/* 🎚 Filters dropdown */}
           <div className="relative">
             <button

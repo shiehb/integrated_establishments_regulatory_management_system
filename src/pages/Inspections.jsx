@@ -156,7 +156,7 @@ export default function Inspections() {
 
           {/* Edit Modal */}
           {editInspection && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
               <EditInspection
                 inspection={editInspection}
                 onClose={() => setEditInspection(null)}
@@ -170,7 +170,7 @@ export default function Inspections() {
 
           {/* View Modal */}
           {viewInspection && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
               <ViewInspection
                 inspection={viewInspection}
                 onClose={() => setViewInspection(null)}
@@ -181,7 +181,7 @@ export default function Inspections() {
 
           {/* Inspection Form Modal */}
           {currentFormInspection && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
               <div className="w-full h-full p-1 overflow-hidden bg-white">
                 <InspectionDisplay inspectionData={currentFormInspection} />
                 <div className="absolute top-4 right-4">

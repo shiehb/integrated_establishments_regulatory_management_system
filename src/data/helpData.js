@@ -263,27 +263,4 @@ export const helpTopics = [
       },
     ],
   },
-  {
-    id: 9,
-    title: "System Configuration",
-    description:
-      "Guide for system administrators to configure the application.",
-    category: "system",
-    tags: ["system", "config", "admin"],
-    access: ["admin"], // Only admin can access system configuration
-    steps: [
-      {
-        title: "Access Admin Panel",
-        description: "Navigate to the admin section from the main menu.",
-      },
-      {
-        title: "Configure Settings",
-        description: "Modify system-wide settings and preferences.",
-      },
-      {
-        title: "Manage Database",
-        description: "Perform database maintenance and backups.",
-      },
-    ],
-  },
 ];

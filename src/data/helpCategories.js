@@ -10,7 +10,7 @@ export const helpCategories = [
   },
   {
     key: "user",
-    name: "User Management",
+    name: "Users",
   },
   {
     key: "system",

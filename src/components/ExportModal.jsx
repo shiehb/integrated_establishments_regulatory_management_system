@@ -200,7 +200,7 @@ export default function ExportModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40">
       <div className="relative p-6 bg-white rounded-lg shadow-lg w-82">
         {/* Close Button */}
         <button
