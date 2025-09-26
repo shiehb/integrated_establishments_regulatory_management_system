@@ -19,7 +19,8 @@
     @apply text-sky-600 hover:text-sky-700 font-medium;
   }
 }
-/* Add to your CSS file */
+
+/* Loader Animation */
 .loader {
   border: 2px solid #f3f3f3;
   border-top: 2px solid #0ea5e9;
@@ -29,6 +30,7 @@
   animation: spin 0.7s linear infinite;
   display: inline-block;
 }
+
 @keyframes spin {
   0% {
     transform: rotate(0deg);
@@ -38,6 +40,7 @@
   }
 }
 
+/* Leaflet Map Overrides */
 .leaflet-draw-toolbar {
   margin-top: 12px;
   margin-right: 12px;
@@ -58,6 +61,7 @@
   background: transparent !important;
   border: none !important;
 }
+
 /* Lower Leaflet layers so modals/dialogs appear on top */
 .leaflet-container {
   z-index: 0 !important;
@@ -67,4 +71,36 @@
 .leaflet-bottom,
 .leaflet-control {
   z-index: 400 !important;
+}
+
+/* Notification Animations */
+@keyframes slide-in-top {
+  from {
+    transform: translateY(-100%) translateX(-50%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) translateX(-50%);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-top {
+  animation: slide-in-top 0.3s ease-out;
+}
+
+/* Optional: Slide-out animation for exit (handle in parent component via state transition) */
+@keyframes slide-out-top {
+  from {
+    transform: translateY(0) translateX(-50%);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%) translateX(-50%);
+    opacity: 0;
+  }
+}
+
+.animate-slide-out-top {
+  animation: slide-out-top 0.3s ease-in;
 }

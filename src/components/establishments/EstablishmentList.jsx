@@ -206,7 +206,16 @@ export default function EstablishmentList({
   const activeFilterCount = provinceFilter.length;
 
   if (loading) {
-    return <p className="p-4">Loading establishments...</p>;
+    return (
+      <div
+        className="flex flex-col items-center justify-center min-h-[200px] p-4"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+        <p className="text-sm text-gray-600">Loading establishments...</p>
+      </div>
+    );
   }
 
   const totalEstablishments = establishments.length;

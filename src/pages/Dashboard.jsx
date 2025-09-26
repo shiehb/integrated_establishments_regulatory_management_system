@@ -64,10 +64,15 @@ export default function Dashboard() {
   if (loading) {
     return (
       <>
-        <Header userLevel={userLevel} />
+        <Header />
         <LayoutWithSidebar userLevel={userLevel}>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-lg text-gray-600">Loading dashboard...</div>
+          <div
+            className="flex flex-col items-center justify-center min-h-[200px] p-4"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+            <p className="text-sm text-gray-600">Loading dashboard...</p>
           </div>
         </LayoutWithSidebar>
         <Footer />
@@ -77,7 +82,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <Header userLevel={userLevel} />
+      <Header />
       <LayoutWithSidebar userLevel={userLevel}>
         <div>{renderDashboard()}</div>
       </LayoutWithSidebar>

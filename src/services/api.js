@@ -182,12 +182,12 @@ export const changePassword = async (oldPassword, newPassword) => {
 };
 
 // ----------------------
-// Establishment Functions
+// Establishment Functions (UPDATED)
 // ----------------------
 
-// 📋 Get all establishments
-export const getEstablishments = async () => {
-  const res = await api.get("establishments/");
+// 📋 Get all establishments with pagination and search
+export const getEstablishments = async (params = {}) => {
+  const res = await api.get("establishments/", { params });
   return res.data;
 };
 
@@ -220,6 +220,20 @@ export const setEstablishmentPolygon = async (id, polygonData) => {
   const res = await api.post(`establishments/${id}/set_polygon/`, {
     polygon: polygonData || [],
   });
+  return res.data;
+};
+
+// 🔍 Get search suggestions from backend
+export const getEstablishmentSearchSuggestions = async (query) => {
+  const res = await api.get("establishments/search_suggestions/", {
+    params: { q: query },
+  });
+  return res.data;
+};
+
+// 🔍 Get search options (provinces, business types)
+export const getEstablishmentSearchOptions = async () => {
+  const res = await api.get("establishments/search_options/");
   return res.data;
 };
 

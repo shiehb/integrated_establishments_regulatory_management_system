@@ -13,6 +13,9 @@ import {
 } from "lucide-react";
 import WorkflowStatus from "./WorkflowStatus";
 import ExportModal from "../ExportModal";
+import Header from "../Header"; // Adjust path as needed
+import Footer from "../Footer"; // Adjust path as needed
+import LayoutWithSidebar from "../LayoutWithSidebar"; // Adjust path as needed
 
 export default function InspectionList({
   inspections,
@@ -20,6 +23,7 @@ export default function InspectionList({
   onView,
   userLevel,
   onWorkflowOpen,
+  loading = false, // Added as optional prop; defaults to false
 }) {
   // 🔍 Search and Filter State
   const [localSearchQuery, setLocalSearchQuery] = useState("");
@@ -255,6 +259,47 @@ export default function InspectionList({
       day: "numeric",
     });
   };
+
+  // Fixed loading state: Full-page centered loader within app layout
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <LayoutWithSidebar userLevel={userLevel}>
+          <div
+            className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50" // Full-page centering with app background
+            role="status"
+            aria-live="polite"
+          >
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+            <p className="text-sm text-gray-600 text-center">
+              Loading inspections...
+            </p>
+          </div>
+        </LayoutWithSidebar>
+        <Footer />
+      </>
+    );
+  }
+
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <LayoutWithSidebar userLevel="admin">
+          <div
+            className="flex flex-col items-center justify-center min-h-[200px] p-4"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+            <p className="text-sm text-gray-600">Loading inspections...</p>
+          </div>
+        </LayoutWithSidebar>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <div className="p-4 bg-white rounded shadow">

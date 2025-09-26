@@ -277,10 +277,13 @@ export default function MapPage() {
       <>
         <Header />
         <LayoutWithSidebar userLevel="admin">
-          <div className="p-4 bg-white rounded shadow">
-            <div className="flex items-center justify-center h-64">
-              <p>Loading Map...</p>
-            </div>
+          <div
+            className="flex flex-col items-center justify-center min-h-[200px] p-4"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+            <p className="text-sm text-gray-600">Loading inspections...</p>
           </div>
         </LayoutWithSidebar>
         <Footer />

@@ -14,13 +14,14 @@ import {
   Eye,
   EyeOff,
   Settings,
+  X,
 } from "lucide-react";
 import api, { getProfile } from "../services/api";
 
 const MASKED = "••••••••";
 
 const SystemConfiguration = () => {
-  const [config, setConfig] = useState({
+  const [initialConfig, setInitialConfig] = useState({
     email_host: "smtp.gmail.com",
     email_port: 587,
     email_use_tls: true,
@@ -33,6 +34,8 @@ const SystemConfiguration = () => {
     rotate_refresh_tokens: true,
     blacklist_after_rotation: true,
   });
+
+  const [config, setConfig] = useState({ ...initialConfig });
 
   // --- NEW userLevel & loading ---
   const [userLevel, setUserLevel] = useState("public");
@@ -53,6 +56,8 @@ const SystemConfiguration = () => {
 
   const [testEmail, setTestEmail] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -84,6 +89,23 @@ const SystemConfiguration = () => {
     fetchConfiguration();
   }, []);
 
+  // Add beforeunload event listener for page navigation
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue =
+          "You have unsaved changes. Are you sure you want to leave?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
+
   const fetchConfiguration = async () => {
     try {
       setLoadingConfig(true);
@@ -97,13 +119,17 @@ const SystemConfiguration = () => {
         masked = true;
       }
 
-      setConfig((prev) => ({
-        ...prev,
+      const newConfig = {
+        ...initialConfig,
         ...data,
         email_host_password: emailPassword,
-      }));
+      };
+
+      setInitialConfig(newConfig);
+      setConfig(newConfig);
       setEmailPasswordMasked(masked);
       setTestEmail(data.email_host_user || "");
+      setHasUnsavedChanges(false);
     } catch (error) {
       console.error("Error fetching configuration:", error);
       showMessage("Failed to load configuration", "error");
@@ -111,6 +137,12 @@ const SystemConfiguration = () => {
       setLoadingConfig(false);
     }
   };
+
+  // Check for changes whenever config changes
+  useEffect(() => {
+    const hasChanges = JSON.stringify(config) !== JSON.stringify(initialConfig);
+    setHasUnsavedChanges(hasChanges);
+  }, [config, initialConfig]);
 
   const showMessage = (msg, type = "success") => {
     setNotification({ open: true, type, message: msg });
@@ -153,7 +185,10 @@ const SystemConfiguration = () => {
         } else {
           setEmailPasswordMasked(false);
         }
-        setConfig((prev) => ({ ...prev, ...returned }));
+
+        setInitialConfig(returned);
+        setConfig(returned);
+        setHasUnsavedChanges(false);
       }
     } catch (error) {
       console.error("Error saving configuration:", error);
@@ -163,6 +198,21 @@ const SystemConfiguration = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCancel = () => {
+    if (hasUnsavedChanges) {
+      setShowCancelConfirm(true);
+    } else {
+      resetToInitial();
+    }
+  };
+
+  const resetToInitial = () => {
+    setConfig({ ...initialConfig });
+    setHasUnsavedChanges(false);
+    setShowCancelConfirm(false);
+    showMessage("Changes discarded", "info");
   };
 
   const handleOpenConfirm = () => setConfirmOpen(true);
@@ -199,10 +249,15 @@ const SystemConfiguration = () => {
       <>
         <Header userLevel={userLevel} />
         <LayoutWithSidebar userLevel={userLevel}>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-lg text-gray-600">
-              Loading configuration...
-            </div>
+          <div
+            className="flex flex-col items-center justify-center min-h-[200px] p-4"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+            <p className="text-sm text-gray-600">
+              Loading system configuration...
+            </p>
           </div>
         </LayoutWithSidebar>
         <Footer />
@@ -219,17 +274,32 @@ const SystemConfiguration = () => {
             <div>
               <h1 className="text-2xl font-bold text-sky-600 flex items-center">
                 System Configuration
+                {hasUnsavedChanges && (
+                  <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
+                    Unsaved Changes
+                  </span>
+                )}
               </h1>
               <p className="text-gray-600 mt-1">
                 Manage email settings, default passwords, and access token
                 configurations
               </p>
             </div>
-            <div className="mt-1">
+            <div className="mt-1 flex gap-2">
+              {hasUnsavedChanges && (
+                <button
+                  onClick={handleCancel}
+                  disabled={saving}
+                  className="px-3 py-1 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 flex items-center"
+                >
+                  <X className="mr-2" size={16} />
+                  Cancel
+                </button>
+              )}
               <button
                 onClick={handleOpenConfirm}
-                disabled={saving}
-                className="px-2 py-1 bg-sky-600 text-white rounded-md hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 flex items-center"
+                disabled={saving || !hasUnsavedChanges}
+                className="px-3 py-1 bg-sky-600 text-white rounded-md hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 flex items-center"
               >
                 <Save className="mr-2" size={16} />
                 {saving ? "Saving..." : "Save Configuration"}
@@ -245,6 +315,8 @@ const SystemConfiguration = () => {
               duration={5000}
             />
           )}
+
+          {/* Save Confirmation Dialog */}
           <ConfirmationDialog
             open={confirmOpen}
             title="Save Configuration"
@@ -254,6 +326,19 @@ const SystemConfiguration = () => {
             onConfirm={handleConfirm}
             confirmText="Save"
             cancelText="Cancel"
+          />
+
+          {/* Cancel Confirmation Dialog */}
+          <ConfirmationDialog
+            open={showCancelConfirm}
+            title="Discard Changes"
+            message="You have unsaved changes. Are you sure you want to discard them?"
+            loading={false}
+            onCancel={() => setShowCancelConfirm(false)}
+            onConfirm={resetToInitial}
+            confirmText="Discard Changes"
+            cancelText="Continue Editing"
+            confirmVariant="danger"
           />
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
