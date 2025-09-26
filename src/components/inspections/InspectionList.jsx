@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Eye,
   Filter,
@@ -10,52 +10,148 @@ import {
   ArrowDown,
   ChevronDown,
   Download,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import WorkflowStatus from "./WorkflowStatus";
 import ExportModal from "../ExportModal";
-import Header from "../Header"; // Adjust path as needed
-import Footer from "../Footer"; // Adjust path as needed
-import LayoutWithSidebar from "../LayoutWithSidebar"; // Adjust path as needed
+import Header from "../Header";
+import Footer from "../Footer";
+import LayoutWithSidebar from "../LayoutWithSidebar";
+import { getInspections, searchInspections } from "../../services/api";
+
+// Debounce hook
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 export default function InspectionList({
-  inspections,
   onAdd,
   onView,
   userLevel,
   onWorkflowOpen,
-  loading = false, // Added as optional prop; defaults to false
+  loading = false,
+  canCreate = false,
 }) {
-  // 🔍 Search and Filter State
-  const [localSearchQuery, setLocalSearchQuery] = useState("");
+  const [inspections, setInspections] = useState([]);
+  const [establishments, setEstablishments] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [searchMode, setSearchMode] = useState(false);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+
+  // Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sectionFilter, setSectionFilter] = useState([]);
   const [statusFilter, setStatusFilter] = useState([]);
+
+  // Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+
+  // Export
   const [selectedInspections, setSelectedInspections] = useState([]);
   const [showExportModal, setShowExportModal] = useState(false);
 
-  // Flatten the inspections to show each establishment in a separate row
-  const flattenedInspections = inspections.flatMap((inspection) =>
-    inspection.establishments.map((establishment) => ({
-      id: inspection.id,
-      establishment,
-      section: inspection.section,
-      status: inspection.status,
-      can_act: inspection.can_act,
-      current_assignee_name: inspection.current_assignee_name,
-      workflow_comments: inspection.workflow_comments,
-      assigned_legal_unit_name: inspection.assigned_legal_unit_name,
-      assigned_division_head_name: inspection.assigned_division_head_name,
-      assigned_section_chief_name: inspection.assigned_section_chief_name,
-      assigned_unit_head_name: inspection.assigned_unit_head_name,
-      assigned_monitor_name: inspection.assigned_monitor_name,
-      created_at: inspection.created_at,
-      updated_at: inspection.updated_at,
-    }))
-  );
+  // Fetch data based on mode (search or all)
+  const fetchData = useCallback(async () => {
+    setLoadingData(true);
+    try {
+      let data;
+      if (debouncedSearchQuery && debouncedSearchQuery.length >= 2) {
+        setSearchMode(true);
+        const result = await searchInspections(
+          debouncedSearchQuery,
+          currentPage,
+          pageSize
+        );
+        data = result.results || [];
+        setTotalCount(result.count || 0);
+      } else {
+        setSearchMode(false);
+        const allData = await getInspections({
+          page: currentPage,
+          page_size: pageSize,
+        });
+        data = allData.results || [];
+        setTotalCount(allData.count || 0);
+      }
 
-  // Add this useEffect to handle clicks outside the dropdowns
+      // Map backend to frontend expected model
+      const mapped = data.map((d) => ({
+        id: d.code || `${d.id}`,
+        establishmentId: d.establishment,
+        section: d.section,
+        status: d.status,
+        can_act: d.can_act,
+        current_assignee_name: d.current_assignee_name,
+        workflow_comments: d.workflow_comments,
+        assigned_legal_unit_name: d.assigned_legal_unit_name,
+        assigned_division_head_name: d.assigned_division_head_name,
+        assigned_section_chief_name: d.assigned_section_chief_name,
+        assigned_unit_head_name: d.assigned_unit_head_name,
+        assigned_monitor_name: d.assigned_monitor_name,
+        billing_record: d.billing_record,
+        compliance_call: d.compliance_call,
+        inspection_list: d.inspection_list,
+        applicable_laws: d.applicable_laws,
+        inspection_notes: d.inspection_notes,
+        establishment_detail: d.establishment_detail,
+        created_at: d.created_at,
+        updated_at: d.updated_at,
+      }));
+
+      setInspections(mapped);
+    } catch (err) {
+      console.error("Error fetching inspections:", err);
+      if (window.showNotification) {
+        window.showNotification("error", "Error fetching inspections");
+      }
+    } finally {
+      setLoadingData(false);
+    }
+  }, [debouncedSearchQuery, currentPage, pageSize]);
+
+  // Fetch establishments for inspection details
+  const fetchEstablishments = useCallback(async () => {
+    try {
+      const data = await getEstablishments();
+      setEstablishments(data);
+    } catch (err) {
+      console.error("Error fetching establishments:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    fetchEstablishments();
+  }, [fetchData, fetchEstablishments]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchQuery]);
+
+  // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(e) {
       if (filtersOpen && !e.target.closest(".filter-dropdown")) {
@@ -66,16 +162,11 @@ export default function InspectionList({
       }
     }
 
-    if (filtersOpen || sortDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [filtersOpen, sortDropdownOpen]);
 
-  // ✅ Sorting handler
+  // Sorting handler
   const handleSort = (key) => {
     setSortConfig((prev) => {
       if (prev.key === key) {
@@ -96,7 +187,6 @@ export default function InspectionList({
     );
   };
 
-  // Sort options for dropdown
   const sortFields = [
     { key: "id", label: "ID" },
     { key: "name", label: "Establishment Name" },
@@ -119,85 +209,7 @@ export default function InspectionList({
     setSortDropdownOpen(false);
   };
 
-  // ✅ Filter + Sort with LOCAL search
-  const filteredInspections = useMemo(() => {
-    let list = flattenedInspections.filter((inspection) => {
-      // Apply local search filter
-      const query = localSearchQuery.toLowerCase();
-      const matchesSearch = localSearchQuery
-        ? inspection.id.toLowerCase().includes(query) ||
-          inspection.establishment.name.toLowerCase().includes(query) ||
-          inspection.establishment.address.street
-            .toLowerCase()
-            .includes(query) ||
-          inspection.establishment.address.city.toLowerCase().includes(query) ||
-          inspection.section.toLowerCase().includes(query) ||
-          inspection.status.toLowerCase().includes(query) ||
-          inspection.current_assignee_name?.toLowerCase().includes(query) ||
-          inspection.workflow_comments?.toLowerCase().includes(query)
-        : true;
-
-      // Apply section filter
-      const matchesSection =
-        sectionFilter.length === 0 ||
-        sectionFilter.includes(inspection.section);
-
-      // Apply status filter
-      const matchesStatus =
-        statusFilter.length === 0 || statusFilter.includes(inspection.status);
-
-      return matchesSearch && matchesSection && matchesStatus;
-    });
-
-    if (sortConfig.key) {
-      list = [...list].sort((a, b) => {
-        let aVal, bVal;
-
-        if (sortConfig.key === "name") {
-          aVal = a.establishment.name.toLowerCase();
-          bVal = b.establishment.name.toLowerCase();
-        } else if (sortConfig.key === "id") {
-          aVal = a.id.toLowerCase();
-          bVal = b.id.toLowerCase();
-        } else if (sortConfig.key === "created_at") {
-          aVal = new Date(a.created_at).getTime();
-          bVal = new Date(b.created_at).getTime();
-        } else {
-          aVal = a[sortConfig.key]?.toLowerCase() || "";
-          bVal = b[sortConfig.key]?.toLowerCase() || "";
-        }
-
-        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return list;
-  }, [
-    flattenedInspections,
-    localSearchQuery,
-    sectionFilter,
-    statusFilter,
-    sortConfig,
-  ]);
-
-  // ✅ Selection
-  const toggleSelect = (id) => {
-    setSelectedInspections((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedInspections.length === filteredInspections.length) {
-      setSelectedInspections([]);
-    } else {
-      setSelectedInspections(filteredInspections.map((i) => i.id));
-    }
-  };
-
-  // Toggle functions for filters
+  // Filter functions
   const toggleSection = (section) => {
     setSectionFilter((prev) =>
       prev.includes(section)
@@ -214,31 +226,116 @@ export default function InspectionList({
     );
   };
 
-  // Clear functions
-  const clearLocalSearch = () => setLocalSearchQuery("");
+  const clearSections = () => setSectionFilter([]);
+  const clearStatuses = () => setStatusFilter([]);
+  const clearSearch = () => setSearchQuery("");
+
   const clearAllFilters = () => {
-    setLocalSearchQuery("");
+    setSearchQuery("");
     setSectionFilter([]);
     setStatusFilter([]);
     setSortConfig({ key: null, direction: null });
+    setCurrentPage(1);
   };
 
-  const totalInspections = flattenedInspections.length;
-  const filteredCount = filteredInspections.length;
-  const hasActiveFilters =
-    localSearchQuery ||
-    sectionFilter.length > 0 ||
-    statusFilter.length > 0 ||
-    sortConfig.key;
-  const activeFilterCount = sectionFilter.length + statusFilter.length;
+  // Filter inspections locally when not in search mode
+  const filteredInspections = useMemo(() => {
+    if (searchMode) return inspections;
 
-  // Get unique sections and statuses for filters
-  const uniqueSections = [
-    ...new Set(flattenedInspections.map((i) => i.section).filter(Boolean)),
-  ].sort();
-  const uniqueStatuses = [
-    ...new Set(flattenedInspections.map((i) => i.status).filter(Boolean)),
-  ].sort();
+    let list = inspections.filter((inspection) => {
+      const establishment = establishments.find(
+        (e) => e.id === inspection.establishmentId
+      );
+      const matchesSection =
+        sectionFilter.length === 0 ||
+        sectionFilter.includes(inspection.section);
+      const matchesStatus =
+        statusFilter.length === 0 || statusFilter.includes(inspection.status);
+
+      return matchesSection && matchesStatus;
+    });
+
+    if (sortConfig.key) {
+      list = [...list].sort((a, b) => {
+        let aVal, bVal;
+
+        if (sortConfig.key === "name") {
+          const establishmentA = establishments.find(
+            (e) => e.id === a.establishmentId
+          );
+          const establishmentB = establishments.find(
+            (e) => e.id === b.establishmentId
+          );
+          aVal = establishmentA?.name ? establishmentA.name.toLowerCase() : "";
+          bVal = establishmentB?.name ? establishmentB.name.toLowerCase() : "";
+        } else if (sortConfig.key === "id") {
+          aVal = a.id ? a.id.toLowerCase() : "";
+          bVal = b.id ? b.id.toLowerCase() : "";
+        } else if (sortConfig.key === "created_at") {
+          aVal = new Date(a.created_at).getTime();
+          bVal = new Date(b.created_at).getTime();
+        } else {
+          aVal = a[sortConfig.key] ? a[sortConfig.key].toLowerCase() : "";
+          bVal = b[sortConfig.key] ? b[sortConfig.key].toLowerCase() : "";
+        }
+
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return list;
+  }, [
+    inspections,
+    establishments,
+    sectionFilter,
+    statusFilter,
+    sortConfig,
+    searchMode,
+  ]);
+
+  // Flatten inspections with establishment details
+  const flattenedInspections = useMemo(() => {
+    return filteredInspections.map((inspection) => {
+      const establishment = establishments.find(
+        (e) => e.id === inspection.establishmentId
+      );
+      return {
+        ...inspection,
+        establishments: establishment ? [establishment] : [],
+        establishment: establishment || {},
+      };
+    });
+  }, [filteredInspections, establishments]);
+
+  // Selection
+  const toggleSelect = (id) => {
+    setSelectedInspections((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedInspections.length === flattenedInspections.length) {
+      setSelectedInspections([]);
+    } else {
+      setSelectedInspections(flattenedInspections.map((i) => i.id));
+    }
+  };
+
+  // Pagination
+  const totalPages = Math.ceil(totalCount / pageSize);
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalCount);
+
+  const goToPage = (page) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const activeFilterCount = sectionFilter.length + statusFilter.length;
+  const hasActiveFilters =
+    searchQuery || activeFilterCount > 0 || sortConfig.key;
 
   const statusLabels = {
     PENDING: "Pending",
@@ -260,40 +357,29 @@ export default function InspectionList({
     });
   };
 
-  // Fixed loading state: Full-page centered loader within app layout
-  if (loading) {
+  // Get unique sections and statuses for filters
+  const uniqueSections = [
+    ...new Set(inspections.map((i) => i.section).filter(Boolean)),
+  ].sort();
+  const uniqueStatuses = [
+    ...new Set(inspections.map((i) => i.status).filter(Boolean)),
+  ].sort();
+
+  // Fixed loading state
+  if (loading || (loadingData && flattenedInspections.length === 0)) {
     return (
       <>
         <Header />
         <LayoutWithSidebar userLevel={userLevel}>
           <div
-            className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50" // Full-page centering with app background
+            className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50"
             role="status"
             aria-live="polite"
           >
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
-            <p className="text-sm text-gray-600 text-center">
+            <div className="w-8 h-8 mb-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
+            <p className="text-sm text-center text-gray-600">
               Loading inspections...
             </p>
-          </div>
-        </LayoutWithSidebar>
-        <Footer />
-      </>
-    );
-  }
-
-  if (loading) {
-    return (
-      <>
-        <Header />
-        <LayoutWithSidebar userLevel="admin">
-          <div
-            className="flex flex-col items-center justify-center min-h-[200px] p-4"
-            role="status"
-            aria-live="polite"
-          >
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
-            <p className="text-sm text-gray-600">Loading inspections...</p>
           </div>
         </LayoutWithSidebar>
         <Footer />
@@ -308,19 +394,19 @@ export default function InspectionList({
         <h1 className="text-2xl font-bold text-sky-600">Inspections</h1>
 
         <div className="flex flex-wrap items-center w-full gap-2 sm:w-auto">
-          {/* 🔍 Local Search Bar */}
+          {/* 🔍 Search Bar */}
           <div className="relative">
             <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
             <input
               type="text"
               placeholder="Search inspections..."
-              value={localSearchQuery}
-              onChange={(e) => setLocalSearchQuery(e.target.value)}
-              className="w-full min-w-sm py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
-            {localSearchQuery && (
+            {searchQuery && (
               <button
-                onClick={clearLocalSearch}
+                onClick={clearSearch}
                 className="absolute -translate-y-1/2 right-3 top-1/2"
               >
                 <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
@@ -341,7 +427,6 @@ export default function InspectionList({
 
             {sortDropdownOpen && (
               <div className="absolute right-0 z-20 w-48 p-2 mt-2 bg-white border rounded shadow">
-                {/* Sort by Field Section */}
                 <div className="mb-2">
                   <h4 className="px-3 py-1 text-sm font-semibold text-gray-600">
                     Sort by
@@ -365,7 +450,7 @@ export default function InspectionList({
                           : ""
                       }`}
                     >
-                      <span className="text-xs text-sky-600 mr-2">
+                      <span className="mr-2 text-xs text-sky-600">
                         {sortConfig.key === field.key ? "•" : ""}
                       </span>
                       <span>{field.label}</span>
@@ -373,7 +458,6 @@ export default function InspectionList({
                   ))}
                 </div>
 
-                {/* Order Section - Shown if a field is selected */}
                 {sortConfig.key && (
                   <>
                     <div className="my-1 border-t border-gray-200"></div>
@@ -393,7 +477,7 @@ export default function InspectionList({
                               : ""
                           }`}
                         >
-                          <span className="text-xs text-sky-600 mr-2">
+                          <span className="mr-2 text-xs text-sky-600">
                             {sortConfig.direction === dir.key ? "•" : ""}
                           </span>
                           <span>{dir.label}</span>
@@ -417,7 +501,7 @@ export default function InspectionList({
             </button>
 
             {filtersOpen && (
-              <div className="absolute right-0 z-20 w-64 p-2 mt-2 bg-white border rounded shadow max-h-96 overflow-y-auto">
+              <div className="absolute right-0 z-20 w-64 p-2 mt-2 overflow-y-auto bg-white border rounded shadow max-h-96">
                 {/* Section Filter */}
                 <div className="mb-3">
                   <div className="flex items-center justify-between mb-1">
@@ -426,14 +510,14 @@ export default function InspectionList({
                     </h4>
                     {sectionFilter.length > 0 && (
                       <button
-                        onClick={() => setSectionFilter([])}
+                        onClick={clearSections}
                         className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
                       >
                         Clear
                       </button>
                     )}
                   </div>
-                  <div className="max-h-32 overflow-y-auto">
+                  <div className="overflow-y-auto max-h-32">
                     {uniqueSections.map((section) => (
                       <button
                         key={section}
@@ -444,7 +528,7 @@ export default function InspectionList({
                             : ""
                         }`}
                       >
-                        <span className="text-xs text-sky-600 mr-2">
+                        <span className="mr-2 text-xs text-sky-600">
                           {sectionFilter.includes(section) ? "•" : ""}
                         </span>
                         <span className="truncate">{section}</span>
@@ -461,14 +545,14 @@ export default function InspectionList({
                     </h4>
                     {statusFilter.length > 0 && (
                       <button
-                        onClick={() => setStatusFilter([])}
+                        onClick={clearStatuses}
                         className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
                       >
                         Clear
                       </button>
                     )}
                   </div>
-                  <div className="max-h-32 overflow-y-auto">
+                  <div className="overflow-y-auto max-h-32">
                     {uniqueStatuses.map((status) => (
                       <button
                         key={status}
@@ -479,7 +563,7 @@ export default function InspectionList({
                             : ""
                         }`}
                       >
-                        <span className="text-xs text-sky-600 mr-2">
+                        <span className="mr-2 text-xs text-sky-600">
                           {statusFilter.includes(status) ? "•" : ""}
                         </span>
                         <span className="truncate">
@@ -512,7 +596,7 @@ export default function InspectionList({
             </button>
           )}
 
-          {onAdd && (
+          {canCreate && onAdd && (
             <button
               onClick={onAdd}
               className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
@@ -524,166 +608,241 @@ export default function InspectionList({
       </div>
 
       {/* Table */}
-      <table className="w-full border border-gray-300 rounded-lg">
-        <thead>
-          <tr className="text-sm text-left text-white bg-sky-700">
-            <th className="w-6 p-1 text-center border border-gray-300">
-              <input
-                type="checkbox"
-                checked={
-                  selectedInspections.length > 0 &&
-                  selectedInspections.length === filteredInspections.length
-                }
-                onChange={toggleSelectAll}
-              />
-            </th>
-            {[
-              { key: "id", label: "ID", sortable: true },
-              { key: "name", label: "Establishment Name", sortable: true },
-              { key: "address", label: "Address", sortable: false },
-              { key: "section", label: "Section", sortable: true },
-              { key: "status", label: "Workflow Status", sortable: true },
-              { key: "assignee", label: "Current Assignee", sortable: false },
-              { key: "created_at", label: "Created Date", sortable: true },
-            ].map((col) => (
-              <th
-                key={col.key}
-                className={`p-1 border border-gray-300 ${
-                  col.sortable ? "cursor-pointer" : ""
-                }`}
-                onClick={col.sortable ? () => handleSort(col.key) : undefined}
-              >
-                <div className="flex items-center gap-1">
-                  {col.label} {col.sortable && getSortIcon(col.key)}
-                </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border border-gray-300 rounded-lg">
+          <thead>
+            <tr className="text-sm text-left text-white bg-sky-700">
+              <th className="w-6 p-1 text-center border border-gray-300">
+                <input
+                  type="checkbox"
+                  checked={
+                    selectedInspections.length > 0 &&
+                    selectedInspections.length === flattenedInspections.length
+                  }
+                  onChange={toggleSelectAll}
+                />
               </th>
-            ))}
-            <th className="p-1 text-center border border-gray-300">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredInspections.length === 0 ? (
-            <tr>
-              <td
-                colSpan="9"
-                className="px-2 py-4 text-center text-gray-500 border border-gray-300"
-              >
-                {hasActiveFilters ? (
-                  <div>
-                    No inspections found matching your criteria.
-                    <br />
-                    <button
-                      onClick={clearAllFilters}
-                      className="mt-2 text-sky-600 hover:text-sky-700 underline"
-                    >
-                      Clear all filters
-                    </button>
+              {[
+                { key: "id", label: "ID", sortable: true },
+                { key: "name", label: "Establishment Name", sortable: true },
+                { key: "address", label: "Address", sortable: false },
+                { key: "section", label: "Section", sortable: true },
+                { key: "status", label: "Workflow Status", sortable: true },
+                { key: "assignee", label: "Current Assignee", sortable: false },
+                { key: "created_at", label: "Created Date", sortable: true },
+              ].map((col) => (
+                <th
+                  key={col.key}
+                  className={`p-1 border border-gray-300 ${
+                    col.sortable ? "cursor-pointer" : ""
+                  }`}
+                  onClick={col.sortable ? () => handleSort(col.key) : undefined}
+                >
+                  <div className="flex items-center gap-1">
+                    {col.label} {col.sortable && getSortIcon(col.key)}
                   </div>
-                ) : (
-                  "No inspections found."
-                )}
-              </td>
+                </th>
+              ))}
+              <th className="p-1 text-center border border-gray-300">
+                Actions
+              </th>
             </tr>
-          ) : (
-            filteredInspections.map((inspection) => (
-              <tr
-                key={`${inspection.id}-${inspection.establishment.id}`}
-                className="text-xs hover:bg-gray-50 border border-gray-300"
-              >
-                <td className="text-center border border-gray-300 p-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedInspections.includes(inspection.id)}
-                    onChange={() => toggleSelect(inspection.id)}
-                  />
-                </td>
-                <td className="px-2 py-3 border border-gray-300 text-center font-medium">
-                  {inspection.id}
-                </td>
-                <td className="px-2 py-3 border border-gray-300">
-                  <div className="font-medium">
-                    {inspection.establishment.name}
-                  </div>
-                  <div className="text-gray-500 text-xs">
-                    {inspection.establishment.natureOfBusiness}
-                  </div>
-                </td>
-                <td className="px-2 py-3 border border-gray-300">
-                  <div className="text-xs">
-                    {`${inspection.establishment.address.street}, ${inspection.establishment.address.barangay}`}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {`${inspection.establishment.address.city}, ${inspection.establishment.address.province}`}
-                  </div>
-                </td>
-                <td className="px-2 py-3 border border-gray-300 text-center">
-                  {inspection.section}
-                </td>
-                <td className="px-2 py-3 border border-gray-300">
-                  <WorkflowStatus
-                    inspection={{
-                      id: inspection.id,
-                      status: inspection.status,
-                      can_act: inspection.can_act,
-                      current_assignee_name: inspection.current_assignee_name,
-                      workflow_comments: inspection.workflow_comments,
-                      assigned_legal_unit_name:
-                        inspection.assigned_legal_unit_name,
-                      assigned_division_head_name:
-                        inspection.assigned_division_head_name,
-                      assigned_section_chief_name:
-                        inspection.assigned_section_chief_name,
-                      assigned_unit_head_name:
-                        inspection.assigned_unit_head_name,
-                      assigned_monitor_name: inspection.assigned_monitor_name,
-                    }}
-                    userLevel={userLevel}
-                    onWorkflowOpen={onWorkflowOpen}
-                  />
-                </td>
-                <td className="px-2 py-3 border border-gray-300">
-                  {inspection.current_assignee_name || "Unassigned"}
-                </td>
-                <td className="px-2 py-3 border border-gray-300 text-center">
-                  {formatDate(inspection.created_at)}
-                </td>
-                <td className="px-2 py-3 border border-gray-300">
-                  <div className="flex justify-center gap-1">
-                    <button
-                      onClick={() => onView(inspection)}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-white rounded bg-sky-600 hover:bg-sky-700"
-                    >
-                      <Eye size={12} /> View
-                    </button>
-                    {inspection.can_act && onWorkflowOpen && (
-                      <button
-                        onClick={() => onWorkflowOpen(inspection)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-white rounded bg-green-600 hover:bg-green-700"
-                      >
-                        <Workflow size={12} /> Workflow
-                      </button>
-                    )}
+          </thead>
+          <tbody>
+            {loadingData ? (
+              <tr>
+                <td
+                  colSpan="9"
+                  className="px-2 py-8 text-center border border-gray-300"
+                >
+                  <div className="flex items-center justify-center">
+                    <div className="w-6 h-6 mr-2 border-b-2 rounded-full animate-spin border-sky-600"></div>
+                    <span>Loading inspections...</span>
                   </div>
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-      {/* 📊 Search results info */}
-      {(hasActiveFilters || filteredCount !== totalInspections) && (
-        <div className="flex items-center justify-between mb-3 text-sm text-gray-600">
-          <div>
-            Showing {filteredCount} of {totalInspections} inspection(s)
+            ) : flattenedInspections.length === 0 ? (
+              <tr>
+                <td
+                  colSpan="9"
+                  className="px-2 py-4 text-center text-gray-500 border border-gray-300"
+                >
+                  {hasActiveFilters ? (
+                    <div>
+                      No inspections found matching your criteria.
+                      <br />
+                      <button
+                        onClick={clearAllFilters}
+                        className="mt-2 underline text-sky-600 hover:text-sky-700"
+                      >
+                        Clear all filters
+                      </button>
+                    </div>
+                  ) : (
+                    "No inspections found."
+                  )}
+                </td>
+              </tr>
+            ) : (
+              flattenedInspections.map((inspection) => (
+                <tr
+                  key={`${inspection.id}-${inspection.establishment.id}`}
+                  className="text-xs border border-gray-300 hover:bg-gray-50"
+                >
+                  <td className="p-2 text-center border border-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={selectedInspections.includes(inspection.id)}
+                      onChange={() => toggleSelect(inspection.id)}
+                    />
+                  </td>
+                  <td className="px-2 py-3 font-medium text-center border border-gray-300">
+                    {inspection.id}
+                  </td>
+                  <td className="px-2 py-3 border border-gray-300">
+                    <div className="font-medium">
+                      {inspection.establishment.name}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {inspection.establishment.nature_of_business}
+                    </div>
+                  </td>
+                  <td className="px-2 py-3 border border-gray-300">
+                    <div className="text-xs">
+                      {`${inspection.establishment.street_building}, ${inspection.establishment.barangay}`}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {`${inspection.establishment.city}, ${inspection.establishment.province}`}
+                    </div>
+                  </td>
+                  <td className="px-2 py-3 text-center border border-gray-300">
+                    {inspection.section}
+                  </td>
+                  <td className="px-2 py-3 border border-gray-300">
+                    <WorkflowStatus
+                      inspection={{
+                        id: inspection.id,
+                        status: inspection.status,
+                        can_act: inspection.can_act,
+                        current_assignee_name: inspection.current_assignee_name,
+                        workflow_comments: inspection.workflow_comments,
+                        assigned_legal_unit_name:
+                          inspection.assigned_legal_unit_name,
+                        assigned_division_head_name:
+                          inspection.assigned_division_head_name,
+                        assigned_section_chief_name:
+                          inspection.assigned_section_chief_name,
+                        assigned_unit_head_name:
+                          inspection.assigned_unit_head_name,
+                        assigned_monitor_name: inspection.assigned_monitor_name,
+                      }}
+                      userLevel={userLevel}
+                      onWorkflowOpen={onWorkflowOpen}
+                    />
+                  </td>
+                  <td className="px-2 py-3 border border-gray-300">
+                    {inspection.current_assignee_name || "Unassigned"}
+                  </td>
+                  <td className="px-2 py-3 text-center border border-gray-300">
+                    {formatDate(inspection.created_at)}
+                  </td>
+                  <td className="px-2 py-3 border border-gray-300">
+                    <div className="flex justify-center gap-1">
+                      <button
+                        onClick={() => onView(inspection)}
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-white rounded bg-sky-600 hover:bg-sky-700"
+                      >
+                        <Eye size={12} /> View
+                      </button>
+                      {inspection.can_act && onWorkflowOpen && (
+                        <button
+                          onClick={() => onWorkflowOpen(inspection)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
+                        >
+                          <Workflow size={12} /> Workflow
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {totalCount > 0 && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-gray-600">
+            Showing {startItem} to {endItem} of {totalCount} entries
+            {searchMode && debouncedSearchQuery && (
+              <span className="ml-2">(search results)</span>
+            )}
           </div>
-          {hasActiveFilters && (
+
+          <div className="flex items-center gap-2">
             <button
-              onClick={clearAllFilters}
-              className="text-sky-600 hover:text-sky-700 underline"
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
             >
-              Clear all filters
+              <ChevronLeft size={16} />
             </button>
-          )}
+
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => goToPage(pageNum)}
+                  className={`px-3 py-1 text-sm rounded ${
+                    currentPage === pageNum
+                      ? "bg-sky-600 text-white"
+                      : "hover:bg-gray-100"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+
+            <button
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm">
+            <span>Show:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="px-2 py-1 border rounded"
+            >
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+            <span>per page</span>
+          </div>
         </div>
       )}
 
@@ -692,8 +851,8 @@ export default function InspectionList({
         onClose={() => setShowExportModal(false)}
         title="Inspections Export Report"
         fileName={`inspections_export${
-          localSearchQuery ? `_${localSearchQuery}` : ""
-        }`}
+          searchQuery ? `_${searchQuery.replace(/[^a-zA-Z0-9]/g, "_")}` : ""
+        }_page_${currentPage}`}
         companyName="DENR Environmental Office"
         companySubtitle="Inspection Management System"
         logo="/logo.png"
@@ -712,8 +871,8 @@ export default function InspectionList({
           return [
             inspection.id,
             inspection.establishment.name,
-            `${inspection.establishment.address.street}, ${inspection.establishment.address.city}`,
-            inspection.establishment.natureOfBusiness,
+            `${inspection.establishment.street_building}, ${inspection.establishment.city}`,
+            inspection.establishment.nature_of_business,
             inspection.section,
             statusLabels[inspection.status] || inspection.status,
             inspection.current_assignee_name || "Unassigned",

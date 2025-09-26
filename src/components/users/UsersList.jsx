@@ -13,10 +13,30 @@ import {
   Search,
   X,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import api, { toggleUserActive } from "../../services/api";
 import ExportModal from "../ExportModal";
 import ConfirmationDialog from "../common/ConfirmationDialog";
+
+// Debounce hook
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 // Move sectionDisplayNames outside the component to avoid dependency issues
 const sectionDisplayNames = {
   "PD-1586": "Environmental Impact Assessment",
@@ -29,9 +49,11 @@ const sectionDisplayNames = {
 export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
 
-  // 🔍 Local search state
-  const [localSearchQuery, setLocalSearchQuery] = useState("");
+  // 🔍 Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
   // 🎚 Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -44,15 +66,33 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
+  // ✅ Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   // ✅ Bulk select
   const [selectedUsers, setSelectedUsers] = useState([]);
 
   // 📤 Export Modal
   const [showExportModal, setShowExportModal] = useState(false);
 
+  // Fetch all users on component mount and refresh
   useEffect(() => {
-    fetchUsers();
+    fetchAllUsers();
   }, [refreshTrigger]);
+
+  const fetchAllUsers = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("auth/list/");
+      setUsers(res.data);
+      setTotalCount(res.data.length);
+    } catch (err) {
+      console.error("Error fetching users:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Add this useEffect to handle clicks outside the dropdowns
   useEffect(() => {
@@ -73,18 +113,6 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [filtersOpen, sortDropdownOpen]);
-
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get("auth/list/");
-      setUsers(res.data);
-    } catch (err) {
-      console.error("Error fetching users:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatFullDate = (dateString) => {
     if (!dateString) return "";
@@ -133,14 +161,14 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     { key: "desc", label: "Descending" },
   ];
 
-  // ✅ Filter + Sort with LOCAL search
+  // ✅ Filter + Sort with LOCAL search (client-side only)
   const filteredUsers = useMemo(() => {
     let list = users.filter((u) => {
       // Apply local search filter
-      const query = localSearchQuery.toLowerCase();
+      const query = debouncedSearchQuery.toLowerCase();
       const fullName =
         `${u.first_name} ${u.middle_name} ${u.last_name}`.toLowerCase();
-      const matchesSearch = localSearchQuery
+      const matchesSearch = debouncedSearchQuery
         ? fullName.includes(query) ||
           u.email.toLowerCase().includes(query) ||
           u.userlevel?.toLowerCase().includes(query) ||
@@ -175,6 +203,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
       );
     });
 
+    // Apply sorting
     if (sortConfig.key) {
       list = [...list].sort((a, b) => {
         let aVal, bVal;
@@ -201,14 +230,22 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     return list;
   }, [
     users,
-    localSearchQuery,
+    debouncedSearchQuery,
     roleFilter,
     statusFilter,
     dateFrom,
     dateTo,
     sortConfig,
-    sectionDisplayNames,
-  ]); // Added sectionDisplayNames to dependencies
+  ]);
+
+  // ✅ Pagination
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredUsers.slice(startIndex, endIndex);
+  }, [filteredUsers, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredUsers.length / pageSize);
 
   // ✅ Selection
   const toggleSelect = (id) => {
@@ -218,10 +255,10 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   };
 
   const toggleSelectAll = () => {
-    if (selectedUsers.length === filteredUsers.length) {
+    if (selectedUsers.length === paginatedUsers.length) {
       setSelectedUsers([]);
     } else {
-      setSelectedUsers(filteredUsers.map((u) => u.id));
+      setSelectedUsers(paginatedUsers.map((u) => u.id));
     }
   };
 
@@ -239,14 +276,15 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     );
 
   // Clear functions
-  const clearLocalSearch = () => setLocalSearchQuery("");
+  const clearSearch = () => setSearchQuery("");
   const clearAllFilters = () => {
-    setLocalSearchQuery("");
+    setSearchQuery("");
     setRoleFilter([]);
     setStatusFilter([]);
     setDateFrom("");
     setDateTo("");
     setSortConfig({ key: null, direction: null });
+    setCurrentPage(1);
   };
 
   const handleSortFromDropdown = (fieldKey, directionKey) => {
@@ -258,23 +296,23 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     setSortDropdownOpen(false);
   };
 
-  if (loading) {
-    return (
-      <div
-        className="flex flex-col items-center justify-center min-h-[200px] p-4"
-        role="status"
-        aria-live="polite"
-      >
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
-        <p className="text-sm text-gray-600">Loading users...</p>
-      </div>
-    );
-  }
+  // Pagination functions
+  const goToPage = (page) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const goToPreviousPage = () => {
+    setCurrentPage((prev) => Math.max(1, prev - 1));
+  };
+
+  const goToNextPage = () => {
+    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+  };
 
   const totalUsers = users.length;
   const filteredCount = filteredUsers.length;
   const hasActiveFilters =
-    localSearchQuery ||
+    searchQuery ||
     roleFilter.length > 0 ||
     statusFilter.length > 0 ||
     dateFrom ||
@@ -286,8 +324,12 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     (dateFrom ? 1 : 0) +
     (dateTo ? 1 : 0);
 
+  // Calculate display range
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, filteredCount);
+
   return (
-    <div className="p-4 bg-white rounded shadow ">
+    <div className="p-4 bg-white h-[calc(100vh-160px)]">
       {/* Top controls */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h1 className="text-2xl font-bold text-sky-600">Users Management</h1>
@@ -299,13 +341,13 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
             <input
               type="text"
               placeholder="Search users..."
-              value={localSearchQuery}
-              onChange={(e) => setLocalSearchQuery(e.target.value)}
-              className="w-full min-w-sm py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
-            {localSearchQuery && (
+            {searchQuery && (
               <button
-                onClick={clearLocalSearch}
+                onClick={clearSearch}
                 className="absolute -translate-y-1/2 right-3 top-1/2"
               >
                 <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
@@ -350,7 +392,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                           : ""
                       }`}
                     >
-                      <span className="text-xs text-sky-600 mr-2">
+                      <span className="mr-2 text-xs text-sky-600">
                         {sortConfig.key === field.key ? "•" : ""}
                       </span>
                       <span>{field.label}</span>
@@ -378,7 +420,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                               : ""
                           }`}
                         >
-                          <span className="text-xs text-sky-600 mr-2">
+                          <span className="mr-2 text-xs text-sky-600">
                             {sortConfig.direction === dir.key ? "•" : ""}
                           </span>
                           <span>{dir.label}</span>
@@ -402,7 +444,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
             </button>
 
             {filtersOpen && (
-              <div className="absolute right-0 z-20 w-82 p-2 mt-2 bg-white border rounded shadow">
+              <div className="absolute right-0 z-20 p-2 mt-2 bg-white border rounded shadow w-82">
                 {/* Role Section */}
                 <div className="mb-2">
                   <div className="flex items-center justify-between mb-1">
@@ -432,7 +474,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                         roleFilter.includes(role) ? "bg-sky-50 font-medium" : ""
                       }`}
                     >
-                      <span className="text-xs text-sky-600 mr-2">
+                      <span className="mr-2 text-xs text-sky-600">
                         {roleFilter.includes(role) ? "•" : ""}
                       </span>
                       <span>{role}</span>
@@ -465,7 +507,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                           : ""
                       }`}
                     >
-                      <span className="text-xs text-sky-600 mr-2">
+                      <span className="mr-2 text-xs text-sky-600">
                         {statusFilter.includes(status) ? "•" : ""}
                       </span>
                       <span>{status}</span>
@@ -539,7 +581,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                 type="checkbox"
                 checked={
                   selectedUsers.length > 0 &&
-                  selectedUsers.length === filteredUsers.length
+                  selectedUsers.length === paginatedUsers.length
                 }
                 onChange={toggleSelectAll}
               />
@@ -569,7 +611,23 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
           </tr>
         </thead>
         <tbody>
-          {filteredUsers.length === 0 ? (
+          {loading ? (
+            <tr>
+              <td
+                colSpan="8"
+                className="px-2 py-8 text-center border border-gray-300"
+              >
+                <div
+                  className="flex flex-col items-center justify-center p-4"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div className="w-8 h-8 mb-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
+                  <p className="text-sm text-gray-600">Loading users...</p>
+                </div>
+              </td>
+            </tr>
+          ) : paginatedUsers.length === 0 ? (
             <tr>
               <td
                 colSpan="8"
@@ -581,7 +639,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                     <br />
                     <button
                       onClick={clearAllFilters}
-                      className="mt-2 text-sky-600 hover:text-sky-700 underline"
+                      className="mt-2 underline text-sky-600 hover:text-sky-700"
                     >
                       Clear all filters
                     </button>
@@ -592,10 +650,10 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
               </td>
             </tr>
           ) : (
-            filteredUsers.map((u) => (
+            paginatedUsers.map((u) => (
               <tr
                 key={u.id}
-                className="p-1 text-xs border border-gray-300 hover:bg-gray-50 "
+                className="p-1 text-xs border border-gray-300 hover:bg-gray-50"
               >
                 <td className="text-center border border-gray-300">
                   <input
@@ -642,6 +700,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                     user={u}
                     onEdit={onEdit}
                     onToggleStatus={toggleUserActive}
+                    onStatusChange={fetchAllUsers}
                   />
                 </td>
               </tr>
@@ -650,16 +709,93 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
         </tbody>
       </table>
 
+      {/* Pagination Controls */}
+      {filteredCount > 0 && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-gray-600">
+            Showing {startItem} to {endItem} of {filteredCount} user(s)
+            {totalUsers !== filteredCount &&
+              ` (filtered from ${totalUsers} total)`}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={goToPreviousPage}
+              disabled={currentPage === 1}
+              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+            >
+              <ChevronLeft size={16} />
+            </button>
+
+            {/* Page numbers */}
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => goToPage(pageNum)}
+                  className={`px-3 py-1 text-sm rounded ${
+                    currentPage === pageNum
+                      ? "bg-sky-600 text-white"
+                      : "hover:bg-gray-100"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+
+            <button
+              onClick={goToNextPage}
+              disabled={currentPage === totalPages}
+              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm">
+            <span>Show:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="px-2 py-1 border rounded"
+            >
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+            <span>per page</span>
+          </div>
+        </div>
+      )}
+
       {/* 📊 Search results info */}
       {(hasActiveFilters || filteredCount !== totalUsers) && (
         <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
           <div>
-            Showing {filteredCount} of {totalUsers} user(s)
+            {filteredCount === totalUsers
+              ? `Showing all ${totalUsers} user(s)`
+              : `Showing ${filteredCount} of ${totalUsers} user(s)`}
           </div>
           {hasActiveFilters && (
             <button
               onClick={clearAllFilters}
-              className="text-sky-600 hover:text-sky-700 underline"
+              className="underline text-sky-600 hover:text-sky-700"
             >
               Clear all filters
             </button>
@@ -692,8 +828,8 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   );
 }
 
-/* Dropdown Menu Component */
-function Menu({ user, onEdit, onToggleStatus }) {
+/* Dropdown Menu Component - Unchanged from your original code */
+function Menu({ user, onEdit, onToggleStatus, onStatusChange }) {
   const [open, setOpen] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -723,6 +859,11 @@ function Menu({ user, onEdit, onToggleStatus }) {
     setLoading(true);
     try {
       await onToggleStatus(user.id);
+
+      // Refresh the user list
+      if (onStatusChange) {
+        onStatusChange();
+      }
 
       // Show success notification
       if (window.showNotification) {
@@ -758,7 +899,7 @@ function Menu({ user, onEdit, onToggleStatus }) {
     <div className="relative inline-block" ref={menuRef}>
       <button
         onClick={() => setOpen((prev) => !prev)}
-        className="p-1 text-black bg-transparent rounded-full hover:bg-gray-200 transition-colors"
+        className="p-1 text-black transition-colors bg-transparent rounded-full hover:bg-gray-200"
         title="User actions"
       >
         <MoreVertical size={18} />
@@ -779,7 +920,7 @@ function Menu({ user, onEdit, onToggleStatus }) {
               });
               setOpen(false);
             }}
-            className="flex items-center w-full gap-2 px-4 py-2 text-left hover:bg-gray-50 text-gray-700 transition-colors first:rounded-t-lg last:rounded-b-lg"
+            className="flex items-center w-full gap-2 px-4 py-2 text-left text-gray-700 transition-colors hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg"
           >
             <Pencil size={16} />
             <span>Edit</span>

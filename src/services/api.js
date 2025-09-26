@@ -241,8 +241,22 @@ export const getEstablishmentSearchOptions = async () => {
 // Inspection Functions (Backend)
 // ----------------------
 
-export const getInspections = async (params) => {
+export const getInspections = async (params = {}) => {
   const res = await api.get("inspections/", { params });
+  return res.data;
+};
+
+export const searchInspections = async (query, page = 1, pageSize = 10) => {
+  const res = await api.get("inspections/search/", {
+    params: { q: query, page, page_size: pageSize },
+  });
+  return res.data;
+};
+
+export const getInspectionSearchSuggestions = async (query) => {
+  const res = await api.get("inspections/search_suggestions/", {
+    params: { q: query },
+  });
   return res.data;
 };
 
@@ -350,73 +364,6 @@ export const resetPasswordWithOtp = async (email, otp, newPassword) => {
   return res.data;
 };
 
-// Mock API service for inspections (no backend required)
-
-let mockInspections = [
-  {
-    id: "EIA-2025-0001",
-    law: "PD-1586",
-    status: "PENDING",
-    created_at: new Date().toISOString(),
-    metadata: { establishmentName: "Sample Establishment" },
-    details: {},
-  },
-];
-
-let idCounter = 2;
-
-// 🔹 Fetch all inspections
-export async function fetchInspectionLists() {
-  return Promise.resolve(mockInspections);
-}
-
-// 🔹 Create a new inspection list
-export async function createInspectionList(payload) {
-  const newInspection = {
-    id: `${payload.law || "GEN"}-${new Date().getFullYear()}-${idCounter
-      .toString()
-      .padStart(4, "0")}`,
-    ...payload,
-    created_at: new Date().toISOString(),
-    status: "PENDING",
-  };
-  idCounter++;
-  mockInspections.push(newInspection);
-  return Promise.resolve(newInspection);
-}
-
-// 🔹 Get one inspection by ID
-export async function fetchInspectionList(id) {
-  const insp = mockInspections.find((i) => i.id === id);
-  return Promise.resolve(insp);
-}
-
-// 🔹 Update inspection by ID
-export async function updateInspectionList(id, updates) {
-  mockInspections = mockInspections.map((i) =>
-    i.id === id ? { ...i, ...updates } : i
-  );
-  return Promise.resolve(mockInspections.find((i) => i.id === id));
-}
-
-// 🔹 Forward inspection (just change status)
-export async function forwardInspectionList(id, fromUser, toUser) {
-  mockInspections = mockInspections.map((i) =>
-    i.id === id ? { ...i, status: "FORWARDED" } : i
-  );
-  return Promise.resolve(mockInspections.find((i) => i.id === id));
-}
-
-// 🔹 Complete inspection item
-export async function completeInspectionItem(id, payload) {
-  mockInspections = mockInspections.map((i) =>
-    i.id === id ? { ...i, status: "COMPLETED", ...payload } : i
-  );
-  return Promise.resolve(mockInspections.find((i) => i.id === id));
-}
-
-// src/services/api.js - Add search suggestions function
-
 // ----------------------
 // Global Search
 // ----------------------
@@ -452,5 +399,20 @@ export const getSearchOptions = async () => {
   }
 
   const res = await api.get("search/options/");
+  return res.data;
+};
+
+// Add to api.js
+export const searchEstablishments = async (query, page = 1, pageSize = 10) => {
+  const res = await api.get("establishments/search/", {
+    params: { q: query, page, page_size: pageSize },
+  });
+  return res.data;
+};
+
+export const searchUsers = async (query, page = 1, pageSize = 10) => {
+  const res = await api.get("auth/search/", {
+    params: { q: query, page, page_size: pageSize },
+  });
   return res.data;
 };

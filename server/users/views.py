@@ -12,6 +12,7 @@ from .utils.email_utils import send_user_welcome_email
 from .utils.otp_utils import generate_otp, verify_otp, send_otp_email
 from django.core.cache import cache
 from django.utils import timezone
+from django.db.models import Q
 
 # Notifications
 from notifications.models import Notification
@@ -368,3 +369,26 @@ def reset_password_with_otp(request):
         'detail': 'Password reset successfully.',
         'updated_at': user.updated_at
     }, status=200)
+
+# Add this to your users views
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_search(request):
+    query = request.GET.get('q', '').strip()
+    
+    if not query or len(query) < 2:
+        return Response({'results': [], 'count': 0})
+    
+    users = User.objects.filter(
+        Q(first_name__icontains=query) |
+        Q(middle_name__icontains=query) |
+        Q(last_name__icontains=query) |
+        Q(email__icontains=query) |
+        Q(userlevel__icontains=query)
+    ).exclude(userlevel="Admin")
+    
+    serializer = UserSerializer(users, many=True)
+    return Response({
+        'results': serializer.data,
+        'count': users.count()
+    })

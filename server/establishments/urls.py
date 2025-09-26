@@ -8,4 +8,5 @@ router.register(r'establishments', EstablishmentViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('search/', EstablishmentViewSet.as_view({'get': 'search'}), name='establishment-search'),
 ]

@@ -254,7 +254,7 @@ const SystemConfiguration = () => {
             role="status"
             aria-live="polite"
           >
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+            <div className="w-8 h-8 mb-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
             <p className="text-sm text-gray-600">
               Loading system configuration...
             </p>
@@ -269,28 +269,28 @@ const SystemConfiguration = () => {
     <>
       <Header userLevel={userLevel} />
       <LayoutWithSidebar userLevel={userLevel}>
-        <div className="p-4">
-          <div className="mb-6 flex items-start justify-between">
+        <div className="p-4 bg-white h-[calc(100vh-165px)]">
+          <div className="flex items-start justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-sky-600 flex items-center">
+              <h1 className="flex items-center text-2xl font-bold text-sky-600">
                 System Configuration
                 {hasUnsavedChanges && (
-                  <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
+                  <span className="px-2 py-1 ml-2 text-xs rounded-full bg-amber-100 text-amber-800">
                     Unsaved Changes
                   </span>
                 )}
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="mt-1 text-gray-600">
                 Manage email settings, default passwords, and access token
                 configurations
               </p>
             </div>
-            <div className="mt-1 flex gap-2">
+            <div className="flex gap-2 mt-1">
               {hasUnsavedChanges && (
                 <button
                   onClick={handleCancel}
                   disabled={saving}
-                  className="px-3 py-1 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 flex items-center"
+                  className="flex items-center px-3 py-1 text-gray-700 bg-gray-300 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
                 >
                   <X className="mr-2" size={16} />
                   Cancel
@@ -299,7 +299,7 @@ const SystemConfiguration = () => {
               <button
                 onClick={handleOpenConfirm}
                 disabled={saving || !hasUnsavedChanges}
-                className="px-3 py-1 bg-sky-600 text-white rounded-md hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 flex items-center"
+                className="flex items-center px-3 py-1 text-white rounded-md bg-sky-600 hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50"
               >
                 <Save className="mr-2" size={16} />
                 {saving ? "Saving..." : "Save Configuration"}
@@ -341,9 +341,9 @@ const SystemConfiguration = () => {
             confirmVariant="danger"
           />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             {/* Email Configuration (Left: span 2) */}
-            <div className="md:col-span-2 bg-white rounded-lg shadow-md p-6">
+            <div className="p-6 bg-white rounded shadow md:col-span-2 ">
               <div className="flex items-center mb-4">
                 <Mail className="mr-2 text-sky-700" size={20} />
                 <h2 className="text-lg font-semibold text-gray-900">
@@ -351,9 +351,9 @@ const SystemConfiguration = () => {
                 </h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block mb-1 text-sm font-medium text-gray-700">
                     SMTP Host
                   </label>
                   <input
@@ -368,7 +368,7 @@ const SystemConfiguration = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block mb-1 text-sm font-medium text-gray-700">
                     SMTP Port
                   </label>
                   <input
@@ -384,7 +384,7 @@ const SystemConfiguration = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block mb-1 text-sm font-medium text-gray-700">
                     Email Username
                   </label>
                   <input
@@ -399,7 +399,7 @@ const SystemConfiguration = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block mb-1 text-sm font-medium text-gray-700">
                     Email Password
                   </label>
                   <div className="relative">
@@ -415,7 +415,7 @@ const SystemConfiguration = () => {
                     <button
                       type="button"
                       onClick={() => setShowEmailPassword(!showEmailPassword)}
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      className="absolute text-gray-500 transform -translate-y-1/2 right-2 top-1/2 hover:text-gray-700"
                     >
                       {showEmailPassword ? (
                         <EyeOff size={16} />
@@ -425,14 +425,14 @@ const SystemConfiguration = () => {
                     </button>
                   </div>
                   {emailPasswordMasked && (
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="mt-1 text-sm text-gray-500">
                       Password is masked — type a new password to change it.
                     </p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block mb-1 text-sm font-medium text-gray-700">
                     Default From Email
                   </label>
                   <input
@@ -454,14 +454,14 @@ const SystemConfiguration = () => {
                     onChange={(e) =>
                       handleInputChange("email_use_tls", e.target.checked)
                     }
-                    className="h-4 w-4 mt-1 text-sky-600 focus:ring-sky-500 border-gray-300 rounded"
+                    className="w-4 h-4 mt-1 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
                   />
                   <label
                     htmlFor="email_use_tls"
                     className="block text-sm text-gray-700"
                   >
                     Use TLS
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="mt-1 text-xs text-gray-500">
                       Transport Layer Security (TLS) encrypts email
                       communication between your server and the mail provider.
                       <span className="font-medium text-gray-600">
@@ -473,8 +473,8 @@ const SystemConfiguration = () => {
               </div>
 
               {/* Email Test Section */}
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <h3 className="text-md font-medium text-gray-900 mb-3">
+              <div className="pt-4 mt-6 border-t border-gray-200">
+                <h3 className="mb-3 font-medium text-gray-900 text-md">
                   Test Email Configuration
                 </h3>
                 <div className="flex gap-2">
@@ -488,7 +488,7 @@ const SystemConfiguration = () => {
                   <button
                     onClick={handleTestEmail}
                     disabled={testing}
-                    className="px-2 py-1 bg-sky-600 text-white rounded-md hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 flex items-center"
+                    className="flex items-center px-2 py-1 text-white rounded-md bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                   >
                     <TestTube className="mr-1" size={16} />
                     {testing ? "Testing..." : "Test Email"}
@@ -498,8 +498,8 @@ const SystemConfiguration = () => {
             </div>
 
             {/* Default Password Configuration (Right column) */}
-            <div className="md:col-span-1 flex flex-col gap-6">
-              <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex flex-col gap-6 md:col-span-1">
+              <div className="p-6 bg-white rounded shadow">
                 <div className="flex items-center mb-4">
                   <Lock className="mr-2 text-sky-700" size={20} />
                   <h2 className="text-lg font-semibold text-gray-900">
@@ -508,7 +508,7 @@ const SystemConfiguration = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block mb-1 text-sm font-medium text-gray-700">
                     Default User Password
                   </label>
                   <div className="relative">
@@ -529,7 +529,7 @@ const SystemConfiguration = () => {
                       onClick={() =>
                         setShowDefaultPassword(!showDefaultPassword)
                       }
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      className="absolute text-gray-500 transform -translate-y-1/2 right-2 top-1/2 hover:text-gray-700"
                     >
                       {showDefaultPassword ? (
                         <EyeOff size={16} />
@@ -538,14 +538,14 @@ const SystemConfiguration = () => {
                       )}
                     </button>
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="mt-1 text-sm text-gray-500">
                     This password will be assigned to new users and they will be
                     required to change it on first login.
                   </p>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="p-6 bg-white rounded shadow">
                 <div className="flex items-center mb-4">
                   <Clock className="mr-2 text-sky-700" size={20} />
                   <h2 className="text-lg font-semibold text-gray-900">
@@ -553,9 +553,9 @@ const SystemConfiguration = () => {
                   </h2>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block mb-1 text-sm font-medium text-gray-700">
                       Access Token Lifetime <div>(minutes)</div>
                     </label>
                     <input
@@ -571,13 +571,13 @@ const SystemConfiguration = () => {
                       min="5"
                       max="1440"
                     />
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="mt-1 text-sm text-gray-500">
                       How long access tokens remain valid (5-1440 minutes)
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block mb-1 text-sm font-medium text-gray-700">
                       Refresh Token Lifetime <div>(days)</div>
                     </label>
                     <input
@@ -593,7 +593,7 @@ const SystemConfiguration = () => {
                       min="1"
                       max="365"
                     />
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p className="mt-1 text-sm text-gray-500">
                       How long refresh tokens remain valid (1-365 days)
                     </p>
                   </div>
@@ -609,11 +609,11 @@ const SystemConfiguration = () => {
                           e.target.checked
                         )
                       }
-                      className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 rounded"
+                      className="w-4 h-4 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
                     />
                     <label
                       htmlFor="rotate_refresh_tokens"
-                      className="ml-2 block text-sm text-gray-700"
+                      className="block ml-2 text-sm text-gray-700"
                     >
                       Rotate Refresh Tokens
                     </label>
@@ -630,11 +630,11 @@ const SystemConfiguration = () => {
                           e.target.checked
                         )
                       }
-                      className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 rounded"
+                      className="w-4 h-4 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
                     />
                     <label
                       htmlFor="blacklist_after_rotation"
-                      className="ml-2 block text-sm text-gray-700"
+                      className="block ml-2 text-sm text-gray-700"
                     >
                       Blacklist After Rotation
                     </label>

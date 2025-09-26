@@ -32,7 +32,6 @@ export default function Establishments() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
 
-
   // 🔹 Fetch user profile and establishments on component mount
   useEffect(() => {
     fetchUserProfile();

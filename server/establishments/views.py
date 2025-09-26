@@ -155,3 +155,27 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         active_establishments = Establishment.objects.filter(is_active=True)
         serializer = self.get_serializer(active_establishments, many=True)
         return Response(serializer.data)
+    
+    # Add this to EstablishmentViewSet
+    @action(detail=False, methods=['get'])
+    def search(self, request):
+        query = request.GET.get('q', '').strip()
+        
+        if not query or len(query) < 2:
+            return Response({'results': [], 'count': 0})
+        
+        # Simple search across name, address, and business type
+        establishments = Establishment.objects.filter(
+            Q(name__icontains=query) |
+            Q(street_building__icontains=query) |
+            Q(barangay__icontains=query) |
+            Q(city__icontains=query) |
+            Q(province__icontains=query) |
+            Q(nature_of_business__icontains=query)
+        )
+        
+        serializer = self.get_serializer(establishments, many=True)
+        return Response({
+            'results': serializer.data,
+            'count': establishments.count()
+        })

@@ -11,7 +11,8 @@ from .views import (
     reset_password_with_otp,
     toggle_user_active,
     change_password,
-    first_time_change_password
+    first_time_change_password,
+    user_search
 )
 from .serializers import MyTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -32,5 +33,7 @@ urlpatterns = [
     path('send-otp/', send_otp, name='send-otp'),
     path('verify-otp/', verify_otp_view, name='verify-otp'),
     path('reset-password-otp/', reset_password_with_otp, name='reset-password-otp'),
+
     
+        path('search/', user_search, name='user-search'),
 ]

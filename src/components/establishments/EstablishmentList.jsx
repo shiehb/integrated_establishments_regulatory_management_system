@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Pencil,
   Map,
@@ -11,9 +11,28 @@ import {
   Search,
   X,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
-import { getEstablishments } from "../../services/api";
+import { getEstablishments, searchEstablishments } from "../../services/api";
 import ExportModal from "../ExportModal";
+
+// Debounce hook
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 export default function EstablishmentList({
   onAdd,
@@ -24,27 +43,75 @@ export default function EstablishmentList({
 }) {
   const [establishments, setEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
 
-  // 🔍 Local search state
-  const [localSearchQuery, setLocalSearchQuery] = useState("");
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [searchMode, setSearchMode] = useState(false);
 
-  // 🎚 Filters
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+
+  // Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [provinceFilter, setProvinceFilter] = useState([]);
 
-  // ✅ Sorting
+  // Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
-  // ✅ For export
+  // Export
   const [selectedEstablishments, setSelectedEstablishments] = useState([]);
   const [showExportModal, setShowExportModal] = useState(false);
 
-  useEffect(() => {
-    fetchEstablishments();
-  }, [refreshTrigger]);
+  // Fetch data based on mode (search or all)
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      let data;
+      if (debouncedSearchQuery && debouncedSearchQuery.length >= 2) {
+        setSearchMode(true);
+        const result = await searchEstablishments(
+          debouncedSearchQuery,
+          currentPage,
+          pageSize
+        );
+        data = result.results || [];
+        setTotalCount(result.count || 0);
+      } else {
+        setSearchMode(false);
+        const allData = await getEstablishments();
+        data = allData;
+        setTotalCount(allData.length);
 
-  // Add this useEffect to handle clicks outside the dropdowns
+        // Apply local pagination for non-search mode
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        data = data.slice(startIndex, endIndex);
+      }
+      setEstablishments(data);
+    } catch (err) {
+      console.error("Error fetching establishments:", err);
+      if (window.showNotification) {
+        window.showNotification("error", "Error fetching establishments");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [debouncedSearchQuery, currentPage, pageSize]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData, refreshTrigger]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchQuery]);
+
+  // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(e) {
       if (filtersOpen && !e.target.closest(".filter-dropdown")) {
@@ -55,31 +122,11 @@ export default function EstablishmentList({
       }
     }
 
-    if (filtersOpen || sortDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [filtersOpen, sortDropdownOpen]);
 
-  const fetchEstablishments = async () => {
-    setLoading(true);
-    try {
-      const data = await getEstablishments();
-      setEstablishments(data);
-    } catch (err) {
-      console.error("Error fetching establishments:", err);
-      if (window.showNotification) {
-        window.showNotification("error", "Error fetching establishments");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ✅ Sorting handler
+  // Sorting handler
   const handleSort = (key) => {
     setSortConfig((prev) => {
       if (prev.key === key) {
@@ -100,7 +147,6 @@ export default function EstablishmentList({
     );
   };
 
-  // Sort options for dropdown - Updated to focus on Name, Year, City with asc/desc
   const sortFields = [
     { key: "name", label: "Name" },
     { key: "city", label: "City" },
@@ -121,7 +167,7 @@ export default function EstablishmentList({
     setSortDropdownOpen(false);
   };
 
-  // Toggle province filter
+  // Filter functions
   const toggleProvince = (province) => {
     setProvinceFilter((prev) =>
       prev.includes(province)
@@ -130,42 +176,24 @@ export default function EstablishmentList({
     );
   };
 
-  // Clear provinces
-  const clearProvinces = () => {
-    setProvinceFilter([]);
-  };
+  const clearProvinces = () => setProvinceFilter([]);
+  const clearSearch = () => setSearchQuery("");
 
-  // Clear local search
-  const clearLocalSearch = () => {
-    setLocalSearchQuery("");
-  };
-
-  // Clear all filters
   const clearAllFilters = () => {
-    setLocalSearchQuery("");
+    setSearchQuery("");
     setProvinceFilter([]);
     setSortConfig({ key: null, direction: null });
+    setCurrentPage(1);
   };
 
-  // ✅ Filter + Sort with LOCAL search
+  // Filter establishments locally when not in search mode
   const filteredEstablishments = useMemo(() => {
-    let list = establishments.filter((e) => {
-      // Apply local search filter
-      const query = localSearchQuery.toLowerCase();
-      const matchesSearch = localSearchQuery
-        ? e.name.toLowerCase().includes(query) ||
-          `${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}, ${e.postal_code}`
-            .toLowerCase()
-            .includes(query) ||
-          e.nature_of_business.toLowerCase().includes(query) ||
-          String(e.year_established).includes(query)
-        : true;
+    if (searchMode) return establishments;
 
-      // Apply province filter
+    let list = establishments.filter((e) => {
       const matchesProvince =
         provinceFilter.length === 0 || provinceFilter.includes(e.province);
-
-      return matchesSearch && matchesProvince;
+      return matchesProvince;
     });
 
     if (sortConfig.key) {
@@ -185,9 +213,9 @@ export default function EstablishmentList({
     }
 
     return list;
-  }, [establishments, localSearchQuery, provinceFilter, sortConfig]);
+  }, [establishments, provinceFilter, sortConfig, searchMode]);
 
-  // ✅ Selection
+  // Selection
   const toggleSelect = (id) => {
     setSelectedEstablishments((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -202,49 +230,40 @@ export default function EstablishmentList({
     }
   };
 
-  // Filter count for badge
+  // Pagination
+  const totalPages = Math.ceil(totalCount / pageSize);
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, totalCount);
+
+  const goToPage = (page) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
   const activeFilterCount = provinceFilter.length;
-
-  if (loading) {
-    return (
-      <div
-        className="flex flex-col items-center justify-center min-h-[200px] p-4"
-        role="status"
-        aria-live="polite"
-      >
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
-        <p className="text-sm text-gray-600">Loading establishments...</p>
-      </div>
-    );
-  }
-
-  const totalEstablishments = establishments.length;
-  const filteredCount = filteredEstablishments.length;
   const hasActiveFilters =
-    localSearchQuery || provinceFilter.length > 0 || sortConfig.key;
-
+    searchQuery || provinceFilter.length > 0 || sortConfig.key;
   const provinces = ["LA UNION", "PANGASINAN", "ILOCOS SUR", "ILOCOS NORTE"];
 
   return (
-    <div className="p-4 bg-white rounded shadow">
+    <div className="p-4 bg-white h-[calc(100vh-160px)]">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h1 className="text-2xl font-bold text-sky-600">Establishments</h1>
 
         <div className="flex flex-wrap items-center w-full gap-2 sm:w-auto">
-          {/* 🔍 Local Search Bar */}
+          {/* Search Bar */}
           <div className="relative">
             <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
             <input
               type="text"
               placeholder="Search establishments..."
-              value={localSearchQuery}
-              onChange={(e) => setLocalSearchQuery(e.target.value)}
-              className="w-full min-w-sm py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
-            {localSearchQuery && (
+            {searchQuery && (
               <button
-                onClick={clearLocalSearch}
+                onClick={clearSearch}
                 className="absolute -translate-y-1/2 right-3 top-1/2"
               >
                 <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
@@ -252,20 +271,19 @@ export default function EstablishmentList({
             )}
           </div>
 
-          {/* 🔽 Sort Dropdown - Updated for field selection then asc/desc */}
+          {/* Sort Dropdown */}
           <div className="relative sort-dropdown">
             <button
               onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
               className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
             >
               <ArrowUpDown size={14} />
-              Sort by {/* Always shows "Sort by" */}
+              Sort by
               <ChevronDown size={14} />
             </button>
 
             {sortDropdownOpen && (
               <div className="absolute right-0 z-20 w-40 p-2 mt-2 bg-white border rounded shadow">
-                {/* Sort by Field Section */}
                 <div className="mb-2">
                   <h4 className="px-3 py-1 text-sm font-semibold text-gray-600">
                     Sort by
@@ -289,7 +307,7 @@ export default function EstablishmentList({
                           : ""
                       }`}
                     >
-                      <span className="text-xs text-sky-600 mr-2">
+                      <span className="mr-2 text-xs text-sky-600">
                         {sortConfig.key === field.key ? "•" : ""}
                       </span>
                       <span>{field.label}</span>
@@ -297,7 +315,6 @@ export default function EstablishmentList({
                   ))}
                 </div>
 
-                {/* Order Section - Shown if a field is selected */}
                 {sortConfig.key && (
                   <>
                     <div className="my-1 border-t border-gray-200"></div>
@@ -317,7 +334,7 @@ export default function EstablishmentList({
                               : ""
                           }`}
                         >
-                          <span className="text-xs text-sky-600 mr-2">
+                          <span className="mr-2 text-xs text-sky-600">
                             {sortConfig.direction === dir.key ? "•" : ""}
                           </span>
                           <span>{dir.label}</span>
@@ -330,7 +347,7 @@ export default function EstablishmentList({
             )}
           </div>
 
-          {/* 🎚 Filters dropdown - Improved to match sort style */}
+          {/* Filters */}
           <div className="relative filter-dropdown">
             <button
               onClick={() => setFiltersOpen((prev) => !prev)}
@@ -342,7 +359,6 @@ export default function EstablishmentList({
 
             {filtersOpen && (
               <div className="absolute right-0 z-20 w-56 p-2 mt-2 bg-white border rounded shadow">
-                {/* Province Section */}
                 <div className="mb-2">
                   <div className="flex items-center justify-between mb-1">
                     <h4 className="text-sm font-semibold text-gray-600">
@@ -367,7 +383,7 @@ export default function EstablishmentList({
                           : ""
                       }`}
                     >
-                      <span className="text-xs text-sky-600 mr-2">
+                      <span className="mr-2 text-xs text-sky-600">
                         {provinceFilter.includes(province) ? "•" : ""}
                       </span>
                       <span>{province}</span>
@@ -398,155 +414,233 @@ export default function EstablishmentList({
       </div>
 
       {/* Table */}
-      <table className="w-full border border-gray-300 rounded-lg">
-        <thead>
-          <tr className="text-sm text-left text-white bg-sky-700">
-            <th className="w-6 p-1 text-center border border-gray-300">
-              <input
-                type="checkbox"
-                checked={
-                  selectedEstablishments.length > 0 &&
-                  selectedEstablishments.length ===
-                    filteredEstablishments.length
-                }
-                onChange={toggleSelectAll}
-              />
-            </th>
-            <th
-              className="p-1 border border-gray-300 cursor-pointer"
-              onClick={() => handleSort("name")}
-            >
-              <div className="flex items-center gap-1">
-                Name {getSortIcon("name")}
-              </div>
-            </th>
-            <th
-              className="p-1 border border-gray-300 cursor-pointer"
-              onClick={() => handleSort("city")}
-            >
-              <div className="flex items-center gap-1">
-                Address {getSortIcon("city")}
-              </div>
-            </th>
-            <th className="p-1 text-center border border-gray-300">
-              Coordinates
-            </th>
-            <th className="p-1 border border-gray-300">Nature of Business</th>
-            <th
-              className="p-1 text-center border border-gray-300 cursor-pointer"
-              onClick={() => handleSort("year_established")}
-            >
-              <div className="flex items-center justify-center gap-1">
-                Year Established {getSortIcon("year_established")}
-              </div>
-            </th>
-            <th className="p-1 border border-gray-300">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredEstablishments.length === 0 ? (
-            <tr>
-              <td
-                colSpan="7"
-                className="px-2 py-4 text-center text-gray-500 border border-gray-300"
+      <div className="overflow-x-auto">
+        <table className="w-full border border-gray-300 rounded-lg">
+          <thead>
+            <tr className="text-sm text-left text-white bg-sky-700">
+              <th className="w-6 p-1 text-center border border-gray-300">
+                <input
+                  type="checkbox"
+                  checked={
+                    selectedEstablishments.length > 0 &&
+                    selectedEstablishments.length ===
+                      filteredEstablishments.length
+                  }
+                  onChange={toggleSelectAll}
+                />
+              </th>
+              <th
+                className="p-1 border border-gray-300 cursor-pointer"
+                onClick={() => handleSort("name")}
               >
-                {hasActiveFilters ? (
-                  <div>
-                    No establishments found matching your criteria.
-                    <br />
-                    <button
-                      onClick={clearAllFilters}
-                      className="mt-2 text-sky-600 hover:text-sky-700 underline"
-                    >
-                      Clear all filters
-                    </button>
-                  </div>
-                ) : (
-                  "No establishments found."
-                )}
-              </td>
+                <div className="flex items-center gap-1">
+                  Name {getSortIcon("name")}
+                </div>
+              </th>
+              <th
+                className="p-1 border border-gray-300 cursor-pointer"
+                onClick={() => handleSort("city")}
+              >
+                <div className="flex items-center gap-1">
+                  Address {getSortIcon("city")}
+                </div>
+              </th>
+              <th className="p-1 text-center border border-gray-300">
+                Coordinates
+              </th>
+              <th className="p-1 border border-gray-300">Nature of Business</th>
+              <th
+                className="p-1 text-center border border-gray-300 cursor-pointer"
+                onClick={() => handleSort("year_established")}
+              >
+                <div className="flex items-center justify-center gap-1">
+                  Year Established {getSortIcon("year_established")}
+                </div>
+              </th>
+              <th className="p-1 border border-gray-300">Actions</th>
             </tr>
-          ) : (
-            filteredEstablishments.map((e) => (
-              <tr
-                key={e.id}
-                className="p-1 text-xs border border-gray-300 hover:bg-gray-50"
-              >
-                <td className="text-center border border-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={selectedEstablishments.includes(e.id)}
-                    onChange={() => toggleSelect(e.id)}
-                  />
-                </td>
-                <td className="px-2 font-semibold border border-gray-300">
-                  {e.name}
-                </td>
-                <td className="px-2 border border-gray-300">
-                  {e.street_building}, {e.barangay}, {e.city}, {e.province},{" "}
-                  {e.postal_code}
-                </td>
-                <td className="px-2 text-center border border-gray-300">
-                  {e.latitude}, {e.longitude}
-                </td>
-                <td className="px-2 border border-gray-300">
-                  {e.nature_of_business}
-                </td>
-                <td className="px-2 text-center border border-gray-300">
-                  {e.year_established}
-                </td>
-                <td className="relative w-20 p-1 text-center border border-gray-300">
-                  <div className="flex justify-center gap-2">
-                    {canEditEstablishments && (
-                      <button
-                        onClick={() => onEdit(e)}
-                        className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-                        title="Edit"
-                      >
-                        <Pencil size={14} />
-                        Edit
-                      </button>
-                    )}
-                    <button
-                      onClick={() => onPolygon(e)}
-                      className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-                      title="Polygon"
-                    >
-                      <Map size={14} />
-                      Polygon
-                    </button>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td
+                  colSpan="7"
+                  className="px-2 py-6 text-center text-gray-500 border border-gray-300"
+                >
+                  <div
+                    className="flex flex-col items-center justify-center"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <div className="w-8 h-8 mb-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
+                    <p className="text-sm text-gray-600">
+                      Loading establishments...
+                    </p>
                   </div>
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : filteredEstablishments.length === 0 ? (
+              <tr>
+                <td
+                  colSpan="7"
+                  className="px-2 py-4 text-center text-gray-500 border border-gray-300"
+                >
+                  {hasActiveFilters ? (
+                    <div>
+                      No establishments found matching your criteria.
+                      <br />
+                      <button
+                        onClick={clearAllFilters}
+                        className="mt-2 underline text-sky-600 hover:text-sky-700"
+                      >
+                        Clear all filters
+                      </button>
+                    </div>
+                  ) : (
+                    "No establishments found."
+                  )}
+                </td>
+              </tr>
+            ) : (
+              filteredEstablishments.map((e) => (
+                <tr
+                  key={e.id}
+                  className="p-1 text-xs border border-gray-300 hover:bg-gray-50"
+                >
+                  <td className="text-center border border-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={selectedEstablishments.includes(e.id)}
+                      onChange={() => toggleSelect(e.id)}
+                    />
+                  </td>
+                  <td className="px-2 font-semibold border border-gray-300">
+                    {e.name}
+                  </td>
+                  <td className="px-2 border border-gray-300">
+                    {e.street_building}, {e.barangay}, {e.city}, {e.province},{" "}
+                    {e.postal_code}
+                  </td>
+                  <td className="px-2 text-center border border-gray-300">
+                    {e.latitude}, {e.longitude}
+                  </td>
+                  <td className="px-2 border border-gray-300">
+                    {e.nature_of_business}
+                  </td>
+                  <td className="px-2 text-center border border-gray-300">
+                    {e.year_established}
+                  </td>
+                  <td className="relative w-20 p-1 text-center border border-gray-300">
+                    <div className="flex justify-center gap-2">
+                      {canEditEstablishments && (
+                        <button
+                          onClick={() => onEdit(e)}
+                          className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                          Edit
+                        </button>
+                      )}
+                      <button
+                        onClick={() => onPolygon(e)}
+                        className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+                        title="Polygon"
+                      >
+                        <Map size={14} />
+                        Polygon
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
-      {/* 📊 Search results info - MOVED TO BOTTOM */}
-      {(hasActiveFilters || filteredCount !== totalEstablishments) && (
-        <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
-          <div>
-            Showing {filteredCount} of {totalEstablishments} establishment(s)
+      {/* Pagination */}
+      {totalCount > 0 && (
+        <div className="flex items-center justify-between mt-4">
+          <div className="text-sm text-gray-600">
+            Showing {startItem} to {endItem} of {totalCount} entries
+            {searchMode && debouncedSearchQuery && (
+              <span className="ml-2">(search results)</span>
+            )}
           </div>
-          {hasActiveFilters && (
+
+          <div className="flex items-center gap-2">
             <button
-              onClick={clearAllFilters}
-              className="text-sky-600 hover:text-sky-700 underline"
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
             >
-              Clear all filters
+              <ChevronLeft size={16} />
             </button>
-          )}
+
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum;
+              if (totalPages <= 5) {
+                pageNum = i + 1;
+              } else if (currentPage <= 3) {
+                pageNum = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i;
+              } else {
+                pageNum = currentPage - 2 + i;
+              }
+
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => goToPage(pageNum)}
+                  className={`px-3 py-1 text-sm rounded ${
+                    currentPage === pageNum
+                      ? "bg-sky-600 text-white"
+                      : "hover:bg-gray-100"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+
+            <button
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm">
+            <span>Show:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="px-2 py-1 border rounded"
+            >
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+            <span>per page</span>
+          </div>
         </div>
       )}
 
-      {/* ✅ Export Modal */}
+      {/* Export Modal */}
       <ExportModal
         open={showExportModal}
         onClose={() => setShowExportModal(false)}
         title="Establishments Export Report"
         fileName={`establishments_export${
-          localSearchQuery ? `_${localSearchQuery}` : ""
+          searchQuery ? `_${searchQuery}` : ""
         }`}
         companyName="DENR Environmental Office"
         companySubtitle="Establishment Records System"

@@ -22,6 +22,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 // Fix for default markers in react-leaflet
@@ -46,6 +48,23 @@ const greenIcon = new L.Icon({
   shadowUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-shadow.png",
 });
 
+// Debounce hook
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 // Focus map on a clicked establishment
 function MapFocus({ establishment }) {
   const map = useMap();
@@ -65,22 +84,46 @@ function MapFocus({ establishment }) {
 
 export default function MapPage() {
   const mapRef = useRef(null);
-  const [establishments, setEstablishments] = useState([]);
+  const [allEstablishments, setAllEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [focusedEstablishment, setFocusedEstablishment] = useState(null);
 
-  // 🔍 Search, Filter, and Sort State
-  const [localSearchQuery, setLocalSearchQuery] = useState("");
+  // 🔍 Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+
+  // 🎚 Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [provinceFilter, setProvinceFilter] = useState([]);
   const [businessTypeFilter, setBusinessTypeFilter] = useState([]);
+
+  // ✅ Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
-  // Fetch establishments from API
+  // ✅ Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Fetch all establishments from API
   useEffect(() => {
-    fetchEstablishments();
+    fetchAllEstablishments();
   }, []);
+
+  const fetchAllEstablishments = async () => {
+    setLoading(true);
+    try {
+      const data = await getEstablishments();
+      setAllEstablishments(data);
+    } catch (err) {
+      console.error("Error fetching establishments:", err);
+      if (window.showNotification) {
+        window.showNotification("error", "Error fetching establishments");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Add this useEffect to handle clicks outside the dropdowns
   useEffect(() => {
@@ -101,21 +144,6 @@ export default function MapPage() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [filtersOpen, sortDropdownOpen]);
-
-  const fetchEstablishments = async () => {
-    setLoading(true);
-    try {
-      const data = await getEstablishments();
-      setEstablishments(data);
-    } catch (err) {
-      console.error("Error fetching establishments:", err);
-      if (window.showNotification) {
-        window.showNotification("error", "Error fetching establishments");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // ✅ Sorting handler
   const handleSort = (key) => {
@@ -161,12 +189,12 @@ export default function MapPage() {
     setSortDropdownOpen(false);
   };
 
-  // ✅ Filter + Sort with LOCAL search
+  // ✅ Filter + Sort with LOCAL search (client-side only)
   const filteredEstablishments = useMemo(() => {
-    let list = establishments.filter((e) => {
+    let list = allEstablishments.filter((e) => {
       // Apply local search filter
-      const query = localSearchQuery.toLowerCase();
-      const matchesSearch = localSearchQuery
+      const query = debouncedSearchQuery.toLowerCase();
+      const matchesSearch = debouncedSearchQuery
         ? e.name.toLowerCase().includes(query) ||
           `${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}, ${e.postal_code}`
             .toLowerCase()
@@ -216,12 +244,21 @@ export default function MapPage() {
 
     return list;
   }, [
-    establishments,
-    localSearchQuery,
+    allEstablishments,
+    debouncedSearchQuery,
     provinceFilter,
     businessTypeFilter,
     sortConfig,
   ]);
+
+  // ✅ Pagination
+  const paginatedEstablishments = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredEstablishments.slice(startIndex, endIndex);
+  }, [filteredEstablishments, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredEstablishments.length / pageSize);
 
   // Toggle province filter
   const toggleProvince = (province) => {
@@ -230,6 +267,7 @@ export default function MapPage() {
         ? prev.filter((p) => p !== province)
         : [...prev, province]
     );
+    setCurrentPage(1);
   };
 
   // Toggle business type filter
@@ -239,63 +277,66 @@ export default function MapPage() {
         ? prev.filter((b) => b !== businessType)
         : [...prev, businessType]
     );
+    setCurrentPage(1);
   };
 
   // Clear functions
-  const clearLocalSearch = () => setLocalSearchQuery("");
+  const clearSearch = () => setSearchQuery("");
   const clearAllFilters = () => {
-    setLocalSearchQuery("");
+    setSearchQuery("");
     setProvinceFilter([]);
     setBusinessTypeFilter([]);
     setSortConfig({ key: null, direction: null });
+    setCurrentPage(1);
   };
 
   // Get unique provinces and business types for filters
   const provinces = useMemo(() => {
     return [
-      ...new Set(establishments.map((e) => e.province).filter(Boolean)),
+      ...new Set(allEstablishments.map((e) => e.province).filter(Boolean)),
     ].sort();
-  }, [establishments]);
+  }, [allEstablishments]);
 
   const businessTypes = useMemo(() => {
     return [
       ...new Set(
-        establishments.map((e) => e.nature_of_business).filter(Boolean)
+        allEstablishments.map((e) => e.nature_of_business).filter(Boolean)
       ),
     ].sort();
-  }, [establishments]);
+  }, [allEstablishments]);
+
+  // Pagination functions
+  const goToPage = (page) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const goToPreviousPage = () => {
+    setCurrentPage((prev) => Math.max(1, prev - 1));
+  };
+
+  const goToNextPage = () => {
+    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+  };
 
   const activeFilterCount = provinceFilter.length + businessTypeFilter.length;
   const hasActiveFilters =
-    localSearchQuery ||
+    searchQuery ||
     provinceFilter.length > 0 ||
     businessTypeFilter.length > 0 ||
     sortConfig.key;
 
-  if (loading) {
-    return (
-      <>
-        <Header />
-        <LayoutWithSidebar userLevel="admin">
-          <div
-            className="flex flex-col items-center justify-center min-h-[200px] p-4"
-            role="status"
-            aria-live="polite"
-          >
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
-            <p className="text-sm text-gray-600">Loading inspections...</p>
-          </div>
-        </LayoutWithSidebar>
-        <Footer />
-      </>
-    );
-  }
+  // Calculate display range
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(
+    currentPage * pageSize,
+    filteredEstablishments.length
+  );
 
   return (
     <>
       <Header />
       <LayoutWithSidebar userLevel="admin">
-        <div className="p-4 bg-white rounded shadow">
+        <div className="p-4 bg-white h-[calc(100vh-165px)]">
           {/* Header with Search, Filters, and Sort */}
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <h1 className="text-2xl font-bold text-sky-600">
@@ -309,13 +350,13 @@ export default function MapPage() {
                 <input
                   type="text"
                   placeholder="Search establishments..."
-                  value={localSearchQuery}
-                  onChange={(e) => setLocalSearchQuery(e.target.value)}
-                  className="w-full min-w-sm py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 />
-                {localSearchQuery && (
+                {searchQuery && (
                   <button
-                    onClick={clearLocalSearch}
+                    onClick={clearSearch}
                     className="absolute -translate-y-1/2 right-3 top-1/2"
                   >
                     <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
@@ -360,7 +401,7 @@ export default function MapPage() {
                               : ""
                           }`}
                         >
-                          <span className="text-xs text-sky-600 mr-2">
+                          <span className="mr-2 text-xs text-sky-600">
                             {sortConfig.key === field.key ? "•" : ""}
                           </span>
                           <span>{field.label}</span>
@@ -388,7 +429,7 @@ export default function MapPage() {
                                   : ""
                               }`}
                             >
-                              <span className="text-xs text-sky-600 mr-2">
+                              <span className="mr-2 text-xs text-sky-600">
                                 {sortConfig.direction === dir.key ? "•" : ""}
                               </span>
                               <span>{dir.label}</span>
@@ -412,7 +453,7 @@ export default function MapPage() {
                 </button>
 
                 {filtersOpen && (
-                  <div className="absolute right-0 z-20 w-64 p-2 mt-2 bg-white border rounded shadow max-h-96 overflow-y-auto">
+                  <div className="absolute right-0 z-20 w-64 p-2 mt-2 overflow-y-auto bg-white border rounded shadow max-h-96">
                     {/* Province Section */}
                     <div className="mb-3">
                       <div className="flex items-center justify-between mb-1">
@@ -421,14 +462,17 @@ export default function MapPage() {
                         </h4>
                         {provinceFilter.length > 0 && (
                           <button
-                            onClick={() => setProvinceFilter([])}
+                            onClick={() => {
+                              setProvinceFilter([]);
+                              setCurrentPage(1);
+                            }}
                             className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
                           >
                             Clear
                           </button>
                         )}
                       </div>
-                      <div className="max-h-32 overflow-y-auto">
+                      <div className="overflow-y-auto max-h-32">
                         {provinces.map((province) => (
                           <button
                             key={province}
@@ -439,7 +483,7 @@ export default function MapPage() {
                                 : ""
                             }`}
                           >
-                            <span className="text-xs text-sky-600 mr-2">
+                            <span className="mr-2 text-xs text-sky-600">
                               {provinceFilter.includes(province) ? "•" : ""}
                             </span>
                             <span className="truncate">{province}</span>
@@ -456,14 +500,17 @@ export default function MapPage() {
                         </h4>
                         {businessTypeFilter.length > 0 && (
                           <button
-                            onClick={() => setBusinessTypeFilter([])}
+                            onClick={() => {
+                              setBusinessTypeFilter([]);
+                              setCurrentPage(1);
+                            }}
                             className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
                           >
                             Clear
                           </button>
                         )}
                       </div>
-                      <div className="max-h-32 overflow-y-auto">
+                      <div className="overflow-y-auto max-h-32">
                         {businessTypes.map((businessType) => (
                           <button
                             key={businessType}
@@ -474,7 +521,7 @@ export default function MapPage() {
                                 : ""
                             }`}
                           >
-                            <span className="text-xs text-sky-600 mr-2">
+                            <span className="mr-2 text-xs text-sky-600">
                               {businessTypeFilter.includes(businessType)
                                 ? "•"
                                 : ""}
@@ -500,123 +547,200 @@ export default function MapPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-238px)]">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-240px)]">
             {/* Left: Establishments Table with Sortable Headers */}
-            <div className="overflow-y-auto">
-              <table className="w-full border border-gray-300 rounded-lg">
-                <thead>
-                  <tr className="text-sm text-left text-white bg-sky-700">
-                    <th
-                      className="p-2 border border-gray-300 cursor-pointer"
-                      onClick={() => handleSort("name")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Name {getSortIcon("name")}
-                      </div>
-                    </th>
-                    <th
-                      className="p-2 border border-gray-300 cursor-pointer"
-                      onClick={() => handleSort("city")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Address {getSortIcon("city")}
-                      </div>
-                    </th>
-                    <th className="p-2 text-center border border-gray-300">
-                      Coordinates
-                    </th>
-                    <th
-                      className="p-2 border border-gray-300 cursor-pointer"
-                      onClick={() => handleSort("nature_of_business")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Business Type {getSortIcon("nature_of_business")}
-                      </div>
-                    </th>
-                    <th
-                      className="p-2 border border-gray-300 cursor-pointer text-center"
-                      onClick={() => handleSort("year_established")}
-                    >
-                      <div className="flex items-center justify-center gap-1">
-                        Year {getSortIcon("year_established")}
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredEstablishments.map((e) => (
-                    <tr
-                      key={e.id}
-                      className={`p-1 text-xs border border-gray-300 hover:bg-gray-50 cursor-pointer ${
-                        focusedEstablishment?.id === e.id ? "bg-green-100" : ""
-                      }`}
-                      onClick={() => setFocusedEstablishment(e)}
-                    >
-                      <td className="p-2 font-semibold border border-gray-300">
-                        {e.name}
-                      </td>
-                      <td className="p-2 text-left border border-gray-300">
-                        {`${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}`}
-                      </td>
-                      <td className="p-2 text-center border border-gray-300">
-                        {`${parseFloat(e.latitude).toFixed(4)}, ${parseFloat(
-                          e.longitude
-                        ).toFixed(4)}`}
-                      </td>
-                      <td className="p-2 border border-gray-300">
-                        {e.nature_of_business}
-                      </td>
-                      <td className="p-2 text-center border border-gray-300">
-                        {e.year_established}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {filteredEstablishments.length === 0 && (
-                <div className="p-4 text-center text-gray-500">
-                  {hasActiveFilters ? (
-                    <div>
-                      No establishments found matching your criteria.
-                      <br />
-                      <button
-                        onClick={clearAllFilters}
-                        className="mt-2 text-sky-600 hover:text-sky-700 underline"
+            <div className="flex flex-col">
+              {/* Table Container */}
+              <div className="flex-grow overflow-y-auto">
+                <table className="w-full border border-gray-300 rounded-lg">
+                  <thead>
+                    <tr className="text-sm text-left text-white bg-sky-700">
+                      <th
+                        className="p-2 border border-gray-300 cursor-pointer"
+                        onClick={() => handleSort("name")}
                       >
-                        Clear all filters
-                      </button>
-                    </div>
-                  ) : (
-                    "No establishments found."
-                  )}
-                </div>
-              )}
-              {/* 📊 Search results info */}
-              {(hasActiveFilters ||
-                filteredEstablishments.length !== establishments.length) && (
-                <div className="flex items-center justify-between mb-3 text-sm text-gray-600">
-                  <div>
-                    Showing {filteredEstablishments.length} of{" "}
-                    {establishments.length} establishment(s)
-                    {sortConfig.key && (
-                      <span className="ml-2 text-gray-400">
-                        • Sorted by{" "}
-                        {
-                          sortFields.find((f) => f.key === sortConfig.key)
-                            ?.label
-                        }{" "}
-                        ({sortConfig.direction === "asc" ? "A-Z" : "Z-A"})
-                      </span>
+                        <div className="flex items-center gap-1">
+                          Name {getSortIcon("name")}
+                        </div>
+                      </th>
+                      <th
+                        className="p-2 border border-gray-300 cursor-pointer"
+                        onClick={() => handleSort("city")}
+                      >
+                        <div className="flex items-center gap-1">
+                          Address {getSortIcon("city")}
+                        </div>
+                      </th>
+                      <th className="p-2 text-center border border-gray-300">
+                        Coordinates
+                      </th>
+                      <th
+                        className="p-2 border border-gray-300 cursor-pointer"
+                        onClick={() => handleSort("nature_of_business")}
+                      >
+                        <div className="flex items-center gap-1">
+                          Business Type {getSortIcon("nature_of_business")}
+                        </div>
+                      </th>
+                      <th
+                        className="p-2 text-center border border-gray-300 cursor-pointer"
+                        onClick={() => handleSort("year_established")}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          Year {getSortIcon("year_established")}
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td
+                          colSpan="5"
+                          className="px-2 py-8 text-center border border-gray-300"
+                        >
+                          <div
+                            className="flex flex-col items-center justify-center p-4"
+                            role="status"
+                            aria-live="polite"
+                          >
+                            <div className="w-8 h-8 mb-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
+                            <p className="text-sm text-gray-600">
+                              Loading establishments...
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : paginatedEstablishments.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan="5"
+                          className="px-2 py-4 text-center text-gray-500 border border-gray-300"
+                        >
+                          {hasActiveFilters ? (
+                            <div>
+                              No establishments found matching your criteria.
+                              <br />
+                              <button
+                                onClick={clearAllFilters}
+                                className="mt-2 underline text-sky-600 hover:text-sky-700"
+                              >
+                                Clear all filters
+                              </button>
+                            </div>
+                          ) : (
+                            "No establishments found."
+                          )}
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedEstablishments.map((e) => (
+                        <tr
+                          key={e.id}
+                          className={`p-1 text-xs border border-gray-300 hover:bg-gray-50 cursor-pointer ${
+                            focusedEstablishment?.id === e.id
+                              ? "bg-green-100"
+                              : ""
+                          }`}
+                          onClick={() => setFocusedEstablishment(e)}
+                        >
+                          <td className="p-2 font-semibold border border-gray-300">
+                            {e.name}
+                          </td>
+                          <td className="p-2 text-left border border-gray-300">
+                            {`${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}`}
+                          </td>
+                          <td className="p-2 text-center border border-gray-300">
+                            {`${parseFloat(e.latitude).toFixed(
+                              4
+                            )}, ${parseFloat(e.longitude).toFixed(4)}`}
+                          </td>
+                          <td className="p-2 border border-gray-300">
+                            {e.nature_of_business}
+                          </td>
+                          <td className="p-2 text-center border border-gray-300">
+                            {e.year_established}
+                          </td>
+                        </tr>
+                      ))
                     )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              {filteredEstablishments.length > 0 && (
+                <div className="flex items-center justify-between p-2 mt-4 rounded bg-gray-50">
+                  <div className="text-sm text-gray-600">
+                    Showing {startItem} to {endItem} of{" "}
+                    {filteredEstablishments.length} establishment(s)
+                    {allEstablishments.length !==
+                      filteredEstablishments.length &&
+                      ` (filtered from ${allEstablishments.length} total)`}
                   </div>
-                  {hasActiveFilters && (
+
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={clearAllFilters}
-                      className="text-sky-600 hover:text-sky-700 underline"
+                      onClick={goToPreviousPage}
+                      disabled={currentPage === 1}
+                      className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
                     >
-                      Clear all filters
+                      <ChevronLeft size={16} />
                     </button>
-                  )}
+
+                    {/* Page numbers */}
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => goToPage(pageNum)}
+                          className={`px-3 py-1 text-sm rounded ${
+                            currentPage === pageNum
+                              ? "bg-sky-600 text-white"
+                              : "hover:bg-gray-100"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      onClick={goToNextPage}
+                      disabled={currentPage === totalPages}
+                      className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm">
+                    <span>Show:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="px-2 py-1 border rounded"
+                    >
+                      <option value="10">10</option>
+                      <option value="25">25</option>
+                      <option value="50">50</option>
+                    </select>
+                    <span>per page</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -651,7 +775,7 @@ export default function MapPage() {
 
                 <MapFocus establishment={focusedEstablishment} />
 
-                {/* Show establishments */}
+                {/* Show ALL filtered establishments on map (not just paginated ones) */}
                 {filteredEstablishments.map((e) =>
                   e.polygon && e.polygon.length > 0 ? (
                     <Polygon

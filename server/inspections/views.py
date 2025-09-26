@@ -1,13 +1,15 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from .models import Inspection
 from .serializers import InspectionSerializer
 from .regions import get_district_by_city, list_districts
 from establishments.models import Establishment
+import logging
 
-
+logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
@@ -19,6 +21,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
+        
         # Role-based filtering
         if getattr(user, 'userlevel', '') == 'Admin':
             # Can see all
@@ -38,13 +41,133 @@ class InspectionViewSet(viewsets.ModelViewSet):
         district = self.request.query_params.get('district')
         section = self.request.query_params.get('section')
         status = self.request.query_params.get('status')
+        search = self.request.query_params.get('search')
+        
         if district:
             qs = qs.filter(district=district)
         if section:
             qs = qs.filter(section=section)
         if status:
             qs = qs.filter(status=status)
+            
+        # Search functionality
+        if search:
+            qs = qs.filter(
+                Q(code__icontains=search) |
+                Q(establishment__name__icontains=search) |
+                Q(establishment__city__icontains=search) |
+                Q(establishment__province__icontains=search) |
+                Q(section__icontains=search) |
+                Q(status__icontains=search) |
+                Q(current_assigned_to__first_name__icontains=search) |
+                Q(current_assigned_to__last_name__icontains=search) |
+                Q(workflow_comments__icontains=search)
+            )
+        
         return qs.order_by('-created_at')
+
+    def list(self, request, *args, **kwargs):
+        # Get pagination parameters
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        
+        # Get filtered queryset
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        # Calculate pagination
+        total_count = queryset.count()
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        
+        # Apply pagination
+        inspections = queryset[start_index:end_index]
+        
+        # Serialize data
+        serializer = self.get_serializer(inspections, many=True)
+        
+        # Return paginated response
+        return Response({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size,
+            'results': serializer.data
+        })
+
+    @action(detail=False, methods=['get'])
+    def search(self, request):
+        """Dedicated search endpoint with debouncing support"""
+        search_query = request.query_params.get('q', '').strip()
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        
+        if not search_query or len(search_query) < 2:
+            return Response({
+                'count': 0,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': 0,
+                'results': []
+            })
+        
+        # Apply search filters
+        queryset = self.get_queryset().filter(
+            Q(code__icontains=search_query) |
+            Q(establishment__name__icontains=search_query) |
+            Q(establishment__city__icontains=search_query) |
+            Q(establishment__province__icontains=search_query) |
+            Q(section__icontains=search_query) |
+            Q(status__icontains=search_query) |
+            Q(current_assigned_to__first_name__icontains=search_query) |
+            Q(current_assigned_to__last_name__icontains=search_query) |
+            Q(workflow_comments__icontains=search_query)
+        )
+        
+        # Calculate pagination
+        total_count = queryset.count()
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        
+        # Apply pagination
+        inspections = queryset[start_index:end_index]
+        
+        # Serialize data
+        serializer = self.get_serializer(inspections, many=True)
+        
+        return Response({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size,
+            'search_query': search_query,
+            'results': serializer.data
+        })
+
+    @action(detail=False, methods=['get'])
+    def search_suggestions(self, request):
+        """Quick search suggestions for autocomplete"""
+        search_query = request.query_params.get('q', '').strip()
+        
+        if not search_query or len(search_query) < 2:
+            return Response({'suggestions': []})
+        
+        queryset = self.get_queryset().filter(
+            Q(code__icontains=search_query) |
+            Q(establishment__name__icontains=search_query) |
+            Q(section__icontains=search_query)
+        )[:5]  # Limit to 5 suggestions
+        
+        suggestions = []
+        for inspection in queryset:
+            suggestions.append({
+                'id': inspection.id,
+                'code': inspection.code,
+                'establishment_name': inspection.establishment.name if inspection.establishment else '',
+                'section': inspection.section,
+                'type': 'inspection'
+            })
+        
+        return Response({'suggestions': suggestions})
 
     def perform_create(self, serializer):
         # Auto-derive district if not provided using province+city mapping
@@ -63,38 +186,33 @@ class InspectionViewSet(viewsets.ModelViewSet):
         user_level = getattr(self.request.user, 'userlevel', '')
         
         if user_level == 'Legal Unit':
-            # Legal unit creates and assigns to themselves for review
             inspection.assigned_legal_unit = self.request.user
             inspection.status = 'LEGAL_REVIEW'
             inspection.current_assigned_to = self.request.user
         elif user_level == 'Division Chief':
-            # Division chief creates inspection list and assigns to section chief
             inspection.assigned_division_head = self.request.user
             inspection.status = 'DIVISION_CREATED'
             inspection.current_assigned_to = self.request.user
             
-            # Auto-assign to section chief if section is specified
             if section:
                 section_chief = User.objects.filter(userlevel='Section Chief', section=section, is_active=True).first()
                 if section_chief:
                     inspection.assigned_section_chief = section_chief
         elif user_level == 'Section Chief':
-            # Section chief can create and assign to unit head
             inspection.assigned_section_chief = self.request.user
             inspection.status = 'SECTION_REVIEW'
             inspection.current_assigned_to = self.request.user
         elif user_level == 'Unit Head':
-            # Unit head can create and assign to monitor
             inspection.assigned_unit_head = self.request.user
             inspection.status = 'UNIT_REVIEW'
             inspection.current_assigned_to = self.request.user
         elif user_level == 'Monitoring Personnel':
-            # Monitoring personnel creates final inspection
             inspection.assigned_monitor = self.request.user
             inspection.status = 'MONITORING_INSPECTION'
             inspection.current_assigned_to = self.request.user
         
         inspection.save()
+
 
     @action(detail=True, methods=['post'])
     def assign(self, request, pk=None):
