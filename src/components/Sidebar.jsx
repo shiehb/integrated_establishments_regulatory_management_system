@@ -7,6 +7,7 @@ import {
   MapPin,
   InspectIcon,
   FileText,
+  Settings,
 } from "lucide-react";
 
 // Common sidebar menu for all roles
@@ -16,13 +17,18 @@ const baseMenu = [
   { name: "Map", path: "/map", icon: MapPin },
   { name: "Establishments", path: "/establishments", icon: Building },
   { name: "Inspections", path: "/inspections", icon: InspectIcon },
-  { name: "Compliance", path: "/compliance", icon: BarChart3 },
   {
     name: "Billing Records",
     path: "/billing",
     icon: FileText,
     legalOnly: true,
   }, // ✅ Only Legal Unit
+  {
+    name: "System Configuration",
+    path: "/system-config",
+    icon: Settings,
+    adminOnly: true,
+  }, // ✅ Only Admin
 ];
 
 export default function Sidebar({ userLevel = "public" }) {
@@ -31,7 +37,7 @@ export default function Sidebar({ userLevel = "public" }) {
   // Public (not logged in) fallback
   if (userLevel === "public") {
     return (
-      <div className="sticky top-0 flex flex-col w-56 h-[calc(100vh-105px)] bg-sky-700/50">
+      <div className="sticky top-0 flex flex-col w-56 h-[calc(100vh-105px)] bg-white border-gray-200 shadow-md mr-2">
         <nav className="flex-1 py-1 overflow-y-auto">
           <ul className="px-2 space-y-1">
             <li>
@@ -54,7 +60,7 @@ export default function Sidebar({ userLevel = "public" }) {
   }
 
   return (
-    <div className="sticky top-0 flex flex-col w-56 h-[calc(100vh-105px)] bg-sky-700/50">
+    <div className="sticky top-0 flex flex-col w-56 min-h-[calc(100vh-105px)] bg-white border-gray-200 shadow-md mr-2">
       {/* Navigation Items */}
       <nav className="flex-1 py-1 overflow-y-auto">
         <ul className="px-2 space-y-1">
@@ -72,7 +78,7 @@ export default function Sidebar({ userLevel = "public" }) {
                   className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
                     location.pathname === item.path
                       ? "bg-sky-700 text-white"
-                      : "text-black hover:bg-sky-700 hover:text-white"
+                      : "text-black hover:bg-gray-200"
                   }`}
                 >
                   <IconComponent size={20} className="flex-shrink-0" />

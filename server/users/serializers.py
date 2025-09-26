@@ -15,6 +15,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             'last_name',
             'userlevel',
             'section',
+            'district',
         )
 
     def validate(self, data):
@@ -36,6 +37,14 @@ class RegisterSerializer(serializers.ModelSerializer):
                     "section": "This field is required for Section Chief, Unit Head, and Monitoring Personnel users."
                 })
         
+        # District requirement: For Section Chief, Unit Head, Monitoring Personnel -> district required
+        # Division Chief may optionally set district; Admin/Legal Unit typically N/A
+        district = data.get("district")
+        if userlevel in ["Section Chief", "Unit Head", "Monitoring Personnel"] and not district:
+            raise serializers.ValidationError({
+                "district": "District is required for Section Chief, Unit Head, and Monitoring Personnel."
+            })
+
         return data
 
     def create(self, validated_data):
@@ -56,6 +65,7 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'userlevel',
             'section',
+            'district',
             'date_joined',
             'updated_at',  # NEW: Include updated_at field
             'is_active',
@@ -82,6 +92,17 @@ class UserSerializer(serializers.ModelSerializer):
                         "section": "This field is required for Section Chief, Unit Head, and Monitoring Personnel users."
                     })
         
+        # District validation on update
+        district = data.get("district")
+        if userlevel in ["Section Chief", "Unit Head", "Monitoring Personnel"] and district is None:
+            # When explicitly updating userlevel without sending district, keep existing if present
+            # but if both userlevel and district are being changed, enforce required
+            pass
+        elif userlevel in ["Section Chief", "Unit Head", "Monitoring Personnel"] and district == "":
+            raise serializers.ValidationError({
+                "district": "District is required for Section Chief, Unit Head, and Monitoring Personnel."
+            })
+
         return data
 
 

@@ -1,6 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, User, Search, LogOut, Key, HelpCircle, X } from "lucide-react";
+import {
+  Bell,
+  User,
+  Search,
+  LogOut,
+  Key,
+  HelpCircle,
+  X,
+  MapPin,
+  User as UserIcon,
+  FileText,
+  Building,
+  Loader2,
+} from "lucide-react";
 import api, { getUnreadNotificationsCount } from "../services/api";
 import Notifications from "./Notifications";
 import { useSearch } from "../contexts/SearchContext";
@@ -9,21 +22,53 @@ import {
   filterTopicsByUserLevel,
   normalizeUserLevel,
 } from "../utils/helpUtils";
-import ConfirmationDialog from "./common/ConfirmationDialog"; // Import the ConfirmationDialog
+import ConfirmationDialog from "./common/ConfirmationDialog";
 
 export default function InternalHeader({
   userLevel = "public",
   userName = "John Doe",
 }) {
   const navigate = useNavigate();
-  const { searchQuery, updateSearchQuery } = useSearch();
+  const {
+    searchQuery,
+    updateSearchQuery,
+    searchSuggestions,
+    showSuggestions,
+    hideSuggestions,
+    selectSuggestion,
+    loading,
+  } = useSearch();
+
   const [unreadCount, setUnreadCount] = useState(0);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
-
-  // Dropdown states
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+
+  const searchContainerRef = useRef(null);
+  const suggestionsRef = useRef(null);
+
+  // FIXED: Improved click outside detection
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Check if click is outside both search container and suggestions dropdown
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target)
+      ) {
+        // Additional check for suggestions dropdown
+        if (
+          suggestionsRef.current &&
+          !suggestionsRef.current.contains(event.target)
+        ) {
+          hideSuggestions();
+        }
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [hideSuggestions]);
 
   // Fetch unread notifications
   useEffect(() => {
@@ -40,7 +85,6 @@ export default function InternalHeader({
     return () => clearInterval(interval);
   }, []);
 
-  // Logout
   const handleLogout = async () => {
     try {
       const refresh = localStorage.getItem("refresh");
@@ -58,48 +102,81 @@ export default function InternalHeader({
     }
   };
 
-  // Global search handler
   const handleGlobalSearch = (e) => {
     updateSearchQuery(e.target.value);
   };
 
-  // Help Modal Search
-  const [helpSearchQuery, setHelpSearchQuery] = useState("");
-  const handleHelpSearch = (e) => {
-    setHelpSearchQuery(e.target.value);
+  // FIXED: Improved input focus handling
+  const handleInputFocus = () => {
+    if (searchQuery.length >= 2 && searchSuggestions.length > 0) {
+      // Suggestions will show automatically via the context
+    }
   };
 
-  // Filter topics by user level first, then by search query
+  // FIXED: Improved suggestion click handling
+  const handleSuggestionClick = (suggestion) => {
+    selectSuggestion(suggestion);
+  };
+
+  const getSuggestionIcon = (type) => {
+    switch (type) {
+      case "establishment":
+        return <Building className="w-4 h-4" />;
+      case "user":
+        return <UserIcon className="w-4 h-4" />;
+      case "inspection":
+        return <FileText className="w-4 h-4" />;
+      case "popular":
+        return <MapPin className="w-4 h-4" />;
+      case "suggestion":
+        return <Search className="w-4 h-4" />;
+      default:
+        return <Search className="w-4 h-4" />;
+    }
+  };
+
+  const getSuggestionColor = (type) => {
+    switch (type) {
+      case "establishment":
+        return "text-blue-600 bg-blue-50";
+      case "user":
+        return "text-green-600 bg-green-50";
+      case "inspection":
+        return "text-purple-600 bg-purple-50";
+      case "popular":
+        return "text-orange-600 bg-orange-50";
+      case "suggestion":
+        return "text-gray-600 bg-gray-50";
+      default:
+        return "text-gray-600 bg-gray-50";
+    }
+  };
+
+  // Help Modal
+  const [helpSearchQuery, setHelpSearchQuery] = useState("");
+  const handleHelpSearch = (e) => setHelpSearchQuery(e.target.value);
+
   const accessibleTopics = filterTopicsByUserLevel(
     helpTopics,
     normalizeUserLevel(userLevel)
   );
-  const filteredSuggestions = accessibleTopics.filter(
+  const filteredHelpSuggestions = accessibleTopics.filter(
     (topic) =>
       topic.title.toLowerCase().includes(helpSearchQuery.toLowerCase()) ||
       topic.description.toLowerCase().includes(helpSearchQuery.toLowerCase())
   );
 
-  const handleSuggestionClick = (topicTitle) => {
+  const handleHelpSuggestionClick = (topicTitle) => {
     setShowHelpModal(false);
     navigate(`/help?query=${encodeURIComponent(topicTitle)}`);
-  };
-
-  // Manual click toggle handlers
-  const handleNotificationsClick = () => {
-    setShowNotifications(!showNotifications);
-  };
-
-  const handleUserDropdownClick = () => {
-    setShowUserDropdown(!showUserDropdown);
   };
 
   return (
     <>
       <header className="sticky top-0 z-50 p-2 bg-white border-b border-gray-200">
         <div className="flex items-center justify-between mx-4">
-          {/* Search Bar */}
-          <div className="flex-1 max-w-md">
+          {/* Search Bar with Suggestions */}
+          <div className="flex-1 max-w-md relative" ref={searchContainerRef}>
             <div className="relative">
               <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
               <input
@@ -107,16 +184,83 @@ export default function InternalHeader({
                 placeholder="Search establishments, users, inspections..."
                 value={searchQuery}
                 onChange={handleGlobalSearch}
+                onFocus={handleInputFocus}
                 className="w-full py-1 pl-10 pr-4 transition bg-gray-100 border border-gray-300 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               />
+              {loading && (
+                <Loader2 className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 right-3 top-1/2 animate-spin" />
+              )}
             </div>
+
+            {/* Search Suggestions Dropdown */}
+            {showSuggestions && (
+              <div
+                ref={suggestionsRef} // FIXED: Added separate ref for suggestions dropdown
+                className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto"
+              >
+                <div className="p-2">
+                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 px-2">
+                    Search Suggestions{" "}
+                    {searchSuggestions.length > 0 &&
+                      `(${searchSuggestions.length})`}
+                  </div>
+
+                  {loading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-sky-600" />
+                      <span className="ml-2 text-sm text-gray-600">
+                        Loading suggestions...
+                      </span>
+                    </div>
+                  ) : searchSuggestions.length > 0 ? (
+                    searchSuggestions.map((suggestion, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleSuggestionClick(suggestion)}
+                        className="flex items-center w-full p-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors mb-1 text-left"
+                        onMouseDown={(e) => e.preventDefault()} // FIXED: Prevent immediate blur
+                      >
+                        <div
+                          className={`flex items-center justify-center w-8 h-8 rounded-full ${getSuggestionColor(
+                            suggestion.type
+                          )} mr-3`}
+                        >
+                          {getSuggestionIcon(suggestion.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">
+                            {suggestion.name || suggestion.text}
+                          </div>
+                          {suggestion.description && (
+                            <div className="text-xs text-gray-500 mt-1 truncate">
+                              {suggestion.description}
+                            </div>
+                          )}
+                          {suggestion.category && (
+                            <div className="text-xs text-gray-400 mt-1">
+                              {suggestion.category}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ))
+                  ) : searchQuery.length >= 2 ? (
+                    <div className="text-center py-4 text-gray-500">
+                      <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">No suggestions found</p>
+                      <p className="text-xs mt-1">Try different keywords</p>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right Side Actions */}
           <div className="flex items-center space-x-3">
             {/* Notifications */}
             <div title="Notifications" className="relative">
-              <div onClick={handleNotificationsClick}>
+              <div onClick={() => setShowNotifications(!showNotifications)}>
                 <Notifications
                   unreadCount={unreadCount}
                   showDropdown={showNotifications}
@@ -128,7 +272,7 @@ export default function InternalHeader({
             {/* User Dropdown */}
             <div className="relative">
               <button
-                onClick={handleUserDropdownClick}
+                onClick={() => setShowUserDropdown(!showUserDropdown)}
                 className="flex items-center px-2 space-x-2 text-gray-700 transition-colors bg-transparent rounded-lg hover:bg-gray-200"
               >
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-sky-600">
@@ -142,9 +286,8 @@ export default function InternalHeader({
                 </div>
               </button>
 
-              {/* Dropdown menu */}
               {showUserDropdown && (
-                <div className="absolute right-0 z-50 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg ">
+                <div className="absolute right-0 z-50 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg">
                   <div className="py-2">
                     <button
                       onClick={() => {
@@ -220,12 +363,12 @@ export default function InternalHeader({
             {/* Suggestions */}
             <div className="flex-1 overflow-y-auto border-t border-gray-200">
               <div className="p-2">
-                {filteredSuggestions.length > 0 ? (
+                {filteredHelpSuggestions.length > 0 ? (
                   <ul className="space-y-1">
-                    {filteredSuggestions.map((topic) => (
+                    {filteredHelpSuggestions.map((topic) => (
                       <li
                         key={topic.id}
-                        onClick={() => handleSuggestionClick(topic.title)}
+                        onClick={() => handleHelpSuggestionClick(topic.title)}
                         className="p-1 transition-colors border border-transparent rounded-lg cursor-pointer hover:bg-sky-50 hover:border-sky-200"
                       >
                         <div className="text-sm font-medium text-gray-900">

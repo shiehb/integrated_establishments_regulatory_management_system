@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     'establishments',
     'notifications',
     'audit',
+    'inspections',
+    'system_config',
 ]
 
 
@@ -52,7 +54,6 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'users.middleware.UserActivityMiddleware',  # 🔥 NEW: Track user activity
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -76,6 +77,50 @@ SIMPLE_JWT = {
 
 # Load default password for new users
 DEFAULT_USER_PASSWORD = os.getenv("DEFAULT_USER_PASSWORD", "Temp1234")
+
+# System Configuration Management
+# This will be overridden by database configuration if available
+def get_database_config():
+    """Get configuration from database if available"""
+    try:
+        from system_config.models import SystemConfiguration
+        config = SystemConfiguration.get_active_config()
+        return {
+            'EMAIL_HOST': config.email_host,
+            'EMAIL_PORT': config.email_port,
+            'EMAIL_USE_TLS': config.email_use_tls,
+            'EMAIL_HOST_USER': config.email_host_user,
+            'EMAIL_HOST_PASSWORD': config.email_host_password,
+            'DEFAULT_FROM_EMAIL': config.default_from_email,
+            'DEFAULT_USER_PASSWORD': config.default_user_password,
+            'ACCESS_TOKEN_LIFETIME': timedelta(minutes=config.access_token_lifetime_minutes),
+            'REFRESH_TOKEN_LIFETIME': timedelta(days=config.refresh_token_lifetime_days),
+            'ROTATE_REFRESH_TOKENS': config.rotate_refresh_tokens,
+            'BLACKLIST_AFTER_ROTATION': config.blacklist_after_rotation,
+        }
+    except Exception:
+        # Fallback to environment variables if database config not available
+        return None
+
+# Try to get database configuration, fallback to environment variables
+db_config = get_database_config()
+if db_config:
+    # Override settings with database configuration
+    EMAIL_HOST = db_config['EMAIL_HOST']
+    EMAIL_PORT = db_config['EMAIL_PORT']
+    EMAIL_USE_TLS = db_config['EMAIL_USE_TLS']
+    EMAIL_HOST_USER = db_config['EMAIL_HOST_USER']
+    EMAIL_HOST_PASSWORD = db_config['EMAIL_HOST_PASSWORD']
+    DEFAULT_FROM_EMAIL = db_config['DEFAULT_FROM_EMAIL']
+    DEFAULT_USER_PASSWORD = db_config['DEFAULT_USER_PASSWORD']
+    
+    # Update JWT settings
+    SIMPLE_JWT.update({
+        "ACCESS_TOKEN_LIFETIME": db_config['ACCESS_TOKEN_LIFETIME'],
+        "REFRESH_TOKEN_LIFETIME": db_config['REFRESH_TOKEN_LIFETIME'],
+        "ROTATE_REFRESH_TOKENS": db_config['ROTATE_REFRESH_TOKENS'],
+        "BLACKLIST_AFTER_ROTATION": db_config['BLACKLIST_AFTER_ROTATION'],
+    })
 
 ROOT_URLCONF = 'core.urls'
 
@@ -120,6 +165,21 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 
 # Database
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'db_ierms',   # replace with the DB name you created in phpMyAdmin
+#         'USER': 'root',        # default XAMPP user
+#         'PASSWORD': '',        # default root has no password in XAMPP
+#         'HOST': '127.0.0.1',   # or 'localhost'
+#         'PORT': '3306',        # default MySQL/MariaDB port
+#         'OPTIONS': {
+#             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"
+#         }
+#     }
+# }
+
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',

@@ -5,6 +5,15 @@ from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from .models import Establishment
 from .serializers import EstablishmentSerializer
+from django.db.models import Q
+
+try:
+    from shapely.geometry import Polygon as ShapelyPolygon, MultiPolygon as ShapelyMultiPolygon
+    from shapely.ops import unary_union
+except Exception:
+    ShapelyPolygon = None
+    ShapelyMultiPolygon = None
+    unary_union = None
 
 User = get_user_model()
 
@@ -89,10 +98,55 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
                 except (ValueError, TypeError):
                     return Response({'error': 'Coordinates must be valid numbers'}, status=status.HTTP_400_BAD_REQUEST)
             
-            establishment.polygon = polygon_data
+            # Optional server-side non-overlap enforcement if shapely available
+            result_polygon = polygon_data
+            if ShapelyPolygon is not None and polygon_data and len(polygon_data) >= 3:
+                # Build current polygon
+                try:
+                    drawn = ShapelyPolygon([(float(lng), float(lat)) for lat, lng in polygon_data])
+                except Exception:
+                    return Response({'error': 'Invalid polygon geometry'}, status=status.HTTP_400_BAD_REQUEST)
+                if not drawn.is_valid or drawn.area == 0:
+                    return Response({'error': 'Invalid or empty polygon'}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Collect other establishment polygons
+                others = Establishment.objects.exclude(pk=establishment.pk).values_list('polygon', flat=True)
+                shapes = []
+                for poly in others:
+                    if isinstance(poly, list) and len(poly) >= 3:
+                        try:
+                            shp = ShapelyPolygon([(float(lng), float(lat)) for lat, lng in poly])
+                            if shp.is_valid and shp.area > 0:
+                                shapes.append(shp)
+                        except Exception:
+                            continue
+                if shapes:
+                    union = unary_union(shapes)
+                    diff = drawn.difference(union)
+                    # Choose largest polygon if multipolygon
+                    if diff.is_empty:
+                        result_polygon = []
+                    elif isinstance(diff, ShapelyPolygon):
+                        coords = list(diff.exterior.coords)
+                        result_polygon = [[lat, lng] for (lng, lat) in coords[:-1]]
+                    else:
+                        # MultiPolygon: pick largest by area
+                        biggest = None
+                        biggest_area = -1
+                        for geom in diff.geoms:
+                            if geom.area > biggest_area:
+                                biggest_area = geom.area
+                                biggest = geom
+                        if biggest is not None:
+                            coords = list(biggest.exterior.coords)
+                            result_polygon = [[lat, lng] for (lng, lat) in coords[:-1]]
+                        else:
+                            result_polygon = []
+
+            establishment.polygon = result_polygon
             establishment._action_user = request.user  # log who updated polygon
             establishment.save()
-            return Response({'status': 'polygon set'})
+            return Response({'status': 'polygon set', 'polygon': establishment.polygon})
         
         return Response({'error': 'No polygon data provided'}, status=400)
     

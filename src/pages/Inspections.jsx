@@ -2,122 +2,25 @@ import { useState, useEffect } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
-import InspectionList from "../components/inspections/InspectionList";
-import InspectionWizard from "../components/inspections/InspectionWizard";
-import EditInspection from "../components/inspections/EditInspection";
-import ViewInspection from "../components/inspections/ViewInspection";
-import InspectionDisplay from "../components/inspections/InspectionDisplay";
-import { getEstablishments } from "../services/api";
+import InspectionsCore from "../components/inspections/InspectionsCore";
+import { getProfile } from "../services/api";
 
 export default function Inspections() {
-  const [showWizard, setShowWizard] = useState(false);
-  const [editInspection, setEditInspection] = useState(null);
-  const [viewInspection, setViewInspection] = useState(null);
-  const [currentFormInspection, setCurrentFormInspection] = useState(null);
-  const [establishments, setEstablishments] = useState([]);
-  const [inspections, setInspections] = useState([]); // Remove mock data
   const [loading, setLoading] = useState(true);
+  const [userLevel, setUserLevel] = useState("public");
 
-  // 🔹 Fetch establishments on component mount
   useEffect(() => {
-    fetchEstablishments();
+    fetchUserLevel();
   }, []);
 
-  const fetchEstablishments = async () => {
-    setLoading(true);
+  const fetchUserLevel = async () => {
     try {
-      const data = await getEstablishments();
-      // Transform API data to match the expected format
-      const formattedEstablishments = data.map((est) => ({
-        id: est.id,
-        name: est.name,
-        natureOfBusiness: est.nature_of_business,
-        yearEstablished: est.year_established, // Make sure this is included
-        address: {
-          province: est.province,
-          city: est.city,
-          barangay: est.barangay,
-          street: est.street_building,
-          postalCode: est.postal_code,
-        },
-        coordinates: {
-          latitude: est.latitude,
-          longitude: est.longitude,
-        },
-      }));
-      setEstablishments(formattedEstablishments);
-    } catch (err) {
-      console.error("Error fetching establishments:", err);
-    } finally {
-      setLoading(false);
+      const me = await getProfile();
+      setUserLevel(me.userlevel || "public");
+    } catch (e) {
+      setUserLevel(localStorage.getItem("userLevel") || "public");
     }
-  };
-
-  // 🔹 Map law → prefix
-  const sectionPrefixes = {
-    "PD-1586": "EIA", // Environmental Impact Assessment
-    "RA-6969": "TOX", // Toxic Substances
-    "RA-8749": "AIR", // Clean Air Act
-    "RA-9275": "WATER", // Clean Water Act
-    "RA-9003": "WASTE", // Ecological Solid Waste
-  };
-
-  // 🔹 Generate new inspection ID based on section
-  const generateInspectionId = (section) => {
-    const prefix = sectionPrefixes[section] || "GEN";
-    const year = new Date().getFullYear();
-
-    // Count existing inspections for this section type
-    const sectionCount =
-      inspections.filter((insp) => insp.section === section).length + 1;
-    const seq = sectionCount.toString().padStart(4, "0");
-
-    return `${prefix}-${year}-${seq}`;
-  };
-
-  // 🔹 Get the last inspection law for an establishment (for reinspection)
-  const getLastInspectionLaw = (establishmentId) => {
-    const establishmentInspections = inspections
-      .filter((insp) => insp.establishmentId === establishmentId)
-      .sort((a, b) => b.id.localeCompare(a.id)); // Sort by ID descending (newest first)
-
-    return establishmentInspections.length > 0
-      ? establishmentInspections[0].section
-      : null;
-  };
-
-  // 🔹 Save new inspections (multiple when multiple establishments selected)
-  const handleSaveInspection = (inspectionsData) => {
-    // inspectionsData is now an array of inspection objects
-    setInspections((prev) => [...prev, ...inspectionsData]);
-    setShowWizard(false);
-  };
-
-  // 🔹 Update inspection section
-  const handleUpdateInspection = (id, section) => {
-    setInspections((prev) =>
-      prev.map((insp) => (insp.id === id ? { ...insp, section } : insp))
-    );
-  };
-
-  // 🔹 Expand inspections with establishment details
-  const inspectionsWithDetails = inspections.map((i) => {
-    const establishment = establishments.find(
-      (e) => e.id === i.establishmentId
-    );
-    return {
-      ...i,
-      establishments: establishment ? [establishment] : [],
-    };
-  });
-
-  const handleOpenForm = (inspection) => {
-    setCurrentFormInspection(inspection);
-    setViewInspection(null); // Close view modal
-  };
-
-  const handleCloseForm = () => {
-    setCurrentFormInspection(null);
+    setLoading(false);
   };
 
   if (loading) {
@@ -134,68 +37,9 @@ export default function Inspections() {
 
   return (
     <>
-      <Header />
-      <LayoutWithSidebar userLevel="admin">
-        <div>
-          {showWizard ? (
-            <InspectionWizard
-              establishments={establishments}
-              onCancel={() => setShowWizard(false)}
-              onSave={handleSaveInspection}
-              getLastInspectionLaw={getLastInspectionLaw}
-              existingInspections={inspections}
-            />
-          ) : (
-            <InspectionList
-              inspections={inspectionsWithDetails}
-              onAdd={() => setShowWizard(true)}
-              onEdit={(insp) => setEditInspection(insp)}
-              onView={(insp) => setViewInspection(insp)}
-            />
-          )}
-
-          {/* Edit Modal */}
-          {editInspection && (
-            <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
-              <EditInspection
-                inspection={editInspection}
-                onClose={() => setEditInspection(null)}
-                onSave={(section) => {
-                  handleUpdateInspection(editInspection.id, section);
-                  setEditInspection(null);
-                }}
-              />
-            </div>
-          )}
-
-          {/* View Modal */}
-          {viewInspection && (
-            <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
-              <ViewInspection
-                inspection={viewInspection}
-                onClose={() => setViewInspection(null)}
-                onOpenForm={handleOpenForm}
-              />
-            </div>
-          )}
-
-          {/* Inspection Form Modal */}
-          {currentFormInspection && (
-            <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
-              <div className="w-full h-full p-1 overflow-hidden bg-white">
-                <InspectionDisplay inspectionData={currentFormInspection} />
-                <div className="absolute top-4 right-4">
-                  <button
-                    onClick={handleCloseForm}
-                    className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-                  >
-                    Close Form
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+      <Header userLevel={userLevel} />
+      <LayoutWithSidebar userLevel={userLevel}>
+        <InspectionsCore canCreate={userLevel === "Division Chief"} userLevel={userLevel} />
       </LayoutWithSidebar>
       <Footer />
     </>

@@ -54,12 +54,3 @@ def log_user_logout(sender, request, user, **kwargs):
     )
 
 
-# 🔹 Log failed login attempts
-@receiver(user_login_failed)
-def log_failed_login(sender, credentials, request, **kwargs):
-    log_activity(
-        None,
-        "login_failed",
-        f"Failed login attempt for {credentials.get('email', 'unknown')}",  # ✅ FIX: Use email
-        request=request
-    )

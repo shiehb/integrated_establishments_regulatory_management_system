@@ -46,6 +46,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=150, blank=True)
     userlevel = models.CharField(max_length=50, choices=USERLEVEL_CHOICES, blank=True)
     section = models.CharField(max_length=50, choices=SECTION_CHOICES, null=True, blank=True)
+    # Optional district assignment (e.g., "1st District", "2nd District", or city-based string)
+    district = models.CharField(max_length=100, null=True, blank=True)
 
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)

@@ -63,6 +63,9 @@ api.interceptors.response.use(
   }
 );
 
+// ✅ also export api instance
+export default api;
+
 // ----------------------
 // Activity Log Functions
 // ----------------------
@@ -221,6 +224,44 @@ export const setEstablishmentPolygon = async (id, polygonData) => {
 };
 
 // ----------------------
+// Inspection Functions (Backend)
+// ----------------------
+
+export const getInspections = async (params) => {
+  const res = await api.get("inspections/", { params });
+  return res.data;
+};
+
+export const createInspection = async (payload) => {
+  // payload: { establishment, section, district? }
+  const res = await api.post("inspections/", payload);
+  return res.data;
+};
+
+export const assignInspection = async (id, payload) => {
+  // payload: { district, section_chief_id?, unit_head_id?, monitor_id? }
+  const res = await api.post(`inspections/${id}/assign/`, payload);
+  return res.data;
+};
+
+export const advanceInspection = async (id) => {
+  const res = await api.post(`inspections/${id}/advance/`);
+  return res.data;
+};
+
+export const getDistricts = async (province) => {
+  const res = await api.get("inspections/districts/", { params: { province } });
+  return res.data; // [{ province, district, cities: []}]
+};
+
+export const getAssignableUsers = async (district, role) => {
+  const res = await api.get("inspections/assignable_users/", {
+    params: { district, role },
+  });
+  return res.data; // [{ id, first_name, last_name, email, userlevel, section, district }]
+};
+
+// ----------------------
 // Notification Functions (UPDATED)
 // ----------------------
 
@@ -360,5 +401,42 @@ export async function completeInspectionItem(id, payload) {
   return Promise.resolve(mockInspections.find((i) => i.id === id));
 }
 
-// ✅ also export api instance
-export default api;
+// src/services/api.js - Add search suggestions function
+
+// ----------------------
+// Global Search
+// ----------------------
+
+export const globalSearch = async (params) => {
+  const token = localStorage.getItem("access");
+  if (!token) {
+    throw new Error("User not authenticated");
+  }
+
+  const res = await api.get("search/", { params: { q: params.q } });
+  return res.data;
+};
+
+export const getSearchSuggestions = async (query) => {
+  const token = localStorage.getItem("access");
+  if (!token) {
+    throw new Error("User not authenticated");
+  }
+
+  if (!query || query.length < 2) {
+    return { suggestions: [] };
+  }
+
+  const res = await api.get("search/suggestions/", { params: { q: query } });
+  return res.data;
+};
+
+export const getSearchOptions = async () => {
+  const token = localStorage.getItem("access");
+  if (!token) {
+    throw new Error("User not authenticated");
+  }
+
+  const res = await api.get("search/options/");
+  return res.data;
+};
