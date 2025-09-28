@@ -1,134 +1,62 @@
+// /mnt/data/InspectionForm.jsx
 import React, { useState, useMemo, useEffect } from "react";
+import * as InspectionConstants from "../../data/inspectionform/index";
 
-const LAWS = [
-  { id: "PD-1586", label: "PD-1586" },
-  { id: "RA-6969", label: "RA-6969" },
-  { id: "RA-8749", label: "RA-8749" },
-  { id: "RA-9275", label: "RA-9275" },
-  { id: "RA-9003", label: "RA-9003" },
-];
+const { PREDEFINED_REMARKS } = InspectionConstants;
 
-const initialPermits = [
-  {
-    lawId: "PD-1586",
-    permitType: "ECC1",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-  {
-    lawId: "PD-1586",
-    permitType: "ECC2",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-  {
-    lawId: "PD-1586",
-    permitType: "ECC3",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-  {
-    lawId: "RA-6969",
-    permitType: "DENR Registry ID",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-  {
-    lawId: "RA-6969",
-    permitType: "PCL Compliance Certificate",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-  {
-    lawId: "RA-6969",
-    permitType: "CCO Registry",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-  {
-    lawId: "RA-6969",
-    permitType: "Importer Clearance No.",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-  {
-    lawId: "RA-6969",
-    permitType: "Permit to Transport",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-  {
-    lawId: "RA-6969",
-    permitType: "Copy of COT issued by licensed TSD Facility",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-  {
-    lawId: "RA-8749",
-    permitType: "POA No.",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-  {
-    lawId: "RA-9275",
-    permitType: "Discharge Permit No.",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-  {
-    lawId: "RA-9003",
-    permitType: "With MOA/Agreement for residuals disposed of to a SLF w/ ECC",
-    permitNumber: "",
-    dateIssued: "",
-    expiryDate: "",
-  },
-];
+/* ======================
+   Input formatting helpers
+   ====================== */
+const formatInput = {
+  upper: (val) =>
+    val === undefined || val === null ? "" : String(val).toUpperCase(),
+  lower: (val) =>
+    val === undefined || val === null ? "" : String(val).toLowerCase(),
+  title: (val) =>
+    val === undefined || val === null
+      ? ""
+      : String(val)
+          .toLowerCase()
+          .replace(/\b\w/g, (ch) => ch.toUpperCase()),
+  numeric: (val) =>
+    val === undefined || val === null ? "" : String(val).replace(/\D/g, ""),
+  coords: (val) => (val ? String(val).trim() : ""),
+};
 
-const initialComplianceItems = [
-  {
-    lawId: "PD-1586",
-    lawCitation:
-      "PD-1586: Environmental Compliance Certificate (ECC) Conditionalities",
-    conditionId: "PD-1586-1",
-    conditionNumber: "",
-    complianceRequirement: "Provide EIS document",
-    compliant: "N/A",
-    remarks: "",
-  },
-  {
-    lawId: "RA-6969",
-    lawCitation:
-      "RA 6969: Toxic Substances and Hazardous and Nuclear Waste Control Act",
-    conditionId: "RA-6969-PCL-1",
-    applicableLaw: "Priority Chemical List",
-    complianceRequirement: "Valid PCL Compliance Certificate",
-    compliant: "N/A",
-    remarks: "",
-  },
-  {
-    lawId: "RA-6969",
-    lawCitation: "RA 6969: Toxic Substances ...",
-    conditionId: "RA-6969-PCL-2",
-    applicableLaw: "Priority Chemical List",
-    complianceRequirement: "Annual Reporting",
-    compliant: "N/A",
-    remarks: "",
-  },
-];
+/* ======================
+   Date helpers
+   ====================== */
+const toDateOnly = (input) => {
+  if (!input) return null;
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return null;
+  // normalize to date-only (local)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+};
+
+const _isPastDate = (input) => {
+  const d = toDateOnly(input);
+  if (!d) return false;
+  const today = toDateOnly(new Date());
+  return d < today;
+};
+
+const isFutureDate = (input) => {
+  const d = toDateOnly(input);
+  if (!d) return false;
+  const today = toDateOnly(new Date());
+  return d > today;
+};
+
+const isSameOrAfter = (a, b) => {
+  const da = toDateOnly(a);
+  const db = toDateOnly(b);
+  if (!da || !db) return false;
+  return da >= db;
+};
 
 /* ---------------------------
-   Helper little components
+   Section header
    ---------------------------*/
 function SectionHeader({ title }) {
   return (
@@ -147,8 +75,9 @@ function GeneralInformation({
   setData,
   onLawFilterChange,
   inspectionData,
+  errors,
 }) {
-  // Auto-fill data when inspectionData changes
+  // Autofill when inspectionData provided
   useEffect(() => {
     if (
       inspectionData &&
@@ -156,12 +85,9 @@ function GeneralInformation({
       inspectionData.establishments.length > 0
     ) {
       const establishment = inspectionData.establishments[0];
-
-      // Safely access address properties with fallbacks
       const address = establishment.address || {};
-      const coordinates = establishment.coordinates || {};
+      const coords = establishment.coordinates || {};
 
-      // Handle different address structures (could be nested object or flat properties)
       const street = address.street || establishment.street_building || "";
       const barangay = address.barangay || establishment.barangay || "";
       const city = address.city || establishment.city || "";
@@ -171,72 +97,46 @@ function GeneralInformation({
       const fullAddress =
         `${street}, ${barangay}, ${city}, ${province}, ${postalCode}`.toUpperCase();
 
-      const coordinatesString =
-        coordinates.latitude && coordinates.longitude
-          ? `${coordinates.latitude}, ${coordinates.longitude}`.toUpperCase()
+      const coordsString =
+        coords.latitude && coords.longitude
+          ? `${coords.latitude}, ${coords.longitude}`
           : establishment.latitude && establishment.longitude
-          ? `${establishment.latitude}, ${establishment.longitude}`.toUpperCase()
+          ? `${establishment.latitude}, ${establishment.longitude}`
           : "";
 
       const newData = {
         ...data,
-        establishmentName: (establishment.name || "").toUpperCase(),
-        address: fullAddress,
-        coordinates: coordinatesString,
-        natureOfBusiness: (
+        establishmentName: formatInput.upper(establishment.name || ""),
+        address: formatInput.upper(fullAddress),
+        coordinates: formatInput.coords(coordsString),
+        natureOfBusiness: formatInput.upper(
           establishment.natureOfBusiness ||
-          establishment.nature_of_business ||
-          ""
-        ).toUpperCase(),
+            establishment.nature_of_business ||
+            ""
+        ),
         yearEstablished:
           establishment.yearEstablished || establishment.year_established || "",
-        environmentalLaws: [inspectionData.section], // Set the law from inspection
+        environmentalLaws: [inspectionData.section],
       };
 
       setData(newData);
-
-      // Notify parent component about the law filter change
-      if (onLawFilterChange) {
-        onLawFilterChange([inspectionData.section]);
-      }
+      if (onLawFilterChange) onLawFilterChange([inspectionData.section]);
     }
   }, [inspectionData]);
+
+  const updateField = (field, value, formatter = formatInput.upper) => {
+    setData({ ...data, [field]: formatter(value) });
+  };
 
   const toggleLaw = (lawId) => {
     const selected = data.environmentalLaws || [];
     const isInitialLaw = inspectionData && inspectionData.section === lawId;
-
-    // Prevent unchecking the initial law from inspection
-    if (isInitialLaw && selected.includes(lawId)) {
-      return;
-    }
-
-    const exists = selected.includes(lawId);
-    const updated = exists
+    if (isInitialLaw && selected.includes(lawId)) return;
+    const updated = selected.includes(lawId)
       ? selected.filter((l) => l !== lawId)
       : [...selected, lawId];
-
     setData({ ...data, environmentalLaws: updated });
-
-    // Notify parent component about the filter change
-    if (onLawFilterChange) {
-      onLawFilterChange(updated);
-    }
-  };
-
-  const updateField = (field, value) => {
-    // Only allow updating fields that aren't auto-filled
-    const autoFilledFields = [
-      "establishmentName",
-      "address",
-      "coordinates",
-      "natureOfBusiness",
-      "yearEstablished",
-    ];
-
-    if (!autoFilledFields.includes(field)) {
-      setData({ ...data, [field]: value.toUpperCase() });
-    }
+    if (onLawFilterChange) onLawFilterChange(updated);
   };
 
   return (
@@ -247,11 +147,10 @@ function GeneralInformation({
           Applicable Environmental Laws (check all that apply)
         </label>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
-          {LAWS.map((law) => {
+          {InspectionConstants.LAWS.map((law) => {
             const isInitialLaw =
               inspectionData && inspectionData.section === law.id;
             const isChecked = (data.environmentalLaws || []).includes(law.id);
-
             return (
               <label key={law.id} className="flex items-center space-x-2">
                 <input
@@ -259,7 +158,7 @@ function GeneralInformation({
                   checked={isChecked}
                   onChange={() => toggleLaw(law.id)}
                   className="w-4 h-4 border-black"
-                  disabled={isInitialLaw && isChecked} // Only disable if it's the initial law and checked
+                  disabled={isInitialLaw && isChecked}
                 />
                 <span className="text-black">{law.label}</span>
                 {isInitialLaw && isChecked && (
@@ -271,7 +170,6 @@ function GeneralInformation({
         </div>
       </div>
 
-      {/* Name of Establishment - full width */}
       <div className="mt-4">
         <label className="block mb-1 text-sm text-black">
           Name of Establishment
@@ -279,23 +177,24 @@ function GeneralInformation({
         <input
           className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
           value={data.establishmentName}
-          onChange={(e) => updateField("establishmentName", e.target.value)}
-          placeholder="ENTER ESTABLISHMENT NAME"
-          readOnly // Make field read-only
+          readOnly
         />
+        {errors.establishmentName && (
+          <p className="text-sm text-red-600">{errors.establishmentName}</p>
+        )}
       </div>
 
-      {/* Address and Coordinates - 2 columns */}
       <div className="grid grid-cols-2 gap-4 mt-4">
         <div>
           <label className="block mb-1 text-sm text-black">Address</label>
           <input
             className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
             value={data.address}
-            onChange={(e) => updateField("address", e.target.value)}
-            placeholder="COMPLETE ADDRESS"
-            readOnly // Make field read-only
+            readOnly
           />
+          {errors.address && (
+            <p className="text-sm text-red-600">{errors.address}</p>
+          )}
         </div>
         <div>
           <label className="block mb-1 text-sm text-black">
@@ -304,14 +203,14 @@ function GeneralInformation({
           <input
             className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
             value={data.coordinates}
-            onChange={(e) => updateField("coordinates", e.target.value)}
-            placeholder="LATITUDE, LONGITUDE"
-            readOnly // Make field read-only
+            readOnly
           />
+          {errors.coordinates && (
+            <p className="text-sm text-red-600">{errors.coordinates}</p>
+          )}
         </div>
       </div>
 
-      {/* Nature of Business - full width */}
       <div className="mt-4">
         <label className="block mb-1 text-sm text-black">
           Nature of Business
@@ -319,12 +218,10 @@ function GeneralInformation({
         <input
           className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
           value={data.natureOfBusiness}
-          onChange={(e) => updateField("natureOfBusiness", e.target.value)}
-          readOnly // Make field read-only
+          readOnly
         />
       </div>
 
-      {/* Year Established and Inspection Date & Time - 2 columns */}
       <div className="grid grid-cols-2 gap-4 mt-4">
         <div>
           <label className="block mb-1 text-sm text-black">
@@ -334,10 +231,11 @@ function GeneralInformation({
             type="number"
             className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
             value={data.yearEstablished}
-            onChange={(e) => updateField("yearEstablished", e.target.value)}
-            placeholder="YYYY"
-            readOnly // Make field read-only
+            readOnly
           />
+          {errors.yearEstablished && (
+            <p className="text-sm text-red-600">{errors.yearEstablished}</p>
+          )}
         </div>
         <div>
           <label className="block mb-1 text-sm text-black">
@@ -346,13 +244,21 @@ function GeneralInformation({
           <input
             type="datetime-local"
             className="w-full px-2 py-1 text-black bg-white border border-black"
-            value={data.inspectionDateTime}
-            onChange={(e) => updateField("inspectionDateTime", e.target.value)}
+            value={data.inspectionDateTime || ""}
+            onChange={(e) =>
+              updateField(
+                InspectionConstants.GENERAL_INFO_FIELDS.INSPECTION_DATE_TIME,
+                e.target.value,
+                (v) => v
+              )
+            }
           />
+          {errors.inspectionDateTime && (
+            <p className="text-sm text-red-600">{errors.inspectionDateTime}</p>
+          )}
         </div>
       </div>
 
-      {/* Operating Hours Section */}
       <div className="grid grid-cols-3 gap-4 mt-4">
         <div>
           <label className="block mb-1 text-sm text-black">
@@ -360,148 +266,48 @@ function GeneralInformation({
           </label>
           <input
             className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-            value={data.operatingHours}
-            onChange={(e) => updateField("operatingHours", e.target.value)}
-            placeholder="E.G. 8AM-5PM"
+            value={data.operatingHours || ""}
+            onChange={(e) =>
+              updateField(
+                InspectionConstants.GENERAL_INFO_FIELDS.OPERATING_HOURS,
+                e.target.value
+              )
+            }
           />
         </div>
-
         <div>
           <label className="block mb-1 text-sm text-black">
             Operating Days/Week
           </label>
           <input
             className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-            value={data.operatingDaysPerWeek}
+            value={data.operatingDaysPerWeek || ""}
             onChange={(e) =>
-              updateField("operatingDaysPerWeek", e.target.value)
+              updateField(
+                InspectionConstants.GENERAL_INFO_FIELDS.OPERATING_DAYS_PER_WEEK,
+                formatInput.numeric(e.target.value)
+              )
             }
-            placeholder="E.G. MONDAY-FRIDAY"
           />
         </div>
-
         <div>
           <label className="block mb-1 text-sm text-black">
             Operating Days/Year
           </label>
           <input
             className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-            value={data.operatingDaysPerYear}
+            value={data.operatingDaysPerYear || ""}
             onChange={(e) =>
-              updateField("operatingDaysPerYear", e.target.value)
+              updateField(
+                InspectionConstants.GENERAL_INFO_FIELDS.OPERATING_DAYS_PER_YEAR,
+                formatInput.numeric(e.target.value)
+              )
             }
-            placeholder="E.G. 300 DAYS"
           />
         </div>
       </div>
 
-      {/* Separator */}
-      <div className="my-4 border-t border-black"></div>
-
-      {/* Production Information Section */}
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <label className="block mb-1 text-sm text-black">Product Lines</label>
-          <input
-            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-            value={data.productLines}
-            onChange={(e) => updateField("productLines", e.target.value)}
-            placeholder="E.G."
-          />
-        </div>
-
-        <div>
-          <label className="block mb-1 text-sm text-black">
-            Production Rate as Declared in The ECC (Unit/day)
-          </label>
-          <input
-            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-            value={data.declaredProductionRate}
-            onChange={(e) =>
-              updateField("declaredProductionRate", e.target.value)
-            }
-            placeholder="E.G."
-          />
-        </div>
-
-        <div>
-          <label className="block mb-1 text-sm text-black">
-            Actual Production Rate (Unit/day)
-          </label>
-          <input
-            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-            value={data.actualProductionRate}
-            onChange={(e) =>
-              updateField("actualProductionRate", e.target.value)
-            }
-            placeholder="E.G."
-          />
-        </div>
-      </div>
-
-      {/* Separator */}
-      <div className="my-4 border-t border-black"></div>
-
-      {/* Personnel Information Section */}
-      <div className="grid grid-cols-1 gap-4">
-        <div>
-          <label className="block mb-1 text-sm text-black">
-            Name of Managing Head
-          </label>
-          <input
-            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-            value={data.managingHead}
-            onChange={(e) => updateField("managingHead", e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 mt-4">
-        <div>
-          <label className="block mb-1 text-sm text-black">Name of PCO</label>
-          <input
-            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-            value={data.pcoName}
-            onChange={(e) => updateField("pcoName", e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label className="block mb-1 text-sm text-black">
-            Name of person Interviewed, Designation
-          </label>
-          <input
-            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-            value={data.interviewedPerson}
-            onChange={(e) => updateField("interviewedPerson", e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 mt-4">
-        <div>
-          <label className="block mb-1 text-sm text-black">
-            PCO Accreditation No.
-          </label>
-          <input
-            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-            value={data.pcoAccreditationNo}
-            onChange={(e) => updateField("pcoAccreditationNo", e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label className="block mb-1 text-sm text-black">
-            Date of Effectivity
-          </label>
-          <input
-            type="date"
-            className="w-full px-2 py-1 text-black bg-white border border-black"
-            value={data.effectivityDate}
-            onChange={(e) => updateField("effectivityDate", e.target.value)}
-          />
-        </div>
-      </div>
+      <div className="my-4 border-t border-black" />
 
       <div className="grid grid-cols-2 gap-4 mt-4">
         <div>
@@ -509,22 +315,37 @@ function GeneralInformation({
             Phone/ Fax No.
           </label>
           <input
-            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-            value={data.phoneFaxNo}
-            onChange={(e) => updateField("phoneFaxNo", e.target.value)}
+            className="w-full px-2 py-1 text-black bg-white border border-black"
+            value={data.phoneFaxNo || ""}
+            onChange={(e) =>
+              updateField(
+                InspectionConstants.GENERAL_INFO_FIELDS.PHONE_FAX_NO,
+                formatInput.numeric(e.target.value),
+                (v) => v
+              )
+            }
           />
+          {errors.phoneFaxNo && (
+            <p className="text-sm text-red-600">{errors.phoneFaxNo}</p>
+          )}
         </div>
-
         <div>
           <label className="block mb-1 text-sm text-black">Email Address</label>
           <input
             type="email"
             className="w-full px-2 py-1 text-black lowercase bg-white border border-black"
-            value={data.emailAddress}
+            value={data.emailAddress || ""}
             onChange={(e) =>
-              updateField("emailAddress", e.target.value.toLowerCase())
+              updateField(
+                InspectionConstants.GENERAL_INFO_FIELDS.EMAIL_ADDRESS,
+                e.target.value,
+                formatInput.lower
+              )
             }
           />
+          {errors.emailAddress && (
+            <p className="text-sm text-red-600">{errors.emailAddress}</p>
+          )}
         </div>
       </div>
     </section>
@@ -532,51 +353,69 @@ function GeneralInformation({
 }
 
 /* ---------------------------
-   Purpose Of Inspection
+   Purpose of Inspection
    ---------------------------*/
-function PurposeOfInspection({ state, setState }) {
+function PurposeOfInspection({ state, setState, errors }) {
   const purposes = [
     {
-      id: "verify_accuracy",
+      id: InspectionConstants.PURPOSE_OPTIONS.VERIFY_ACCURACY,
       label:
         "Verify accuracy of information submitted by the establishment pertaining to new permit applications, renewals, or modifications.",
     },
     {
-      id: "compliance_status",
+      id: InspectionConstants.PURPOSE_OPTIONS.COMPLIANCE_STATUS,
       label:
         "Determine compliance status with ECC conditions, compliance with commitments made during Technical Conference, permit conditions, and other requirements",
     },
     {
-      id: "investigate_complaints",
+      id: InspectionConstants.PURPOSE_OPTIONS.INVESTIGATE_COMPLAINTS,
       label: "Investigate community complaints.",
     },
     {
-      id: "check_commitments",
+      id: InspectionConstants.PURPOSE_OPTIONS.CHECK_COMMITMENTS,
       label: "Check status of commitment(s)",
     },
-    {
-      id: "other",
-      label: "Others",
-    },
+    { id: InspectionConstants.PURPOSE_OPTIONS.OTHER, label: "Others" },
   ];
 
   const accuracyDetailsOptions = [
-    { id: "poa", label: "Permit to Operate Air (POA)" },
-    { id: "dp", label: "Discharge Permit (DP)" },
-    { id: "pmpin", label: "PMPIN Application" },
-    { id: "hw_id", label: "Hazardous Waste ID Registration" },
-    { id: "hw_transporter", label: "Hazardous Waste Transporter Registration" },
-    { id: "accuracy_other", label: "Others" },
+    {
+      id: InspectionConstants.ACCURACY_DETAILS.POA,
+      label: "Permit to Operate Air (POA)",
+    },
+    {
+      id: InspectionConstants.ACCURACY_DETAILS.DP,
+      label: "Discharge Permit (DP)",
+    },
+    {
+      id: InspectionConstants.ACCURACY_DETAILS.PMPIN,
+      label: "PMPIN Application",
+    },
+    {
+      id: InspectionConstants.ACCURACY_DETAILS.HW_ID,
+      label: "Hazardous Waste ID Registration",
+    },
+    {
+      id: InspectionConstants.ACCURACY_DETAILS.HW_TRANSPORTER,
+      label: "Hazardous Waste Transporter Registration",
+    },
+    { id: InspectionConstants.ACCURACY_DETAILS.OTHER, label: "Others" },
   ];
 
   const commitmentStatusOptions = [
-    { id: "ecowatch", label: "Industrial Ecowatch" },
     {
-      id: "pepp",
+      id: InspectionConstants.COMMITMENT_STATUS.ECOWATCH,
+      label: "Industrial Ecowatch",
+    },
+    {
+      id: InspectionConstants.COMMITMENT_STATUS.PEPP,
       label: "Philippine Environmental Partnership Program (PEPP)",
     },
-    { id: "pab", label: "Pollution Adjudication Board (PAB)" },
-    { id: "commitment_other", label: "Others" },
+    {
+      id: InspectionConstants.COMMITMENT_STATUS.PAB,
+      label: "Pollution Adjudication Board (PAB)",
+    },
+    { id: InspectionConstants.COMMITMENT_STATUS.OTHER, label: "Others" },
   ];
 
   const togglePurpose = (id) => {
@@ -608,9 +447,8 @@ function PurposeOfInspection({ state, setState }) {
     });
   };
 
-  const updateField = (field, value) => {
-    setState({ ...state, [field]: value.toUpperCase() });
-  };
+  const updateField = (field, value, formatter = (v) => formatInput.upper(v)) =>
+    setState({ ...state, [field]: formatter(value) });
 
   return (
     <section className="p-4 mb-6 bg-white border border-black">
@@ -627,9 +465,10 @@ function PurposeOfInspection({ state, setState }) {
             <div className="flex-1">
               <div className="text-black">{p.label}</div>
 
-              {/* Verify Accuracy Details */}
-              {p.id === "verify_accuracy" &&
-                (state.purposes || []).includes("verify_accuracy") && (
+              {p.id === InspectionConstants.PURPOSE_OPTIONS.VERIFY_ACCURACY &&
+                (state.purposes || []).includes(
+                  InspectionConstants.PURPOSE_OPTIONS.VERIFY_ACCURACY
+                ) && (
                   <div className="p-3 mt-3 ml-6 border border-gray-300 rounded">
                     <label className="block mb-2 text-sm font-medium text-black">
                       Verify accuracy of (select all that apply):
@@ -650,10 +489,10 @@ function PurposeOfInspection({ state, setState }) {
                               {item.label}
                             </span>
                           </label>
-                          {/* Accuracy Other Detail Input */}
-                          {item.id === "accuracy_other" &&
+                          {item.id ===
+                            InspectionConstants.ACCURACY_DETAILS.OTHER &&
                             (state.accuracyDetails || []).includes(
-                              "accuracy_other"
+                              InspectionConstants.ACCURACY_DETAILS.OTHER
                             ) && (
                               <div className="mt-2 ml-6">
                                 <label className="block mb-1 text-sm text-black">
@@ -667,7 +506,7 @@ function PurposeOfInspection({ state, setState }) {
                                       e.target.value
                                     )
                                   }
-                                  placeholder="PLEASE SPECIFY OTHER ACCURACY DETAILS..."
+                                  placeholder="PLEASE SPECIFY..."
                                   className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
                                 />
                               </div>
@@ -678,9 +517,10 @@ function PurposeOfInspection({ state, setState }) {
                   </div>
                 )}
 
-              {/* Commitment Status Details */}
-              {p.id === "check_commitments" &&
-                (state.purposes || []).includes("check_commitments") && (
+              {p.id === InspectionConstants.PURPOSE_OPTIONS.CHECK_COMMITMENTS &&
+                (state.purposes || []).includes(
+                  InspectionConstants.PURPOSE_OPTIONS.CHECK_COMMITMENTS
+                ) && (
                   <div className="p-3 mt-3 ml-6 border border-gray-300 rounded">
                     <label className="block mb-2 text-sm font-medium text-black">
                       Check status of (select all that apply):
@@ -701,10 +541,10 @@ function PurposeOfInspection({ state, setState }) {
                               {item.label}
                             </span>
                           </label>
-                          {/* Commitment Other Detail Input */}
-                          {item.id === "commitment_other" &&
+                          {item.id ===
+                            InspectionConstants.COMMITMENT_STATUS.OTHER &&
                             (state.commitmentStatusDetails || []).includes(
-                              "commitment_other"
+                              InspectionConstants.COMMITMENT_STATUS.OTHER
                             ) && (
                               <div className="mt-2 ml-6">
                                 <label className="block mb-1 text-sm text-black">
@@ -718,7 +558,7 @@ function PurposeOfInspection({ state, setState }) {
                                       e.target.value
                                     )
                                   }
-                                  placeholder="PLEASE SPECIFY OTHER COMMITMENT DETAILS..."
+                                  placeholder="PLEASE SPECIFY..."
                                   className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
                                 />
                               </div>
@@ -729,25 +569,30 @@ function PurposeOfInspection({ state, setState }) {
                   </div>
                 )}
 
-              {/* Other Purpose Input */}
-              {p.id === "other" && (state.purposes || []).includes("other") && (
-                <div className="mt-3 ml-6">
-                  <label className="block mb-1 text-sm text-black">
-                    Specify other purpose:
-                  </label>
-                  <textarea
-                    value={state.otherPurpose || ""}
-                    onChange={(e) =>
-                      updateField("otherPurpose", e.target.value)
-                    }
-                    placeholder="PLEASE SPECIFY OTHER PURPOSE OF INSPECTION..."
-                    className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
-                  />
-                </div>
-              )}
+              {p.id === InspectionConstants.PURPOSE_OPTIONS.OTHER &&
+                (state.purposes || []).includes(
+                  InspectionConstants.PURPOSE_OPTIONS.OTHER
+                ) && (
+                  <div className="mt-3 ml-6">
+                    <label className="block mb-1 text-sm text-black">
+                      Specify other purpose:
+                    </label>
+                    <textarea
+                      value={state.otherPurpose || ""}
+                      onChange={(e) =>
+                        updateField("otherPurpose", e.target.value)
+                      }
+                      placeholder="PLEASE SPECIFY..."
+                      className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
+                    />
+                  </div>
+                )}
             </div>
           </div>
         ))}
+        {errors.purpose && (
+          <p className="text-sm text-red-600">{errors.purpose}</p>
+        )}
       </div>
     </section>
   );
@@ -755,12 +600,13 @@ function PurposeOfInspection({ state, setState }) {
 
 /* ---------------------------
    Compliance Status (Permits)
+   - includes date validation & formatting
    ---------------------------*/
-function ComplianceStatus({ permits, setPermits, lawFilter }) {
-  const updatePermitField = (index, field, value) => {
-    const newPermits = [...permits];
-    newPermits[index] = { ...newPermits[index], [field]: value.toUpperCase() };
-    setPermits(newPermits);
+function ComplianceStatus({ permits, setPermits, lawFilter, errors }) {
+  const updatePermitField = (index, field, value, formatter = (v) => v) => {
+    const clone = [...permits];
+    clone[index] = { ...clone[index], [field]: formatter(value) };
+    setPermits(clone);
   };
 
   // Filter permits by selected laws
@@ -800,8 +646,11 @@ function ComplianceStatus({ permits, setPermits, lawFilter }) {
               permitsArr.map((perm, idx) => {
                 const originalIndex = permits.findIndex(
                   (p) =>
-                    p.lawId === perm.lawId && p.permitType === perm.permitType
+                    p === perm ||
+                    (p.lawId === perm.lawId && p.permitType === perm.permitType)
                 );
+                // if not found, skip
+                if (originalIndex === -1) return null;
                 return (
                   <tr key={`${perm.lawId}-${perm.permitType}`}>
                     {idx === 0 && (
@@ -818,21 +667,27 @@ function ComplianceStatus({ permits, setPermits, lawFilter }) {
                     <td className="p-2 border border-black">
                       <input
                         className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-                        value={permits[originalIndex].permitNumber}
+                        value={permits[originalIndex].permitNumber || ""}
                         onChange={(e) =>
                           updatePermitField(
                             originalIndex,
                             "permitNumber",
-                            e.target.value
+                            e.target.value,
+                            formatInput.upper
                           )
                         }
                       />
+                      {errors[`permitNumber-${originalIndex}`] && (
+                        <p className="text-sm text-red-600">
+                          {errors[`permitNumber-${originalIndex}`]}
+                        </p>
+                      )}
                     </td>
                     <td className="p-2 border border-black">
                       <input
                         type="date"
                         className="w-full px-2 py-1 text-black bg-white border border-black"
-                        value={permits[originalIndex].dateIssued}
+                        value={permits[originalIndex].dateIssued || ""}
                         onChange={(e) =>
                           updatePermitField(
                             originalIndex,
@@ -841,12 +696,17 @@ function ComplianceStatus({ permits, setPermits, lawFilter }) {
                           )
                         }
                       />
+                      {errors[`dateIssued-${originalIndex}`] && (
+                        <p className="text-sm text-red-600">
+                          {errors[`dateIssued-${originalIndex}`]}
+                        </p>
+                      )}
                     </td>
                     <td className="p-2 border border-black">
                       <input
                         type="date"
                         className="w-full px-2 py-1 text-black bg-white border border-black"
-                        value={permits[originalIndex].expiryDate}
+                        value={permits[originalIndex].expiryDate || ""}
                         onChange={(e) =>
                           updatePermitField(
                             originalIndex,
@@ -855,6 +715,11 @@ function ComplianceStatus({ permits, setPermits, lawFilter }) {
                           )
                         }
                       />
+                      {errors[`expiryDate-${originalIndex}`] && (
+                        <p className="text-sm text-red-600">
+                          {errors[`expiryDate-${originalIndex}`]}
+                        </p>
+                      )}
                     </td>
                   </tr>
                 );
@@ -876,54 +741,58 @@ function ComplianceStatus({ permits, setPermits, lawFilter }) {
 }
 
 /* ---------------------------
-   Summary Of Compliance (with filtering and add/remove for PD-1586)
+   Summary Of Compliance (with predefined remarks)
    ---------------------------*/
-function SummaryOfCompliance({ items, setItems, lawFilter }) {
-  // Get unique selected laws
-  const selectedLaws = lawFilter && lawFilter.length > 0 ? lawFilter : [];
-
-  // Helper to update an item
-  const updateItem = (index, field, value) => {
+function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
+  useEffect(() => {
+    if (!lawFilter || lawFilter.length === 0) return;
+    let changed = false;
     const clone = [...items];
-    clone[index] = { ...clone[index], [field]: value.toUpperCase() };
+    lawFilter.forEach((lawId) => {
+      const lawItems = InspectionConstants.getComplianceItemsByLaw(lawId) || [];
+      lawItems.forEach((li) => {
+        const exists = clone.find((c) => c.conditionId === li.conditionId);
+        if (!exists) {
+          clone.push({
+            conditionId: li.conditionId,
+            lawId: li.lawId,
+            lawCitation: li.lawCitation,
+            complianceRequirement: li.complianceRequirement || "",
+            compliant: "",
+            remarksOption: "",
+            remarks: "",
+            conditionNumber: "",
+          });
+          changed = true;
+        }
+      });
+    });
+    if (changed) setItems(clone);
+  }, [lawFilter]);
+
+  const updateItem = (
+    index,
+    field,
+    value,
+    formatter = (v) => (typeof v === "string" ? formatInput.upper(v) : v)
+  ) => {
+    const clone = [...items];
+    if (!clone[index]) return;
+    clone[index] = { ...clone[index], [field]: formatter(value) };
     setItems(clone);
-  };
-
-  // Helper to add PD-1586 condition
-  const addPD1586 = () => {
-    const nextId = `PD-1586-${
-      items.filter((i) => i.lawId === "PD-1586").length + 1
-    }`;
-    const newItem = {
-      lawId: "PD-1586",
-      lawCitation:
-        "Presidential Decree No. 1586 (Environmental Impact Statement System)",
-      conditionId: nextId,
-      conditionNumber: "",
-      complianceRequirement: "",
-      compliant: "No",
-      remarks: "",
-    };
-    setItems([...items, newItem]);
-  };
-
-  // Helper to remove item by conditionId
-  const removeByConditionId = (conditionId) => {
-    setItems(items.filter((i) => i.conditionId !== conditionId));
   };
 
   return (
     <section className="p-4 mb-6 bg-white border border-black">
       <SectionHeader title="Summary of Compliance" />
-      {selectedLaws.length === 0 && (
+      {lawFilter.length === 0 && (
         <div className="p-4 text-center text-black">
-          No compliance items for selected laws. Please select applicable laws
-          above.
+          No compliance items for selected laws.
         </div>
       )}
-      {selectedLaws.map((lawId) => {
-        const lawItems = items.filter((it) => it.lawId === lawId);
-        const showActions = lawId === "PD-1586";
+      {lawFilter.map((lawId) => {
+        const lawItems =
+          InspectionConstants.getComplianceItemsByLaw(lawId) || [];
         return (
           <div key={lawId} className="mb-8">
             <div className="mb-2 text-lg font-bold text-black">{lawId}</div>
@@ -931,141 +800,100 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
               <table className="w-full border border-collapse border-black">
                 <thead>
                   <tr>
-                    <th className="p-2 border border-black">
-                      Applicable Laws and Citations
-                    </th>
-                    <th className="p-2 border border-black">
-                      Compliance Requirements
-                    </th>
+                    <th className="p-2 border border-black">Citation</th>
+                    <th className="p-2 border border-black">Requirement</th>
                     <th className="p-2 border border-black">Compliant</th>
                     <th className="p-2 border border-black">Remarks</th>
-                    {showActions && (
-                      <th className="p-2 border border-black">Actions</th>
-                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {lawItems.map((item, idx) => {
+                  {lawItems.map((li) => {
                     const globalIndex = items.findIndex(
-                      (i) => i.conditionId === item.conditionId
+                      (i) => i.conditionId === li.conditionId
                     );
+                    if (globalIndex === -1) return null;
+                    const item = items[globalIndex];
                     return (
-                      <tr key={item.conditionId}>
-                        <td className="p-2 align-top border border-black">
-                          <div className="font-medium text-black">
-                            {item.lawCitation}
-                          </div>
-                          <div className="mt-2 text-sm text-black">
-                            Condition: {item.conditionId}
-                          </div>
-                          {item.lawId === "PD-1586" && (
-                            <div className="mt-2">
+                      <tr key={li.conditionId}>
+                        <td className="p-2 border border-black">
+                          {li.lawCitation}
+                        </td>
+                        <td className="p-2 border border-black">
+                          {li.complianceRequirement}
+                        </td>
+                        <td className="p-2 border border-black">
+                          {Object.values(
+                            InspectionConstants.COMPLIANCE_STATUS
+                          ).map((opt) => (
+                            <label key={opt} className="block">
                               <input
-                                placeholder="CONDITION NO."
-                                value={items[globalIndex].conditionNumber || ""}
-                                onChange={(e) =>
+                                type="radio"
+                                name={`comp-${li.conditionId}`}
+                                checked={item.compliant === opt}
+                                onChange={() =>
                                   updateItem(
                                     globalIndex,
-                                    "conditionNumber",
-                                    e.target.value
+                                    "compliant",
+                                    opt,
+                                    (v) => v
                                   )
                                 }
-                                className="w-32 px-2 py-1 text-black uppercase bg-white border border-black"
-                              />
-                            </div>
+                              />{" "}
+                              {opt}
+                            </label>
+                          ))}
+                          {errors[`compliant-${globalIndex}`] && (
+                            <p className="text-sm text-red-600">
+                              {errors[`compliant-${globalIndex}`]}
+                            </p>
                           )}
                         </td>
-                        <td className="p-2 align-top border border-black">
-                          {item.lawId === "PD-1586" ? (
+                        <td className="p-2 border border-black">
+                          <select
+                            value={item.remarksOption || ""}
+                            onChange={(e) =>
+                              updateItem(
+                                globalIndex,
+                                "remarksOption",
+                                e.target.value
+                              )
+                            }
+                            className="w-full px-2 py-1 text-black bg-white border border-black"
+                          >
+                            <option value="">-- Select Remark --</option>
+                            {PREDEFINED_REMARKS.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                          {item.remarksOption === "Other" && (
                             <textarea
-                              value={
-                                items[globalIndex].complianceRequirement || ""
-                              }
+                              value={item.remarks || ""}
                               onChange={(e) =>
                                 updateItem(
                                   globalIndex,
-                                  "complianceRequirement",
-                                  e.target.value
+                                  "remarks",
+                                  e.target.value,
+                                  formatInput.upper
                                 )
                               }
-                              className="w-full border border-black px-2 py-1 min-h-[60px] bg-white text-black uppercase"
+                              placeholder="ENTER REMARKS..."
+                              className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase mt-2"
                             />
-                          ) : (
-                            <div className="px-2 py-1 min-h-[60px]">
-                              {item.complianceRequirement}
-                            </div>
+                          )}
+                          {errors[`remarks-${globalIndex}`] && (
+                            <p className="text-sm text-red-600">
+                              {errors[`remarks-${globalIndex}`]}
+                            </p>
                           )}
                         </td>
-                        <td className="p-2 align-top border border-black">
-                          <div className="flex flex-col gap-2">
-                            {["Yes", "No"].map((opt) => (
-                              <label
-                                key={opt}
-                                className="flex items-center gap-2"
-                              >
-                                <input
-                                  type="radio"
-                                  name={`comp-${item.conditionId}`}
-                                  checked={items[globalIndex].compliant === opt}
-                                  onChange={() =>
-                                    updateItem(globalIndex, "compliant", opt)
-                                  }
-                                  className="w-4 h-4 border-black"
-                                />
-                                <span className="text-black">{opt}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="p-2 align-top border border-black">
-                          <textarea
-                            value={items[globalIndex].remarks || ""}
-                            onChange={(e) =>
-                              updateItem(globalIndex, "remarks", e.target.value)
-                            }
-                            placeholder="ENTER REMARKS..."
-                            className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase"
-                          />
-                        </td>
-                        {showActions && (
-                          <td className="p-2 border border-black">
-                            <button
-                              onClick={() =>
-                                removeByConditionId(item.conditionId)
-                              }
-                              className="px-2 py-1 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
-                            >
-                              Remove
-                            </button>
-                          </td>
-                        )}
                       </tr>
                     );
                   })}
-                  {lawItems.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={showActions ? 5 : 4}
-                        className="p-4 text-center text-black"
-                      >
-                        No compliance items for {lawId}.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
-            {/* Add PD-1586 button only shown when PD-1586 is selected */}
-            {lawId === "PD-1586" && (
-              <div className="mt-4">
-                <button
-                  onClick={addPD1586}
-                  className="px-4 py-2 text-black bg-white border border-black"
-                >
-                  Add PD-1586 Condition
-                </button>
-              </div>
-            )}
           </div>
         );
       })}
@@ -1074,13 +902,14 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
 }
 
 /* ---------------------------
-   Summary Of Findings and Observations
+   Summary Of Findings and Observations (with predefined remarks)
    ---------------------------*/
-/* ---------------------------
-   Summary Of Findings and Observations
-   ---------------------------*/
-function SummaryOfFindingsAndObservations({ systems, setSystems, lawFilter }) {
-  // Always show "Commitment/s from previous Technical Conference"
+function SummaryOfFindingsAndObservations({
+  systems,
+  setSystems,
+  lawFilter,
+  errors,
+}) {
   const filteredSystems = useMemo(() => {
     if (!lawFilter || lawFilter.length === 0) return systems;
     return systems.filter(
@@ -1092,14 +921,17 @@ function SummaryOfFindingsAndObservations({ systems, setSystems, lawFilter }) {
 
   const setRadioStatus = (index, status) => {
     const clone = [...systems];
-    clone[index].compliant = status === "compliant";
-    clone[index].nonCompliant = status === "nonCompliant";
+    clone[index] = {
+      ...clone[index],
+      compliant: status === "compliant",
+      nonCompliant: status === "nonCompliant",
+    };
     setSystems(clone);
   };
 
-  const updateRemarks = (index, val) => {
+  const updateField = (index, field, value, formatter = (v) => v) => {
     const clone = [...systems];
-    clone[index] = { ...clone[index], remarks: val.toUpperCase() };
+    clone[index] = { ...clone[index], [field]: formatter(value) };
     setSystems(clone);
   };
 
@@ -1107,57 +939,76 @@ function SummaryOfFindingsAndObservations({ systems, setSystems, lawFilter }) {
     <section className="p-4 mb-6 bg-white border border-black">
       <SectionHeader title="Summary of Findings and Observations" />
       <div className="space-y-4">
-        {filteredSystems.map((s, i) => {
-          // Find the global index in the original systems array
+        {filteredSystems.map((s) => {
           const globalIndex = systems.findIndex(
             (sys) => sys.system === s.system
           );
+          if (globalIndex === -1) return null;
           return (
             <div key={s.system} className="p-3 border border-black">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center justify-between">
                 <div className="font-medium text-black">{s.system}</div>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2">
+                <div className="flex gap-4">
+                  <label>
                     <input
                       type="radio"
-                      name={`finding-status-${s.system}`}
-                      checked={systems[globalIndex].compliant}
+                      checked={s.compliant === true}
                       onChange={() => setRadioStatus(globalIndex, "compliant")}
-                      className="w-4 h-4 border-black"
-                    />
-                    <span className="text-sm text-black">Compliant</span>
+                    />{" "}
+                    Compliant
                   </label>
-                  <label className="flex items-center gap-2">
+                  <label>
                     <input
                       type="radio"
-                      name={`finding-status-${s.system}`}
-                      checked={systems[globalIndex].nonCompliant}
+                      checked={s.nonCompliant === true}
                       onChange={() =>
                         setRadioStatus(globalIndex, "nonCompliant")
                       }
-                      className="w-4 h-4 border-black"
-                    />
-                    <span className="text-sm text-black">Non-Compliant</span>
+                    />{" "}
+                    Non-Compliant
                   </label>
                 </div>
               </div>
 
               <div className="mt-2">
-                <textarea
-                  value={systems[globalIndex].remarks || ""}
-                  onChange={(e) => updateRemarks(globalIndex, e.target.value)}
-                  placeholder="ENTER REMARKS..."
-                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase"
-                />
+                <select
+                  value={s.remarksOption || ""}
+                  onChange={(e) =>
+                    updateField(globalIndex, "remarksOption", e.target.value)
+                  }
+                  className="w-full px-2 py-1 text-black bg-white border border-black"
+                >
+                  <option value="">-- Select Remark --</option>
+                  {PREDEFINED_REMARKS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+                {s.remarksOption === "Other" && (
+                  <textarea
+                    value={s.remarks || ""}
+                    onChange={(e) =>
+                      updateField(
+                        globalIndex,
+                        "remarks",
+                        e.target.value,
+                        formatInput.upper
+                      )
+                    }
+                    placeholder="ENTER REMARKS..."
+                    className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase mt-2"
+                  />
+                )}
+                {s.nonCompliant && errors[`sysRemarks-${globalIndex}`] && (
+                  <p className="text-sm text-red-600">
+                    {errors[`sysRemarks-${globalIndex}`]}
+                  </p>
+                )}
               </div>
             </div>
           );
         })}
-        {filteredSystems.length === 0 && (
-          <div className="p-4 text-center text-black">
-            No findings for selected laws.
-          </div>
-        )}
       </div>
     </section>
   );
@@ -1166,18 +1017,7 @@ function SummaryOfFindingsAndObservations({ systems, setSystems, lawFilter }) {
 /* ---------------------------
    Recommendations
    ---------------------------*/
-function Recommendations({ recState, setRecState }) {
-  const RECS = [
-    "For confirmatory sampling/further monitoring",
-    "For issuance of Temporary/Renewal of permit to operate (POA) and/or Renewal of Discharge Permit (DP)",
-    "For accreditation of Pollution Control Office(PCO)/Seminar requirement of Managing Head",
-    "For Submission of Self-Monitoring Report (SMR)/Compliance monitoring Report(CMR)",
-    "For issuance of Notice of Violation(NOV)",
-    "For issuance of suspension of ECC/5-day CDO",
-    "For endorsement to Pollution Adjudication Board (PAB)",
-    "Other Recommendations",
-  ];
-
+function Recommendations({ recState, setRecState, errors }) {
   const toggle = (label) => {
     const set = new Set(recState.checked || []);
     if (set.has(label)) set.delete(label);
@@ -1186,22 +1026,22 @@ function Recommendations({ recState, setRecState }) {
   };
 
   const updateField = (field, value) => {
-    setRecState({ ...recState, [field]: value.toUpperCase() });
+    setRecState({ ...recState, [field]: formatInput.upper(value) });
   };
 
   return (
     <section className="p-4 mb-6 bg-white border border-black">
       <SectionHeader title="Recommendations" />
       <div className="space-y-3">
-        {RECS.map((r) => (
-          <label key={r} className="flex items-center gap-2">
+        {InspectionConstants.RECOMMENDATIONS.map((r) => (
+          <label key={r.id} className="flex items-center gap-2">
             <input
               type="checkbox"
-              checked={(recState.checked || []).includes(r)}
-              onChange={() => toggle(r)}
+              checked={(recState.checked || []).includes(r.label)}
+              onChange={() => toggle(r.label)}
               className="w-4 h-4"
             />
-            <span className="text-sm text-black">{r}</span>
+            <span className="text-sm text-black">{r.label}</span>
           </label>
         ))}
 
@@ -1213,20 +1053,32 @@ function Recommendations({ recState, setRecState }) {
               placeholder="ENTER OTHER RECOMMENDATION..."
               className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
             />
+            {errors.recommendations && (
+              <p className="text-sm text-red-600">{errors.recommendations}</p>
+            )}
           </div>
         )}
       </div>
     </section>
   );
 }
+
 /* ---------------------------
    Internal Header
    ---------------------------*/
-function InternalHeader({ onSave, onClose }) {
+function InternalHeader({ onSave, onClose, lastSaveTime, isOnline }) {
   return (
     <header className="fixed left-0 z-10 flex items-center justify-between w-full px-6 py-2 bg-white border-b border-gray-200 top-18">
       <div className="text-xl font-bold text-sky-700">Inspection Form</div>
-      <div className="flex gap-4">
+      <div className="flex items-center gap-4">
+        <div className="text-sm text-gray-600">
+          {isOnline ? "Online" : "Offline"}
+        </div>
+        <div className="text-sm text-gray-600">
+          {lastSaveTime
+            ? `Saved: ${new Date(lastSaveTime).toLocaleString()}`
+            : ""}
+        </div>
         <button
           onClick={onClose}
           className="px-2 py-1 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
@@ -1245,27 +1097,25 @@ function InternalHeader({ onSave, onClose }) {
 }
 
 /* ---------------------------
-   Main App
+   Main App (export default)
    ---------------------------*/
 export default function App({ inspectionData }) {
-  // Create a unique key for localStorage based on inspection ID
   const storageKey = `inspection-form-${inspectionData?.id || "draft"}`;
 
-  // Load initial data from localStorage if available, otherwise use empty state
+  // Load saved draft
   const loadSavedData = () => {
     try {
-      const savedData = localStorage.getItem(storageKey);
-      if (savedData) {
-        return JSON.parse(savedData);
-      }
-    } catch (error) {
-      console.error("Error loading saved data:", error);
+      const raw = localStorage.getItem(storageKey);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {
+      console.error("loadSavedData error", e);
     }
     return null;
   };
 
   const savedData = loadSavedData();
 
+  // State
   const [general, setGeneral] = useState(
     savedData?.general || {
       establishmentName: "",
@@ -1278,14 +1128,6 @@ export default function App({ inspectionData }) {
       operatingHours: "",
       operatingDaysPerWeek: "",
       operatingDaysPerYear: "",
-      productLines: "",
-      declaredProductionRate: "",
-      actualProductionRate: "",
-      managingHead: "",
-      pcoName: "",
-      interviewedPerson: "",
-      pcoAccreditationNo: "",
-      effectivityDate: "",
       phoneFaxNo: "",
       emailAddress: "",
     }
@@ -1302,95 +1144,29 @@ export default function App({ inspectionData }) {
     }
   );
 
-  const [permits, setPermits] = useState(savedData?.permits || initialPermits);
-  const [complianceItems, setComplianceItems] = useState(
-    savedData?.complianceItems || initialComplianceItems
+  const [permits, setPermits] = useState(
+    savedData?.permits || InspectionConstants.initialPermits || []
   );
-
+  const [complianceItems, setComplianceItems] = useState(
+    savedData?.complianceItems ||
+      InspectionConstants.initialComplianceItems ||
+      []
+  );
   const [systems, setSystems] = useState(
-    savedData?.systems || [
-      {
-        lawId: "PD-1586",
-        system: "Environmental Impact Statement System",
-        compliant: false,
-        nonCompliant: false,
-        notApplicable: false,
-        remarks: "",
-      },
-      {
-        lawId: "RA-6969",
-        system: "Chemical Management",
-        compliant: false,
-        nonCompliant: false,
-        notApplicable: false,
-        remarks: "",
-      },
-      {
-        lawId: "RA-6969",
-        system: "Hazardous Waste Management",
-        compliant: false,
-        nonCompliant: false,
-        notApplicable: false,
-        remarks: "",
-      },
-      {
-        lawId: "RA-8749",
-        system: "Air Quality Management",
-        compliant: false,
-        nonCompliant: false,
-        notApplicable: false,
-        remarks: "",
-      },
-      {
-        lawId: "RA-9275",
-        system: "Water Quality Management",
-        compliant: false,
-        nonCompliant: false,
-        notApplicable: false,
-        remarks: "",
-      },
-      {
-        lawId: "RA-9003",
-        system: "Solid Waste Management",
-        compliant: false,
-        nonCompliant: false,
-        notApplicable: false,
-        remarks: "",
-      },
-      {
-        system: "Commitment/s from previous Technical Conference",
-        compliant: false,
-        nonCompliant: false,
-        notApplicable: false,
-        remarks: "",
-      },
-    ]
+    savedData?.systems || InspectionConstants.INSPECTION_SYSTEMS || []
   );
   const [recommendationState, setRecommendationState] = useState(
-    savedData?.recommendationState || {
-      checked: [],
-    }
+    savedData?.recommendationState || { checked: [], otherText: "" }
   );
 
   const [lawFilter, setLawFilter] = useState(savedData?.lawFilter || []);
-  const [lastSaveTime, setLastSaveTime] = useState(null);
+  const [lastSaveTime, setLastSaveTime] = useState(
+    savedData?.lastSaved || null
+  );
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [errors, setErrors] = useState({});
 
-  // Monitor online/offline status
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  // Auto-save to localStorage whenever any state changes
+  // Auto-save
   useEffect(() => {
     const saveData = {
       general,
@@ -1402,12 +1178,11 @@ export default function App({ inspectionData }) {
       lawFilter,
       lastSaved: new Date().toISOString(),
     };
-
     try {
       localStorage.setItem(storageKey, JSON.stringify(saveData));
       setLastSaveTime(new Date().toISOString());
-    } catch (error) {
-      console.error("Error saving to localStorage:", error);
+    } catch (e) {
+      console.error("auto-save error", e);
     }
   }, [
     general,
@@ -1417,14 +1192,138 @@ export default function App({ inspectionData }) {
     systems,
     recommendationState,
     lawFilter,
-    storageKey,
   ]);
 
-  const handleLawFilterChange = (selectedLaws) => {
-    setLawFilter(selectedLaws);
+  // Online/offline
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Prefill law filter from inspectionData
+  useEffect(() => {
+    if (inspectionData?.section) {
+      setLawFilter([inspectionData.section]);
+    }
+  }, [inspectionData]);
+
+  /* ======================
+     Validation
+     ====================== */
+  const validateForm = () => {
+    const errs = {};
+
+    // General Info
+    if (!general.establishmentName)
+      errs.establishmentName = "Establishment name is required.";
+    if (!general.address) errs.address = "Address is required.";
+
+    if (general.coordinates) {
+      const parts = general.coordinates.split(",").map((s) => s.trim());
+      if (
+        parts.length !== 2 ||
+        isNaN(Number(parts[0])) ||
+        isNaN(Number(parts[1]))
+      ) {
+        errs.coordinates = "Coordinates must be in 'lat, lon' decimal format.";
+      }
+    }
+
+    if (general.yearEstablished) {
+      if (!/^\d{4}$/.test(general.yearEstablished)) {
+        errs.yearEstablished = "Enter a 4-digit year.";
+      } else if (Number(general.yearEstablished) > new Date().getFullYear()) {
+        errs.yearEstablished = "Year cannot be in the future.";
+      }
+    } else {
+      errs.yearEstablished = "Year established is required.";
+    }
+
+    if (general.emailAddress) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(general.emailAddress))
+        errs.emailAddress = "Enter a valid email.";
+    }
+
+    if (general.inspectionDateTime) {
+      const inspDate = new Date(general.inspectionDateTime);
+      if (isNaN(inspDate.getTime())) {
+        errs.inspectionDateTime = "Invalid inspection date/time.";
+      } else if (inspDate < new Date()) {
+        errs.inspectionDateTime = "Inspection date/time cannot be in the past.";
+      }
+    } else {
+      errs.inspectionDateTime = "Inspection date/time is required.";
+    }
+
+    // Permits
+    permits.forEach((p, i) => {
+      if (!p.permitNumber)
+        errs[`permitNumber-${i}`] = "Permit number is required.";
+      if (!p.dateIssued) {
+        errs[`dateIssued-${i}`] = "Date issued is required.";
+      } else if (isFutureDate(p.dateIssued)) {
+        errs[`dateIssued-${i}`] = "Date issued cannot be in the future.";
+      }
+      if (!p.expiryDate) {
+        errs[`expiryDate-${i}`] = "Expiry date is required.";
+      } else if (p.dateIssued && !isSameOrAfter(p.expiryDate, p.dateIssued)) {
+        errs[`expiryDate-${i}`] = "Expiry must be after issued date.";
+      }
+    });
+
+    // Compliance
+    complianceItems.forEach((c, i) => {
+      if (!c.compliant) errs[`compliant-${i}`] = "Select compliance status.";
+      if (c.compliant === "Non-Compliant") {
+        if (!c.remarksOption) errs[`remarks-${i}`] = "Select a remark option.";
+        if (c.remarksOption === "Other" && !c.remarks)
+          errs[`remarks-${i}`] = "Enter custom remarks.";
+      }
+    });
+
+    // Findings
+    systems.forEach((s, i) => {
+      if (!s.compliant && !s.nonCompliant)
+        errs[`systemStatus-${i}`] = `Select status for "${s.system}".`;
+      if (s.nonCompliant) {
+        if (!s.remarksOption)
+          errs[`sysRemarks-${i}`] = "Select a remark option.";
+        if (s.remarksOption === "Other" && !s.remarks)
+          errs[`sysRemarks-${i}`] = "Enter custom remarks.";
+      }
+    });
+
+    // Recommendations
+    if (!recommendationState.checked?.length)
+      errs.recommendations = "Select at least one recommendation.";
+    if (
+      recommendationState.checked?.includes("Other Recommendations") &&
+      !recommendationState.otherText
+    ) {
+      errs.recommendations = "Provide text for other recommendation.";
+    }
+
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
   };
 
+  /* ======================
+     Handlers
+     ====================== */
   const handleSave = () => {
+    if (!validateForm()) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      alert("Please fix errors before saving.");
+      return;
+    }
+
     const formData = {
       general,
       purpose,
@@ -1434,76 +1333,91 @@ export default function App({ inspectionData }) {
       recommendationState,
     };
 
-    console.log("Form data to save:", formData);
+    console.log("✅ Form ready to submit:", formData);
 
-    // Clear the saved draft after successful save
-    localStorage.removeItem(storageKey);
-    alert("Form submitted successfully! Draft cleared.");
+    try {
+      localStorage.removeItem(storageKey);
+    } catch (e) {
+      console.error("clear draft error", e);
+    }
+    alert("Form submitted successfully!");
   };
 
   const handleClose = () => {
-    // Ask user if they want to keep the draft
-    const keepDraft = confirm("Would you like to keep your draft for later?");
-    if (!keepDraft) {
-      localStorage.removeItem(storageKey);
-    }
-    alert("Form closed." + (keepDraft ? " Draft saved for later." : ""));
+    const keep = confirm("Keep your draft?");
+    if (!keep) localStorage.removeItem(storageKey);
+    alert(keep ? "Form closed, draft saved." : "Form closed, draft discarded.");
   };
 
-  // Check if there's a saved draft when component mounts
-  useEffect(() => {
-    if (savedData) {
-      const loadDraft = confirm(
-        "We found a saved draft. Would you like to load it?"
-      );
-      if (loadDraft) {
-        // Data already loaded from localStorage in initialState
-        console.log("Loaded saved draft");
-      } else {
-        // Clear the saved data if user doesn't want it
-        localStorage.removeItem(storageKey);
-        console.log("Discarded saved draft");
-      }
-    }
-  }, []);
-
+  /* ======================
+     Render
+     ====================== */
   return (
-    <div className="min-h-screen bg-white">
-      {/* Fixed Header - Add status indicator */}
-      <InternalHeader onSave={handleSave} onClose={handleClose} />
+    <div className="min-h-screen pb-8 bg-white">
+      <InternalHeader
+        onSave={handleSave}
+        onClose={handleClose}
+        lastSaveTime={lastSaveTime}
+        isOnline={isOnline}
+      />
 
-      {/* Scrollable Content - Add padding for status bar */}
-      <div className="p-2">
+      <div className="p-4 pt-28">
         <GeneralInformation
           data={general}
           setData={setGeneral}
-          onLawFilterChange={handleLawFilterChange}
+          onLawFilterChange={setLawFilter}
           inspectionData={inspectionData}
+          errors={errors}
         />
-        <PurposeOfInspection state={purpose} setState={setPurpose} />
+        <PurposeOfInspection
+          state={purpose}
+          setState={setPurpose}
+          errors={errors}
+        />
+
         {lawFilter.length > 0 && (
           <>
             <ComplianceStatus
               permits={permits}
               setPermits={setPermits}
               lawFilter={lawFilter}
+              errors={errors}
             />
             <SummaryOfCompliance
               items={complianceItems}
               setItems={setComplianceItems}
               lawFilter={lawFilter}
+              errors={errors}
             />
             <SummaryOfFindingsAndObservations
               systems={systems}
               setSystems={setSystems}
               lawFilter={lawFilter}
+              errors={errors}
             />
           </>
         )}
+
         <Recommendations
           recState={recommendationState}
           setRecState={setRecommendationState}
+          errors={errors}
         />
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-white rounded bg-sky-600"
+          >
+            Save
+          </button>
+          <button
+            onClick={handleClose}
+            className="px-4 py-2 text-gray-700 bg-gray-200 rounded"
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );

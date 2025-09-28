@@ -12,9 +12,15 @@ export const COMPLIANCE_CATEGORIES = {
 export const COMPLIANCE_STATUS = {
   COMPLIANT: "Yes",
   NON_COMPLIANT: "No",
-  NOT_APPLICABLE: "N/A",
-  PARTIAL: "Partial",
 };
+
+export const PREDEFINED_REMARKS = [
+  "Documents Complete",
+  "Minor Deficiency",
+  "Major Deficiency",
+  "For Monitoring",
+  "Other",
+];
 
 export const initialComplianceItems = [
   {
