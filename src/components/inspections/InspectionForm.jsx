@@ -156,18 +156,40 @@ function GeneralInformation({
       inspectionData.establishments.length > 0
     ) {
       const establishment = inspectionData.establishments[0];
-      const address = establishment.address;
-      const coordinates = establishment.coordinates;
+
+      // Safely access address properties with fallbacks
+      const address = establishment.address || {};
+      const coordinates = establishment.coordinates || {};
+
+      // Handle different address structures (could be nested object or flat properties)
+      const street = address.street || establishment.street_building || "";
+      const barangay = address.barangay || establishment.barangay || "";
+      const city = address.city || establishment.city || "";
+      const province = address.province || establishment.province || "";
+      const postalCode = address.postalCode || establishment.postal_code || "";
+
+      const fullAddress =
+        `${street}, ${barangay}, ${city}, ${province}, ${postalCode}`.toUpperCase();
+
+      const coordinatesString =
+        coordinates.latitude && coordinates.longitude
+          ? `${coordinates.latitude}, ${coordinates.longitude}`.toUpperCase()
+          : establishment.latitude && establishment.longitude
+          ? `${establishment.latitude}, ${establishment.longitude}`.toUpperCase()
+          : "";
 
       const newData = {
         ...data,
-        establishmentName: establishment.name.toUpperCase(),
-        address:
-          `${address.street}, ${address.barangay}, ${address.city}, ${address.province}, ${address.postalCode}`.toUpperCase(),
-        coordinates:
-          `${coordinates.latitude}, ${coordinates.longitude}`.toUpperCase(),
-        natureOfBusiness: establishment.natureOfBusiness.toUpperCase(),
-        yearEstablished: establishment.yearEstablished || "", // Make sure this is correctly mapped
+        establishmentName: (establishment.name || "").toUpperCase(),
+        address: fullAddress,
+        coordinates: coordinatesString,
+        natureOfBusiness: (
+          establishment.natureOfBusiness ||
+          establishment.nature_of_business ||
+          ""
+        ).toUpperCase(),
+        yearEstablished:
+          establishment.yearEstablished || establishment.year_established || "",
         environmentalLaws: [inspectionData.section], // Set the law from inspection
       };
 
@@ -209,7 +231,7 @@ function GeneralInformation({
       "address",
       "coordinates",
       "natureOfBusiness",
-      "yearEstablished", // Add yearEstablished to auto-filled fields
+      "yearEstablished",
     ];
 
     if (!autoFilledFields.includes(field)) {
@@ -1050,6 +1072,10 @@ function SummaryOfCompliance({ items, setItems, lawFilter }) {
     </section>
   );
 }
+
+/* ---------------------------
+   Summary Of Findings and Observations
+   ---------------------------*/
 /* ---------------------------
    Summary Of Findings and Observations
    ---------------------------*/

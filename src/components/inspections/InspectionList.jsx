@@ -15,10 +15,11 @@ import {
 } from "lucide-react";
 import WorkflowStatus from "./WorkflowStatus";
 import ExportModal from "../ExportModal";
-import Header from "../Header";
-import Footer from "../Footer";
-import LayoutWithSidebar from "../LayoutWithSidebar";
-import { getInspections, searchInspections } from "../../services/api";
+import {
+  getInspections,
+  searchInspections,
+  getEstablishments,
+} from "../../services/api";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -38,25 +39,34 @@ const useDebounce = (value, delay) => {
 };
 
 export default function InspectionList({
+  inspections: propInspections,
   onAdd,
   onView,
   userLevel,
   onWorkflowOpen,
   loading = false,
   canCreate = false,
+  pagination,
+  onPageChange,
+  searchQuery: propSearchQuery,
+  onSearch,
 }) {
-  const [inspections, setInspections] = useState([]);
+  const [inspections, setInspections] = useState(propInspections || []);
   const [establishments, setEstablishments] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [searchMode, setSearchMode] = useState(false);
+  // Use props if provided, otherwise manage state internally
+  const [internalSearchQuery, setInternalSearchQuery] = useState("");
+  const searchQuery =
+    propSearchQuery !== undefined ? propSearchQuery : internalSearchQuery;
+  const setSearchQuery = onSearch || setInternalSearchQuery;
 
-  // Search state
-  const [searchQuery, setSearchQuery] = useState("");
+  const [internalCurrentPage, setInternalCurrentPage] = useState(1);
+  const currentPage =
+    pagination?.page !== undefined ? pagination.page : internalCurrentPage;
+  const setCurrentPage = onPageChange || setInternalCurrentPage;
+
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
   // Filters
@@ -72,84 +82,32 @@ export default function InspectionList({
   const [selectedInspections, setSelectedInspections] = useState([]);
   const [showExportModal, setShowExportModal] = useState(false);
 
-  // Fetch data based on mode (search or all)
-  const fetchData = useCallback(async () => {
-    setLoadingData(true);
-    try {
-      let data;
-      if (debouncedSearchQuery && debouncedSearchQuery.length >= 2) {
-        setSearchMode(true);
-        const result = await searchInspections(
-          debouncedSearchQuery,
-          currentPage,
-          pageSize
-        );
-        data = result.results || [];
-        setTotalCount(result.count || 0);
-      } else {
-        setSearchMode(false);
-        const allData = await getInspections({
-          page: currentPage,
-          page_size: pageSize,
-        });
-        data = allData.results || [];
-        setTotalCount(allData.count || 0);
-      }
-
-      // Map backend to frontend expected model
-      const mapped = data.map((d) => ({
-        id: d.code || `${d.id}`,
-        establishmentId: d.establishment,
-        section: d.section,
-        status: d.status,
-        can_act: d.can_act,
-        current_assignee_name: d.current_assignee_name,
-        workflow_comments: d.workflow_comments,
-        assigned_legal_unit_name: d.assigned_legal_unit_name,
-        assigned_division_head_name: d.assigned_division_head_name,
-        assigned_section_chief_name: d.assigned_section_chief_name,
-        assigned_unit_head_name: d.assigned_unit_head_name,
-        assigned_monitor_name: d.assigned_monitor_name,
-        billing_record: d.billing_record,
-        compliance_call: d.compliance_call,
-        inspection_list: d.inspection_list,
-        applicable_laws: d.applicable_laws,
-        inspection_notes: d.inspection_notes,
-        establishment_detail: d.establishment_detail,
-        created_at: d.created_at,
-        updated_at: d.updated_at,
-      }));
-
-      setInspections(mapped);
-    } catch (err) {
-      console.error("Error fetching inspections:", err);
-      if (window.showNotification) {
-        window.showNotification("error", "Error fetching inspections");
-      }
-    } finally {
-      setLoadingData(false);
-    }
-  }, [debouncedSearchQuery, currentPage, pageSize]);
-
-  // Fetch establishments for inspection details
+  // Fetch establishments
   const fetchEstablishments = useCallback(async () => {
     try {
       const data = await getEstablishments();
-      setEstablishments(data);
+      const formatted = data.results ? data.results : data; // Handle both paginated and non-paginated responses
+      setEstablishments(formatted);
     } catch (err) {
       console.error("Error fetching establishments:", err);
+      setEstablishments([]);
     }
   }, []);
 
+  // Use prop inspections or fetch internally
   useEffect(() => {
-    fetchData();
-    fetchEstablishments();
-  }, [fetchData, fetchEstablishments]);
+    if (propInspections !== undefined) {
+      setInspections(propInspections);
+      setLoadingData(false);
+    } else {
+      // Internal fetching logic would go here
+      setLoadingData(false);
+    }
+  }, [propInspections]);
 
-  // Reset to page 1 when search changes
   useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearchQuery]);
+    fetchEstablishments();
+  }, [fetchEstablishments]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -238,10 +196,8 @@ export default function InspectionList({
     setCurrentPage(1);
   };
 
-  // Filter inspections locally when not in search mode
+  // Filter inspections
   const filteredInspections = useMemo(() => {
-    if (searchMode) return inspections;
-
     let list = inspections.filter((inspection) => {
       const establishment = establishments.find(
         (e) => e.id === inspection.establishmentId
@@ -286,14 +242,7 @@ export default function InspectionList({
     }
 
     return list;
-  }, [
-    inspections,
-    establishments,
-    sectionFilter,
-    statusFilter,
-    sortConfig,
-    searchMode,
-  ]);
+  }, [inspections, establishments, sectionFilter, statusFilter, sortConfig]);
 
   // Flatten inspections with establishment details
   const flattenedInspections = useMemo(() => {
@@ -325,9 +274,11 @@ export default function InspectionList({
   };
 
   // Pagination
-  const totalPages = Math.ceil(totalCount / pageSize);
+  const totalCountToUse = pagination?.totalCount || totalCount;
+  const pageSize = pagination?.pageSize || 10;
+  const totalPages = Math.ceil(totalCountToUse / pageSize);
   const startItem = (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, totalCount);
+  const endItem = Math.min(currentPage * pageSize, totalCountToUse);
 
   const goToPage = (page) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
@@ -364,28 +315,6 @@ export default function InspectionList({
   const uniqueStatuses = [
     ...new Set(inspections.map((i) => i.status).filter(Boolean)),
   ].sort();
-
-  // Fixed loading state
-  if (loading || (loadingData && flattenedInspections.length === 0)) {
-    return (
-      <>
-        <Header />
-        <LayoutWithSidebar userLevel={userLevel}>
-          <div
-            className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-50"
-            role="status"
-            aria-live="polite"
-          >
-            <div className="w-8 h-8 mb-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
-            <p className="text-sm text-center text-gray-600">
-              Loading inspections...
-            </p>
-          </div>
-        </LayoutWithSidebar>
-        <Footer />
-      </>
-    );
-  }
 
   return (
     <div className="p-4 bg-white rounded shadow">
@@ -701,18 +630,22 @@ export default function InspectionList({
                   </td>
                   <td className="px-2 py-3 border border-gray-300">
                     <div className="font-medium">
-                      {inspection.establishment.name}
+                      {inspection.establishment.name || "N/A"}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {inspection.establishment.nature_of_business}
+                      {inspection.establishment.nature_of_business || "N/A"}
                     </div>
                   </td>
                   <td className="px-2 py-3 border border-gray-300">
                     <div className="text-xs">
-                      {`${inspection.establishment.street_building}, ${inspection.establishment.barangay}`}
+                      {`${inspection.establishment.street_building || ""}, ${
+                        inspection.establishment.barangay || ""
+                      }`}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {`${inspection.establishment.city}, ${inspection.establishment.province}`}
+                      {`${inspection.establishment.city || ""}, ${
+                        inspection.establishment.province || ""
+                      }`}
                     </div>
                   </td>
                   <td className="px-2 py-3 text-center border border-gray-300">
@@ -772,13 +705,10 @@ export default function InspectionList({
       </div>
 
       {/* Pagination */}
-      {totalCount > 0 && (
+      {totalCountToUse > 0 && (
         <div className="flex items-center justify-between mt-4">
           <div className="text-sm text-gray-600">
-            Showing {startItem} to {endItem} of {totalCount} entries
-            {searchMode && debouncedSearchQuery && (
-              <span className="ml-2">(search results)</span>
-            )}
+            Showing {startItem} to {endItem} of {totalCountToUse} entries
           </div>
 
           <div className="flex items-center gap-2">
@@ -831,8 +761,7 @@ export default function InspectionList({
             <select
               value={pageSize}
               onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
+                // Handle page size change if needed
               }}
               className="px-2 py-1 border rounded"
             >
@@ -870,9 +799,11 @@ export default function InspectionList({
           const inspection = flattenedInspections.find((i) => i.id === id);
           return [
             inspection.id,
-            inspection.establishment.name,
-            `${inspection.establishment.street_building}, ${inspection.establishment.city}`,
-            inspection.establishment.nature_of_business,
+            inspection.establishment.name || "N/A",
+            `${inspection.establishment.street_building || ""}, ${
+              inspection.establishment.city || ""
+            }`,
+            inspection.establishment.nature_of_business || "N/A",
             inspection.section,
             statusLabels[inspection.status] || inspection.status,
             inspection.current_assignee_name || "Unassigned",
