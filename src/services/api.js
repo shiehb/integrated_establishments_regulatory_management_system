@@ -227,9 +227,24 @@ export const getInspectionSearchSuggestions = async (query) => {
   return res.data;
 };
 
-export const createInspection = async (payload) => {
-  const res = await api.post("inspections/", payload);
-  return res.data;
+export const createInspection = async (inspectionData) => {
+  try {
+    console.log("Sending inspection data:", inspectionData);
+    const res = await api.post("inspections/", inspectionData);
+    console.log("Inspection created successfully:", res.data);
+    return res.data;
+  } catch (error) {
+    console.error("Create inspection error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        error.response?.data?.establishment?.[0] ||
+        error.response?.data?.section?.[0] ||
+        "Failed to create inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
 export const assignInspection = async (id, payload) => {

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { X } from "lucide-react";
 import ConfirmationDialog from "../common/ConfirmationDialog";
+import { createInspection } from "../../services/api";
 
 export default function InspectionWizard({
   establishments,
@@ -8,11 +9,13 @@ export default function InspectionWizard({
   onSave,
   getLastInspectionLaw,
   existingInspections,
+  userLevel,
 }) {
   const [step, setStep] = useState(1);
   const [selectedEstablishments, setSelectedEstablishments] = useState([]);
   const [selectedLaw, setSelectedLaw] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const wizardRef = useRef(null);
 
   // Get IDs of establishments that already have inspections
@@ -53,22 +56,6 @@ export default function InspectionWizard({
     setSelectedEstablishments((prev) => prev.filter((x) => x !== id));
   };
 
-  // Map law → prefix for ID generation
-  const sectionPrefixes = {
-    "PD-1586": "EIA",
-    "RA-6969": "TOX",
-    "RA-8749": "AIR",
-    "RA-9275": "WATER",
-    "RA-9003": "WASTE",
-  };
-
-  const generateInspectionId = (section, index) => {
-    const prefix = sectionPrefixes[section] || "GEN";
-    const year = new Date().getFullYear();
-    const timestamp = Date.now().toString().slice(-4);
-    return `${prefix}-${year}-${timestamp}-${index}`;
-  };
-
   // Get the most common law from previous inspections for guidance
   const getSuggestedLaw = () => {
     if (selectedEstablishments.length === 0) return "";
@@ -88,19 +75,59 @@ export default function InspectionWizard({
     );
   };
 
-  const handleSave = () => {
-    // Create separate inspection for each selected establishment with the same law
-    const newInspections = establishments
-      .filter((e) => selectedEstablishments.includes(e.id))
-      .map((e, index) => ({
-        id: generateInspectionId(selectedLaw, index),
-        establishmentId: e.id,
-        section: selectedLaw,
-        status: "PENDING",
-      }));
+  const handleSave = async () => {
+    if (selectedEstablishments.length === 0 || !selectedLaw) {
+      alert("Please select at least one establishment and a law.");
+      return;
+    }
 
-    onSave(newInspections);
-    setShowConfirm(false);
+    setIsCreating(true);
+    try {
+      console.log("Starting inspection creation...");
+      console.log("Selected establishments:", selectedEstablishments);
+      console.log("Selected law:", selectedLaw);
+
+      const newInspections = [];
+
+      // Create only ONE inspection per establishment
+      for (const establishmentId of selectedEstablishments) {
+        const establishment = establishments.find(
+          (e) => e.id === establishmentId
+        );
+
+        console.log(
+          `Creating inspection for establishment: ${establishmentId}`
+        );
+
+        // Create inspection payload - backend will handle auto-assignment and code generation
+        const inspectionData = {
+          establishment: establishmentId,
+          section: selectedLaw,
+          // Let backend handle district derivation and auto-assignment
+        };
+
+        console.log("Inspection payload:", inspectionData);
+
+        // Call API to create inspection - ONLY ONCE
+        const createdInspection = await createInspection(inspectionData);
+        console.log("Created inspection:", createdInspection);
+
+        newInspections.push(createdInspection);
+      }
+
+      console.log("All inspections created:", newInspections);
+      await onSave(newInspections);
+      setShowConfirm(false);
+    } catch (error) {
+      console.error("Failed to create inspections:", error);
+      alert(
+        `Failed to create inspections: ${
+          error.response?.data?.message || error.message
+        }`
+      );
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -119,6 +146,7 @@ export default function InspectionWizard({
             <button
               onClick={() => setStep(step - 1)}
               className="p-1 px-4 bg-gray-300 rounded hover:bg-gray-400"
+              disabled={isCreating}
             >
               Back
             </button>
@@ -127,6 +155,7 @@ export default function InspectionWizard({
           <button
             onClick={onCancel}
             className="p-1 px-4 bg-gray-300 rounded hover:bg-gray-400"
+            disabled={isCreating}
           >
             Cancel
           </button>
@@ -135,6 +164,7 @@ export default function InspectionWizard({
             <button
               onClick={() => setStep(step + 1)}
               disabled={
+                isCreating ||
                 (step === 1 && selectedEstablishments.length === 0) ||
                 (step === 2 && !selectedLaw)
               }
@@ -145,7 +175,8 @@ export default function InspectionWizard({
           ) : (
             <button
               onClick={() => setShowConfirm(true)}
-              className="p-1 px-4 text-white rounded bg-sky-600 hover:bg-sky-700"
+              disabled={isCreating}
+              className="p-1 px-4 text-white rounded bg-sky-600 hover:bg-sky-700 disabled:opacity-50"
             >
               Create Inspections
             </button>
@@ -209,6 +240,7 @@ export default function InspectionWizard({
                         checked={selectedEstablishments.includes(e.id)}
                         onChange={() => toggleSelect(e.id)}
                         className="cursor-pointer"
+                        disabled={isCreating}
                       />
                     </td>
                     <td className="p-2 font-semibold border border-gray-300">
@@ -278,6 +310,7 @@ export default function InspectionWizard({
                             onClick={() => removeEstablishment(e.id)}
                             className="flex items-center justify-center w-full gap-1 px-2 py-1 text-xs text-red-600 rounded hover:bg-red-100"
                             title="Remove establishment"
+                            disabled={isCreating}
                           >
                             <X size={14} />
                             Remove
@@ -311,6 +344,7 @@ export default function InspectionWizard({
                 value={selectedLaw}
                 onChange={(e) => setSelectedLaw(e.target.value)}
                 className="w-full p-2 border border-gray-300 rounded"
+                disabled={isCreating}
               >
                 <option value="">-- Select Law --</option>
                 <option value="PD-1586">
@@ -333,6 +367,7 @@ export default function InspectionWizard({
                     type="button"
                     onClick={() => setSelectedLaw(getSuggestedLaw())}
                     className="underline text-sky-600"
+                    disabled={isCreating}
                   >
                     {getSuggestedLaw()}
                   </button>
@@ -355,25 +390,29 @@ export default function InspectionWizard({
               </strong>{" "}
               with law: {selectedLaw}
             </p>
+            <p className="mt-1 text-xs text-sky-600">
+              Inspections will be automatically assigned based on workflow
+              rules.
+            </p>
           </div>
 
           <table className="w-full border rounded-lg">
             <thead>
               <tr className="text-sm text-left text-white bg-sky-700">
-                <th className="p-1 border w-35">Inspection ID</th>
+                <th className="p-1 border">Establishment ID</th>
                 <th className="p-1 border">Name of Establishments</th>
                 <th className="p-1 border">Nature</th>
                 <th className="p-1 border">Section</th>
-                <th className="p-1 border">Status</th>
+                <th className="p-1 border">Initial Status</th>
               </tr>
             </thead>
             <tbody>
               {establishments
                 .filter((e) => selectedEstablishments.includes(e.id))
-                .map((e, index) => (
+                .map((e) => (
                   <tr key={e.id} className="text-xs text-left">
                     <td className="p-2 text-center border border-gray-300">
-                      {generateInspectionId(selectedLaw, index)}
+                      {e.id}
                     </td>
                     <td className="p-2 font-semibold border border-gray-300">
                       {e.name}
@@ -384,7 +423,9 @@ export default function InspectionWizard({
                     <td className="p-2 border border-gray-300">
                       {selectedLaw}
                     </td>
-                    <td className="p-2 border border-gray-300">Pending</td>
+                    <td className="p-2 border border-gray-300">
+                      {userLevel === "Legal Unit" ? "LEGAL_REVIEW" : "PENDING"}
+                    </td>
                   </tr>
                 ))}
             </tbody>
@@ -397,10 +438,10 @@ export default function InspectionWizard({
         open={showConfirm}
         title="Confirm Inspection Creation"
         message={`Are you sure you want to create ${selectedEstablishments.length} inspection(s) under ${selectedLaw}?`}
-        loading={false}
+        loading={isCreating}
         onCancel={() => setShowConfirm(false)}
         onConfirm={handleSave}
-        confirmText="Create Inspections"
+        confirmText={isCreating ? "Creating..." : "Create Inspections"}
       />
     </div>
   );

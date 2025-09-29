@@ -1340,7 +1340,7 @@ export default function App({ inspectionData }) {
      Render
      ====================== */
   return (
-    <div className="min-h-screen pb-8 bg-white">
+    <div className="min-h-screen bg-white">
       <InternalHeader
         onSave={handleSave}
         onClose={handleClose}

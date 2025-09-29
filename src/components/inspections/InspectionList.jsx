@@ -32,7 +32,7 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
-export default function InspectionTable({
+export default function InspectionList({
   inspections: propInspections = [],
   onAdd,
   onView,
@@ -41,11 +41,22 @@ export default function InspectionTable({
   loading = false,
   canCreate = false,
   userProfile = null,
+  pagination = {},
+  onPageChange,
+  searchQuery: externalSearchQuery = "",
+  onSearch,
 }) {
   const [inspections, setInspections] = useState(propInspections);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [internalSearchQuery, setInternalSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(pagination.pageSize || 10);
+
+  // Use external search if provided, otherwise use internal
+  const searchQuery =
+    externalSearchQuery !== undefined
+      ? externalSearchQuery
+      : internalSearchQuery;
+  const setSearchQuery = onSearch || setInternalSearchQuery;
 
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
@@ -67,6 +78,16 @@ export default function InspectionTable({
       setInspections(propInspections);
     }
   }, [propInspections]);
+
+  // Sync with external pagination
+  useEffect(() => {
+    if (pagination.page) {
+      setCurrentPage(pagination.page);
+    }
+    if (pagination.pageSize) {
+      setPageSize(pagination.pageSize);
+    }
+  }, [pagination.page, pagination.pageSize]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -123,7 +144,7 @@ export default function InspectionTable({
 
   const clearSections = useCallback(() => setSectionFilter([]), []);
   const clearStatuses = useCallback(() => setStatusFilter([]), []);
-  const clearSearch = useCallback(() => setSearchQuery(""), []);
+  const clearSearch = useCallback(() => setSearchQuery(""), [setSearchQuery]);
 
   const clearAllFilters = useCallback(() => {
     setSearchQuery("");
@@ -131,24 +152,24 @@ export default function InspectionTable({
     setStatusFilter([]);
     setSortConfig({ key: null, direction: null });
     setCurrentPage(1);
-  }, []);
+    if (onPageChange) onPageChange(1);
+  }, [setSearchQuery, onPageChange]);
 
   // Filter and paginate inspections
   const { filteredInspections, paginatedInspections, totalCount } =
     useMemo(() => {
       let filtered = inspections.filter((inspection) => {
         // Search filter
+        const searchLower = debouncedSearchQuery.toLowerCase();
         const matchesSearch =
           !debouncedSearchQuery ||
-          inspection.id
+          inspection.id?.toLowerCase().includes(searchLower) ||
+          inspection.establishment?.name?.toLowerCase().includes(searchLower) ||
+          inspection.establishment_detail?.name
             ?.toLowerCase()
-            .includes(debouncedSearchQuery.toLowerCase()) ||
-          inspection.establishment?.name
-            ?.toLowerCase()
-            .includes(debouncedSearchQuery.toLowerCase()) ||
-          inspection.section
-            ?.toLowerCase()
-            .includes(debouncedSearchQuery.toLowerCase());
+            .includes(searchLower) ||
+          inspection.section?.toLowerCase().includes(searchLower) ||
+          inspection.code?.toLowerCase().includes(searchLower);
 
         // Section filter
         const matchesSection =
@@ -168,11 +189,17 @@ export default function InspectionTable({
           let aVal, bVal;
 
           if (sortConfig.key === "name") {
-            aVal = a.establishment?.name?.toLowerCase() || "";
-            bVal = b.establishment?.name?.toLowerCase() || "";
+            aVal =
+              a.establishment?.name?.toLowerCase() ||
+              a.establishment_detail?.name?.toLowerCase() ||
+              "";
+            bVal =
+              b.establishment?.name?.toLowerCase() ||
+              b.establishment_detail?.name?.toLowerCase() ||
+              "";
           } else if (sortConfig.key === "id") {
-            aVal = (a.id || "").toLowerCase();
-            bVal = (b.id || "").toLowerCase();
+            aVal = (a.id || a.code || "").toLowerCase();
+            bVal = (b.id || b.code || "").toLowerCase();
           } else if (sortConfig.key === "created_at") {
             aVal = new Date(a.created_at || 0).getTime();
             bVal = new Date(b.created_at || 0).getTime();
@@ -218,7 +245,7 @@ export default function InspectionTable({
     if (selectedInspections.length === paginatedInspections.length) {
       setSelectedInspections([]);
     } else {
-      setSelectedInspections(paginatedInspections.map((i) => i.id));
+      setSelectedInspections(paginatedInspections.map((i) => i.id || i.code));
     }
   }, [selectedInspections.length, paginatedInspections]);
 
@@ -229,15 +256,40 @@ export default function InspectionTable({
 
   const goToPage = useCallback(
     (page) => {
-      setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+      const newPage = Math.max(1, Math.min(page, totalPages));
+      setCurrentPage(newPage);
+      if (onPageChange) {
+        onPageChange(newPage);
+      }
     },
-    [totalPages]
+    [totalPages, onPageChange]
   );
 
-  const handlePageSizeChange = useCallback((newSize) => {
-    setPageSize(parseInt(newSize));
-    setCurrentPage(1);
-  }, []);
+  const handlePageSizeChange = useCallback(
+    (newSize) => {
+      const newPageSize = parseInt(newSize);
+      setPageSize(newPageSize);
+      setCurrentPage(1);
+      if (pagination.onPageSizeChange) {
+        pagination.onPageSizeChange(newPageSize);
+      }
+      if (onPageChange) {
+        onPageChange(1);
+      }
+    },
+    [pagination, onPageChange]
+  );
+
+  const handleInternalSearch = useCallback(
+    (query) => {
+      setSearchQuery(query);
+      setCurrentPage(1);
+      if (onPageChange) {
+        onPageChange(1);
+      }
+    },
+    [setSearchQuery, onPageChange]
+  );
 
   const activeFilterCount = sectionFilter.length + statusFilter.length;
   const hasActiveFilters =
@@ -267,6 +319,32 @@ export default function InspectionTable({
     }
   };
 
+  // Get establishment name with fallbacks
+  const getEstablishmentName = (inspection) => {
+    return (
+      inspection.establishment?.name ||
+      inspection.establishment_detail?.name ||
+      "Unknown Establishment"
+    );
+  };
+
+  // Get establishment address with fallbacks
+  const getEstablishmentAddress = (inspection) => {
+    const establishment =
+      inspection.establishment || inspection.establishment_detail;
+    if (!establishment) return "N/A";
+
+    const street =
+      establishment.street_building || establishment.address?.street || "";
+    const barangay =
+      establishment.barangay || establishment.address?.barangay || "";
+    const city = establishment.city || establishment.address?.city || "";
+    const province =
+      establishment.province || establishment.address?.province || "";
+
+    return { street, barangay, city, province };
+  };
+
   // Get unique sections and statuses for filters
   const uniqueSections = useMemo(
     () =>
@@ -278,6 +356,51 @@ export default function InspectionTable({
     () => [...new Set(inspections.map((i) => i.status).filter(Boolean))].sort(),
     [inspections]
   );
+
+  // Export selected inspections
+  const handleExportSelected = useCallback(() => {
+    if (selectedInspections.length === 0) {
+      alert("Please select inspections to export.");
+      return;
+    }
+
+    const selected = inspections.filter((i) =>
+      selectedInspections.includes(i.id || i.code)
+    );
+
+    // Simple CSV export
+    const headers = [
+      "ID",
+      "Establishment",
+      "Section",
+      "Status",
+      "Created Date",
+    ];
+    const csvData = selected.map((inspection) => [
+      inspection.id || inspection.code,
+      getEstablishmentName(inspection),
+      inspection.section,
+      statusLabels[inspection.status] || inspection.status,
+      formatDate(inspection.created_at),
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...csvData.map((row) => row.map((field) => `"${field}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `inspections-export-${
+      new Date().toISOString().split("T")[0]
+    }.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [selectedInspections, inspections]);
 
   return (
     <div className="p-4 bg-white rounded shadow">
@@ -293,8 +416,8 @@ export default function InspectionTable({
               type="text"
               placeholder="Search inspections..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+              onChange={(e) => handleInternalSearch(e.target.value)}
+              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full min-w-64 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
             {searchQuery && (
               <button
@@ -311,7 +434,7 @@ export default function InspectionTable({
           <div className="relative sort-dropdown">
             <button
               onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+              className="flex items-center gap-1 px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
               type="button"
             >
               <ArrowUpDown size={14} />
@@ -352,7 +475,7 @@ export default function InspectionTable({
           <div className="relative filter-dropdown">
             <button
               onClick={() => setFiltersOpen((prev) => !prev)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+              className="flex items-center gap-1 px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
               type="button"
             >
               <Filter size={14} /> Filters
@@ -451,10 +574,22 @@ export default function InspectionTable({
             )}
           </div>
 
+          {/* Export Selected */}
+          {selectedInspections.length > 0 && (
+            <button
+              onClick={handleExportSelected}
+              className="flex items-center gap-1 px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
+              type="button"
+            >
+              <Download size={14} />
+              Export ({selectedInspections.length})
+            </button>
+          )}
+
           {canCreate && onAdd && (
             <button
               onClick={onAdd}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+              className="flex items-center gap-1 px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
               type="button"
             >
               + New Inspection
@@ -479,7 +614,7 @@ export default function InspectionTable({
                 />
               </th>
               {[
-                { key: "id", label: "ID", sortable: true },
+                { key: "id", label: "Inspection ID", sortable: true },
                 { key: "name", label: "Establishment Name", sortable: true },
                 { key: "address", label: "Address", sortable: false },
                 { key: "section", label: "Section", sortable: true },
@@ -490,7 +625,7 @@ export default function InspectionTable({
                 <th
                   key={col.key}
                   className={`p-1 border border-gray-300 ${
-                    col.sortable ? "cursor-pointer" : ""
+                    col.sortable ? "cursor-pointer hover:bg-sky-800" : ""
                   }`}
                   onClick={col.sortable ? () => handleSort(col.key) : undefined}
                 >
@@ -541,93 +676,87 @@ export default function InspectionTable({
                 </td>
               </tr>
             ) : (
-              paginatedInspections.map((inspection) => (
-                <tr
-                  key={inspection.id}
-                  className="text-xs border border-gray-300 hover:bg-gray-50"
-                >
-                  <td className="p-2 text-center border border-gray-300">
-                    <input
-                      type="checkbox"
-                      checked={selectedInspections.includes(inspection.id)}
-                      onChange={() => toggleSelect(inspection.id)}
-                    />
-                  </td>
-                  <td className="px-2 py-3 font-medium text-center border border-gray-300">
-                    {inspection.id || "N/A"}
-                  </td>
-                  <td className="px-2 py-3 border border-gray-300">
-                    <div className="font-medium">
-                      {inspection.establishment?.name || "N/A"}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {inspection.establishment?.nature_of_business ||
-                        inspection.establishment?.natureOfBusiness ||
-                        "N/A"}
-                    </div>
-                  </td>
-                  <td className="px-2 py-3 border border-gray-300">
-                    <div className="text-xs">
-                      {`${
-                        inspection.establishment?.street_building ||
-                        inspection.establishment?.address?.street ||
-                        ""
-                      }, ${
-                        inspection.establishment?.barangay ||
-                        inspection.establishment?.address?.barangay ||
-                        ""
-                      }`}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {`${
-                        inspection.establishment?.city ||
-                        inspection.establishment?.address?.city ||
-                        ""
-                      }, ${
-                        inspection.establishment?.province ||
-                        inspection.establishment?.address?.province ||
-                        ""
-                      }`}
-                    </div>
-                  </td>
-                  <td className="px-2 py-3 text-center border border-gray-300">
-                    {inspection.section || "N/A"}
-                  </td>
-                  <td className="px-2 py-3 border border-gray-300">
-                    <WorkflowStatus
-                      inspection={inspection}
-                      userLevel={userLevel}
-                      onWorkflowOpen={onWorkflowOpen}
-                    />
-                  </td>
-                  <td className="px-2 py-3 border border-gray-300">
-                    {inspection.current_assignee_name || "Unassigned"}
-                  </td>
-                  <td className="px-2 py-3 text-center border border-gray-300">
-                    {formatDate(inspection.created_at)}
-                  </td>
-                  <td className="px-2 py-3 border border-gray-300">
-                    <div className="flex justify-center gap-1">
-                      <button
-                        onClick={() => onView && onView(inspection)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-white rounded bg-sky-600 hover:bg-sky-700"
-                        type="button"
-                      >
-                        <Eye size={12} /> View
-                      </button>
-                      {inspection.can_act && onWorkflowOpen && (
+              paginatedInspections.map((inspection) => {
+                const inspectionId = inspection.id || inspection.code;
+                const address = getEstablishmentAddress(inspection);
+
+                return (
+                  <tr
+                    key={inspectionId}
+                    className="text-xs border border-gray-300 hover:bg-gray-50"
+                  >
+                    <td className="p-2 text-center border border-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={selectedInspections.includes(inspectionId)}
+                        onChange={() => toggleSelect(inspectionId)}
+                      />
+                    </td>
+                    <td className="px-2 py-3 font-mono text-center border border-gray-300">
+                      {inspectionId}
+                    </td>
+                    <td className="px-2 py-3 border border-gray-300">
+                      <div className="font-medium">
+                        {getEstablishmentName(inspection)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {inspection.establishment?.nature_of_business ||
+                          inspection.establishment_detail?.nature_of_business ||
+                          inspection.establishment?.natureOfBusiness ||
+                          "N/A"}
+                      </div>
+                    </td>
+                    <td className="px-2 py-3 border border-gray-300">
+                      <div className="text-xs">
+                        {`${address.street}, ${address.barangay}`}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {`${address.city}, ${address.province}`}
+                      </div>
+                    </td>
+                    <td className="px-2 py-3 text-center border border-gray-300">
+                      {inspection.section || "N/A"}
+                    </td>
+                    <td className="px-2 py-3 border border-gray-300">
+                      <WorkflowStatus
+                        inspection={inspection}
+                        userLevel={userLevel}
+                        onWorkflowOpen={onWorkflowOpen}
+                      />
+                    </td>
+                    <td className="px-2 py-3 border border-gray-300">
+                      {inspection.current_assignee_name ||
+                        inspection.current_assigned_to?.name ||
+                        "Unassigned"}
+                    </td>
+                    <td className="px-2 py-3 text-center border border-gray-300">
+                      {formatDate(inspection.created_at)}
+                    </td>
+                    <td className="px-2 py-3 border border-gray-300">
+                      <div className="flex justify-center gap-1">
                         <button
-                          onClick={() => onWorkflowOpen(inspection)}
-                          className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
+                          onClick={() => onView && onView(inspection)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs text-white rounded bg-sky-600 hover:bg-sky-700"
                           type="button"
+                          title="View Inspection Details"
                         >
-                          <Workflow size={12} /> Workflow
+                          <Eye size={12} /> View
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
+                        {inspection.can_act && onWorkflowOpen && (
+                          <button
+                            onClick={() => onWorkflowOpen(inspection)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
+                            type="button"
+                            title="Take Workflow Action"
+                          >
+                            <Workflow size={12} /> Workflow
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -635,9 +764,10 @@ export default function InspectionTable({
 
       {/* Pagination */}
       {totalCount > 0 && (
-        <div className="flex items-center justify-between mt-4">
+        <div className="flex flex-col items-center justify-between gap-4 mt-4 sm:flex-row">
           <div className="text-sm text-gray-600">
             Showing {startItem} to {endItem} of {totalCount} entries
+            {hasActiveFilters && " (filtered)"}
           </div>
 
           <div className="flex items-center gap-2">

@@ -8,6 +8,7 @@ import {
   getEstablishments,
   getInspections,
   searchInspections,
+  createInspection,
 } from "../../services/api";
 
 // Custom hook for API calls with error handling
@@ -189,6 +190,13 @@ export default function InspectionsCore({
     setInspections,
   } = useInspectionsData();
 
+  // Debug user permissions
+  useEffect(() => {
+    console.log("User level:", userLevel);
+    console.log("Can create:", canCreate);
+    console.log("User profile:", userProfile);
+  }, [userLevel, canCreate, userProfile]);
+
   // Initial data fetch - ONLY ONCE on component mount
   useEffect(() => {
     if (initialized) return;
@@ -250,21 +258,34 @@ export default function InspectionsCore({
   const handleSaveInspection = useCallback(
     async (newInspections) => {
       try {
-        // In a real app, you would save to the backend here
-        console.log("Saving inspections:", newInspections);
+        console.log("Inspections created successfully:", newInspections);
 
-        // Refresh the data
-        await fetchInspections(pagination.page, searchQuery);
+        // Refresh the data to show the new inspections
+        await fetchInspections(1, searchQuery);
         setShowWizard(false);
+
+        // Show success message
+        alert(`Successfully created ${newInspections.length} inspection(s)`);
       } catch (err) {
         console.error("Failed to save inspection:", err);
+        alert(`Failed to create inspections: ${err.message}`);
       }
     },
-    [fetchInspections, pagination.page, searchQuery]
+    [fetchInspections, searchQuery]
   );
 
   const inspectionsWithDetails = useCallback(() => {
     return inspections.map((i) => {
+      // Use establishment_detail from API response if available
+      if (i.establishment_detail) {
+        return {
+          ...i,
+          establishments: [i.establishment_detail],
+          establishment: i.establishment_detail,
+        };
+      }
+
+      // Fallback to establishments list
       const establishment = establishments.find(
         (e) => e.id === i.establishmentId
       );
