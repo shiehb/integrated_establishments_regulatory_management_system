@@ -1,6 +1,6 @@
 import { useState } from "react";
 import api from "../../services/api";
-import ConfirmationDialog from "../common/ConfirmationDialog"; // <-- Add this import
+import ConfirmationDialog from "../common/ConfirmationDialog";
 
 export default function AddUser({ onClose, onUserAdded }) {
   const [formData, setFormData] = useState({
@@ -54,7 +54,6 @@ export default function AddUser({ onClose, onUserAdded }) {
     setShowConfirm(true);
   };
 
-  // AddUser.jsx - update the confirmAdd function
   const confirmAdd = async () => {
     setLoading(true);
     try {
@@ -65,10 +64,10 @@ export default function AddUser({ onClose, onUserAdded }) {
         last_name: formData.lastName,
         userlevel: formData.userLevel,
         ...(formData.section ? { section: formData.section } : {}),
+        // district is now completely optional - don't include it in payload
       };
       await api.post("auth/register/", payload);
 
-      // Show success notification
       if (window.showNotification) {
         window.showNotification("success", "User added successfully!");
       }
@@ -76,7 +75,6 @@ export default function AddUser({ onClose, onUserAdded }) {
       if (onUserAdded) onUserAdded();
       onClose();
     } catch (err) {
-      // Show error notification
       if (window.showNotification) {
         window.showNotification(
           "error",
@@ -247,7 +245,6 @@ export default function AddUser({ onClose, onUserAdded }) {
         </div>
       </form>
 
-      {/* ✅ Confirmation Dialog */}
       <ConfirmationDialog
         open={showConfirm}
         title="Confirm Action"

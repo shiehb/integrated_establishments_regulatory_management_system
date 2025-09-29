@@ -35,5 +35,5 @@ urlpatterns = [
     path('reset-password-otp/', reset_password_with_otp, name='reset-password-otp'),
 
     
-        path('search/', user_search, name='user-search'),
+    path('search/', user_search, name='user-search'),
 ]

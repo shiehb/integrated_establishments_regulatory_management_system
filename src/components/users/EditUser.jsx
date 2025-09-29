@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
-import ConfirmationDialog from "../common/ConfirmationDialog"; // <-- Add this import
+import ConfirmationDialog from "../common/ConfirmationDialog";
 
 export default function EditUser({ userData, onClose, onUserUpdated }) {
   const [formData, setFormData] = useState({
@@ -34,14 +34,12 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       newValue = value.toUpperCase();
     }
     setFormData((prev) => {
-      // If userLevel is changed to  Legal Unit, or Division Chief, clear section
       if (
         name === "userLevel" &&
         ["Legal Unit", "Division Chief"].includes(value)
       ) {
         return { ...prev, [name]: newValue, section: "" };
       }
-      // If userLevel is changed to other roles that require section, keep section as is
       if (
         name === "userLevel" &&
         !["Section Chief", "Unit Head", "Monitoring Personnel"].includes(value)
@@ -71,7 +69,6 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     setShowConfirm(true);
   };
 
-  // EditUser.jsx - update the confirmEdit function
   const confirmEdit = async () => {
     setLoading(true);
     try {
@@ -82,10 +79,10 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
         last_name: formData.lastName,
         userlevel: formData.userLevel,
         ...(formData.section ? { section: formData.section } : {}),
+        // district is preserved automatically from existing user data
       };
       await api.put(`auth/users/${userData.id}/`, payload);
 
-      // Show success notification
       if (window.showNotification) {
         window.showNotification("success", "User updated successfully!");
       }
@@ -93,7 +90,6 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       if (onUserUpdated) onUserUpdated();
       onClose();
     } catch (err) {
-      // Show error notification
       if (window.showNotification) {
         window.showNotification(
           "error",
@@ -260,7 +256,6 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
         </div>
       </form>
 
-      {/* Confirmation Dialog */}
       <ConfirmationDialog
         open={showConfirm}
         title="Confirm Action"

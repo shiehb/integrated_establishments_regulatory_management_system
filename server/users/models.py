@@ -40,14 +40,19 @@ class User(AbstractBaseUser, PermissionsMixin):
         ("RA-9003", "RA-9003"),
     ]
 
+    DISTRICT_CHOICES = [
+        ("1st District", "1st District"),
+        ("2nd District", "2nd District"),
+        ("3rd District", "3rd District"),
+    ]
     email = models.EmailField(unique=True, max_length=255)
     first_name = models.CharField(max_length=150, blank=True)
     middle_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     userlevel = models.CharField(max_length=50, choices=USERLEVEL_CHOICES, blank=True)
     section = models.CharField(max_length=50, choices=SECTION_CHOICES, null=True, blank=True)
-    # Optional district assignment (e.g., "1st District", "2nd District", or city-based string)
-    district = models.CharField(max_length=100, null=True, blank=True)
+    district = models.CharField(max_length=100, choices=DISTRICT_CHOICES, null=True, blank=True)  # Make it optional
+
 
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)

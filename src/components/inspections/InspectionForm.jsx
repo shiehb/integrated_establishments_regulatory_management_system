@@ -104,8 +104,8 @@ function GeneralInformation({
           ? `${establishment.latitude}, ${establishment.longitude}`
           : "";
 
-      const newData = {
-        ...data,
+      setData((prevData) => ({
+        ...prevData,
         establishmentName: formatInput.upper(establishment.name || ""),
         address: formatInput.upper(fullAddress),
         coordinates: formatInput.coords(coordsString),
@@ -117,12 +117,11 @@ function GeneralInformation({
         yearEstablished:
           establishment.yearEstablished || establishment.year_established || "",
         environmentalLaws: [inspectionData.section],
-      };
+      }));
 
-      setData(newData);
       if (onLawFilterChange) onLawFilterChange([inspectionData.section]);
     }
-  }, [inspectionData]);
+  }, []); // Empty dependency array - run only once
 
   const updateField = (field, value, formatter = formatInput.upper) => {
     setData({ ...data, [field]: formatter(value) });
@@ -176,7 +175,7 @@ function GeneralInformation({
         </label>
         <input
           className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
-          value={data.establishmentName}
+          value={data.establishmentName || ""}
           readOnly
         />
         {errors.establishmentName && (
@@ -189,7 +188,7 @@ function GeneralInformation({
           <label className="block mb-1 text-sm text-black">Address</label>
           <input
             className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
-            value={data.address}
+            value={data.address || ""}
             readOnly
           />
           {errors.address && (
@@ -202,7 +201,7 @@ function GeneralInformation({
           </label>
           <input
             className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
-            value={data.coordinates}
+            value={data.coordinates || ""}
             readOnly
           />
           {errors.coordinates && (
@@ -217,7 +216,7 @@ function GeneralInformation({
         </label>
         <input
           className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
-          value={data.natureOfBusiness}
+          value={data.natureOfBusiness || ""}
           readOnly
         />
       </div>
@@ -230,7 +229,7 @@ function GeneralInformation({
           <input
             type="number"
             className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
-            value={data.yearEstablished}
+            value={data.yearEstablished || ""}
             readOnly
           />
           {errors.yearEstablished && (
@@ -246,11 +245,7 @@ function GeneralInformation({
             className="w-full px-2 py-1 text-black bg-white border border-black"
             value={data.inspectionDateTime || ""}
             onChange={(e) =>
-              updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.INSPECTION_DATE_TIME,
-                e.target.value,
-                (v) => v
-              )
+              updateField("inspectionDateTime", e.target.value, (v) => v)
             }
           />
           {errors.inspectionDateTime && (
@@ -267,12 +262,7 @@ function GeneralInformation({
           <input
             className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.operatingHours || ""}
-            onChange={(e) =>
-              updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.OPERATING_HOURS,
-                e.target.value
-              )
-            }
+            onChange={(e) => updateField("operatingHours", e.target.value)}
           />
         </div>
         <div>
@@ -284,8 +274,9 @@ function GeneralInformation({
             value={data.operatingDaysPerWeek || ""}
             onChange={(e) =>
               updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.OPERATING_DAYS_PER_WEEK,
-                formatInput.numeric(e.target.value)
+                "operatingDaysPerWeek",
+                formatInput.numeric(e.target.value),
+                (v) => v
               )
             }
           />
@@ -299,8 +290,9 @@ function GeneralInformation({
             value={data.operatingDaysPerYear || ""}
             onChange={(e) =>
               updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.OPERATING_DAYS_PER_YEAR,
-                formatInput.numeric(e.target.value)
+                "operatingDaysPerYear",
+                formatInput.numeric(e.target.value),
+                (v) => v
               )
             }
           />
@@ -319,7 +311,7 @@ function GeneralInformation({
             value={data.phoneFaxNo || ""}
             onChange={(e) =>
               updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.PHONE_FAX_NO,
+                "phoneFaxNo",
                 formatInput.numeric(e.target.value),
                 (v) => v
               )
@@ -336,11 +328,7 @@ function GeneralInformation({
             className="w-full px-2 py-1 text-black lowercase bg-white border border-black"
             value={data.emailAddress || ""}
             onChange={(e) =>
-              updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.EMAIL_ADDRESS,
-                e.target.value,
-                formatInput.lower
-              )
+              updateField("emailAddress", e.target.value, formatInput.lower)
             }
           />
           {errors.emailAddress && (
@@ -358,64 +346,64 @@ function GeneralInformation({
 function PurposeOfInspection({ state, setState, errors }) {
   const purposes = [
     {
-      id: InspectionConstants.PURPOSE_OPTIONS.VERIFY_ACCURACY,
+      id: "VERIFY_ACCURACY",
       label:
         "Verify accuracy of information submitted by the establishment pertaining to new permit applications, renewals, or modifications.",
     },
     {
-      id: InspectionConstants.PURPOSE_OPTIONS.COMPLIANCE_STATUS,
+      id: "COMPLIANCE_STATUS",
       label:
         "Determine compliance status with ECC conditions, compliance with commitments made during Technical Conference, permit conditions, and other requirements",
     },
     {
-      id: InspectionConstants.PURPOSE_OPTIONS.INVESTIGATE_COMPLAINTS,
+      id: "INVESTIGATE_COMPLAINTS",
       label: "Investigate community complaints.",
     },
     {
-      id: InspectionConstants.PURPOSE_OPTIONS.CHECK_COMMITMENTS,
+      id: "CHECK_COMMITMENTS",
       label: "Check status of commitment(s)",
     },
-    { id: InspectionConstants.PURPOSE_OPTIONS.OTHER, label: "Others" },
+    { id: "OTHER", label: "Others" },
   ];
 
   const accuracyDetailsOptions = [
     {
-      id: InspectionConstants.ACCURACY_DETAILS.POA,
+      id: "POA",
       label: "Permit to Operate Air (POA)",
     },
     {
-      id: InspectionConstants.ACCURACY_DETAILS.DP,
+      id: "DP",
       label: "Discharge Permit (DP)",
     },
     {
-      id: InspectionConstants.ACCURACY_DETAILS.PMPIN,
+      id: "PMPIN",
       label: "PMPIN Application",
     },
     {
-      id: InspectionConstants.ACCURACY_DETAILS.HW_ID,
+      id: "HW_ID",
       label: "Hazardous Waste ID Registration",
     },
     {
-      id: InspectionConstants.ACCURACY_DETAILS.HW_TRANSPORTER,
+      id: "HW_TRANSPORTER",
       label: "Hazardous Waste Transporter Registration",
     },
-    { id: InspectionConstants.ACCURACY_DETAILS.OTHER, label: "Others" },
+    { id: "OTHER", label: "Others" },
   ];
 
   const commitmentStatusOptions = [
     {
-      id: InspectionConstants.COMMITMENT_STATUS.ECOWATCH,
+      id: "ECOWATCH",
       label: "Industrial Ecowatch",
     },
     {
-      id: InspectionConstants.COMMITMENT_STATUS.PEPP,
+      id: "PEPP",
       label: "Philippine Environmental Partnership Program (PEPP)",
     },
     {
-      id: InspectionConstants.COMMITMENT_STATUS.PAB,
+      id: "PAB",
       label: "Pollution Adjudication Board (PAB)",
     },
-    { id: InspectionConstants.COMMITMENT_STATUS.OTHER, label: "Others" },
+    { id: "OTHER", label: "Others" },
   ];
 
   const togglePurpose = (id) => {
@@ -465,10 +453,8 @@ function PurposeOfInspection({ state, setState, errors }) {
             <div className="flex-1">
               <div className="text-black">{p.label}</div>
 
-              {p.id === InspectionConstants.PURPOSE_OPTIONS.VERIFY_ACCURACY &&
-                (state.purposes || []).includes(
-                  InspectionConstants.PURPOSE_OPTIONS.VERIFY_ACCURACY
-                ) && (
+              {p.id === "VERIFY_ACCURACY" &&
+                (state.purposes || []).includes("VERIFY_ACCURACY") && (
                   <div className="p-3 mt-3 ml-6 border border-gray-300 rounded">
                     <label className="block mb-2 text-sm font-medium text-black">
                       Verify accuracy of (select all that apply):
@@ -489,11 +475,8 @@ function PurposeOfInspection({ state, setState, errors }) {
                               {item.label}
                             </span>
                           </label>
-                          {item.id ===
-                            InspectionConstants.ACCURACY_DETAILS.OTHER &&
-                            (state.accuracyDetails || []).includes(
-                              InspectionConstants.ACCURACY_DETAILS.OTHER
-                            ) && (
+                          {item.id === "OTHER" &&
+                            (state.accuracyDetails || []).includes("OTHER") && (
                               <div className="mt-2 ml-6">
                                 <label className="block mb-1 text-sm text-black">
                                   Specify other accuracy details:
@@ -517,10 +500,8 @@ function PurposeOfInspection({ state, setState, errors }) {
                   </div>
                 )}
 
-              {p.id === InspectionConstants.PURPOSE_OPTIONS.CHECK_COMMITMENTS &&
-                (state.purposes || []).includes(
-                  InspectionConstants.PURPOSE_OPTIONS.CHECK_COMMITMENTS
-                ) && (
+              {p.id === "CHECK_COMMITMENTS" &&
+                (state.purposes || []).includes("CHECK_COMMITMENTS") && (
                   <div className="p-3 mt-3 ml-6 border border-gray-300 rounded">
                     <label className="block mb-2 text-sm font-medium text-black">
                       Check status of (select all that apply):
@@ -541,10 +522,9 @@ function PurposeOfInspection({ state, setState, errors }) {
                               {item.label}
                             </span>
                           </label>
-                          {item.id ===
-                            InspectionConstants.COMMITMENT_STATUS.OTHER &&
+                          {item.id === "OTHER" &&
                             (state.commitmentStatusDetails || []).includes(
-                              InspectionConstants.COMMITMENT_STATUS.OTHER
+                              "OTHER"
                             ) && (
                               <div className="mt-2 ml-6">
                                 <label className="block mb-1 text-sm text-black">
@@ -569,24 +549,21 @@ function PurposeOfInspection({ state, setState, errors }) {
                   </div>
                 )}
 
-              {p.id === InspectionConstants.PURPOSE_OPTIONS.OTHER &&
-                (state.purposes || []).includes(
-                  InspectionConstants.PURPOSE_OPTIONS.OTHER
-                ) && (
-                  <div className="mt-3 ml-6">
-                    <label className="block mb-1 text-sm text-black">
-                      Specify other purpose:
-                    </label>
-                    <textarea
-                      value={state.otherPurpose || ""}
-                      onChange={(e) =>
-                        updateField("otherPurpose", e.target.value)
-                      }
-                      placeholder="PLEASE SPECIFY..."
-                      className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
-                    />
-                  </div>
-                )}
+              {p.id === "OTHER" && (state.purposes || []).includes("OTHER") && (
+                <div className="mt-3 ml-6">
+                  <label className="block mb-1 text-sm text-black">
+                    Specify other purpose:
+                  </label>
+                  <textarea
+                    value={state.otherPurpose || ""}
+                    onChange={(e) =>
+                      updateField("otherPurpose", e.target.value)
+                    }
+                    placeholder="PLEASE SPECIFY..."
+                    className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
+                  />
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -768,7 +745,7 @@ function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
       });
     });
     if (changed) setItems(clone);
-  }, [lawFilter]);
+  }, [lawFilter, items, setItems]);
 
   const updateItem = (
     index,
@@ -855,7 +832,8 @@ function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
                               updateItem(
                                 globalIndex,
                                 "remarksOption",
-                                e.target.value
+                                e.target.value,
+                                (v) => v
                               )
                             }
                             className="w-full px-2 py-1 text-black bg-white border border-black"
@@ -1018,6 +996,14 @@ function SummaryOfFindingsAndObservations({
    Recommendations
    ---------------------------*/
 function Recommendations({ recState, setRecState, errors }) {
+  const recommendations = [
+    { id: "CONTINUE_OPERATION", label: "Continue Operation" },
+    { id: "MONITOR_COMPLIANCE", label: "Monitor Compliance" },
+    { id: "ISSUE_NOTICE", label: "Issue Notice of Violation" },
+    { id: "CEASE_DESIST", label: "Cease and Desist Order" },
+    { id: "OTHER", label: "Other Recommendations" },
+  ];
+
   const toggle = (label) => {
     const set = new Set(recState.checked || []);
     if (set.has(label)) set.delete(label);
@@ -1033,7 +1019,7 @@ function Recommendations({ recState, setRecState, errors }) {
     <section className="p-4 mb-6 bg-white border border-black">
       <SectionHeader title="Recommendations" />
       <div className="space-y-3">
-        {InspectionConstants.RECOMMENDATIONS.map((r) => (
+        {recommendations.map((r) => (
           <label key={r.id} className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -1192,6 +1178,7 @@ export default function App({ inspectionData }) {
     systems,
     recommendationState,
     lawFilter,
+    storageKey,
   ]);
 
   // Online/offline
@@ -1403,21 +1390,6 @@ export default function App({ inspectionData }) {
           setRecState={setRecommendationState}
           errors={errors}
         />
-
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 text-white rounded bg-sky-600"
-          >
-            Save
-          </button>
-          <button
-            onClick={handleClose}
-            className="px-4 py-2 text-gray-700 bg-gray-200 rounded"
-          >
-            Close
-          </button>
-        </div>
       </div>
     </div>
   );
