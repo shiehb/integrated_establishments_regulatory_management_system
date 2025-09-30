@@ -120,7 +120,7 @@ export default function Help() {
       </div>
 
       {/* Body: Sidebar + Content */}
-      <div className="flex flex-1 pt-20 pb-8 w-full max-w-7xl mx-auto px-6 gap-6 h-[calc(100vh-5rem)]">
+      <div className="flex flex-1 pt-20 pb-8 w-full gap-2 h-[calc(100vh-5rem)]">
         {/* Sidebar */}
         <HelpSidebar
           categories={categories}
@@ -134,14 +134,14 @@ export default function Help() {
         />
 
         {/* Main help content */}
-        <div className="flex-1 flex flex-col max-h-full">
+        <div className="flex flex-col flex-1 max-h-full">
           {/* Sticky header with search */}
-          <div className="sticky top-0 bg-sky-700 z-40 py-2 border-b-gray-300 shadow-lg">
+          <div className="sticky top-0 z-40 py-2 shadow-lg bg-sky-700 border-b-gray-300">
             {/* Back Button */}
-            <div className=" items-center justify-between absolute top-4 left-4 right-6 flex">
+            <div className="absolute flex items-center justify-between top-4 left-4 right-6">
               <button
                 onClick={() => navigate(-1)}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-sky-700 bg-white border  rounded-lg hover:text-gray-600 hover:bg-gray-200 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors bg-white border rounded-lg text-sky-700 hover:text-gray-600 hover:bg-gray-200"
                 title="Go back"
               >
                 <ArrowLeft className="w-4 h-4" />
@@ -150,7 +150,7 @@ export default function Help() {
               <div className="flex-1"></div>
             </div>
 
-            <h1 className="text-3xl font-bold text-white text-center">
+            <h1 className="text-3xl font-bold text-center text-white">
               Help Center
             </h1>
 
@@ -165,9 +165,9 @@ export default function Help() {
           </div>
 
           {/* Scrollable section */}
-          <div className="flex-1 overflow-y-auto pr-2">
+          <div className="flex-1 pr-2 overflow-y-auto">
             {!profile ? (
-              <div className="text-center py-8">
+              <div className="py-8 text-center">
                 <p className="text-gray-600">Loading help topics...</p>
               </div>
             ) : (

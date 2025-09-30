@@ -37,8 +37,8 @@ export default function HelpSidebar({
         max-h-[calc(100vh-5rem)]
       "
     >
-      <div className="flex-1 overflow-y-auto p-4">
-        <h2 className="text-lg font-semibold text-sky-700 mb-4">Categories</h2>
+      <div className="flex-1 p-4 overflow-y-auto">
+        <h2 className="mb-4 text-lg font-semibold text-sky-700">Categories</h2>
 
         <ul className="space-y-2">
           {/* Show All Button */}
@@ -48,7 +48,7 @@ export default function HelpSidebar({
                 onShowAll();
                 setOpenCategory(null);
               }}
-              className="w-full text-left px-2 py-2 rounded bg-sky-50 text-sky-700 font-medium hover:bg-sky-100"
+              className="w-full px-2 py-2 font-medium text-left rounded bg-sky-50 text-sky-700 hover:bg-sky-100"
             >
               Show All Topics
             </button>
@@ -57,7 +57,7 @@ export default function HelpSidebar({
           {categories.map((cat) => (
             <li key={cat.name}>
               <button
-                className="flex items-center justify-between w-full text-left px-2 py-2 rounded hover:bg-gray-100"
+                className="flex items-center justify-between w-full px-2 py-2 text-left rounded hover:bg-gray-100"
                 onClick={() => toggleCategory(cat.name)}
               >
                 <span className="font-medium text-gray-700">
@@ -74,7 +74,7 @@ export default function HelpSidebar({
               </button>
 
               {openCategory === cat.name && (
-                <ul className="ml-4 mt-2 space-y-1">
+                <ul className="mt-2 ml-4 space-y-1">
                   {cat.items.map((item) => (
                     <li key={item.id}>
                       <button

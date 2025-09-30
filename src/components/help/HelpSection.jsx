@@ -44,11 +44,11 @@ export default function HelpSection({ topics, activeId, setActiveId }) {
       {grouped.map(
         (cat) =>
           cat.items.length > 0 && (
-            <section key={cat.key} className=" rounded bg-white shadow-sm">
+            <section key={cat.key} className="bg-white rounded shadow-sm ">
               {/* Category header */}
               <button
                 onClick={() => toggleCategory(cat.key)}
-                className="flex justify-between items-center w-full px-4 py-3 mt-4 text-left font-semibold text-sky-700 bg-gray-100 hover:bg-gray-200 rounded-t-lg"
+                className="flex items-center justify-between w-full px-4 py-3 mt-4 font-semibold text-left bg-gray-100 rounded-t-lg text-sky-700 hover:bg-gray-200"
               >
                 <span>{cat.name}</span>
                 {openCategory === cat.key ? (
@@ -66,12 +66,12 @@ export default function HelpSection({ topics, activeId, setActiveId }) {
                     return (
                       <li
                         key={topic.id}
-                        className="border rounded-md bg-white shadow-sm"
+                        className="bg-white border rounded-md shadow-sm"
                       >
                         {/* Topic header */}
                         <button
                           onClick={() => toggleTopic(topic.id)}
-                          className="flex justify-between items-center w-full px-4 py-2 text-left font-medium text-gray-800 hover:bg-gray-50"
+                          className="flex items-center justify-between w-full px-4 py-2 font-medium text-left text-gray-800 hover:bg-gray-50"
                         >
                           <span>{topic.title}</span>
                           {isOpen ? (
@@ -84,10 +84,10 @@ export default function HelpSection({ topics, activeId, setActiveId }) {
                         {/* Dropdown content */}
                         {isOpen && (
                           <div className="px-6 pb-4 space-y-3 text-gray-700">
-                            <p className="text-sm text-gray-600 italic">
+                            <p className="text-sm italic text-gray-600">
                               {topic.description}
                             </p>
-                            <ol className="list-decimal list-inside space-y-2">
+                            <ol className="space-y-2 list-decimal list-inside">
                               {topic.steps.map((step, idx) => (
                                 <li key={idx}>
                                   <span className="font-medium">
@@ -105,7 +105,7 @@ export default function HelpSection({ topics, activeId, setActiveId }) {
                                       <img
                                         src={step.image}
                                         alt={step.title}
-                                        className="rounded-md border max-h-80 object-contain" /* Added max-h-80 and object-contain */
+                                        className="object-contain border rounded-md max-h-80" /* Added max-h-80 and object-contain */
                                       />
                                     </div>
                                   )}

@@ -1,0 +1,3 @@
+MySQL connection failed: settings.DATABASES is improperly configured. Please supply the ENGINE value. Check settings documentation for more details.
+Falling back to SQLite...
+[

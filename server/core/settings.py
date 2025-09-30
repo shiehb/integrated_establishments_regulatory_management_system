@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'audit',
     'inspections',
     'system_config',
+    'system',
 ]
 
 
@@ -168,13 +169,18 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'db_ierms',   # replace with the DB name you created in phpMyAdmin
-        'USER': 'root',        # default XAMPP user
-        'PASSWORD': '',        # default root has no password in XAMPP
-        'HOST': '127.0.0.1',   # or 'localhost'
-        'PORT': '3306',        # default MySQL/MariaDB port
+        'NAME': 'db_ierms',
+        'USER': 'root',
+        'PASSWORD': '',
+        'HOST': '127.0.0.1',
+        'PORT': '3306',
         'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'charset': 'utf8mb4',
+        },
+        'TEST': {
+            'CHARSET': 'utf8mb4',
+            'COLLATION': 'utf8mb4_unicode_ci',
         }
     }
 }
@@ -186,6 +192,8 @@ DATABASES = {
 #         'NAME': BASE_DIR / 'db.sqlite3',
 #     }
 # }
+
+
 
 CACHES = {
     'default': {
@@ -220,6 +228,12 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Ensure media directory exists
 os.makedirs(MEDIA_ROOT, exist_ok=True)
+
+# Default folder for database backups
+DEFAULT_BACKUP_DIR = os.path.join(BASE_DIR, "backups")
+
+# Ensure the folder exists
+os.makedirs(DEFAULT_BACKUP_DIR, exist_ok=True)
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

@@ -8,6 +8,7 @@ import {
   InspectIcon,
   FileText,
   Settings,
+  Database, // ✅ add Database icon
 } from "lucide-react";
 
 // Common sidebar menu for all roles
@@ -27,6 +28,12 @@ const baseMenu = [
     name: "System Configuration",
     path: "/system-config",
     icon: Settings,
+    adminOnly: true,
+  }, // ✅ Only Admin
+  {
+    name: "Database Backup",
+    path: "/database-backup",
+    icon: Database,
     adminOnly: true,
   }, // ✅ Only Admin
 ];
@@ -65,9 +72,9 @@ export default function Sidebar({ userLevel = "public" }) {
       <nav className="flex-1 py-1 overflow-y-auto">
         <ul className="px-2 space-y-1">
           {baseMenu.map((item) => {
-            // ✅ Hide Users link unless Admin
+            // ✅ Hide Users/System Config/Database Backup unless Admin
             if (item.adminOnly && userLevel !== "Admin") return null;
-            // ✅ Hide Billing Records link unless Legal Unit
+            // ✅ Hide Billing Records unless Legal Unit
             if (item.legalOnly && userLevel !== "Legal Unit") return null;
 
             const IconComponent = item.icon;

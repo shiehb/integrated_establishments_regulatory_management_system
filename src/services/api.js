@@ -383,3 +383,43 @@ export const searchUsers = async (query, page = 1, pageSize = 10) => {
   });
   return res.data;
 };
+
+// -------------------------------------------------
+// Database Backup & Restore
+// -------------------------------------------------
+
+// Create a backup
+export const createBackup = async (format = "sql", path = "") => {
+  const res = await api.post("db/backup/", { format, path });
+  return res.data;
+};
+
+// Restore from a file (uploaded)
+export const restoreBackupFromFile = async (file, path = "") => {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (path) formData.append("path", path);
+
+  const res = await api.post("db/restore/", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+};
+
+// Restore from an existing backup file
+export const restoreBackupByName = async (fileName) => {
+  const res = await api.post("db/restore/", { fileName });
+  return res.data;
+};
+
+// List all available backups
+export const getBackups = async () => {
+  const res = await api.get("db/backups/");
+  return res.data;
+};
+
+// Delete a backup
+export const deleteBackup = async (fileName) => {
+  const res = await api.delete(`db/delete/${fileName}/`);
+  return res.data;
+};
