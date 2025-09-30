@@ -6,78 +6,116 @@
     <style>
       body {
         font-family: Arial, sans-serif;
-        line-height: 1.6;
-        color: #333;
+        line-height: 1.7;
+        color: #333333;
+        margin: 0;
+        padding: 0;
+        background-color: #eef2f7;
       }
       .container {
         max-width: 600px;
-        margin: 0 auto;
-        padding: 20px;
+        margin: 40px auto;
+        background: #ffffff;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
       }
       .header {
-        background-color: #f8f9fa;
-        padding: 20px;
+        background: linear-gradient(135deg, #0369a1, #0284c7);
+        padding: 24px 20px;
         text-align: center;
+        color: #ffffff;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 20px; /* smaller title */
+        font-weight: bold;
       }
       .content {
-        padding: 20px;
-        background-color: #fff;
+        padding: 36px 28px;
       }
-      .footer {
-        padding: 20px;
-        text-align: center;
-        font-size: 12px;
-        color: #666;
+      .content p {
+        margin: 0 0 20px;
+        font-size: 15px;
+      }
+      .details {
+        background: #f9fafb;
+        padding: 18px 22px;
+        border-radius: 8px;
+        margin: 26px 0;
+        border: 1px solid #e5e7eb;
+        font-size: 14px;
+      }
+      .details p {
+        margin: 8px 0;
+      }
+      .details strong {
+        color: #0369a1;
       }
       .password-warning {
-        background-color: #fff3cd;
-        padding: 15px;
-        border-radius: 5px;
-        margin: 15px 0;
+        background-color: #fff8e6;
+        padding: 16px 20px;
+        border-radius: 8px;
+        margin: 26px 0;
+        border-left: 5px solid #f59e0b;
+        font-size: 14px;
+      }
+      .content a {
+        color: #0369a1;
+        font-weight: bold;
+        text-decoration: none;
+      }
+      .footer {
+        padding: 16px; /* smaller footer */
+        text-align: center;
+        font-size: 11px; /* subtle */
+        color: #888888;
+        background: #f8f9fa;
       }
     </style>
   </head>
   <body>
     <div class="container">
+      <!-- Header -->
       <div class="header">
-        <h1>Welcome to Our System!</h1>
+        <h1>Welcome to Our System 🎉</h1>
       </div>
 
+      <!-- Body -->
       <div class="content">
         <p>
-          Hello {% if user.first_name %}{{ user.first_name }} {{ user.last_name
-          }}{% else %}{{ user.email }}{% endif %},
+          Hello {% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}{{ user.email }}{% endif %},
         </p>
 
-        <p>
-          Your account has been successfully created. Here are your login
-          details:
-        </p>
+        <p>Your account has been successfully created. Here are your login details:</p>
 
-        <p><strong>Email:</strong> {{ user.email }}</p>
-        <p><strong>Temporary Password:</strong> {{ default_password }}</p>
-        <p><strong>User Level:</strong> {{ user.userlevel }}</p>
-        {% if user.section %}
-        <p><strong>Section:</strong> {{ user.section }}</p>
-        {% endif %}
-
-        <div class="password-warning">
-          <strong>Important:</strong> For security reasons, please change your
-          password after your first login.
+        <!-- Account Details -->
+        <div class="details">
+          <p><strong>Email:</strong> {{ user.email }}</p>
+          <p><strong>Temporary Password:</strong> {{ default_password }}</p>
+          <p><strong>User Level:</strong> {{ user.userlevel }}</p>
+          {% if user.section %}
+          <p><strong>Section:</strong> {{ user.section }}</p>
+          {% endif %}
         </div>
 
+        <!-- Warning Box -->
+        <div class="password-warning">
+          <strong>Important:</strong> For your security, please change your password after your first login.
+        </div>
+
+        <!-- Login Link -->
         <p>
-          You can login to the system here:
+          You can log in to the system here:  
           <a href="{{ login_url }}">{{ login_url }}</a>
         </p>
 
-        <p>
-          If you have any questions, please contact the system administrator.
-        </p>
+        <p>If you have any questions, please contact the system administrator.</p>
       </div>
 
+      <!-- Footer -->
       <div class="footer">
-        <p>This is an automated message. Please do not reply to this email.</p>
+        <p>This is an automated message. Please do not reply.</p>
       </div>
     </div>
   </body>
