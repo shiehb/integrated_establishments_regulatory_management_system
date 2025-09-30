@@ -53,7 +53,8 @@ const useInspectionsData = (pageSize = 10) => {
   const fetchEstablishments = useCallback(async () => {
     return callApi(
       async () => {
-        const data = await getEstablishments();
+        const response = await getEstablishments({ page: 1, page_size: 10000 });
+        const data = response.results || response;
         if (!Array.isArray(data)) {
           console.warn(
             "Expected array from getEstablishments, got:",

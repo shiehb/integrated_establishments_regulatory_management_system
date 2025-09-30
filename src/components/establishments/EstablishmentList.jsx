@@ -14,8 +14,9 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { getEstablishments, searchEstablishments } from "../../services/api";
+import { getEstablishments } from "../../services/api";
 import ExportModal from "../ExportModal";
+import PaginationControls from "../PaginationControls";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -66,32 +67,33 @@ export default function EstablishmentList({
   const [selectedEstablishments, setSelectedEstablishments] = useState([]);
   const [showExportModal, setShowExportModal] = useState(false);
 
-  // Fetch data based on mode (search or all)
+  // Fetch data with server-side pagination
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      let data;
+      // Set search mode
       if (debouncedSearchQuery && debouncedSearchQuery.length >= 2) {
         setSearchMode(true);
-        const result = await searchEstablishments(
-          debouncedSearchQuery,
-          currentPage,
-          pageSize
-        );
-        data = result.results || [];
-        setTotalCount(result.count || 0);
       } else {
         setSearchMode(false);
-        const allData = await getEstablishments();
-        data = allData;
-        setTotalCount(allData.length);
-
-        // Apply local pagination for non-search mode
-        const startIndex = (currentPage - 1) * pageSize;
-        const endIndex = startIndex + pageSize;
-        data = data.slice(startIndex, endIndex);
       }
-      setEstablishments(data);
+
+      const response = await getEstablishments({
+        page: currentPage,
+        page_size: pageSize,
+        ...(debouncedSearchQuery && debouncedSearchQuery.length >= 2 && { search: debouncedSearchQuery }),
+        ...(provinceFilter.length > 0 && { province: provinceFilter.join(',') })
+      });
+      
+      if (response.results) {
+        // Server-side paginated response
+        setEstablishments(response.results);
+        setTotalCount(response.count || 0);
+      } else {
+        // Fallback for non-paginated response
+        setEstablishments(response);
+        setTotalCount(response.length);
+      }
     } catch (err) {
       console.error("Error fetching establishments:", err);
       if (window.showNotification) {
@@ -100,7 +102,7 @@ export default function EstablishmentList({
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearchQuery, currentPage, pageSize]);
+  }, [currentPage, pageSize, debouncedSearchQuery, provinceFilter]);
 
   useEffect(() => {
     fetchData();
@@ -394,14 +396,17 @@ export default function EstablishmentList({
             )}
           </div>
 
-          {selectedEstablishments.length > 0 && (
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-            >
-              <Download size={14} /> Export ({selectedEstablishments.length})
-            </button>
-          )}
+          <button
+            onClick={() => selectedEstablishments.length > 0 && setShowExportModal(true)}
+            disabled={selectedEstablishments.length === 0}
+            className={`flex items-center gap-1 px-2 py-1 text-sm rounded ${
+              selectedEstablishments.length > 0
+                ? "text-white bg-sky-600 hover:bg-sky-700"
+                : "text-gray-400 bg-gray-200 cursor-not-allowed"
+            }`}
+          >
+            <Download size={14} /> Export ({selectedEstablishments.length})
+          </button>
           {canEditEstablishments && (
             <button
               onClick={onAdd}
@@ -560,79 +565,20 @@ export default function EstablishmentList({
       </div>
 
       {/* Pagination */}
-      {totalCount > 0 && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-gray-600">
-            Showing {startItem} to {endItem} of {totalCount} entries
-            {searchMode && debouncedSearchQuery && (
-              <span className="ml-2">(search results)</span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-            >
-              <ChevronLeft size={16} />
-            </button>
-
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
-              }
-
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => goToPage(pageNum)}
-                  className={`px-3 py-1 text-sm rounded ${
-                    currentPage === pageNum
-                      ? "bg-sky-600 text-white"
-                      : "hover:bg-gray-100"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-
-            <button
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm">
-            <span>Show:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="px-2 py-1 border rounded"
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-            <span>per page</span>
-          </div>
-        </div>
-      )}
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={totalCount}
+        hasActiveFilters={searchMode && debouncedSearchQuery}
+        onPageChange={goToPage}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize);
+          setCurrentPage(1);
+        }}
+        startItem={startItem}
+        endItem={endItem}
+      />
 
       {/* Export Modal */}
       <ExportModal

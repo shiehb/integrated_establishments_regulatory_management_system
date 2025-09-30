@@ -113,8 +113,15 @@ export default function MapPage() {
   const fetchAllEstablishments = async () => {
     setLoading(true);
     try {
-      const data = await getEstablishments();
-      setAllEstablishments(data);
+      // Get all establishments for the map (use a large page size)
+      const data = await getEstablishments({ page: 1, page_size: 10000 });
+      
+      // Handle both paginated and non-paginated responses
+      if (data.results) {
+        setAllEstablishments(data.results);
+      } else {
+        setAllEstablishments(data);
+      }
     } catch (err) {
       console.error("Error fetching establishments:", err);
       if (window.showNotification) {

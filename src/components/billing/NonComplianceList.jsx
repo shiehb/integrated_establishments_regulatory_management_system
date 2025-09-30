@@ -281,14 +281,17 @@ export default function NonComplianceList({ onSelectReport }) {
             )}
           </div>
 
-          {selectedReports.length > 0 && (
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-            >
-              <Download size={14} /> Export ({selectedReports.length})
-            </button>
-          )}
+          <button
+            onClick={() => selectedReports.length > 0 && setShowExportModal(true)}
+            disabled={selectedReports.length === 0}
+            className={`flex items-center gap-1 px-2 py-1 text-sm rounded ${
+              selectedReports.length > 0
+                ? "text-white bg-sky-600 hover:bg-sky-700"
+                : "text-gray-400 bg-gray-200 cursor-not-allowed"
+            }`}
+          >
+            <Download size={14} /> Export ({selectedReports.length})
+          </button>
         </div>
       </div>
 

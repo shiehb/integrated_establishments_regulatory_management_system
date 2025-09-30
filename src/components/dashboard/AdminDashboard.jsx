@@ -42,7 +42,8 @@ export default function AdminDashboard() {
   // 🔹 Establishments
   const fetchEstablishments = async () => {
     try {
-      const data = await getEstablishments();
+      const response = await getEstablishments({ page: 1, page_size: 10000 });
+      const data = response.results || response;
       setEstablishments(data);
     } catch (err) {
       console.error("Error fetching establishments:", err);

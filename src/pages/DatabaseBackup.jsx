@@ -251,360 +251,370 @@ const DatabaseBackup = () => {
             />
           )}
 
-          {/* Grid for Backup & Restore */}
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {/* Backup Section */}
-            <div className="flex flex-col p-6 bg-white border border-gray-200 rounded-lg shadow-md">
-              <h2 className="mb-4 text-lg font-semibold text-gray-900">
-                Create Backup
-              </h2>
-              <div className="flex-1 space-y-6">
-                {/* Backup Format Selection */}
-                <div>
-                  <label className="block mb-2 text-sm font-medium text-gray-700">
-                    Backup Format
-                  </label>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {["json", "sql"].map((format) => {
-                      const Icon = formatIcons[format];
-                      const isSelected = backupFormat === format;
-                      return (
-                        <div
-                          key={format}
-                          onClick={() => setBackupFormat(format)}
-                          className={`cursor-pointer p-4 border-2 rounded-lg shadow-sm transition flex flex-col items-center
-                            ${
-                              isSelected
-                                ? "border-sky-600 bg-sky-50 ring-2 ring-sky-500"
-                                : "border-gray-300 hover:border-sky-400 hover:bg-gray-50"
-                            }`}
-                        >
-                          <Icon
-                            className={`mb-2 ${
-                              isSelected ? "text-sky-600" : "text-gray-400"
-                            }`}
-                            size={28}
-                            strokeWidth={2}
-                          />
-                          <h3
-                            className={`font-semibold capitalize ${
-                              isSelected ? "text-sky-700" : "text-gray-800"
-                            }`}
-                          >
-                            {format.toUpperCase()}
-                          </h3>
-                          <p className="mt-1 text-xs text-center text-gray-500">
-                            {getFormatDescription(format)}
-                          </p>
-                        </div>
-                      );
-                    })}
+          {/* New Layout: Table on the left, Backup/Restore on the right */}
+          <div className="flex flex-col gap-6 lg:flex-row">
+            {/* Table Section - Takes full width on mobile, left on desktop */}
+            <div className="flex-1">
+              <div className="bg-white border border-gray-200 rounded-lg shadow-md">
+                <div className="p-4 border-b border-gray-200 rounded-t-lg bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Available Backups
+                    </h3>
+                    <button
+                      onClick={loadBackups}
+                      disabled={loadingBackups}
+                      className="flex items-center px-3 py-1 text-sm text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        className={`mr-1 ${
+                          loadingBackups ? "animate-spin" : ""
+                        }`}
+                        size={14}
+                      />
+                      Refresh
+                    </button>
                   </div>
                 </div>
 
-                {/* Backup Path Input */}
-                <div>
-                  <label className="block mb-1 text-sm font-medium text-gray-700">
-                    Custom Save Path (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={backupPath}
-                    onChange={(e) => setBackupPath(e.target.value)}
-                    placeholder="C:/custom/path/backup/"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Leave empty to use default backup directory: backups/
-                  </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full border border-gray-300 rounded-lg">
+                    <thead>
+                      <tr className="text-sm text-left text-white bg-sky-700">
+                        <th className="p-1 border border-gray-300">
+                          File Name
+                        </th>
+                        <th className="p-1 border border-gray-300">
+                          Format
+                        </th>
+                        <th className="p-1 border border-gray-300">
+                          Created
+                        </th>
+                        <th className="p-1 border border-gray-300">
+                          Size
+                        </th>
+                        <th className="p-1 text-center border border-gray-300">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingBackups ? (
+                        <tr>
+                          <td colSpan="5" className="px-2 py-8 text-center border border-gray-300">
+                            <div className="flex items-center justify-center">
+                              <div className="w-6 h-6 mr-2 border-b-2 rounded-full animate-spin border-sky-600"></div>
+                              <span>Loading backups...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : backups.length > 0 ? (
+                        backups.map((backup) => (
+                          <tr
+                            key={backup.fileName}
+                            className={`text-xs border border-gray-300 hover:bg-gray-50 cursor-pointer ${
+                              selectedBackup?.fileName === backup.fileName
+                                ? "bg-blue-50"
+                                : ""
+                            }`}
+                            onClick={() => handleBackupSelect(backup)}
+                          >
+                            <td className="px-2 py-3 border border-gray-300">
+                              <div className="flex items-center">
+                                <div
+                                  className={`w-3 h-3 rounded-full mr-3 ${
+                                    backup.format === "json"
+                                      ? "bg-green-500"
+                                      : "bg-blue-500"
+                                  }`}
+                                ></div>
+                                <span className="text-sm font-medium text-gray-900">
+                                  {backup.fileName}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-2 py-3 border border-gray-300">
+                              <span
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  backup.format === "json"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-blue-100 text-blue-800"
+                                }`}
+                              >
+                                {backup.format.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="px-2 py-3 text-sm text-gray-500 border border-gray-300">
+                              {backup.created}
+                            </td>
+                            <td className="px-2 py-3 text-sm text-gray-500 border border-gray-300">
+                              {backup.size}
+                            </td>
+                            <td className="px-2 py-3 border border-gray-300">
+                              <div className="flex justify-center gap-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleBackupSelect(backup);
+                                    setRestoreConfirm(true);
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
+                                  title="Restore this backup"
+                                >
+                                  <RotateCcw size={12} />
+                                  Restore
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDownloadBackup(backup);
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-sky-600 rounded hover:bg-sky-700"
+                                  title="Download this backup"
+                                >
+                                  <Download size={12} />
+                                  Download
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBackupToDelete(backup);
+                                    setDeleteConfirm(true);
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700"
+                                  title="Delete this backup"
+                                >
+                                  <Trash2 size={12} />
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="5" className="px-2 py-4 text-center text-gray-500 border border-gray-300">
+                            <div className="flex flex-col items-center justify-center">
+                              <Database
+                                className="mb-2 text-gray-400"
+                                size={32}
+                              />
+                              <p className="text-sm">No backups available</p>
+                              <p className="mt-1 text-xs">
+                                Create your first backup using the form above
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-              <div className="flex justify-end mt-6">
-                <button
-                  onClick={() => setConfirmOpen(true)}
-                  disabled={processing}
-                  className="flex items-center px-4 py-2 text-white transition-colors rounded-md bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {processing && processingAction === "backup" ? (
-                    <>
-                      <div className="w-4 h-4 mr-2 border-b-2 border-white rounded-full animate-spin"></div>
-                      Creating Backup...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="mr-2" size={18} />
-                      Create Backup
-                    </>
-                  )}
-                </button>
               </div>
             </div>
 
-            {/* Restore Section */}
-            <div className="flex flex-col p-6 bg-white border border-gray-200 rounded-lg shadow-md">
-              <h2 className="mb-4 text-lg font-semibold text-gray-900">
-                Restore Backup
-              </h2>
-              <div className="flex-1 space-y-6">
-                {/* Restore File Selection */}
-                <div>
-                  <label className="block mb-1 text-sm font-medium text-gray-700">
-                    Select Backup File
-                  </label>
-                  <div
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (e.dataTransfer.files.length > 0) {
-                        const file = e.dataTransfer.files[0];
-                        if (
-                          file.name.endsWith(".sql") ||
-                          file.name.endsWith(".json")
-                        ) {
-                          setRestoreFile(file);
-                          setRestoreFileName(file.name);
-                          setSelectedBackup(null);
-                        } else {
-                          showMessage(
-                            "Please drop a .sql or .json file",
-                            "error"
-                          );
-                        }
-                      }
-                    }}
-                    onDragOver={(e) => e.preventDefault()}
-                    className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition 
-                      ${
-                        restoreFile || selectedBackup
-                          ? "border-green-600 bg-green-50"
-                          : "border-gray-300 hover:border-sky-500 hover:bg-sky-50"
-                      }`}
-                    onClick={() => document.getElementById("fileInput").click()}
+            {/* Backup & Restore Section - Right side, stacked vertically */}
+            <div className="flex flex-col gap-6 lg:w-1/3">
+              {/* Backup Section - Top Right */}
+              <div className="flex flex-col p-6 bg-white border border-gray-200 rounded-lg shadow-md">
+                <h2 className="mb-4 text-lg font-semibold text-gray-900">
+                  Create Backup
+                </h2>
+                <div className="flex-1 space-y-6">
+                  {/* Backup Format Selection */}
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-gray-700">
+                      Backup Format
+                    </label>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {["json", "sql"].map((format) => {
+                        const Icon = formatIcons[format];
+                        const isSelected = backupFormat === format;
+                        return (
+                          <div
+                            key={format}
+                            onClick={() => setBackupFormat(format)}
+                            className={`cursor-pointer p-4 border-2 rounded-lg shadow-sm transition flex flex-col items-center
+                              ${
+                                isSelected
+                                  ? "border-sky-600 bg-sky-50 ring-2 ring-sky-500"
+                                  : "border-gray-300 hover:border-sky-400 hover:bg-gray-50"
+                              }`}
+                          >
+                            <Icon
+                              className={`mb-2 ${
+                                isSelected ? "text-sky-600" : "text-gray-400"
+                              }`}
+                              size={28}
+                              strokeWidth={2}
+                            />
+                            <h3
+                              className={`font-semibold capitalize ${
+                                isSelected ? "text-sky-700" : "text-gray-800"
+                              }`}
+                            >
+                              {format.toUpperCase()}
+                            </h3>
+                            <p className="mt-1 text-xs text-center text-gray-500">
+                              {getFormatDescription(format)}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Backup Path Input */}
+                  <div>
+                    <label className="block mb-1 text-sm font-medium text-gray-700">
+                      Custom Save Path (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={backupPath}
+                      onChange={(e) => setBackupPath(e.target.value)}
+                      placeholder="C:/custom/path/backup/"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Leave empty to use default backup directory: backups/
+                    </p>
+                  </div>
+                </div>
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={() => setConfirmOpen(true)}
+                    disabled={processing}
+                    className="flex items-center px-4 py-2 text-white transition-colors rounded-md bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {restoreFile || selectedBackup ? (
+                    {processing && processingAction === "backup" ? (
                       <>
-                        <p className="text-sm font-medium text-gray-800">
-                          {restoreFileName || selectedBackup?.fileName}
-                        </p>
-                        <p className="mt-1 text-xs text-gray-500">
-                          {selectedBackup
-                            ? "Backup selected from list"
-                            : "File ready to restore"}
-                        </p>
-                        <p className="mt-2 text-xs font-medium text-green-600">
-                          ✓ Ready to restore
-                        </p>
+                        <div className="w-4 h-4 mr-2 border-b-2 border-white rounded-full animate-spin"></div>
+                        Creating Backup...
                       </>
                     ) : (
                       <>
-                        <Upload className="mb-2 text-gray-400" size={24} />
-                        <p className="text-sm text-gray-600">
-                          Drag & drop a backup file here
-                        </p>
-                        <p className="mt-1 text-xs text-gray-400">
-                          or click to browse (.sql or .json)
-                        </p>
+                        <Save className="mr-2" size={18} />
+                        Create Backup
                       </>
                     )}
-                    <input
-                      id="fileInput"
-                      type="file"
-                      className="hidden"
-                      accept=".sql,.json"
-                      onChange={handleFileSelect}
-                    />
-                  </div>
-                  <p className="mt-2 text-xs text-gray-500">
-                    Or select a backup from the list below
-                  </p>
+                  </button>
                 </div>
+              </div>
 
-                {/* Selected Backup Info */}
-                {selectedBackup && (
-                  <div className="p-3 border border-blue-200 rounded-md bg-blue-50">
-                    <p className="text-sm font-medium text-blue-800">
-                      Selected: {selectedBackup.fileName}
-                    </p>
-                    <p className="text-xs text-blue-600">
-                      Created: {selectedBackup.created} • Size:{" "}
-                      {selectedBackup.size}
+              {/* Restore Section - Bottom Right */}
+              <div className="flex flex-col p-6 bg-white border border-gray-200 rounded-lg shadow-md">
+                <h2 className="mb-4 text-lg font-semibold text-gray-900">
+                  Restore Backup
+                </h2>
+                <div className="flex-1 space-y-6">
+                  {/* Restore File Selection */}
+                  <div>
+                    <label className="block mb-1 text-sm font-medium text-gray-700">
+                      Select Backup File
+                    </label>
+                    <div
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (e.dataTransfer.files.length > 0) {
+                          const file = e.dataTransfer.files[0];
+                          if (
+                            file.name.endsWith(".sql") ||
+                            file.name.endsWith(".json")
+                          ) {
+                            setRestoreFile(file);
+                            setRestoreFileName(file.name);
+                            setSelectedBackup(null);
+                          } else {
+                            showMessage(
+                              "Please drop a .sql or .json file",
+                              "error"
+                            );
+                          }
+                        }
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                      className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition 
+                        ${
+                          restoreFile || selectedBackup
+                            ? "border-green-600 bg-green-50"
+                            : "border-gray-300 hover:border-sky-500 hover:bg-sky-50"
+                        }`}
+                      onClick={() =>
+                        document.getElementById("fileInput").click()
+                      }
+                    >
+                      {restoreFile || selectedBackup ? (
+                        <>
+                          <p className="text-sm font-medium text-gray-800">
+                            {restoreFileName || selectedBackup?.fileName}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {selectedBackup
+                              ? "Backup selected from list"
+                              : "File ready to restore"}
+                          </p>
+                          <p className="mt-2 text-xs font-medium text-green-600">
+                            ✓ Ready to restore
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mb-2 text-gray-400" size={24} />
+                          <p className="text-sm text-gray-600">
+                            Drag & drop a backup file here
+                          </p>
+                          <p className="mt-1 text-xs text-gray-400">
+                            or click to browse (.sql or .json)
+                          </p>
+                        </>
+                      )}
+                      <input
+                        id="fileInput"
+                        type="file"
+                        className="hidden"
+                        accept=".sql,.json"
+                        onChange={handleFileSelect}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      Or select a backup from the list below
                     </p>
                   </div>
-                )}
-              </div>
-              <div className="flex justify-end mt-6">
-                <button
-                  onClick={() => setRestoreConfirm(true)}
-                  disabled={processing || (!restoreFile && !selectedBackup)}
-                  className="flex items-center px-4 py-2 text-white transition-colors bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {processing && processingAction === "restore" ? (
-                    <>
-                      <div className="w-4 h-4 mr-2 border-b-2 border-white rounded-full animate-spin"></div>
-                      Restoring...
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw className="mr-2" size={18} />
-                      Restore Backup
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
 
-          {/* Backup List Table */}
-          <div className="mt-8 bg-white border border-gray-200 rounded-lg shadow-md">
-            <div className="p-4 border-b border-gray-200 rounded-t-lg bg-gray-50">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Available Backups
-                </h3>
-                <button
-                  onClick={loadBackups}
-                  disabled={loadingBackups}
-                  className="flex items-center px-3 py-1 text-sm text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-                >
-                  <RefreshCw
-                    className={`mr-1 ${loadingBackups ? "animate-spin" : ""}`}
-                    size={14}
-                  />
-                  Refresh
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
-                      File Name
-                    </th>
-                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
-                      Format
-                    </th>
-                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
-                      Created
-                    </th>
-                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-left text-gray-500 uppercase">
-                      Size
-                    </th>
-                    <th className="px-6 py-3 text-xs font-medium tracking-wider text-center text-gray-500 uppercase">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {loadingBackups ? (
-                    <tr>
-                      <td colSpan="5" className="px-6 py-8 text-center">
-                        <div className="flex flex-col items-center justify-center">
-                          <div className="w-6 h-6 mb-2 border-b-2 rounded-full border-sky-600 animate-spin"></div>
-                          <p className="text-sm text-gray-500">
-                            Loading backups...
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : backups.length > 0 ? (
-                    backups.map((backup) => (
-                      <tr
-                        key={backup.fileName}
-                        className={`hover:bg-gray-50 cursor-pointer ${
-                          selectedBackup?.fileName === backup.fileName
-                            ? "bg-blue-50"
-                            : ""
-                        }`}
-                        onClick={() => handleBackupSelect(backup)}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div
-                              className={`w-3 h-3 rounded-full mr-3 ${
-                                backup.format === "json"
-                                  ? "bg-green-500"
-                                  : "bg-blue-500"
-                              }`}
-                            ></div>
-                            <span className="text-sm font-medium text-gray-900">
-                              {backup.fileName}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              backup.format === "json"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-blue-100 text-blue-800"
-                            }`}
-                          >
-                            {backup.format.toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
-                          {backup.created}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
-                          {backup.size}
-                        </td>
-                        <td className="px-6 py-4 text-sm font-medium text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center space-x-2">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleBackupSelect(backup);
-                                setRestoreConfirm(true);
-                              }}
-                              className="flex items-center px-3 py-1 text-xs text-white transition-colors bg-green-600 rounded hover:bg-green-700"
-                              title="Restore this backup"
-                            >
-                              <RotateCcw size={12} className="mr-1" />
-                              Restore
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDownloadBackup(backup);
-                              }}
-                              className="flex items-center px-3 py-1 text-xs text-white transition-colors rounded bg-sky-600 hover:bg-sky-700"
-                              title="Download this backup"
-                            >
-                              <Download size={12} className="mr-1" />
-                              Download
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setBackupToDelete(backup);
-                                setDeleteConfirm(true);
-                              }}
-                              className="flex items-center px-3 py-1 text-xs text-white transition-colors bg-red-600 rounded hover:bg-red-700"
-                              title="Delete this backup"
-                            >
-                              <Trash2 size={12} className="mr-1" />
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="5" className="px-6 py-8 text-center">
-                        <div className="flex flex-col items-center justify-center text-gray-500">
-                          <Database className="mb-2 text-gray-400" size={32} />
-                          <p className="text-sm">No backups available</p>
-                          <p className="mt-1 text-xs">
-                            Create your first backup using the form above
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
+                  {/* Selected Backup Info */}
+                  {selectedBackup && (
+                    <div className="p-3 border border-blue-200 rounded-md bg-blue-50">
+                      <p className="text-sm font-medium text-blue-800">
+                        Selected: {selectedBackup.fileName}
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        Created: {selectedBackup.created} • Size:{" "}
+                        {selectedBackup.size}
+                      </p>
+                    </div>
                   )}
-                </tbody>
-              </table>
+                </div>
+                <div className="flex justify-end mt-6">
+                  <button
+                    onClick={() => setRestoreConfirm(true)}
+                    disabled={processing || (!restoreFile && !selectedBackup)}
+                    className="flex items-center px-4 py-2 text-white transition-colors bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {processing && processingAction === "restore" ? (
+                      <>
+                        <div className="w-4 h-4 mr-2 border-b-2 border-white rounded-full animate-spin"></div>
+                        Restoring...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="mr-2" size={18} />
+                        Restore Backup
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 

@@ -19,6 +19,7 @@ import {
 import api, { toggleUserActive } from "../../services/api";
 import ExportModal from "../ExportModal";
 import ConfirmationDialog from "../common/ConfirmationDialog";
+import PaginationControls from "../PaginationControls";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -37,13 +38,88 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
-// Move sectionDisplayNames outside the component to avoid dependency issues
-const sectionDisplayNames = {
-  "PD-1586": "Environmental Impact Assessment",
-  "RA-6969": "Toxic Substances and Hazardous Waste Act",
-  "RA-8749": "Clean Air Act",
-  "RA-9275": "Clean Water Act",
-  "RA-9003": "Solid Waste Management Act",
+// Section options depending on role
+const sectionOptionsByLevel = {
+  "Section Chief": [
+    {
+      value: "PD-1586,RA-8749,RA-9275",
+      label: "EIA, Air & Water Quality Monitoring Section",
+    },
+    {
+      value: "RA-6969",
+      label: "Toxic Chemicals & Hazardous Monitoring Section",
+    },
+    { value: "RA-9003", label: "Ecological Solid Waste Management Section" },
+  ],
+  "Unit Head": [
+    { value: "PD-1586", label: "EIA Monitoring Unit" },
+    { value: "RA-8749", label: "Air Quality Monitoring Unit" },
+    { value: "RA-9275", label: "Water Quality Monitoring Unit" },
+  ],
+  "Monitoring Personnel": [
+    { value: "PD-1586", label: "EIA Monitoring Personnel" },
+    { value: "RA-8749", label: "Air Quality Monitoring Personnel" },
+    { value: "RA-9275", label: "Water Quality Monitoring Personnel" },
+    { value: "RA-6969", label: "Toxic Chemicals Monitoring Personnel" },
+    { value: "RA-9003", label: "Solid Waste Monitoring Personnel" },
+  ],
+};
+
+// Create comprehensive section display mapping with role context
+const getSectionDisplayName = (sectionValue, userlevel) => {
+  if (!sectionValue) return "";
+
+  // First, check if this section exists in the userlevel's options
+  if (userlevel && sectionOptionsByLevel[userlevel]) {
+    const sectionOption = sectionOptionsByLevel[userlevel].find(
+      (opt) => opt.value === sectionValue
+    );
+    if (sectionOption) {
+      return sectionOption.label;
+    }
+  }
+
+  // Fallback mapping for when userlevel is not available
+  const fallbackMap = {
+    "PD-1586,RA-8749,RA-9275": "EIA, Air & Water Quality Monitoring Section",
+    "RA-6969": "Toxic Chemicals & Hazardous Monitoring Section",
+    "RA-9003": "Ecological Solid Waste Management Section",
+    "PD-1586": "EIA Monitoring",
+    "RA-8749": "Air Quality Monitoring",
+    "RA-9275": "Water Quality Monitoring",
+  };
+
+  const baseName = fallbackMap[sectionValue] || sectionValue;
+
+  // Add appropriate suffix based on common patterns
+  if (sectionValue === "RA-6969") {
+    return "Toxic Chemicals & Hazardous Monitoring Section";
+  } else if (sectionValue === "RA-9003") {
+    return "Ecological Solid Waste Management Section";
+  }
+
+  return baseName;
+};
+
+// Add user role display names
+const userRoleDisplayNames = {
+  "Legal Unit": "Legal Unit",
+  "Division Chief": "Division Chief",
+  "Section Chief": "Section Chief",
+  "Unit Head": "Unit Head",
+  "Monitoring Personnel": "Monitoring Personnel",
+};
+
+// Helper function to get full role display with section
+const getRoleDisplay = (userlevel, section) => {
+  const roleDisplay = userRoleDisplayNames[userlevel] || userlevel || "";
+
+  if (section) {
+    const sectionDisplay = getSectionDisplayName(section, userlevel);
+    return `${roleDisplay} - ${sectionDisplay}`;
+  }
+
+  return roleDisplay;
 };
 
 export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
@@ -76,17 +152,45 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   // 📤 Export Modal
   const [showExportModal, setShowExportModal] = useState(false);
 
-  // Fetch all users on component mount and refresh
+  // Fetch all users on component mount and when pagination/filters change
   useEffect(() => {
     fetchAllUsers();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, currentPage, pageSize, debouncedSearchQuery, roleFilter, statusFilter]);
 
   const fetchAllUsers = async () => {
     setLoading(true);
     try {
-      const res = await api.get("auth/list/");
-      setUsers(res.data);
-      setTotalCount(res.data.length);
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        page_size: pageSize.toString(),
+      });
+
+      // Add search parameter if provided
+      if (debouncedSearchQuery) {
+        params.append('search', debouncedSearchQuery);
+      }
+
+      // Add role filter if selected
+      if (roleFilter.length > 0) {
+        params.append('role', roleFilter.join(','));
+      }
+
+      // Add status filter if selected
+      if (statusFilter.length > 0) {
+        params.append('status', statusFilter.join(','));
+      }
+
+      const res = await api.get(`auth/list/?${params.toString()}`);
+      
+      if (res.data.results) {
+        // Server-side paginated response
+        setUsers(res.data.results);
+        setTotalCount(res.data.count || 0);
+      } else {
+        // Fallback for non-paginated response
+        setUsers(res.data);
+        setTotalCount(res.data.length);
+      }
     } catch (err) {
       console.error("Error fetching users:", err);
     } finally {
@@ -166,14 +270,21 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     let list = users.filter((u) => {
       // Apply local search filter
       const query = debouncedSearchQuery.toLowerCase();
-      const fullName =
-        `${u.first_name} ${u.middle_name} ${u.last_name}`.toLowerCase();
+      const fullName = `${u.first_name || ""} ${u.middle_name || ""} ${
+        u.last_name || ""
+      }`.toLowerCase();
+      const userRoleDisplay =
+        userRoleDisplayNames[u.userlevel] || u.userlevel || "";
+      const sectionDisplay =
+        getSectionDisplayName(u.section, u.userlevel) || "";
+      const roleWithSection = getRoleDisplay(u.userlevel, u.section) || "";
+
       const matchesSearch = debouncedSearchQuery
         ? fullName.includes(query) ||
-          u.email.toLowerCase().includes(query) ||
-          u.userlevel?.toLowerCase().includes(query) ||
-          (u.section &&
-            sectionDisplayNames[u.section]?.toLowerCase().includes(query))
+          (u.email || "").toLowerCase().includes(query) ||
+          userRoleDisplay.toLowerCase().includes(query) ||
+          sectionDisplay.toLowerCase().includes(query) ||
+          roleWithSection.toLowerCase().includes(query)
         : true;
 
       // Apply role filter
@@ -209,13 +320,15 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
         let aVal, bVal;
 
         if (sortConfig.key === "fullname") {
-          aVal =
-            `${a.first_name} ${a.middle_name} ${a.last_name}`.toLowerCase();
-          bVal =
-            `${b.first_name} ${b.middle_name} ${b.last_name}`.toLowerCase();
+          aVal = `${a.first_name || ""} ${a.middle_name || ""} ${
+            a.last_name || ""
+          }`.toLowerCase();
+          bVal = `${b.first_name || ""} ${b.middle_name || ""} ${
+            b.last_name || ""
+          }`.toLowerCase();
         } else {
-          aVal = a[sortConfig.key];
-          bVal = b[sortConfig.key];
+          aVal = a[sortConfig.key] || "";
+          bVal = b[sortConfig.key] || "";
         }
 
         if (typeof aVal === "string") aVal = aVal.toLowerCase();
@@ -255,10 +368,10 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   };
 
   const toggleSelectAll = () => {
-    if (selectedUsers.length === paginatedUsers.length) {
+    if (selectedUsers.length === users.length) {
       setSelectedUsers([]);
     } else {
-      setSelectedUsers(paginatedUsers.map((u) => u.id));
+      setSelectedUsers(users.map((u) => u.id));
     }
   };
 
@@ -309,8 +422,8 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     setCurrentPage((prev) => Math.min(totalPages, prev + 1));
   };
 
-  const totalUsers = users.length;
-  const filteredCount = filteredUsers.length;
+  const totalUsers = totalCount;
+  const filteredCount = totalCount; // Server-side filtering
   const hasActiveFilters =
     searchQuery ||
     roleFilter.length > 0 ||
@@ -477,7 +590,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                       <span className="mr-2 text-xs text-sky-600">
                         {roleFilter.includes(role) ? "•" : ""}
                       </span>
-                      <span>{role}</span>
+                      <span>{userRoleDisplayNames[role] || role}</span>
                     </button>
                   ))}
                 </div>
@@ -554,14 +667,17 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
             )}
           </div>
 
-          {selectedUsers.length > 0 && (
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-            >
-              <Download size={14} /> Export ({selectedUsers.length})
-            </button>
-          )}
+          <button
+            onClick={() => selectedUsers.length > 0 && setShowExportModal(true)}
+            disabled={selectedUsers.length === 0}
+            className={`flex items-center gap-1 px-2 py-1 text-sm rounded ${
+              selectedUsers.length > 0
+                ? "text-white bg-sky-600 hover:bg-sky-700"
+                : "text-gray-400 bg-gray-200 cursor-not-allowed"
+            }`}
+          >
+            <Download size={14} /> Export ({selectedUsers.length})
+          </button>
 
           <button
             onClick={onAdd}
@@ -581,7 +697,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                 type="checkbox"
                 checked={
                   selectedUsers.length > 0 &&
-                  selectedUsers.length === paginatedUsers.length
+                  selectedUsers.length === users.length
                 }
                 onChange={toggleSelectAll}
               />
@@ -627,7 +743,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                 </div>
               </td>
             </tr>
-          ) : paginatedUsers.length === 0 ? (
+          ) : users.length === 0 ? (
             <tr>
               <td
                 colSpan="8"
@@ -650,7 +766,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
               </td>
             </tr>
           ) : (
-            paginatedUsers.map((u) => (
+            users.map((u) => (
               <tr
                 key={u.id}
                 className="p-1 text-xs border border-gray-300 hover:bg-gray-50"
@@ -669,10 +785,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                   {u.email}
                 </td>
                 <td className="px-2 border border-gray-300">
-                  {u.userlevel}
-                  {u.section
-                    ? ` - ${sectionDisplayNames[u.section] || u.section}`
-                    : ""}
+                  {getRoleDisplay(u.userlevel, u.section)}
                 </td>
                 <td className="px-2 text-center border border-gray-300 w-28">
                   {u.is_active ? (
@@ -710,79 +823,21 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
       </table>
 
       {/* Pagination Controls */}
-      {filteredCount > 0 && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-gray-600">
-            Showing {startItem} to {endItem} of {filteredCount} user(s)
-            {totalUsers !== filteredCount &&
-              ` (filtered from ${totalUsers} total)`}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={goToPreviousPage}
-              disabled={currentPage === 1}
-              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-            >
-              <ChevronLeft size={16} />
-            </button>
-
-            {/* Page numbers */}
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
-              }
-
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => goToPage(pageNum)}
-                  className={`px-3 py-1 text-sm rounded ${
-                    currentPage === pageNum
-                      ? "bg-sky-600 text-white"
-                      : "hover:bg-gray-100"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-
-            <button
-              onClick={goToNextPage}
-              disabled={currentPage === totalPages}
-              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm">
-            <span>Show:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="px-2 py-1 border rounded"
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-            <span>per page</span>
-          </div>
-        </div>
-      )}
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={totalUsers}
+        filteredItems={filteredCount}
+        hasActiveFilters={hasActiveFilters}
+        onPageChange={goToPage}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize);
+          setCurrentPage(1);
+        }}
+        startItem={startItem}
+        endItem={endItem}
+      />
 
       {/* 📊 Search results info */}
       {(hasActiveFilters || filteredCount !== totalUsers) && (
@@ -815,9 +870,9 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
         rows={selectedUsers.map((id) => {
           const u = users.find((x) => x.id === id);
           return [
-            `${u.first_name} ${u.middle_name} ${u.last_name}`,
-            u.email,
-            u.userlevel,
+            `${u.first_name || ""} ${u.middle_name || ""} ${u.last_name || ""}`,
+            u.email || "",
+            getRoleDisplay(u.userlevel, u.section),
             u.is_active ? "Active" : "Inactive",
             formatFullDate(u.date_joined),
             u.updated_at ? formatFullDate(u.updated_at) : "Never updated",

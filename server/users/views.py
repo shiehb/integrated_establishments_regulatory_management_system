@@ -160,6 +160,57 @@ class UserListView(generics.ListAPIView):
 
     def get_queryset(self):
         return User.objects.exclude(userlevel="Admin").order_by('-updated_at')
+    
+    def list(self, request, *args, **kwargs):
+        # Get pagination parameters
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        
+        # Get filtered queryset
+        queryset = self.get_queryset()
+        
+        # Apply search filter if provided
+        search = request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(email__icontains=search) |
+                Q(section__icontains=search)
+            )
+        
+        # Apply role filter if provided
+        role = request.query_params.get('role')
+        if role:
+            queryset = queryset.filter(userlevel=role)
+        
+        # Apply status filter if provided
+        status = request.query_params.get('status')
+        if status:
+            if status == 'active':
+                queryset = queryset.filter(is_active=True)
+            elif status == 'inactive':
+                queryset = queryset.filter(is_active=False)
+        
+        # Calculate pagination
+        total_count = queryset.count()
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        
+        # Apply pagination
+        users = queryset[start_index:end_index]
+        
+        # Serialize data
+        serializer = self.get_serializer(users, many=True)
+        
+        # Return paginated response
+        return Response({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size,
+            'results': serializer.data
+        })
 
 
 # ---------------------------

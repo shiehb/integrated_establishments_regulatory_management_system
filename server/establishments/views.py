@@ -22,6 +22,51 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
     serializer_class = EstablishmentSerializer
     permission_classes = [permissions.IsAuthenticated]
     
+    def list(self, request, *args, **kwargs):
+        # Get pagination parameters
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        
+        # Get filtered queryset
+        queryset = self.get_queryset()
+        
+        # Apply search filter if provided
+        search = request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(street_building__icontains=search) |
+                Q(barangay__icontains=search) |
+                Q(city__icontains=search) |
+                Q(province__icontains=search) |
+                Q(nature_of_business__icontains=search)
+            )
+        
+        # Apply province filter if provided
+        province = request.query_params.get('province')
+        if province:
+            queryset = queryset.filter(province__icontains=province)
+        
+        # Calculate pagination
+        total_count = queryset.count()
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        
+        # Apply pagination
+        establishments = queryset[start_index:end_index]
+        
+        # Serialize data
+        serializer = self.get_serializer(establishments, many=True)
+        
+        # Return paginated response
+        return Response({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size,
+            'results': serializer.data
+        })
+    
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         try:

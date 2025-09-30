@@ -27,6 +27,33 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     });
   }, [userData]);
 
+  // Section options depending on role
+  const sectionOptionsByLevel = {
+    "Section Chief": [
+      {
+        value: "PD-1586,RA-8749,RA-9275",
+        label: "EIA, Air & Water Quality Monitoring Section",
+      },
+      {
+        value: "RA-6969",
+        label: "Toxic Chemicals & Hazardous Monitoring Section",
+      },
+      { value: "RA-9003", label: "Ecological Solid Waste Management Section" },
+    ],
+    "Unit Head": [
+      { value: "PD-1586", label: "EIA Monitoring Unit" },
+      { value: "RA-8749", label: "Air Quality Monitoring Unit" },
+      { value: "RA-9275", label: "Water Quality Monitoring Unit" },
+    ],
+    "Monitoring Personnel": [
+      { value: "PD-1586", label: "EIA Monitoring Personnel" },
+      { value: "RA-8749", label: "Air Quality Monitoring Personnel" },
+      { value: "RA-9275", label: "Water Quality Monitoring Personnel" },
+      { value: "RA-6969", label: "Toxic Chemicals Monitoring Personnel" },
+      { value: "RA-9003", label: "Solid Waste Monitoring Personnel" },
+    ],
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     let newValue = value;
@@ -34,16 +61,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       newValue = value.toUpperCase();
     }
     setFormData((prev) => {
-      if (
-        name === "userLevel" &&
-        ["Legal Unit", "Division Chief"].includes(value)
-      ) {
-        return { ...prev, [name]: newValue, section: "" };
-      }
-      if (
-        name === "userLevel" &&
-        !["Section Chief", "Unit Head", "Monitoring Personnel"].includes(value)
-      ) {
+      if (name === "userLevel" && !sectionOptionsByLevel[value]) {
         return { ...prev, [name]: newValue, section: "" };
       }
       return { ...prev, [name]: newValue };
@@ -59,10 +77,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       !formData.middleName.trim() ||
       !formData.lastName.trim() ||
       !formData.userLevel.trim() ||
-      (["Section Chief", "Unit Head", "Monitoring Personnel"].includes(
-        formData.userLevel
-      ) &&
-        !formData.section.trim())
+      (sectionOptionsByLevel[formData.userLevel] && !formData.section.trim())
     ) {
       return;
     }
@@ -79,7 +94,6 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
         last_name: formData.lastName,
         userlevel: formData.userLevel,
         ...(formData.section ? { section: formData.section } : {}),
-        // district is preserved automatically from existing user data
       };
       await api.put(`auth/users/${userData.id}/`, payload);
 
@@ -102,12 +116,6 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     }
   };
 
-  const isSectionEnabled = [
-    "Section Chief",
-    "Unit Head",
-    "Monitoring Personnel",
-  ].includes(formData.userLevel);
-
   const Label = ({ field, children }) => (
     <label className="flex items-center justify-between text-sm font-medium text-gray-700">
       <span>
@@ -115,7 +123,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       </span>
       {field === "section" &&
         submitted &&
-        isSectionEnabled &&
+        sectionOptionsByLevel[formData.userLevel] &&
         !formData.section.trim() && (
           <span className="text-xs text-red-500">Required</span>
         )}
@@ -217,23 +225,25 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
               name="section"
               value={formData.section}
               onChange={handleChange}
-              disabled={!isSectionEnabled}
+              disabled={!sectionOptionsByLevel[formData.userLevel]}
               className={`w-full p-2 border rounded-lg ${
-                submitted && isSectionEnabled && !formData.section.trim()
+                submitted &&
+                sectionOptionsByLevel[formData.userLevel] &&
+                !formData.section.trim()
                   ? "border-red-500"
                   : "border-gray-300"
               } ${
-                !isSectionEnabled
+                !sectionOptionsByLevel[formData.userLevel]
                   ? "bg-gray-100 text-gray-500 cursor-not-allowed"
                   : ""
               }`}
             >
               <option value="">Select Section</option>
-              <option value="PD-1586">PD-1586</option>
-              <option value="RA-6969">RA-6969</option>
-              <option value="RA-8749">RA-8749</option>
-              <option value="RA-9275">RA-9275</option>
-              <option value="RA-9003">RA-9003</option>
+              {sectionOptionsByLevel[formData.userLevel]?.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>

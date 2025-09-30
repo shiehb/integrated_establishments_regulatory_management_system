@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import WorkflowStatus from "./WorkflowStatus";
+import PaginationControls from "../PaginationControls";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -575,16 +576,19 @@ export default function InspectionList({
           </div>
 
           {/* Export Selected */}
-          {selectedInspections.length > 0 && (
-            <button
-              onClick={handleExportSelected}
-              className="flex items-center gap-1 px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
-              type="button"
-            >
-              <Download size={14} />
-              Export ({selectedInspections.length})
-            </button>
-          )}
+          <button
+            onClick={selectedInspections.length > 0 ? handleExportSelected : undefined}
+            disabled={selectedInspections.length === 0}
+            className={`flex items-center gap-1 px-3 py-1 text-sm rounded ${
+              selectedInspections.length > 0
+                ? "text-white bg-green-600 hover:bg-green-700"
+                : "text-gray-400 bg-gray-200 cursor-not-allowed"
+            }`}
+            type="button"
+          >
+            <Download size={14} />
+            Export ({selectedInspections.length})
+          </button>
 
           {canCreate && onAdd && (
             <button
@@ -763,77 +767,17 @@ export default function InspectionList({
       </div>
 
       {/* Pagination */}
-      {totalCount > 0 && (
-        <div className="flex flex-col items-center justify-between gap-4 mt-4 sm:flex-row">
-          <div className="text-sm text-gray-600">
-            Showing {startItem} to {endItem} of {totalCount} entries
-            {hasActiveFilters && " (filtered)"}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-              type="button"
-            >
-              <ChevronLeft size={16} />
-            </button>
-
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
-              }
-
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => goToPage(pageNum)}
-                  className={`px-3 py-1 text-sm rounded ${
-                    currentPage === pageNum
-                      ? "bg-sky-600 text-white"
-                      : "hover:bg-gray-100"
-                  }`}
-                  type="button"
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-
-            <button
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-              type="button"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm">
-            <span>Show:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => handlePageSizeChange(e.target.value)}
-              className="px-2 py-1 border rounded"
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-            <span>per page</span>
-          </div>
-        </div>
-      )}
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={totalCount}
+        hasActiveFilters={hasActiveFilters}
+        onPageChange={goToPage}
+        onPageSizeChange={handlePageSizeChange}
+        startItem={startItem}
+        endItem={endItem}
+      />
     </div>
   );
 }
