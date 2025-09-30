@@ -759,20 +759,41 @@ function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
     setItems(clone);
   };
 
+  // helper to get full law name or fallback
+  const getLawFullName = (lawId) => {
+    const law = InspectionConstants.LAWS.find((l) => l.id === lawId);
+    if (law) return law.fullName;
+    if (lawId === "Pollution-Control")
+      return "Pollution Control Officer Accreditation";
+    if (lawId === "Self-Monitoring") return "Self-Monitoring Report";
+    return lawId;
+  };
+
+  // always include these in compliance summary
+  const ALWAYS_INCLUDED_LAWS = ["Pollution-Control", "Self-Monitoring"];
+
+  // extend the filter
+  const effectiveLawFilter = [
+    ...new Set([...(lawFilter || []), ...ALWAYS_INCLUDED_LAWS]),
+  ];
+
   return (
     <section className="p-4 mb-6 bg-white border border-black">
       <SectionHeader title="Summary of Compliance" />
-      {lawFilter.length === 0 && (
+      {effectiveLawFilter.length === 0 && (
         <div className="p-4 text-center text-black">
           No compliance items for selected laws.
         </div>
       )}
-      {lawFilter.map((lawId) => {
+      {effectiveLawFilter.map((lawId) => {
         const lawItems =
           InspectionConstants.getComplianceItemsByLaw(lawId) || [];
         return (
           <div key={lawId} className="mb-8">
-            <div className="mb-2 text-lg font-bold text-black">{lawId}</div>
+            {/* ✅ Full law name instead of short code */}
+            <div className="mb-2 text-lg font-bold text-black">
+              {getLawFullName(lawId)}
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full border border-collapse border-black">
                 <thead>

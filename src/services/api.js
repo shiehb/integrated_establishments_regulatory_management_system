@@ -387,39 +387,102 @@ export const searchUsers = async (query, page = 1, pageSize = 10) => {
 // -------------------------------------------------
 // Database Backup & Restore
 // -------------------------------------------------
-
-// Create a backup
-export const createBackup = async (format = "sql", path = "") => {
-  const res = await api.post("db/backup/", { format, path });
-  return res.data;
+export const createBackup = async (format, path = "") => {
+  try {
+    const res = await api.post("db/backup/", { format, path });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to create backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-// Restore from a file (uploaded)
-export const restoreBackupFromFile = async (file, path = "") => {
-  const formData = new FormData();
-  formData.append("file", file);
-  if (path) formData.append("path", path);
+export const restoreBackupFromFile = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
 
-  const res = await api.post("db/restore/", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
-  return res.data;
+    const res = await api.post("db/restore/", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to restore backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-// Restore from an existing backup file
 export const restoreBackupByName = async (fileName) => {
-  const res = await api.post("db/restore/", { fileName });
-  return res.data;
+  try {
+    const res = await api.post("db/restore/", { fileName });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to restore backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-// List all available backups
 export const getBackups = async () => {
-  const res = await api.get("db/backups/");
-  return res.data;
+  try {
+    const res = await api.get("db/backups/");
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to fetch backups. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-// Delete a backup
 export const deleteBackup = async (fileName) => {
-  const res = await api.delete(`db/delete/${fileName}/`);
-  return res.data;
+  try {
+    const res = await api.delete(`db/delete/${fileName}/`);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to delete backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const downloadBackup = async (fileName) => {
+  try {
+    const response = await api.get(`db/download/${fileName}/`, {
+      // Fixed URL pattern
+      responseType: "blob",
+    });
+    return response;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to download backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
