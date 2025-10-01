@@ -5,6 +5,8 @@ from datetime import timedelta
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import secrets
+import string
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -34,10 +36,17 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+
+    # Your apps
     'users',
     'establishments',
     'notifications',
+    'audit',
+    'inspections',
+    'system_config',
+    'system',
 ]
+
 
 AUTH_USER_MODEL = 'users.User'
 
@@ -69,8 +78,58 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
-# Load default password for new users
-DEFAULT_USER_PASSWORD = os.getenv("DEFAULT_USER_PASSWORD", "Temp1234")
+# Password generation function
+def generate_secure_password(length=8):
+    """Generate a secure random password"""
+    alphabet = string.ascii_letters + string.digits + "!@#$%"
+    while True:
+        password = ''.join(secrets.choice(alphabet) for _ in range(length))
+        if (any(c.islower() for c in password) and 
+            any(c.isupper() for c in password) and 
+            any(c.isdigit() for c in password)):
+            return password
+
+# System Configuration Management
+# This will be overridden by database configuration if available
+def get_database_config():
+    """Get configuration from database if available"""
+    try:
+        from system_config.models import SystemConfiguration
+        config = SystemConfiguration.get_active_config()
+        return {
+            'EMAIL_HOST': config.email_host,
+            'EMAIL_PORT': config.email_port,
+            'EMAIL_USE_TLS': config.email_use_tls,
+            'EMAIL_HOST_USER': config.email_host_user,
+            'EMAIL_HOST_PASSWORD': config.email_host_password,
+            'DEFAULT_FROM_EMAIL': config.default_from_email,
+            'ACCESS_TOKEN_LIFETIME': timedelta(minutes=config.access_token_lifetime_minutes),
+            'REFRESH_TOKEN_LIFETIME': timedelta(days=config.refresh_token_lifetime_days),
+            'ROTATE_REFRESH_TOKENS': config.rotate_refresh_tokens,
+            'BLACKLIST_AFTER_ROTATION': config.blacklist_after_rotation,
+        }
+    except Exception:
+        # Fallback to environment variables if database config not available
+        return None
+
+# Try to get database configuration, fallback to environment variables
+db_config = get_database_config()
+if db_config:
+    # Override settings with database configuration
+    EMAIL_HOST = db_config['EMAIL_HOST']
+    EMAIL_PORT = db_config['EMAIL_PORT']
+    EMAIL_USE_TLS = db_config['EMAIL_USE_TLS']
+    EMAIL_HOST_USER = db_config['EMAIL_HOST_USER']
+    EMAIL_HOST_PASSWORD = db_config['EMAIL_HOST_PASSWORD']
+    DEFAULT_FROM_EMAIL = db_config['DEFAULT_FROM_EMAIL']
+    
+    # Update JWT settings
+    SIMPLE_JWT.update({
+        "ACCESS_TOKEN_LIFETIME": db_config['ACCESS_TOKEN_LIFETIME'],
+        "REFRESH_TOKEN_LIFETIME": db_config['REFRESH_TOKEN_LIFETIME'],
+        "ROTATE_REFRESH_TOKENS": db_config['ROTATE_REFRESH_TOKENS'],
+        "BLACKLIST_AFTER_ROTATION": db_config['BLACKLIST_AFTER_ROTATION'],
+    })
 
 ROOT_URLCONF = 'core.urls'
 
@@ -117,10 +176,32 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'db_ierms',
+        'USER': 'root',
+        'PASSWORD': '',
+        'HOST': '127.0.0.1',
+        'PORT': '3306',
+        'OPTIONS': {
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'charset': 'utf8mb4',
+        },
+        'TEST': {
+            'CHARSET': 'utf8mb4',
+            'COLLATION': 'utf8mb4_unicode_ci',
+        }
     }
 }
+
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
+
 
 CACHES = {
     'default': {
@@ -148,6 +229,19 @@ USE_TZ = True
 
 # Static files
 STATIC_URL = 'static/'
+
+# Media files (for future use if needed)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Ensure media directory exists
+os.makedirs(MEDIA_ROOT, exist_ok=True)
+
+# Default folder for database backups
+DEFAULT_BACKUP_DIR = os.path.join(BASE_DIR, "backups")
+
+# Ensure the folder exists
+os.makedirs(DEFAULT_BACKUP_DIR, exist_ok=True)
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

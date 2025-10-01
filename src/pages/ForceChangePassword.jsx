@@ -1,8 +1,9 @@
+// ForceChangePassword.jsx
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Layout from "../components/Layout";
-import { changePassword } from "../services/api";
+import { changePassword, firstTimeChangePassword } from "../services/api";
 
 export default function ForceChangePassword() {
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -20,7 +21,6 @@ export default function ForceChangePassword() {
       ...formData,
       [e.target.name]: e.target.value,
     });
-    // Clear error when user types
     if (errors[e.target.name]) {
       setErrors({
         ...errors,
@@ -44,9 +44,9 @@ export default function ForceChangePassword() {
         "Password must contain at least one uppercase letter";
     } else if (!/(?=.*\d)/.test(formData.newPassword)) {
       newErrors.newPassword = "Password must contain at least one number";
-    } else if (!/(?=.*[!@#$%^&*])/.test(formData.newPassword)) {
+    } else if (!/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
       newErrors.newPassword =
-        "Password must contain at least one special character";
+        "Password must contain at least one special character (@$!%*?&)";
     }
 
     if (!formData.confirmPassword.trim()) {
@@ -65,11 +65,23 @@ export default function ForceChangePassword() {
     if (validateForm()) {
       setIsSubmitting(true);
       try {
-        await changePassword(formData.newPassword);
-        navigate("/"); // Go to dashboard after password change
+        await firstTimeChangePassword(formData.newPassword);
+
+        if (window.showNotification) {
+          window.showNotification("success", "Password changed successfully!");
+        }
+
+        navigate("/");
       } catch (err) {
+        const errorMessage =
+          err.response?.data?.detail || "Failed to change password.";
+
+        if (window.showNotification) {
+          window.showNotification("error", errorMessage);
+        }
+
         setErrors({
-          submit: err.response?.data?.detail || "Failed to change password.",
+          submit: errorMessage,
         });
       } finally {
         setIsSubmitting(false);
@@ -182,8 +194,7 @@ export default function ForceChangePassword() {
             <li>• At least one uppercase letter (A-Z)</li>
             <li>• At least one lowercase letter (a-z)</li>
             <li>• At least one number (0-9)</li>
-            <li>• At least one special character (!@#$%^&* etc.)</li>
-            <li>• Should not match your previous password</li>
+            <li>• At least one special character (@$!%*?&)</li>
           </ul>
         </div>
       </div>

@@ -7,7 +7,9 @@ import {
   markAllNotificationsAsRead,
   getUnreadNotificationsCount,
   deleteAllNotifications,
+  deleteNotification, // ADD THIS IMPORT
 } from "../services/api";
+import NotificationDetailModal from "./NotificationDetailModal";
 
 export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
@@ -15,6 +17,8 @@ export default function Notifications() {
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredNotification, setHoveredNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const dropdownRef = useRef(null);
   const timeoutRef = useRef(null);
 
@@ -72,7 +76,6 @@ export default function Notifications() {
   // Handle clicks outside the dropdown
   const handleClickOutside = useCallback((event) => {
     if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-      // Check if the click is not on the bell icon
       const bellButton = event.target.closest("button");
       if (!bellButton || !bellButton.contains(event.target)) {
         setIsOpen(false);
@@ -119,6 +122,23 @@ export default function Notifications() {
     }
   };
 
+  // ADD THIS FUNCTION
+  const deleteSingleNotification = async (id, e) => {
+    e.stopPropagation(); // Prevent marking as read
+    try {
+      await deleteNotification(id);
+      setNotifications(notifications.filter((notif) => notif.id !== id));
+      // If the deleted notification was unread, update count
+      const deletedNotif = notifications.find((notif) => notif.id === id);
+      if (deletedNotif && !deletedNotif.is_read) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+      resetAutoClose();
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+    }
+  };
+
   const getNotificationIcon = (type) => {
     switch (type) {
       case "new_user":
@@ -134,16 +154,13 @@ export default function Notifications() {
     const newIsOpen = !isOpen;
     setIsOpen(newIsOpen);
 
-    // Clear any existing timeout
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-    // Set new timeout if opening
     if (newIsOpen) {
       timeoutRef.current = setTimeout(() => {
         setIsOpen(false);
       }, 3000);
 
-      // Refresh notifications when dropdown opens
       fetchNotifications();
     }
   };
@@ -159,6 +176,22 @@ export default function Notifications() {
   const closeSingleNotification = (e, id) => {
     e.stopPropagation();
     markAsRead(id);
+  };
+
+  // Handle notification click to open modal
+  const handleNotificationClick = (notification) => {
+    setSelectedNotification(notification);
+    setIsModalOpen(true);
+    // Mark as read if unread
+    if (!notification.is_read) {
+      markAsRead(notification.id);
+    }
+  };
+
+  // Handle modal close
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedNotification(null);
   };
 
   const formatDate = (dateString) => {
@@ -248,29 +281,42 @@ export default function Notifications() {
                   className={`relative p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
                     notification.is_read ? "bg-white" : "bg-blue-50"
                   }`}
-                  onClick={() =>
-                    !notification.is_read && markAsRead(notification.id)
-                  }
+                  onClick={() => handleNotificationClick(notification)}
                   onMouseEnter={() => handleNotificationHover(notification.id)}
                   onMouseLeave={handleNotificationLeave}
                 >
-                  {/* Close button for individual notification */}
                   {hoveredNotification === notification.id && (
-                    <button
-                      className="absolute p-1 text-gray-400 transition-colors rounded-full top-2 right-2 hover:text-gray-600 hover:bg-gray-200"
-                      onClick={(e) =>
-                        closeSingleNotification(e, notification.id)
-                      }
-                      title="Mark as read"
-                    >
-                      <X size={14} />
-                    </button>
+                    <div className="absolute flex space-x-1 top-2 right-2">
+                      <button
+                        className="p-1 text-gray-400 transition-colors rounded-full hover:text-gray-600 hover:bg-gray-200"
+                        onClick={(e) =>
+                          closeSingleNotification(e, notification.id)
+                        }
+                        title="Mark as read"
+                      >
+                        <CheckCircle size={14} />
+                      </button>
+                      <button
+                        className="p-1 text-red-400 transition-colors rounded-full hover:text-red-600 hover:bg-red-100"
+                        onClick={(e) =>
+                          deleteSingleNotification(notification.id, e)
+                        }
+                        title="Delete notification"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   )}
 
                   <div className="flex items-start">
-                    <div className="mr-2 mt-0.5 flex-shrink-0">
+                    {/* Icon with blue dot if unread */}
+                    <div className="mr-2 mt-0.5 flex-shrink-0 relative">
                       {getNotificationIcon(notification.notification_type)}
+                      {!notification.is_read && (
+                        <div className="absolute -top-1 -right-1.5 w-2 h-2 bg-red-500 rounded-full"></div>
+                      )}
                     </div>
+
                     <div className="flex-1 min-w-0 pr-4">
                       <p className="text-sm font-medium truncate">
                         {notification.title}
@@ -282,9 +328,6 @@ export default function Notifications() {
                         {formatDate(notification.created_at)}
                       </p>
                     </div>
-                    {!notification.is_read && (
-                      <div className="w-2 h-2 rounded-full bg-blue-500 ml-2 mt-1.5 flex-shrink-0"></div>
-                    )}
                   </div>
                 </div>
               ))
@@ -292,6 +335,13 @@ export default function Notifications() {
           </div>
         </div>
       )}
+
+      {/* Notification Detail Modal */}
+      <NotificationDetailModal
+        notification={selectedNotification}
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+      />
     </div>
   );
 }

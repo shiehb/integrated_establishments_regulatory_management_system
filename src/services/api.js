@@ -1,11 +1,14 @@
 // src/services/api.js
 import axios from "axios";
 
+// -------------------------------------------------
+// Axios Instance
+// -------------------------------------------------
 const api = axios.create({
   baseURL: "http://127.0.0.1:8000/api/",
 });
 
-// 🔑 Attach access token to every request
+// Attach access token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access");
   if (token) {
@@ -14,13 +17,12 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 🔥 Handle token expiry and auto-refresh
+// Handle token expiry and auto-refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // If access token expired → try refresh
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -29,9 +31,7 @@ api.interceptors.response.use(
         try {
           const res = await axios.post(
             "http://127.0.0.1:8000/api/auth/token/refresh/",
-            {
-              refresh: refreshToken,
-            }
+            { refresh: refreshToken }
           );
 
           // Save new tokens
@@ -40,19 +40,17 @@ api.interceptors.response.use(
             localStorage.setItem("refresh", res.data.refresh);
           }
 
-          // Retry original request with new token
+          // Retry request with new token
           originalRequest.headers[
             "Authorization"
           ] = `Bearer ${res.data.access}`;
           return api(originalRequest);
-        } catch (err) {
-          // Refresh also failed → logout
+        } catch {
           localStorage.removeItem("access");
           localStorage.removeItem("refresh");
           window.location.href = "/login";
         }
       } else {
-        // No refresh token → logout
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
         window.location.href = "/login";
@@ -63,11 +61,11 @@ api.interceptors.response.use(
   }
 );
 
-// ----------------------
-// Named exports
-// ----------------------
+export default api;
 
-// 🔑 Login
+// -------------------------------------------------
+// Authentication
+// -------------------------------------------------
 export const loginUser = async (email, password) => {
   const res = await api.post("auth/token/", { email, password });
   localStorage.setItem("access", res.data.access);
@@ -75,31 +73,26 @@ export const loginUser = async (email, password) => {
   return res.data;
 };
 
-// ➕ Register user
 export const registerUser = async (userData) => {
   const res = await api.post("auth/register/", userData);
   return res.data;
 };
 
-// 🙍 Profile
 export const getProfile = async () => {
   const res = await api.get("auth/me/");
   return res.data;
 };
 
-// 📋 User list
 export const getUsers = async () => {
   const res = await api.get("auth/list/");
   return res.data;
 };
 
-// ✏️ Update user
 export const updateUser = async (id, userData) => {
   const res = await api.put(`auth/users/${id}/`, userData);
   return res.data;
 };
 
-// 🚪 Logout
 export const logoutUser = async (refreshToken) => {
   const res = await api.post("auth/logout/", { refresh: refreshToken });
   localStorage.removeItem("access");
@@ -107,122 +100,241 @@ export const logoutUser = async (refreshToken) => {
   return res.data;
 };
 
-// 🚦 Toggle user active status
 export const toggleUserActive = async (id) => {
-  const res = await api.post(`auth/toggle-active/${id}/`);
+  try {
+    const response = await api.post(`auth/toggle-active/${id}/`);
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to update user status. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const firstTimeChangePassword = async (newPassword) => {
+  try {
+    const res = await api.post("auth/first-time-change-password/", {
+      new_password: newPassword,
+    });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.new_password?.[0] ||
+        "Failed to change password. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const changePassword = async (oldPassword, newPassword) => {
+  try {
+    const res = await api.post("auth/change-password/", {
+      old_password: oldPassword,
+      new_password: newPassword,
+    });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.new_password?.[0] ||
+        error.response?.data?.old_password?.[0] ||
+        "Failed to change password. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+// -------------------------------------------------
+// Establishments
+// -------------------------------------------------
+export const getEstablishments = async (params = {}) => {
+  const res = await api.get("establishments/", { params });
   return res.data;
 };
 
-// 🔑 Change password
-export const changePassword = async (newPassword) => {
-  const res = await api.post("auth/change-password/", {
-    new_password: newPassword,
-  });
-  return res.data;
-};
-
-// ----------------------
-// Establishment Functions
-// ----------------------
-
-// 📋 Get all establishments
-export const getEstablishments = async () => {
-  const res = await api.get("establishments/");
-  return res.data;
-};
-
-// 📋 Get single establishment
 export const getEstablishment = async (id) => {
   const res = await api.get(`establishments/${id}/`);
   return res.data;
 };
 
-// ➕ Create establishment
 export const createEstablishment = async (establishmentData) => {
   const res = await api.post("establishments/", establishmentData);
   return res.data;
 };
 
-// ✏️ Update establishment
 export const updateEstablishment = async (id, establishmentData) => {
   const res = await api.put(`establishments/${id}/`, establishmentData);
   return res.data;
 };
 
-// 🗑️ Delete establishment
 export const deleteEstablishment = async (id) => {
   const res = await api.delete(`establishments/${id}/`);
   return res.data;
 };
 
-// 🔺 Set establishment polygon
 export const setEstablishmentPolygon = async (id, polygonData) => {
   const res = await api.post(`establishments/${id}/set_polygon/`, {
-    polygon: polygonData,
+    polygon: polygonData || [],
   });
   return res.data;
 };
 
-// ----------------------
-// Notification Functions (UPDATED)
-// ----------------------
+export const getEstablishmentSearchSuggestions = async (query) => {
+  const res = await api.get("establishments/search_suggestions/", {
+    params: { q: query },
+  });
+  return res.data;
+};
 
-// 🔔 Get all notifications
+export const getEstablishmentSearchOptions = async () => {
+  const res = await api.get("establishments/search_options/");
+  return res.data;
+};
+
+export const searchEstablishments = async (query, page = 1, pageSize = 10) => {
+  const res = await api.get("establishments/search/", {
+    params: { q: query, page, page_size: pageSize },
+  });
+  return res.data;
+};
+
+// -------------------------------------------------
+// Inspections
+// -------------------------------------------------
+export const getInspections = async (params = {}) => {
+  const res = await api.get("inspections/", { params });
+  return res.data;
+};
+
+export const searchInspections = async (query, page = 1, pageSize = 10) => {
+  const res = await api.get("inspections/search/", {
+    params: { q: query, page, page_size: pageSize },
+  });
+  return res.data;
+};
+
+export const getInspectionSearchSuggestions = async (query) => {
+  const res = await api.get("inspections/search_suggestions/", {
+    params: { q: query },
+  });
+  return res.data;
+};
+
+export const createInspection = async (inspectionData) => {
+  try {
+    console.log("Sending inspection data:", inspectionData);
+    const res = await api.post("inspections/", inspectionData);
+    console.log("Inspection created successfully:", res.data);
+    return res.data;
+  } catch (error) {
+    console.error("Create inspection error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        error.response?.data?.establishment?.[0] ||
+        error.response?.data?.section?.[0] ||
+        "Failed to create inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const assignInspection = async (id, payload) => {
+  const res = await api.post(`inspections/${id}/assign/`, payload);
+  return res.data;
+};
+
+export const advanceInspection = async (id) => {
+  const res = await api.post(`inspections/${id}/advance/`);
+  return res.data;
+};
+
+export const getDistricts = async (province) => {
+  const res = await api.get("inspections/districts/", { params: { province } });
+  return res.data;
+};
+
+export const getAssignableUsers = async (district, role) => {
+  const res = await api.get("inspections/assignable_users/", {
+    params: { district, role },
+  });
+  return res.data;
+};
+
+// -------------------------------------------------
+// Notifications
+// -------------------------------------------------
 export const getNotifications = async () => {
-  const res = await api.get("notifications/"); // Changed from "auth/notifications/"
+  const res = await api.get("notifications/");
   return res.data;
 };
 
-// ✅ Mark notification as read
 export const markNotificationAsRead = async (id) => {
-  const res = await api.post(`notifications/${id}/read/`); // Changed from "auth/notifications/"
+  const res = await api.post(`notifications/${id}/read/`);
   return res.data;
 };
 
-// ✅ Mark all notifications as read
 export const markAllNotificationsAsRead = async () => {
-  const res = await api.post("notifications/mark-all-read/"); // Changed from "auth/notifications/"
+  const res = await api.post("notifications/mark-all-read/");
   return res.data;
 };
 
-// 🗑️ Delete all notifications
+export const deleteNotification = async (id) => {
+  const res = await api.delete(`notifications/${id}/delete/`);
+  return res.data;
+};
+
 export const deleteAllNotifications = async () => {
-  const res = await api.delete("notifications/delete-all/"); // Changed from "auth/notifications/"
+  const res = await api.delete("notifications/delete-all/");
   return res.data;
 };
 
-// 🔢 Get unread notifications count
 export const getUnreadNotificationsCount = async () => {
-  const res = await api.get("notifications/unread-count/"); // Changed from "auth/notifications/"
+  const res = await api.get("notifications/unread-count/");
   return res.data;
 };
 
-// 📋 Get establishment notifications
 export const getEstablishmentNotifications = async () => {
   const res = await api.get("notifications/", {
-    // Changed from "auth/notifications/"
     params: { notification_type: "new_establishment" },
   });
   return res.data;
 };
 
-// ----------------------
-// OTP Functions
-// ----------------------
+// -------------------------------------------------
+// Activity Logs
+// -------------------------------------------------
+export const getActivityLogs = async () => {
+  const res = await api.get("activity-logs/");
+  return res.data;
+};
 
-// 🔐 Send OTP
+export const getFilteredActivityLogs = async (params) => {
+  const res = await api.get("activity-logs/", { params });
+  return res.data;
+};
+
+// -------------------------------------------------
+// OTP
+// -------------------------------------------------
 export const sendOtp = async (email) => {
   const res = await api.post("auth/send-otp/", { email });
   return res.data;
 };
 
-// ✅ Verify OTP
 export const verifyOtp = async (email, otp) => {
   const res = await api.post("auth/verify-otp/", { email, otp });
   return res.data;
 };
 
-// 🔑 Reset password with OTP
 export const resetPasswordWithOtp = async (email, otp, newPassword) => {
   const res = await api.post("auth/reset-password-otp/", {
     email,
@@ -232,5 +344,145 @@ export const resetPasswordWithOtp = async (email, otp, newPassword) => {
   return res.data;
 };
 
-// ✅ also export api instance
-export default api;
+// -------------------------------------------------
+// Global Search
+// -------------------------------------------------
+export const globalSearch = async (params) => {
+  const token = localStorage.getItem("access");
+  if (!token) {
+    throw new Error("User not authenticated");
+  }
+  const res = await api.get("search/", { params: { q: params.q } });
+  return res.data;
+};
+
+export const getSearchSuggestions = async (query) => {
+  const token = localStorage.getItem("access");
+  if (!token) {
+    throw new Error("User not authenticated");
+  }
+  if (!query || query.length < 2) {
+    return { suggestions: [] };
+  }
+  const res = await api.get("search/suggestions/", { params: { q: query } });
+  return res.data;
+};
+
+export const getSearchOptions = async () => {
+  const token = localStorage.getItem("access");
+  if (!token) {
+    throw new Error("User not authenticated");
+  }
+  const res = await api.get("search/options/");
+  return res.data;
+};
+
+export const searchUsers = async (query, page = 1, pageSize = 10) => {
+  const res = await api.get("auth/search/", {
+    params: { q: query, page, page_size: pageSize },
+  });
+  return res.data;
+};
+
+// -------------------------------------------------
+// Database Backup & Restore
+// -------------------------------------------------
+export const createBackup = async (format, path = "") => {
+  try {
+    const res = await api.post("db/backup/", { format, path });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to create backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const restoreBackupFromFile = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await api.post("db/restore/", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to restore backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const restoreBackupByName = async (fileName) => {
+  try {
+    const res = await api.post("db/restore/", { fileName });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to restore backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const getBackups = async () => {
+  try {
+    const res = await api.get("db/backups/");
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to fetch backups. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const deleteBackup = async (fileName) => {
+  try {
+    const res = await api.delete(`db/delete/${fileName}/`);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to delete backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const downloadBackup = async (fileName) => {
+  try {
+    const response = await api.get(`db/download/${fileName}/`, {
+      // Fixed URL pattern
+      responseType: "blob",
+    });
+    return response;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to download backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};

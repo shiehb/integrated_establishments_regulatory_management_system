@@ -1,8 +1,10 @@
+// ChangePassword.jsx
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Layout from "../components/Layout";
 import { changePassword } from "../services/api";
-import { useNavigate } from "react-router-dom"; // Import useNavigate
+import { useNavigate } from "react-router-dom";
+import ConfirmationDialog from "../components/common/ConfirmationDialog";
 
 export default function ChangePassword() {
   const [showOldPassword, setShowOldPassword] = useState(false);
@@ -16,14 +18,13 @@ export default function ChangePassword() {
   const [errors, setErrors] = useState({});
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const navigate = useNavigate(); // Initialize navigate
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
-    // Clear error when user types
     if (errors[e.target.name]) {
       setErrors({
         ...errors,
@@ -51,9 +52,9 @@ export default function ChangePassword() {
         "Password must contain at least one uppercase letter";
     } else if (!/(?=.*\d)/.test(formData.newPassword)) {
       newErrors.newPassword = "Password must contain at least one number";
-    } else if (!/(?=.*[!@#$%^&*])/.test(formData.newPassword)) {
+    } else if (!/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
       newErrors.newPassword =
-        "Password must contain at least one special character";
+        "Password must contain at least one special character (@$!%*?&)";
     } else if (formData.newPassword === formData.oldPassword) {
       newErrors.newPassword = "New password cannot be the same as old password";
     }
@@ -79,29 +80,43 @@ export default function ChangePassword() {
   const confirmChangePassword = async () => {
     setIsSubmitting(true);
     try {
-      await changePassword(formData.newPassword);
-      alert("✅ Password changed successfully!");
-      // Reset form
+      await changePassword(formData.oldPassword, formData.newPassword);
+
+      if (window.showNotification) {
+        window.showNotification("success", "Password changed successfully!");
+      }
+
       setFormData({
         oldPassword: "",
         newPassword: "",
         confirmPassword: "",
       });
       setShowConfirm(false);
+
+      setTimeout(() => {
+        navigate(-1);
+      }, 1000);
     } catch (err) {
-      alert(
-        "❌ Error changing password: " +
-          (err.response?.data?.detail ||
-            JSON.stringify(err.response?.data) ||
-            err.message)
-      );
+      if (window.showNotification) {
+        const errorMessage =
+          err.response?.data?.detail ||
+          err.response?.data?.old_password?.[0] ||
+          err.response?.data?.new_password?.[0] ||
+          err.message ||
+          "Failed to change password. Please try again.";
+
+        window.showNotification(
+          "error",
+          `Error changing password: ${errorMessage}`
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleCancel = () => {
-    navigate(-1); // Go back to previous page
+    navigate(-1);
   };
 
   return (
@@ -218,7 +233,6 @@ export default function ChangePassword() {
             )}
           </div>
 
-          {/* Buttons container */}
           <div className="flex gap-3 mt-4">
             <button
               type="button"
@@ -246,41 +260,19 @@ export default function ChangePassword() {
             <li>• At least one uppercase letter (A-Z)</li>
             <li>• At least one lowercase letter (a-z)</li>
             <li>• At least one number (0-9)</li>
-            <li>• At least one special character (!@#$%^&* etc.)</li>
-            <li>• Should not match your old password</li>
+            <li>• At least one special character (@$!%*?&)</li>
           </ul>
         </div>
       </div>
 
-      {/* Confirmation Dialog */}
-      {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-lg">
-            <h3 className="mb-2 text-lg font-semibold text-gray-800">
-              Confirm Password Change
-            </h3>
-            <p className="mb-4 text-gray-600">
-              Are you sure you want to change your password?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
-                disabled={isSubmitting}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmChangePassword}
-                className="px-4 py-2 text-white rounded bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Processing..." : "Confirm"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationDialog
+        open={showConfirm}
+        title="Confirm Password Change"
+        message="Are you sure you want to change your password?"
+        loading={isSubmitting}
+        onCancel={() => setShowConfirm(false)}
+        onConfirm={confirmChangePassword}
+      />
     </Layout>
   );
 }

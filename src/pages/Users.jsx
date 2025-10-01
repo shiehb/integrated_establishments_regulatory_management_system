@@ -29,7 +29,7 @@ export default function Users() {
 
           {/* Add User Modal */}
           {showAdd && (
-            <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
               <AddUser
                 onClose={() => setShowAdd(false)}
                 onUserAdded={refreshUsers}
@@ -39,7 +39,7 @@ export default function Users() {
 
           {/* Edit User Modal */}
           {editUser && (
-            <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
               <EditUser
                 userData={editUser}
                 onClose={() => setEditUser(null)}

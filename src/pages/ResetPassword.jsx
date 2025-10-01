@@ -1,3 +1,4 @@
+// ResetPassword.jsx
 import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 import { useState, useEffect } from "react";
@@ -9,7 +10,7 @@ export default function ResetPassword() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
-    email: "", // Will be auto-filled from localStorage
+    email: "",
     otp: "",
     newPassword: "",
     confirmPassword: "",
@@ -18,22 +19,18 @@ export default function ResetPassword() {
   const [resendLoading, setResendLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState({});
-  const [countdown, setCountdown] = useState(0); // Countdown in seconds
+  const [countdown, setCountdown] = useState(0);
 
-  // ✅ Automatically get email from localStorage on component mount
   useEffect(() => {
     const savedEmail = localStorage.getItem("resetEmail");
     if (savedEmail) {
       setFormData((prev) => ({ ...prev, email: savedEmail }));
-      // Start countdown when component loads
-      setCountdown(60); // 60 seconds countdown
+      setCountdown(60);
     } else {
-      // If no email is found, redirect back to forgot password
       navigate("/forgot-password");
     }
   }, [navigate]);
 
-  // Countdown timer effect
   useEffect(() => {
     let timer;
     if (countdown > 0) {
@@ -48,7 +45,6 @@ export default function ResetPassword() {
       [e.target.name]: e.target.value,
     });
 
-    // Clear error when user types
     if (errors[e.target.name]) {
       setErrors({
         ...errors,
@@ -56,7 +52,6 @@ export default function ResetPassword() {
       });
     }
 
-    // Clear general message when user types
     if (message) {
       setMessage("");
     }
@@ -83,9 +78,9 @@ export default function ResetPassword() {
         "Password must contain at least one uppercase letter";
     } else if (!/(?=.*\d)/.test(formData.newPassword)) {
       newErrors.newPassword = "Password must contain at least one number";
-    } else if (!/(?=.*[!@#$%^&*])/.test(formData.newPassword)) {
+    } else if (!/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
       newErrors.newPassword =
-        "Password must contain at least one special character";
+        "Password must contain at least one special character (@$!%*?&)";
     }
 
     if (!formData.confirmPassword.trim()) {
@@ -115,42 +110,62 @@ export default function ResetPassword() {
         formData.newPassword
       );
 
-      setMessage(response.detail);
+      if (window.showNotification) {
+        window.showNotification(
+          "success",
+          response.detail || "Password reset successfully!"
+        );
+      }
 
-      // Clear the stored email after successful reset
       localStorage.removeItem("resetEmail");
 
-      // Redirect to login after successful reset
       setTimeout(() => {
-        navigate("/login");
+        navigate("/login", {
+          state: {
+            message:
+              "Password reset successfully! Please login with your new password.",
+            email: formData.email,
+          },
+        });
       }, 2000);
     } catch (error) {
-      setMessage(
+      const errorMessage =
         error.response?.data?.detail ||
-          "Failed to reset password. Please try again."
-      );
+        "Failed to reset password. Please try again.";
+
+      if (window.showNotification) {
+        window.showNotification("error", errorMessage);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleResendOtp = async () => {
-    if (countdown > 0) return; // Prevent resend during countdown
+    if (countdown > 0) return;
 
     setResendLoading(true);
     setMessage("");
 
     try {
       const response = await sendOtp(formData.email);
-      setMessage(response.detail);
 
-      // Reset countdown to 60 seconds
+      if (window.showNotification) {
+        window.showNotification(
+          "success",
+          response.detail || "OTP sent successfully!"
+        );
+      }
+
       setCountdown(60);
     } catch (error) {
-      setMessage(
+      const errorMessage =
         error.response?.data?.detail ||
-          "Failed to resend OTP. Please try again."
-      );
+        "Failed to resend OTP. Please try again.";
+
+      if (window.showNotification) {
+        window.showNotification("error", errorMessage);
+      }
     } finally {
       setResendLoading(false);
     }
@@ -169,20 +184,7 @@ export default function ResetPassword() {
           Reset Password
         </h2>
 
-        {message && (
-          <div
-            className={`p-3 mb-4 rounded-lg text-center ${
-              message.includes("sent") || message.includes("successfully")
-                ? "bg-green-100 text-green-800"
-                : "bg-red-100 text-red-800"
-            }`}
-          >
-            {message}
-          </div>
-        )}
-
         <form className="space-y-5" onSubmit={handleSubmit}>
-          {/* Email field is hidden but still included in the form */}
           <input type="hidden" name="email" value={formData.email} />
 
           <div>
@@ -289,7 +291,6 @@ export default function ResetPassword() {
             )}
           </div>
 
-          {/* Action buttons side by side */}
           <div className="flex gap-4 pt-2">
             <button
               type="button"
@@ -312,7 +313,6 @@ export default function ResetPassword() {
           </div>
         </form>
 
-        {/* Password Requirements */}
         <div className="p-3 mt-5 rounded-lg bg-gray-50">
           <h3 className="mb-1 text-xs font-medium text-gray-700">
             Password Requirements:
@@ -322,7 +322,7 @@ export default function ResetPassword() {
             <li>• At least one uppercase letter (A-Z)</li>
             <li>• At least one lowercase letter (a-z)</li>
             <li>• At least one number (0-9)</li>
-            <li>• At least one special character (!@#$%^&* etc.)</li>
+            <li>• At least one special character (@$!%*?&)</li>
           </ul>
         </div>
       </div>

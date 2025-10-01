@@ -15,50 +15,92 @@
     @apply bg-[color:var(--color-bg)] text-[color:var(--color-text-dark)];
   }
 
-  button {
-    @apply bg-[color:var(--color-primary)] hover:bg-[color:var(--color-primary-hover)] text-[color:var(--color-text-light)] font-medium;
-  }
-
   a {
     @apply text-sky-600 hover:text-sky-700 font-medium;
   }
 }
 
-/* ✅ Fix Leaflet z-index layering */
-.leaflet-tile-pane {
+/* Loader Animation */
+.loader {
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #0ea5e9;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Leaflet Map Overrides */
+.leaflet-draw-toolbar {
+  margin-top: 12px;
+  margin-right: 12px;
+}
+
+.leaflet-draw-toolbar a {
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.leaflet-draw-toolbar a:hover {
+  background-color: #f8f9fa;
+}
+
+.polygon-label {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Lower Leaflet layers so modals/dialogs appear on top */
+.leaflet-container {
   z-index: 0 !important;
 }
-.leaflet-overlay-pane {
-  z-index: 200 !important;
-}
-.leaflet-marker-pane {
-  z-index: 300 !important;
-}
-.leaflet-popup-pane {
-  z-index: 1000 !important;
-}
 
-/* Controls & draw toolbar always above map */
 .leaflet-top,
 .leaflet-bottom,
-.leaflet-control,
-.leaflet-draw-toolbar {
-  z-index: 2000 !important;
+.leaflet-control {
+  z-index: 400 !important;
 }
 
-/* Modal overlay always above everything */
-.modal-overlay {
-  z-index: 5000 !important;
+/* Notification Animations */
+@keyframes slide-in-top {
+  from {
+    transform: translateY(-100%) translateX(-50%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) translateX(-50%);
+    opacity: 1;
+  }
 }
 
-/* Force cursor back to default */
-.leaflet-container,
-.leaflet-container:active,
-.leaflet-dragging .leaflet-container,
-.leaflet-grab,
-.leaflet-grabbing,
-.leaflet-marker-icon,
-.leaflet-marker-shadow,
-.leaflet-interactive {
-  cursor: default !important;
+.animate-slide-in-top {
+  animation: slide-in-top 0.3s ease-out;
+}
+
+/* Optional: Slide-out animation for exit (handle in parent component via state transition) */
+@keyframes slide-out-top {
+  from {
+    transform: translateY(0) translateX(-50%);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-100%) translateX(-50%);
+    opacity: 0;
+  }
+}
+
+.animate-slide-out-top {
+  animation: slide-out-top 0.3s ease-in;
 }

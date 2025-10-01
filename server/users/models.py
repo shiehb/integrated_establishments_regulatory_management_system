@@ -2,6 +2,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.utils import timezone
+from system_config.models import SystemConfiguration  # Import from system_config
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -9,8 +10,8 @@ class UserManager(BaseUserManager):
             raise ValueError("Email is required")
         email = self.normalize_email(email)
         if not password:
-            from django.conf import settings
-            password = settings.DEFAULT_USER_PASSWORD  # use .env default
+            # Use auto-generated password from system_config
+            password = SystemConfiguration.generate_default_password()
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -40,12 +41,19 @@ class User(AbstractBaseUser, PermissionsMixin):
         ("RA-9003", "RA-9003"),
     ]
 
+    DISTRICT_CHOICES = [
+        ("1st District", "1st District"),
+        ("2nd District", "2nd District"),
+        ("3rd District", "3rd District"),
+    ]
     email = models.EmailField(unique=True, max_length=255)
     first_name = models.CharField(max_length=150, blank=True)
     middle_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     userlevel = models.CharField(max_length=50, choices=USERLEVEL_CHOICES, blank=True)
     section = models.CharField(max_length=50, choices=SECTION_CHOICES, null=True, blank=True)
+    district = models.CharField(max_length=100, choices=DISTRICT_CHOICES, null=True, blank=True)  # Make it optional
+
 
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)

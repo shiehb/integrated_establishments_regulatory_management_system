@@ -1,5 +1,6 @@
 import { useState } from "react";
-import api from "../../services/api"; // ✅ use your api service
+import api from "../../services/api";
+import ConfirmationDialog from "../common/ConfirmationDialog";
 
 export default function AddUser({ onClose, onUserAdded }) {
   const [formData, setFormData] = useState({
@@ -12,6 +13,34 @@ export default function AddUser({ onClose, onUserAdded }) {
   });
   const [submitted, setSubmitted] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Section options depending on role
+  const sectionOptionsByLevel = {
+    "Section Chief": [
+      {
+        value: "PD-1586,RA-8749,RA-9275",
+        label: "EIA, Air & Water Quality Monitoring Section",
+      },
+      {
+        value: "RA-6969",
+        label: "Toxic Chemicals & Hazardous Monitoring Section",
+      },
+      { value: "RA-9003", label: "Ecological Solid Waste Management Section" },
+    ],
+    "Unit Head": [
+      { value: "PD-1586", label: "EIA Monitoring Unit" },
+      { value: "RA-8749", label: "Air Quality Monitoring Unit" },
+      { value: "RA-9275", label: "Water Quality Monitoring Unit" },
+    ],
+    "Monitoring Personnel": [
+      { value: "PD-1586", label: "EIA Monitoring Personnel" },
+      { value: "RA-8749", label: "Air Quality Monitoring Personnel" },
+      { value: "RA-9275", label: "Water Quality Monitoring Personnel" },
+      { value: "RA-6969", label: "Toxic Chemicals Monitoring Personnel" },
+      { value: "RA-9003", label: "Solid Waste Monitoring Personnel" },
+    ],
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -22,10 +51,7 @@ export default function AddUser({ onClose, onUserAdded }) {
       newValue = value.toLowerCase();
     }
     setFormData((prev) => {
-      if (
-        name === "userLevel" &&
-        !["Section Chief", "Unit Head", "Monitoring Personnel"].includes(value)
-      ) {
+      if (name === "userLevel" && !sectionOptionsByLevel[value]) {
         return { ...prev, [name]: newValue, section: "" };
       }
       return { ...prev, [name]: newValue };
@@ -42,18 +68,15 @@ export default function AddUser({ onClose, onUserAdded }) {
       !formData.lastName.trim() ||
       !formData.email.trim() ||
       !formData.userLevel.trim() ||
-      (["Section Chief", "Unit Head", "Monitoring Personnel"].includes(
-        formData.userLevel
-      ) &&
-        !formData.section.trim())
+      (sectionOptionsByLevel[formData.userLevel] && !formData.section.trim())
     ) {
       return;
     }
     setShowConfirm(true);
   };
 
-  // AddUser.jsx - update the confirmAdd function
   const confirmAdd = async () => {
+    setLoading(true);
     try {
       const payload = {
         email: formData.email,
@@ -65,7 +88,6 @@ export default function AddUser({ onClose, onUserAdded }) {
       };
       await api.post("auth/register/", payload);
 
-      // Show success notification
       if (window.showNotification) {
         window.showNotification("success", "User added successfully!");
       }
@@ -73,7 +95,6 @@ export default function AddUser({ onClose, onUserAdded }) {
       if (onUserAdded) onUserAdded();
       onClose();
     } catch (err) {
-      // Show error notification
       if (window.showNotification) {
         window.showNotification(
           "error",
@@ -81,14 +102,10 @@ export default function AddUser({ onClose, onUserAdded }) {
             (err.response?.data?.detail || JSON.stringify(err.response?.data))
         );
       }
+    } finally {
+      setLoading(false);
     }
   };
-
-  const isSectionEnabled = [
-    "Section Chief",
-    "Unit Head",
-    "Monitoring Personnel",
-  ].includes(formData.userLevel);
 
   const Label = ({ field, children }) => (
     <label className="flex items-center justify-between text-sm font-medium text-gray-700">
@@ -97,7 +114,7 @@ export default function AddUser({ onClose, onUserAdded }) {
       </span>
       {field === "section" &&
         submitted &&
-        isSectionEnabled &&
+        sectionOptionsByLevel[formData.userLevel] &&
         !formData.section.trim() && (
           <span className="text-xs text-red-500">Required</span>
         )}
@@ -203,23 +220,25 @@ export default function AddUser({ onClose, onUserAdded }) {
               name="section"
               value={formData.section}
               onChange={handleChange}
-              disabled={!isSectionEnabled}
+              disabled={!sectionOptionsByLevel[formData.userLevel]}
               className={`w-full p-2 border rounded-lg ${
-                submitted && isSectionEnabled && !formData.section.trim()
+                submitted &&
+                sectionOptionsByLevel[formData.userLevel] &&
+                !formData.section.trim()
                   ? "border-red-500"
                   : "border-gray-300"
               } ${
-                !isSectionEnabled
+                !sectionOptionsByLevel[formData.userLevel]
                   ? "bg-gray-100 text-gray-500 cursor-not-allowed"
                   : ""
               }`}
             >
               <option value="">Select Section</option>
-              <option value="PD-1586">PD-1586</option>
-              <option value="RA-6969">RA-6969</option>
-              <option value="RA-8749">RA-8749</option>
-              <option value="RA-9275">RA-9275</option>
-              <option value="RA-9003">RA-9003</option>
+              {sectionOptionsByLevel[formData.userLevel]?.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -242,33 +261,14 @@ export default function AddUser({ onClose, onUserAdded }) {
         </div>
       </form>
 
-      {/* ✅ Confirmation Dialog */}
-      {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow-lg">
-            <h3 className="mb-2 text-lg font-semibold text-gray-800">
-              Confirm Action
-            </h3>
-            <p className="mb-4 text-gray-600">
-              Are you sure you want to <b>add</b> this user?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowConfirm(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmAdd}
-                className="px-4 py-2 text-white rounded bg-sky-600 hover:bg-sky-700"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationDialog
+        open={showConfirm}
+        title="Confirm Action"
+        message="Are you sure you want to add this user?"
+        loading={loading}
+        onCancel={() => setShowConfirm(false)}
+        onConfirm={confirmAdd}
+      />
     </div>
   );
 }

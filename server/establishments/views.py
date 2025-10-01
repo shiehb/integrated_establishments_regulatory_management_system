@@ -5,6 +5,15 @@ from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from .models import Establishment
 from .serializers import EstablishmentSerializer
+from django.db.models import Q
+
+try:
+    from shapely.geometry import Polygon as ShapelyPolygon, MultiPolygon as ShapelyMultiPolygon
+    from shapely.ops import unary_union
+except Exception:
+    ShapelyPolygon = None
+    ShapelyMultiPolygon = None
+    unary_union = None
 
 User = get_user_model()
 
@@ -13,19 +22,67 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
     serializer_class = EstablishmentSerializer
     permission_classes = [permissions.IsAuthenticated]
     
+    def list(self, request, *args, **kwargs):
+        # Get pagination parameters
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        
+        # Get filtered queryset
+        queryset = self.get_queryset()
+        
+        # Apply search filter if provided
+        search = request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(street_building__icontains=search) |
+                Q(barangay__icontains=search) |
+                Q(city__icontains=search) |
+                Q(province__icontains=search) |
+                Q(nature_of_business__icontains=search)
+            )
+        
+        # Apply province filter if provided
+        province = request.query_params.get('province')
+        if province:
+            queryset = queryset.filter(province__icontains=province)
+        
+        # Calculate pagination
+        total_count = queryset.count()
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        
+        # Apply pagination
+        establishments = queryset[start_index:end_index]
+        
+        # Serialize data
+        serializer = self.get_serializer(establishments, many=True)
+        
+        # Return paginated response
+        return Response({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size,
+            'results': serializer.data
+        })
+    
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
             establishment = serializer.save()
-            
+
+            # Attach the acting user for activity log
+            establishment._action_user = request.user
+            establishment.save()
+
             # Send notifications to specific user roles
             self.send_establishment_creation_notification(establishment, request.user)
             
             headers = self.get_success_headers(serializer.data)
             return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         except Exception as e:
-            # Return validation errors with proper format
             return Response(
                 {'error': str(e) if hasattr(e, 'detail') else serializer.errors},
                 status=status.HTTP_400_BAD_REQUEST
@@ -33,7 +90,16 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
     
     def update(self, request, *args, **kwargs):
         try:
-            return super().update(request, *args, **kwargs)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
+            serializer.is_valid(raise_exception=True)
+            establishment = serializer.save()
+
+            # Attach the acting user for activity log
+            establishment._action_user = request.user
+            establishment.save()
+
+            return Response(serializer.data)
         except Exception as e:
             instance = self.get_object()
             serializer = self.get_serializer(instance, data=request.data)
@@ -51,7 +117,6 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         users_to_notify = User.objects.filter(userlevel__in=notify_userlevels, is_active=True)
         
         for recipient in users_to_notify:
-            # Import from notifications app
             from notifications.models import Notification
             Notification.objects.create(
                 recipient=recipient,
@@ -66,10 +131,68 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         establishment = self.get_object()
         polygon_data = request.data.get('polygon')
         
-        if polygon_data:
-            establishment.polygon = polygon_data
+        if polygon_data is not None:
+            if not isinstance(polygon_data, list):
+                return Response({'error': 'Polygon data must be a list of coordinates'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            for coord in polygon_data:
+                if not isinstance(coord, list) or len(coord) != 2:
+                    return Response({'error': 'Each coordinate must be a [lat, lng] pair'}, status=status.HTTP_400_BAD_REQUEST)
+                try:
+                    float(coord[0]), float(coord[1])
+                except (ValueError, TypeError):
+                    return Response({'error': 'Coordinates must be valid numbers'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Optional server-side non-overlap enforcement if shapely available
+            result_polygon = polygon_data
+            if ShapelyPolygon is not None and polygon_data and len(polygon_data) >= 3:
+                # Build current polygon
+                try:
+                    drawn = ShapelyPolygon([(float(lng), float(lat)) for lat, lng in polygon_data])
+                except Exception:
+                    return Response({'error': 'Invalid polygon geometry'}, status=status.HTTP_400_BAD_REQUEST)
+                if not drawn.is_valid or drawn.area == 0:
+                    return Response({'error': 'Invalid or empty polygon'}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Collect other establishment polygons
+                others = Establishment.objects.exclude(pk=establishment.pk).values_list('polygon', flat=True)
+                shapes = []
+                for poly in others:
+                    if isinstance(poly, list) and len(poly) >= 3:
+                        try:
+                            shp = ShapelyPolygon([(float(lng), float(lat)) for lat, lng in poly])
+                            if shp.is_valid and shp.area > 0:
+                                shapes.append(shp)
+                        except Exception:
+                            continue
+                if shapes:
+                    union = unary_union(shapes)
+                    diff = drawn.difference(union)
+                    # Choose largest polygon if multipolygon
+                    if diff.is_empty:
+                        result_polygon = []
+                    elif isinstance(diff, ShapelyPolygon):
+                        coords = list(diff.exterior.coords)
+                        result_polygon = [[lat, lng] for (lng, lat) in coords[:-1]]
+                    else:
+                        # MultiPolygon: pick largest by area
+                        biggest = None
+                        biggest_area = -1
+                        for geom in diff.geoms:
+                            if geom.area > biggest_area:
+                                biggest_area = geom.area
+                                biggest = geom
+                        if biggest is not None:
+                            coords = list(biggest.exterior.coords)
+                            result_polygon = [[lat, lng] for (lng, lat) in coords[:-1]]
+                        else:
+                            result_polygon = []
+
+            establishment.polygon = result_polygon
+            establishment._action_user = request.user  # log who updated polygon
             establishment.save()
-            return Response({'status': 'polygon set'})
+            return Response({'status': 'polygon set', 'polygon': establishment.polygon})
+        
         return Response({'error': 'No polygon data provided'}, status=400)
     
     @action(detail=False, methods=['get'])
@@ -77,3 +200,27 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         active_establishments = Establishment.objects.filter(is_active=True)
         serializer = self.get_serializer(active_establishments, many=True)
         return Response(serializer.data)
+    
+    # Add this to EstablishmentViewSet
+    @action(detail=False, methods=['get'])
+    def search(self, request):
+        query = request.GET.get('q', '').strip()
+        
+        if not query or len(query) < 2:
+            return Response({'results': [], 'count': 0})
+        
+        # Simple search across name, address, and business type
+        establishments = Establishment.objects.filter(
+            Q(name__icontains=query) |
+            Q(street_building__icontains=query) |
+            Q(barangay__icontains=query) |
+            Q(city__icontains=query) |
+            Q(province__icontains=query) |
+            Q(nature_of_business__icontains=query)
+        )
+        
+        serializer = self.get_serializer(establishments, many=True)
+        return Response({
+            'results': serializer.data,
+            'count': establishments.count()
+        })
