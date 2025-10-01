@@ -420,14 +420,31 @@ const SystemConfiguration = () => {
                     Default From Email
                   </label>
                   <input
-                    type="email"
+                    type="text"
                     value={config.default_from_email}
                     onChange={(e) =>
                       handleInputChange("default_from_email", e.target.value)
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
-                    placeholder="noreply@yourdomain.com"
+                    placeholder="noreply@ or user@domain.com"
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    You can use "noreply@" (without domain) or a complete email address. If using "noreply@", the system will use your email host user domain.
+                  </p>
+                  {config.constructed_from_email && config.constructed_from_email !== config.default_from_email && (
+                    <p className="mt-1 text-xs text-blue-600 font-medium">
+                      Final email address: {config.constructed_from_email}
+                    </p>
+                  )}
+                  {config.email_host_user && config.email_host_user.includes('gmail.com') && (
+                    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                      <p className="text-xs text-yellow-800">
+                        <strong>Gmail Limitation:</strong> Gmail only allows sending emails from verified addresses. 
+                        If you want to use "noreply@gmail.com", you need to add it as an alias in your Gmail account, 
+                        or use a different email service that supports custom sender addresses.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-start space-x-2">

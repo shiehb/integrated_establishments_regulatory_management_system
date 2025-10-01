@@ -246,7 +246,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
       }
       return { key, direction: "asc" };
     });
-    setSortDropdownOpen(false);
+    // Removed auto-close: setSortDropdownOpen(false);
   };
 
   const getSortIcon = (key) => {
@@ -412,7 +412,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     } else {
       setSortConfig({ key: null, direction: null });
     }
-    setSortDropdownOpen(false);
+    // Removed auto-close: setSortDropdownOpen(false);
   };
 
   // Pagination functions

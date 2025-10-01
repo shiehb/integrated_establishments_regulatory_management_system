@@ -2,6 +2,26 @@ from django.conf import settings
 from django.core.cache import cache
 from .models import SystemConfiguration
 
+def construct_from_email(default_from_email, email_host_user):
+    """
+    Construct the proper from email address.
+    If default_from_email ends with '@', append the domain from email_host_user.
+    """
+    if not default_from_email:
+        return email_host_user
+    
+    if default_from_email.endswith('@'):
+        # Extract domain from email_host_user
+        if email_host_user and '@' in email_host_user:
+            domain = email_host_user.split('@')[1]
+            return f"{default_from_email.rstrip('@')}@{domain}"
+        else:
+            # If no domain available, return as-is
+            return default_from_email
+    
+    # Complete email address, return as-is
+    return default_from_email
+
 def update_django_settings():
     """Update Django settings with database configuration"""
     try:
@@ -13,7 +33,7 @@ def update_django_settings():
         settings.EMAIL_USE_TLS = config.email_use_tls
         settings.EMAIL_HOST_USER = config.email_host_user
         settings.EMAIL_HOST_PASSWORD = config.email_host_password
-        settings.DEFAULT_FROM_EMAIL = config.default_from_email or config.email_host_user
+        settings.DEFAULT_FROM_EMAIL = construct_from_email(config.default_from_email, config.email_host_user)
         
         # Update JWT settings
         from datetime import timedelta

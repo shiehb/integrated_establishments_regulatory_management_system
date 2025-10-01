@@ -28,7 +28,7 @@ def send_otp_email(user_email, otp):
     # Check if template exists, fallback to simple text
     if os.path.exists(template_path):
         html_message = render_to_string('emails/otp_email.html', {
-            'otp': otp,
+            'otp_code': otp,
             'email': user_email
         })
         plain_message = strip_tags(html_message)

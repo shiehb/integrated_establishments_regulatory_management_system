@@ -161,7 +161,7 @@ export default function MapPage() {
       }
       return { key, direction: "asc" };
     });
-    setSortDropdownOpen(false);
+    // Removed auto-close: setSortDropdownOpen(false);
   };
 
   const getSortIcon = (key) => {
@@ -193,7 +193,7 @@ export default function MapPage() {
     } else {
       setSortConfig({ key: null, direction: null });
     }
-    setSortDropdownOpen(false);
+    // Removed auto-close: setSortDropdownOpen(false);
   };
 
   // ✅ Filter + Sort with LOCAL search (client-side only)

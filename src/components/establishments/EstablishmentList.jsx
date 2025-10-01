@@ -140,7 +140,7 @@ export default function EstablishmentList({
       }
       return { key, direction: "asc" };
     });
-    setSortDropdownOpen(false);
+    // Removed auto-close: setSortDropdownOpen(false);
   };
 
   const getSortIcon = (key) => {
@@ -169,7 +169,7 @@ export default function EstablishmentList({
     } else {
       setSortConfig({ key: null, direction: null });
     }
-    setSortDropdownOpen(false);
+    // Removed auto-close: setSortDropdownOpen(false);
   };
 
   // Filter functions

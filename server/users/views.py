@@ -8,14 +8,13 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from .utils.email_utils import send_user_welcome_email
 from .utils.otp_utils import generate_otp, verify_otp, send_otp_email
 from django.core.cache import cache
 from django.utils import timezone
 from django.db.models import Q
 
 # Import from system_config for password generation
-from system_config.models import SystemConfiguration
+# from system_config.models import SystemConfiguration  # No longer needed in views
 
 # Notifications
 from notifications.models import Notification
@@ -40,12 +39,6 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=data)
         if serializer.is_valid():
             user = serializer.save()
-
-            # Get the auto-generated password that was used
-            generated_password = SystemConfiguration.generate_default_password()
-            
-            # Send welcome email with auto-generated password
-            send_user_welcome_email(user, generated_password)
 
             # 📌 Log user creation
             log_activity(

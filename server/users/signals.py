@@ -12,8 +12,10 @@ from system_config.models import SystemConfiguration  # Import for password gene
 @receiver(post_save, sender=User)
 def send_welcome_email_and_log(sender, instance, created, **kwargs):
     if created:
-        # Generate a new password for the welcome email
-        generated_password = SystemConfiguration.generate_default_password()
+        # Use the stored generated password if available, otherwise generate a new one
+        generated_password = getattr(instance, '_generated_password', None)
+        if not generated_password:
+            generated_password = SystemConfiguration.generate_default_password()
         send_user_welcome_email(instance, generated_password)
 
         # Log user creation

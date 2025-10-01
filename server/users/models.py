@@ -15,6 +15,8 @@ class UserManager(BaseUserManager):
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
+        # Store the generated password in the user instance for later use
+        user._generated_password = password
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):

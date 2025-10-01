@@ -43,7 +43,7 @@ INSTALLED_APPS = [
     'notifications',
     'audit',
     'inspections',
-    'system_config',
+    'system_config.apps.SystemConfigConfig',
     'system',
 ]
 

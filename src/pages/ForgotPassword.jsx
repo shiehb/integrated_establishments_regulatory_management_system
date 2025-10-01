@@ -18,6 +18,11 @@ export default function ForgotPassword() {
       const response = await sendOtp(email);
       setMessage(response.detail);
 
+      // Show success notification
+      if (window.showNotification) {
+        window.showNotification("success", response.detail);
+      }
+
       // ✅ Automatically redirect to reset password page after successful OTP send
       if (response.detail.includes("sent")) {
         // Store email in localStorage for the reset password page
@@ -29,9 +34,23 @@ export default function ForgotPassword() {
         }, 1500);
       }
     } catch (error) {
-      setMessage(
-        error.response?.data?.detail || "Failed to send OTP. Please try again."
-      );
+      let errorMessage = "Failed to send OTP. Please try again.";
+      
+      // Check for different types of errors
+      if (error.code === 'NETWORK_ERROR' || error.message?.includes('Network Error') || !navigator.onLine) {
+        errorMessage = "No internet connection. Please check your network and try again.";
+      } else if (error.response?.status === 0 || error.message?.includes('fetch')) {
+        errorMessage = "Unable to connect to server. Please check your connection and try again.";
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+      
+      setMessage(errorMessage);
+      
+      // Show error notification
+      if (window.showNotification) {
+        window.showNotification("error", errorMessage);
+      }
     } finally {
       setLoading(false);
     }

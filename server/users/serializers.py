@@ -46,6 +46,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         # Use auto-generated password from system_config
         generated_password = SystemConfiguration.generate_default_password()
         user = User.objects.create_user(password=generated_password, **validated_data)
+        # Store the generated password in the user instance for later use
+        user._generated_password = generated_password
         return user
 
 

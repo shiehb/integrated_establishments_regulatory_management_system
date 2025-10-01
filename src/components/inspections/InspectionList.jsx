@@ -114,7 +114,7 @@ export default function InspectionList({
       }
       return { key, direction: "asc" };
     });
-    setSortDropdownOpen(false);
+    // Removed auto-close: setSortDropdownOpen(false);
   }, []);
 
   const getSortIcon = (key) => {

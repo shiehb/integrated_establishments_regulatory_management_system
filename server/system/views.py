@@ -111,6 +111,12 @@ def get_mysql_path():
 def run_django_dumpdata_safe():
     """Run Django dumpdata with safe parameters for older MySQL/MariaDB versions"""
     try:
+        # Set environment variables to ensure UTF-8 encoding
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        env['LANG'] = 'en_US.UTF-8'
+        env['LC_ALL'] = 'en_US.UTF-8'
+        
         # First try without natural keys (which cause issues with older MySQL)
         cmd = [
             "python", "manage.py", 
@@ -124,9 +130,11 @@ def run_django_dumpdata_safe():
             cmd, 
             capture_output=True, 
             text=True, 
+            encoding='utf-8',  # Explicitly set UTF-8 encoding
             timeout=120,
             cwd=settings.BASE_DIR,
-            shell=True
+            shell=True,
+            env=env
         )
         
         if result.returncode == 0:
@@ -143,9 +151,11 @@ def run_django_dumpdata_safe():
                 cmd, 
                 capture_output=True, 
                 text=True, 
+                encoding='utf-8',  # Explicitly set UTF-8 encoding
                 timeout=120,
                 cwd=settings.BASE_DIR,
-                shell=True
+                shell=True,
+                env=env
             )
             
             if result.returncode == 0:
@@ -384,6 +394,7 @@ def backup_database(request):
                                 stdout=output_file,
                                 stderr=subprocess.PIPE, 
                                 text=True, 
+                                encoding='utf-8',  # Explicitly set UTF-8 encoding
                                 timeout=300,
                                 shell=True
                             )
@@ -433,8 +444,14 @@ def backup_database(request):
             success, output = run_django_dumpdata_safe()
             
             if success:
-                with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(output)
+                try:
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(output)
+                except UnicodeEncodeError as e:
+                    logger.error(f"Unicode encoding error when writing backup: {e}")
+                    return JsonResponse({
+                        "error": f"Failed to write backup file due to encoding issues: {str(e)}"
+                    }, status=500)
             else:
                 logger.error(f"JSON backup failed: {output}")
                 return JsonResponse({
@@ -534,7 +551,7 @@ def restore_database(request):
                     
                     try:
                         with open(file_path, "r", encoding="utf-8") as f:
-                            result = subprocess.run(cmd, stdin=f, capture_output=True, text=True, timeout=300, shell=True)
+                            result = subprocess.run(cmd, stdin=f, capture_output=True, text=True, encoding='utf-8', timeout=300, shell=True)
                             
                         if result.returncode != 0:
                             error_msg = result.stderr if result.stderr else "Unknown mysql error"
@@ -560,13 +577,21 @@ def restore_database(request):
             cmd = ["python", "manage.py", "loaddata", file_path]
             
             try:
+                # Set environment variables to ensure UTF-8 encoding
+                env = os.environ.copy()
+                env['PYTHONIOENCODING'] = 'utf-8'
+                env['LANG'] = 'en_US.UTF-8'
+                env['LC_ALL'] = 'en_US.UTF-8'
+                
                 result = subprocess.run(
                     cmd, 
                     capture_output=True, 
                     text=True, 
+                    encoding='utf-8',  # Explicitly set UTF-8 encoding
                     timeout=300,
                     cwd=settings.BASE_DIR,
-                    shell=True
+                    shell=True,
+                    env=env
                 )
                 
                 if result.returncode != 0:
