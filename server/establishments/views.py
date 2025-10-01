@@ -24,6 +24,7 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
     
     def list(self, request, *args, **kwargs):
         # Get pagination parameters
+        
         page = int(request.query_params.get('page', 1))
         page_size = int(request.query_params.get('page_size', 10))
         

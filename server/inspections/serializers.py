@@ -20,17 +20,18 @@ class InspectionSerializer(serializers.ModelSerializer):
     def get_establishment_detail(self, obj):
         e = obj.establishment
         return {
-            'id': e.id,
-            'name': e.name,
-            'nature_of_business': e.nature_of_business,
-            'province': e.province,
-            'city': e.city,
-            'barangay': e.barangay,
-            'street_building': e.street_building,
-            'postal_code': e.postal_code,
-            'latitude': str(e.latitude),
-            'longitude': str(e.longitude),
-        }
+        'id': e.id,
+        'name': e.name,
+        'nature_of_business': e.nature_of_business,
+        'year_established': e.year_established,  # ✅ added
+        'province': e.province,
+        'city': e.city,
+        'barangay': e.barangay,
+        'street_building': e.street_building,
+        'postal_code': e.postal_code,
+        'latitude': str(e.latitude),
+        'longitude': str(e.longitude),
+    }
 
     def _full_name(self, u):
         if not u:

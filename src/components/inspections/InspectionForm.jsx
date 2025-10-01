@@ -761,11 +761,34 @@ function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
   ) => {
     const clone = [...items];
     if (!clone[index]) return;
-    clone[index] = { ...clone[index], [field]: formatter(value) };
+
+    if (field === "compliant") {
+      if (value === "Yes") {
+        // ✅ Auto-set to Compliant when Yes
+        clone[index] = {
+          ...clone[index],
+          compliant: value,
+          remarksOption: "Compliant",
+          remarks: "",
+        };
+      } else if (value === "No") {
+        // ✅ Reset remarks when No
+        clone[index] = {
+          ...clone[index],
+          compliant: value,
+          remarksOption: "",
+          remarks: "",
+        };
+      } else {
+        clone[index] = { ...clone[index], compliant: value };
+      }
+    } else {
+      clone[index] = { ...clone[index], [field]: formatter(value) };
+    }
+
     setItems(clone);
   };
 
-  // helper to get full law name or fallback
   const getLawFullName = (lawId) => {
     const law = InspectionConstants.LAWS.find((l) => l.id === lawId);
     if (law) return law.fullName;
@@ -775,10 +798,7 @@ function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
     return lawId;
   };
 
-  // always include these in compliance summary
   const ALWAYS_INCLUDED_LAWS = ["Pollution-Control", "Self-Monitoring"];
-
-  // extend the filter
   const effectiveLawFilter = [
     ...new Set([...(lawFilter || []), ...ALWAYS_INCLUDED_LAWS]),
   ];
@@ -796,7 +816,6 @@ function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
           InspectionConstants.getComplianceItemsByLaw(lawId) || [];
         return (
           <div key={lawId} className="mb-8">
-            {/* ✅ Full law name instead of short code */}
             <div className="mb-2 text-lg font-bold text-black">
               {getLawFullName(lawId)}
             </div>
@@ -815,83 +834,66 @@ function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(() => {
-                    // For PD-1586, don't group by citation - show each row separately
-                    if (lawId === "PD-1586") {
-                      return lawItems.map((li, idx) => {
-                        const globalIndex = items.findIndex(
-                          (i) => i.conditionId === li.conditionId
-                        );
-                        if (globalIndex === -1) return null;
-                        const item = items[globalIndex];
+                  {lawItems.map((li) => {
+                    const globalIndex = items.findIndex(
+                      (i) => i.conditionId === li.conditionId
+                    );
+                    if (globalIndex === -1) return null;
+                    const item = items[globalIndex];
 
-                        return (
-                          <tr key={li.conditionId}>
-                            {/* Citation cell - NO ROWSPAN for PD-1586 */}
-                            <td className="p-2 align-top border border-black">
+                    return (
+                      <tr key={li.conditionId}>
+                        {/* Citation */}
+                        <td className="p-2 border border-black">
+                          {li.lawCitation || ""}
+                        </td>
+
+                        {/* Requirement */}
+                        <td className="p-2 border border-black">
+                          {li.complianceRequirement}
+                        </td>
+
+                        {/* Compliant radio */}
+                        <td className="p-2 border border-black">
+                          {Object.values(
+                            InspectionConstants.COMPLIANCE_STATUS
+                          ).map((opt) => (
+                            <label key={opt} className="block">
                               <input
-                                type="text"
-                                value={item.conditionNumber || ""}
-                                onChange={(e) =>
+                                type="radio"
+                                name={`comp-${li.conditionId}`}
+                                checked={item.compliant === opt}
+                                onChange={() =>
                                   updateItem(
                                     globalIndex,
-                                    "conditionNumber",
-                                    e.target.value
+                                    "compliant",
+                                    opt,
+                                    (v) => v
                                   )
                                 }
-                                placeholder="Condition No."
-                                className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-                              />
-                            </td>
+                              />{" "}
+                              {opt}
+                            </label>
+                          ))}
+                          {errors[`compliant-${globalIndex}`] && (
+                            <p className="text-sm text-red-600">
+                              {errors[`compliant-${globalIndex}`]}
+                            </p>
+                          )}
+                        </td>
 
-                            {/* Requirement cell */}
-                            <td className="p-2 border border-black">
-                              <input
-                                type="text"
-                                value={item.complianceRequirement || ""}
-                                onChange={(e) =>
-                                  updateItem(
-                                    globalIndex,
-                                    "complianceRequirement",
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="Enter Requirement"
-                                className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
-                              />
-                            </td>
-
-                            {/* Compliant radio buttons */}
-                            <td className="p-2 border border-black">
-                              {Object.values(
-                                InspectionConstants.COMPLIANCE_STATUS
-                              ).map((opt) => (
-                                <label key={opt} className="block">
-                                  <input
-                                    type="radio"
-                                    name={`comp-${li.conditionId}`}
-                                    checked={item.compliant === opt}
-                                    onChange={() =>
-                                      updateItem(
-                                        globalIndex,
-                                        "compliant",
-                                        opt,
-                                        (v) => v
-                                      )
-                                    }
-                                  />{" "}
-                                  {opt}
-                                </label>
-                              ))}
-                              {errors[`compliant-${globalIndex}`] && (
-                                <p className="text-sm text-red-600">
-                                  {errors[`compliant-${globalIndex}`]}
-                                </p>
-                              )}
-                            </td>
-
-                            {/* Remarks dropdown */}
-                            <td className="p-2 border border-black">
+                        {/* Remarks */}
+                        <td className="p-2 border border-black">
+                          {item.compliant === "Yes" ? (
+                            // ✅ Show "Compliant" as readonly text
+                            <input
+                              type="text"
+                              value="Compliant"
+                              readOnly
+                              className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
+                            />
+                          ) : (
+                            <>
                               <select
                                 value={item.remarksOption || ""}
                                 onChange={(e) =>
@@ -905,12 +907,15 @@ function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
                                 className="w-full px-2 py-1 text-black bg-white border border-black"
                               >
                                 <option value="">-- Select Remark --</option>
-                                {PREDEFINED_REMARKS.map((r) => (
+                                {InspectionConstants.PREDEFINED_REMARKS.filter(
+                                  (r) => r !== "Compliant"
+                                ).map((r) => (
                                   <option key={r} value={r}>
                                     {r}
                                   </option>
                                 ))}
                               </select>
+
                               {item.remarksOption === "Other" && (
                                 <textarea
                                   value={item.remarks || ""}
@@ -926,129 +931,18 @@ function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
                                   className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase mt-2"
                                 />
                               )}
-                              {errors[`remarks-${globalIndex}`] && (
-                                <p className="text-sm text-red-600">
-                                  {errors[`remarks-${globalIndex}`]}
-                                </p>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      });
-                    } else {
-                      // For other laws, keep the original grouping behavior
-                      const citationGroups = {};
-                      lawItems.forEach((li) => {
-                        if (!citationGroups[li.lawCitation])
-                          citationGroups[li.lawCitation] = [];
-                        citationGroups[li.lawCitation].push(li);
-                      });
+                            </>
+                          )}
 
-                      return Object.entries(citationGroups).map(
-                        ([citation, citationItems]) =>
-                          citationItems.map((li, idx) => {
-                            const globalIndex = items.findIndex(
-                              (i) => i.conditionId === li.conditionId
-                            );
-                            if (globalIndex === -1) return null;
-                            const item = items[globalIndex];
-
-                            return (
-                              <tr key={li.conditionId}>
-                                {/* Citation cell - WITH ROWSPAN for other laws */}
-                                {idx === 0 && (
-                                  <td
-                                    className="p-2 align-top border border-black"
-                                    rowSpan={citationItems.length}
-                                  >
-                                    {citation}
-                                  </td>
-                                )}
-
-                                {/* Requirement cell */}
-                                <td className="p-2 border border-black">
-                                  {li.complianceRequirement}
-                                </td>
-
-                                {/* Compliant radio buttons */}
-                                <td className="p-2 border border-black">
-                                  {Object.values(
-                                    InspectionConstants.COMPLIANCE_STATUS
-                                  ).map((opt) => (
-                                    <label key={opt} className="block">
-                                      <input
-                                        type="radio"
-                                        name={`comp-${li.conditionId}`}
-                                        checked={item.compliant === opt}
-                                        onChange={() =>
-                                          updateItem(
-                                            globalIndex,
-                                            "compliant",
-                                            opt,
-                                            (v) => v
-                                          )
-                                        }
-                                      />{" "}
-                                      {opt}
-                                    </label>
-                                  ))}
-                                  {errors[`compliant-${globalIndex}`] && (
-                                    <p className="text-sm text-red-600">
-                                      {errors[`compliant-${globalIndex}`]}
-                                    </p>
-                                  )}
-                                </td>
-
-                                {/* Remarks dropdown */}
-                                <td className="p-2 border border-black">
-                                  <select
-                                    value={item.remarksOption || ""}
-                                    onChange={(e) =>
-                                      updateItem(
-                                        globalIndex,
-                                        "remarksOption",
-                                        e.target.value,
-                                        (v) => v
-                                      )
-                                    }
-                                    className="w-full px-2 py-1 text-black bg-white border border-black"
-                                  >
-                                    <option value="">
-                                      -- Select Remark --
-                                    </option>
-                                    {PREDEFINED_REMARKS.map((r) => (
-                                      <option key={r} value={r}>
-                                        {r}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {item.remarksOption === "Other" && (
-                                    <textarea
-                                      value={item.remarks || ""}
-                                      onChange={(e) =>
-                                        updateItem(
-                                          globalIndex,
-                                          "remarks",
-                                          e.target.value,
-                                          formatInput.upper
-                                        )
-                                      }
-                                      placeholder="ENTER REMARKS..."
-                                      className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase mt-2"
-                                    />
-                                  )}
-                                  {errors[`remarks-${globalIndex}`] && (
-                                    <p className="text-sm text-red-600">
-                                      {errors[`remarks-${globalIndex}`]}
-                                    </p>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })
-                      );
-                    }
-                  })()}
+                          {errors[`remarks-${globalIndex}`] && (
+                            <p className="text-sm text-red-600">
+                              {errors[`remarks-${globalIndex}`]}
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1077,19 +971,34 @@ function SummaryOfFindingsAndObservations({
     );
   }, [systems, lawFilter]);
 
-  const setRadioStatus = (index, status) => {
+  const updateSystem = (index, field, value, formatter = (v) => v) => {
     const clone = [...systems];
-    clone[index] = {
-      ...clone[index],
-      compliant: status === "compliant",
-      nonCompliant: status === "nonCompliant",
-    };
-    setSystems(clone);
-  };
+    const system = clone[index];
 
-  const updateField = (index, field, value, formatter = (v) => v) => {
-    const clone = [...systems];
-    clone[index] = { ...clone[index], [field]: formatter(value) };
+    if (field === "compliant") {
+      if (value === "Yes") {
+        // ✅ Auto-set remark when compliant
+        clone[index] = {
+          ...system,
+          compliant: "Yes",
+          nonCompliant: false,
+          remarksOption: "Compliant",
+          remarks: "",
+        };
+      } else if (value === "No") {
+        // ✅ Reset remark when non-compliant
+        clone[index] = {
+          ...system,
+          compliant: "No",
+          nonCompliant: true,
+          remarksOption: "",
+          remarks: "",
+        };
+      }
+    } else {
+      clone[index] = { ...system, [field]: formatter(value) };
+    }
+
     setSystems(clone);
   };
 
@@ -1102,6 +1011,7 @@ function SummaryOfFindingsAndObservations({
             (sys) => sys.system === s.system
           );
           if (globalIndex === -1) return null;
+
           return (
             <div key={s.system} className="p-3 border border-black">
               <div className="flex items-center justify-between">
@@ -1110,8 +1020,8 @@ function SummaryOfFindingsAndObservations({
                   <label>
                     <input
                       type="radio"
-                      checked={s.compliant === true}
-                      onChange={() => setRadioStatus(globalIndex, "compliant")}
+                      checked={s.compliant === "Yes"}
+                      onChange={() => updateSystem(globalIndex, "compliant", "Yes")}
                     />{" "}
                     Compliant
                   </label>
@@ -1119,9 +1029,7 @@ function SummaryOfFindingsAndObservations({
                     <input
                       type="radio"
                       checked={s.nonCompliant === true}
-                      onChange={() =>
-                        setRadioStatus(globalIndex, "nonCompliant")
-                      }
+                      onChange={() => updateSystem(globalIndex, "compliant", "No")}
                     />{" "}
                     Non-Compliant
                   </label>
@@ -1129,35 +1037,42 @@ function SummaryOfFindingsAndObservations({
               </div>
 
               <div className="mt-2">
-                <select
-                  value={s.remarksOption || ""}
-                  onChange={(e) =>
-                    updateField(globalIndex, "remarksOption", e.target.value)
-                  }
-                  className="w-full px-2 py-1 text-black bg-white border border-black"
-                >
-                  <option value="">-- Select Remark --</option>
-                  {PREDEFINED_REMARKS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-                {s.remarksOption === "Other" && (
-                  <textarea
-                    value={s.remarks || ""}
-                    onChange={(e) =>
-                      updateField(
-                        globalIndex,
-                        "remarks",
-                        e.target.value,
-                        formatInput.upper
-                      )
-                    }
-                    placeholder="ENTER REMARKS..."
-                    className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase mt-2"
+                {s.compliant === "Yes" ? (
+                  <input
+                    type="text"
+                    value="Compliant"
+                    readOnly
+                    className="w-full px-2 py-1 text-black bg-gray-100 border border-black"
                   />
+                ) : (
+                  <>
+                    <select
+                      value={s.remarksOption || ""}
+                      onChange={(e) =>
+                        updateSystem(globalIndex, "remarksOption", e.target.value)
+                      }
+                      className="w-full px-2 py-1 text-black bg-white border border-black"
+                    >
+                      <option value="">-- Select Remark --</option>
+                      {PREDEFINED_REMARKS.filter((r) => r !== "Compliant").map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+                    {s.remarksOption === "Other" && (
+                      <textarea
+                        value={s.remarks || ""}
+                        onChange={(e) =>
+                          updateSystem(globalIndex, "remarks", e.target.value, formatInput.upper)
+                        }
+                        placeholder="ENTER REMARKS..."
+                        className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase mt-2"
+                      />
+                    )}
+                  </>
                 )}
+
                 {s.nonCompliant && errors[`sysRemarks-${globalIndex}`] && (
                   <p className="text-sm text-red-600">
                     {errors[`sysRemarks-${globalIndex}`]}
