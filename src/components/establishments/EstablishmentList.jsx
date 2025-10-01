@@ -81,10 +81,13 @@ export default function EstablishmentList({
       const response = await getEstablishments({
         page: currentPage,
         page_size: pageSize,
-        ...(debouncedSearchQuery && debouncedSearchQuery.length >= 2 && { search: debouncedSearchQuery }),
-        ...(provinceFilter.length > 0 && { province: provinceFilter.join(',') })
+        ...(debouncedSearchQuery &&
+          debouncedSearchQuery.length >= 2 && { search: debouncedSearchQuery }),
+        ...(provinceFilter.length > 0 && {
+          province: provinceFilter.join(","),
+        }),
       });
-      
+
       if (response.results) {
         // Server-side paginated response
         setEstablishments(response.results);
@@ -397,7 +400,9 @@ export default function EstablishmentList({
           </div>
 
           <button
-            onClick={() => selectedEstablishments.length > 0 && setShowExportModal(true)}
+            onClick={() =>
+              selectedEstablishments.length > 0 && setShowExportModal(true)
+            }
             disabled={selectedEstablishments.length === 0}
             className={`flex items-center gap-1 px-2 py-1 text-sm rounded ${
               selectedEstablishments.length > 0
@@ -462,7 +467,9 @@ export default function EstablishmentList({
                   Year Established {getSortIcon("year_established")}
                 </div>
               </th>
-              <th className="p-1 border border-gray-300">Actions</th>
+              <th className="p-1 text-center border border-gray-300">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -549,7 +556,7 @@ export default function EstablishmentList({
                       )}
                       <button
                         onClick={() => onPolygon(e)}
-                        className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+                        className="flex items-center gap-1 px-2 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
                         title="Polygon"
                       >
                         <Map size={14} />

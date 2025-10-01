@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
-  MoreVertical,
   Pencil,
   UserCheck,
   UserX,
@@ -155,7 +154,14 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   // Fetch all users on component mount and when pagination/filters change
   useEffect(() => {
     fetchAllUsers();
-  }, [refreshTrigger, currentPage, pageSize, debouncedSearchQuery, roleFilter, statusFilter]);
+  }, [
+    refreshTrigger,
+    currentPage,
+    pageSize,
+    debouncedSearchQuery,
+    roleFilter,
+    statusFilter,
+  ]);
 
   const fetchAllUsers = async () => {
     setLoading(true);
@@ -167,21 +173,21 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
 
       // Add search parameter if provided
       if (debouncedSearchQuery) {
-        params.append('search', debouncedSearchQuery);
+        params.append("search", debouncedSearchQuery);
       }
 
       // Add role filter if selected
       if (roleFilter.length > 0) {
-        params.append('role', roleFilter.join(','));
+        params.append("role", roleFilter.join(","));
       }
 
       // Add status filter if selected
       if (statusFilter.length > 0) {
-        params.append('status', statusFilter.join(','));
+        params.append("status", statusFilter.join(","));
       }
 
       const res = await api.get(`auth/list/?${params.toString()}`);
-      
+
       if (res.data.results) {
         // Server-side paginated response
         setUsers(res.data.results);
@@ -723,7 +729,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
               </th>
             ))}
 
-            <th className="p-1 text-right border border-gray-300"></th>
+            <th className="p-1 text-center border border-gray-300">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -808,8 +814,8 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                     ? formatFullDate(u.updated_at)
                     : "Never updated"}
                 </td>
-                <td className="relative w-10 p-1 text-center border border-gray-300">
-                  <Menu
+                <td className="p-1 text-center border border-gray-300">
+                  <ActionButtons
                     user={u}
                     onEdit={onEdit}
                     onToggleStatus={toggleUserActive}
@@ -883,31 +889,13 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   );
 }
 
-/* Dropdown Menu Component - Unchanged from your original code */
-function Menu({ user, onEdit, onToggleStatus, onStatusChange }) {
-  const [open, setOpen] = useState(false);
+/* Action Buttons Component - Replaced dropdown with individual buttons */
+function ActionButtons({ user, onEdit, onToggleStatus, onStatusChange }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setOpen(false);
-        setShowConfirm(false);
-      }
-    }
-    if (open || showConfirm) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [open, showConfirm]);
 
   const handleStatusClick = () => {
     setShowConfirm(true);
-    setOpen(false);
   };
 
   const handleConfirm = async () => {
@@ -948,58 +936,51 @@ function Menu({ user, onEdit, onToggleStatus, onStatusChange }) {
   };
 
   const actionText = user.is_active ? "Deactivate" : "Activate";
-  const actionColor = user.is_active ? "red" : "green";
 
   return (
-    <div className="relative inline-block" ref={menuRef}>
+    <div className="flex justify-center gap-1">
+      {/* Edit Button - Sky color */}
       <button
-        onClick={() => setOpen((prev) => !prev)}
-        className="p-1 text-black transition-colors bg-transparent rounded-full hover:bg-gray-200"
-        title="User actions"
+        onClick={() => {
+          onEdit({
+            id: user.id,
+            first_name: user.first_name || "",
+            middle_name: user.middle_name || "",
+            last_name: user.last_name || "",
+            email: user.email,
+            userlevel: user.userlevel || "",
+            section: user.section || "",
+          });
+        }}
+        className="flex items-center gap-1 px-2 py-1 text-xs text-white transition-colors rounded bg-sky-600 hover:bg-sky-700"
+        title="Edit User"
       >
-        <MoreVertical size={18} />
+        <Pencil size={12} />
+        <span>Edit</span>
       </button>
 
-      {open && (
-        <div className="absolute right-0 z-10 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg min-w-36">
-          <button
-            onClick={() => {
-              onEdit({
-                id: user.id,
-                first_name: user.first_name || "",
-                middle_name: user.middle_name || "",
-                last_name: user.last_name || "",
-                email: user.email,
-                userlevel: user.userlevel || "",
-                section: user.section || "",
-              });
-              setOpen(false);
-            }}
-            className="flex items-center w-full gap-2 px-4 py-2 text-left text-gray-700 transition-colors hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg"
-          >
-            <Pencil size={16} />
-            <span>Edit</span>
-          </button>
-          <button
-            onClick={handleStatusClick}
-            className={`flex items-center w-full gap-2 px-4 py-2 text-left hover:bg-gray-50 transition-colors first:rounded-t-lg last:rounded-b-lg ${
-              user.is_active ? "text-red-600" : "text-green-600"
-            }`}
-          >
-            {user.is_active ? (
-              <>
-                <UserX size={16} />
-                <span>Deactivate User</span>
-              </>
-            ) : (
-              <>
-                <UserCheck size={16} />
-                <span>Activate User</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
+      {/* Status Toggle Button - Green for activate, Red for deactivate */}
+      <button
+        onClick={handleStatusClick}
+        className={`flex items-center gap-1 px-2 py-1 text-xs text-white transition-colors rounded hover:opacity-90 ${
+          user.is_active
+            ? "bg-red-600 hover:bg-red-700"
+            : "bg-green-600 hover:bg-green-700"
+        }`}
+        title={`${actionText} User`}
+      >
+        {user.is_active ? (
+          <>
+            <UserX size={12} />
+            <span>Deactivate</span>
+          </>
+        ) : (
+          <>
+            <UserCheck size={12} />
+            <span>Activate</span>
+          </>
+        )}
+      </button>
 
       <ConfirmationDialog
         open={showConfirm}
@@ -1023,7 +1004,7 @@ function Menu({ user, onEdit, onToggleStatus, onStatusChange }) {
         onConfirm={handleConfirm}
         confirmText={actionText}
         cancelText="Cancel"
-        confirmColor={actionColor}
+        confirmColor={user.is_active ? "red" : "green"}
       />
     </div>
   );

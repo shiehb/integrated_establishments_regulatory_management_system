@@ -235,7 +235,7 @@ const DatabaseBackup = () => {
 
   return (
     <>
-      <Header userLevel={userLevel} />
+      <Header />
       <LayoutWithSidebar userLevel={userLevel}>
         <div className="p-4 bg-white h-[calc(100vh-165px)] overflow-y-auto">
           <h1 className="flex items-center mb-6 text-2xl font-bold text-sky-600">
@@ -251,173 +251,13 @@ const DatabaseBackup = () => {
             />
           )}
 
-          {/* New Layout: Table on the left, Backup/Restore on the right */}
+          {/* Updated Layout: Backup/Restore on the left, Table on the right */}
           <div className="flex flex-col gap-6 lg:flex-row">
-            {/* Table Section - Takes full width on mobile, left on desktop */}
-            <div className="flex-1">
-              <div className="bg-white border border-gray-200 rounded-lg shadow-md">
-                <div className="p-4 border-b border-gray-200 rounded-t-lg bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Available Backups
-                    </h3>
-                    <button
-                      onClick={loadBackups}
-                      disabled={loadingBackups}
-                      className="flex items-center px-3 py-1 text-sm text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <RefreshCw
-                        className={`mr-1 ${
-                          loadingBackups ? "animate-spin" : ""
-                        }`}
-                        size={14}
-                      />
-                      Refresh
-                    </button>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full border border-gray-300 rounded-lg">
-                    <thead>
-                      <tr className="text-sm text-left text-white bg-sky-700">
-                        <th className="p-1 border border-gray-300">
-                          File Name
-                        </th>
-                        <th className="p-1 border border-gray-300">
-                          Format
-                        </th>
-                        <th className="p-1 border border-gray-300">
-                          Created
-                        </th>
-                        <th className="p-1 border border-gray-300">
-                          Size
-                        </th>
-                        <th className="p-1 text-center border border-gray-300">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loadingBackups ? (
-                        <tr>
-                          <td colSpan="5" className="px-2 py-8 text-center border border-gray-300">
-                            <div className="flex items-center justify-center">
-                              <div className="w-6 h-6 mr-2 border-b-2 rounded-full animate-spin border-sky-600"></div>
-                              <span>Loading backups...</span>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : backups.length > 0 ? (
-                        backups.map((backup) => (
-                          <tr
-                            key={backup.fileName}
-                            className={`text-xs border border-gray-300 hover:bg-gray-50 cursor-pointer ${
-                              selectedBackup?.fileName === backup.fileName
-                                ? "bg-blue-50"
-                                : ""
-                            }`}
-                            onClick={() => handleBackupSelect(backup)}
-                          >
-                            <td className="px-2 py-3 border border-gray-300">
-                              <div className="flex items-center">
-                                <div
-                                  className={`w-3 h-3 rounded-full mr-3 ${
-                                    backup.format === "json"
-                                      ? "bg-green-500"
-                                      : "bg-blue-500"
-                                  }`}
-                                ></div>
-                                <span className="text-sm font-medium text-gray-900">
-                                  {backup.fileName}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-2 py-3 border border-gray-300">
-                              <span
-                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  backup.format === "json"
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-blue-100 text-blue-800"
-                                }`}
-                              >
-                                {backup.format.toUpperCase()}
-                              </span>
-                            </td>
-                            <td className="px-2 py-3 text-sm text-gray-500 border border-gray-300">
-                              {backup.created}
-                            </td>
-                            <td className="px-2 py-3 text-sm text-gray-500 border border-gray-300">
-                              {backup.size}
-                            </td>
-                            <td className="px-2 py-3 border border-gray-300">
-                              <div className="flex justify-center gap-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleBackupSelect(backup);
-                                    setRestoreConfirm(true);
-                                  }}
-                                  className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
-                                  title="Restore this backup"
-                                >
-                                  <RotateCcw size={12} />
-                                  Restore
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDownloadBackup(backup);
-                                  }}
-                                  className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-sky-600 rounded hover:bg-sky-700"
-                                  title="Download this backup"
-                                >
-                                  <Download size={12} />
-                                  Download
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setBackupToDelete(backup);
-                                    setDeleteConfirm(true);
-                                  }}
-                                  className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700"
-                                  title="Delete this backup"
-                                >
-                                  <Trash2 size={12} />
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="5" className="px-2 py-4 text-center text-gray-500 border border-gray-300">
-                            <div className="flex flex-col items-center justify-center">
-                              <Database
-                                className="mb-2 text-gray-400"
-                                size={32}
-                              />
-                              <p className="text-sm">No backups available</p>
-                              <p className="mt-1 text-xs">
-                                Create your first backup using the form above
-                              </p>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            {/* Backup & Restore Section - Right side, stacked vertically */}
-            <div className="flex flex-col gap-6 lg:w-1/3">
-              {/* Backup Section - Top Right */}
-              <div className="flex flex-col p-6 bg-white border border-gray-200 rounded-lg shadow-md">
-                <h2 className="mb-4 text-lg font-semibold text-gray-900">
+            {/* Backup & Restore Section - Left side, stacked vertically */}
+            <div className="flex flex-col gap-4 lg:w-1/3">
+              {/* Backup Section - Top Left */}
+              <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow-md">
+                <h2 className="mb-2 text-lg font-semibold text-gray-900">
                   Create Backup
                 </h2>
                 <div className="flex-1 space-y-6">
@@ -434,7 +274,7 @@ const DatabaseBackup = () => {
                           <div
                             key={format}
                             onClick={() => setBackupFormat(format)}
-                            className={`cursor-pointer p-4 border-2 rounded-lg shadow-sm transition flex flex-col items-center
+                            className={`cursor-pointer py-2 px-4 border-2 rounded-lg shadow-sm transition flex flex-col items-center
                               ${
                                 isSelected
                                   ? "border-sky-600 bg-sky-50 ring-2 ring-sky-500"
@@ -474,14 +314,14 @@ const DatabaseBackup = () => {
                       value={backupPath}
                       onChange={(e) => setBackupPath(e.target.value)}
                       placeholder="C:/custom/path/backup/"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                      className="w-full px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">
                       Leave empty to use default backup directory: backups/
                     </p>
                   </div>
                 </div>
-                <div className="flex justify-end mt-6">
+                <div className="flex justify-end mt-4">
                   <button
                     onClick={() => setConfirmOpen(true)}
                     disabled={processing}
@@ -502,8 +342,8 @@ const DatabaseBackup = () => {
                 </div>
               </div>
 
-              {/* Restore Section - Bottom Right */}
-              <div className="flex flex-col p-6 bg-white border border-gray-200 rounded-lg shadow-md">
+              {/* Restore Section - Bottom Left */}
+              <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow-md">
                 <h2 className="mb-4 text-lg font-semibold text-gray-900">
                   Restore Backup
                 </h2>
@@ -578,7 +418,7 @@ const DatabaseBackup = () => {
                       />
                     </div>
                     <p className="mt-2 text-xs text-gray-500">
-                      Or select a backup from the list below
+                      Or select a backup from the list on the right
                     </p>
                   </div>
 
@@ -613,6 +453,167 @@ const DatabaseBackup = () => {
                       </>
                     )}
                   </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Table Section - Takes full width on mobile, right on desktop */}
+            <div className="flex-1">
+              <div className="bg-white border border-gray-200 rounded-lg shadow-md">
+                <div className="p-4 border-b border-gray-200 rounded-t-lg bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Available Backups
+                    </h3>
+                    <button
+                      onClick={loadBackups}
+                      disabled={loadingBackups}
+                      className="flex items-center px-3 py-1 text-sm text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        className={`mr-1 ${
+                          loadingBackups ? "animate-spin" : ""
+                        }`}
+                        size={14}
+                      />
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border border-gray-300 rounded-lg">
+                    <thead>
+                      <tr className="text-sm text-left text-white bg-sky-700">
+                        <th className="p-1 border border-gray-300">
+                          File Name
+                        </th>
+                        <th className="p-1 border border-gray-300">Format</th>
+                        <th className="p-1 border border-gray-300">Created</th>
+                        <th className="p-1 border border-gray-300">Size</th>
+                        <th className="p-1 text-center border border-gray-300">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingBackups ? (
+                        <tr>
+                          <td
+                            colSpan="5"
+                            className="px-2 py-8 text-center border border-gray-300"
+                          >
+                            <div className="flex items-center justify-center">
+                              <div className="w-6 h-6 mr-2 border-b-2 rounded-full animate-spin border-sky-600"></div>
+                              <span>Loading backups...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : backups.length > 0 ? (
+                        backups.map((backup) => (
+                          <tr
+                            key={backup.fileName}
+                            className={`text-xs border border-gray-300 hover:bg-gray-50 cursor-pointer ${
+                              selectedBackup?.fileName === backup.fileName
+                                ? "bg-blue-50"
+                                : ""
+                            }`}
+                            onClick={() => handleBackupSelect(backup)}
+                          >
+                            <td className="px-2 py-3 border border-gray-300">
+                              <div className="flex items-center">
+                                <div
+                                  className={`w-3 h-3 rounded-full mr-3 ${
+                                    backup.format === "json"
+                                      ? "bg-green-500"
+                                      : "bg-blue-500"
+                                  }`}
+                                ></div>
+                                <span className="text-sm font-medium text-gray-900">
+                                  {backup.fileName}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-2 py-3 border border-gray-300">
+                              <span
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                  backup.format === "json"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-blue-100 text-blue-800"
+                                }`}
+                              >
+                                {backup.format.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="px-2 py-3 text-sm text-gray-500 border border-gray-300">
+                              {backup.created}
+                            </td>
+                            <td className="px-2 py-3 text-sm text-gray-500 border border-gray-300">
+                              {backup.size}
+                            </td>
+                            <td className="px-2 py-3 border border-gray-300">
+                              <div className="flex justify-center gap-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleBackupSelect(backup);
+                                    setRestoreConfirm(true);
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
+                                  title="Restore this backup"
+                                >
+                                  <RotateCcw size={12} />
+                                  Restore
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDownloadBackup(backup);
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs text-white rounded bg-sky-600 hover:bg-sky-700"
+                                  title="Download this backup"
+                                >
+                                  <Download size={12} />
+                                  Download
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBackupToDelete(backup);
+                                    setDeleteConfirm(true);
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700"
+                                  title="Delete this backup"
+                                >
+                                  <Trash2 size={12} />
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td
+                            colSpan="5"
+                            className="px-2 py-4 text-center text-gray-500 border border-gray-300"
+                          >
+                            <div className="flex flex-col items-center justify-center">
+                              <Database
+                                className="mb-2 text-gray-400"
+                                size={32}
+                              />
+                              <p className="text-sm">No backups available</p>
+                              <p className="mt-1 text-xs">
+                                Create your first backup using the form on the
+                                left
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
