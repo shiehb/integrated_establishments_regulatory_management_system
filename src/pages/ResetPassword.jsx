@@ -1,3 +1,4 @@
+// ResetPassword.jsx
 import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 import { useState, useEffect } from "react";
@@ -77,6 +78,9 @@ export default function ResetPassword() {
         "Password must contain at least one uppercase letter";
     } else if (!/(?=.*\d)/.test(formData.newPassword)) {
       newErrors.newPassword = "Password must contain at least one number";
+    } else if (!/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
+      newErrors.newPassword =
+        "Password must contain at least one special character (@$!%*?&)";
     }
 
     if (!formData.confirmPassword.trim()) {
@@ -106,7 +110,6 @@ export default function ResetPassword() {
         formData.newPassword
       );
 
-      // Show success notification
       if (window.showNotification) {
         window.showNotification(
           "success",
@@ -114,16 +117,14 @@ export default function ResetPassword() {
         );
       }
 
-      // Clear the stored email after successful reset
       localStorage.removeItem("resetEmail");
 
-      // Redirect to login with success message
       setTimeout(() => {
         navigate("/login", {
           state: {
             message:
               "Password reset successfully! Please login with your new password.",
-            email: formData.email, // Pre-fill email in login form
+            email: formData.email,
           },
         });
       }, 2000);
@@ -132,7 +133,6 @@ export default function ResetPassword() {
         error.response?.data?.detail ||
         "Failed to reset password. Please try again.";
 
-      // Show error notification
       if (window.showNotification) {
         window.showNotification("error", errorMessage);
       }
@@ -150,7 +150,6 @@ export default function ResetPassword() {
     try {
       const response = await sendOtp(formData.email);
 
-      // Show success notification
       if (window.showNotification) {
         window.showNotification(
           "success",
@@ -164,7 +163,6 @@ export default function ResetPassword() {
         error.response?.data?.detail ||
         "Failed to resend OTP. Please try again.";
 
-      // Show error notification
       if (window.showNotification) {
         window.showNotification("error", errorMessage);
       }
@@ -324,6 +322,7 @@ export default function ResetPassword() {
             <li>• At least one uppercase letter (A-Z)</li>
             <li>• At least one lowercase letter (a-z)</li>
             <li>• At least one number (0-9)</li>
+            <li>• At least one special character (@$!%*?&)</li>
           </ul>
         </div>
       </div>

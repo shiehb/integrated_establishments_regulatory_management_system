@@ -1,5 +1,17 @@
 from django.db import models
 from django.utils import timezone
+import secrets
+import string
+
+def generate_secure_password(length=8):
+    """Generate a secure random password"""
+    alphabet = string.ascii_letters + string.digits + "!@#$%"
+    while True:
+        password = ''.join(secrets.choice(alphabet) for _ in range(length))
+        if (any(c.islower() for c in password) and 
+            any(c.isupper() for c in password) and 
+            any(c.isdigit() for c in password)):
+            return password
 
 class SystemConfiguration(models.Model):
     """Model to store system configuration settings"""
@@ -11,9 +23,6 @@ class SystemConfiguration(models.Model):
     email_host_user = models.EmailField(max_length=255, blank=True, null=True)
     email_host_password = models.CharField(max_length=255, blank=True, null=True)
     default_from_email = models.EmailField(max_length=255, blank=True, null=True)
-    
-    # Default Password Configuration
-    default_user_password = models.CharField(max_length=255, default='Temp1234')
     
     # JWT Token Configuration
     access_token_lifetime_minutes = models.IntegerField(default=60)
@@ -48,7 +57,6 @@ class SystemConfiguration(models.Model):
                 'email_host': 'smtp.gmail.com',
                 'email_port': 587,
                 'email_use_tls': True,
-                'default_user_password': 'Temp1234',
                 'access_token_lifetime_minutes': 60,
                 'refresh_token_lifetime_days': 1,
                 'rotate_refresh_tokens': True,
@@ -56,3 +64,8 @@ class SystemConfiguration(models.Model):
             }
         )
         return config
+    
+    @staticmethod
+    def generate_default_password():
+        """Generate a secure default password for new users"""
+        return generate_secure_password(8)

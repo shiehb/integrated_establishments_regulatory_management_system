@@ -694,6 +694,25 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
         </div>
       </div>
 
+      {/* 📊 Search results info */}
+      {(hasActiveFilters || filteredCount !== totalUsers) && (
+        <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
+          <div>
+            {filteredCount === totalUsers
+              ? `Showing all ${totalUsers} user(s)`
+              : `Showing ${filteredCount} of ${totalUsers} user(s)`}
+          </div>
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              className="underline text-sky-600 hover:text-sky-700"
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       <table className="w-full border border-gray-300 rounded-lg ">
         <thead>
@@ -729,7 +748,9 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
               </th>
             ))}
 
-            <th className="p-1 text-center border border-gray-300">Actions</th>
+            <th className="p-1 text-center border border-gray-300 w-35">
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -845,25 +866,6 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
         endItem={endItem}
       />
 
-      {/* 📊 Search results info */}
-      {(hasActiveFilters || filteredCount !== totalUsers) && (
-        <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
-          <div>
-            {filteredCount === totalUsers
-              ? `Showing all ${totalUsers} user(s)`
-              : `Showing ${filteredCount} of ${totalUsers} user(s)`}
-          </div>
-          {hasActiveFilters && (
-            <button
-              onClick={clearAllFilters}
-              className="underline text-sky-600 hover:text-sky-700"
-            >
-              Clear all filters
-            </button>
-          )}
-        </div>
-      )}
-
       <ExportModal
         open={showExportModal}
         onClose={() => setShowExportModal(false)}
@@ -962,7 +964,7 @@ function ActionButtons({ user, onEdit, onToggleStatus, onStatusChange }) {
       {/* Status Toggle Button - Green for activate, Red for deactivate */}
       <button
         onClick={handleStatusClick}
-        className={`flex items-center gap-1 px-2 py-1 text-xs text-white transition-colors rounded hover:opacity-90 ${
+        className={`flex items-center gap-1 px-2 py-1 text-xs w-22 text-white transition-colors rounded hover:opacity-90 ${
           user.is_active
             ? "bg-red-600 hover:bg-red-700"
             : "bg-green-600 hover:bg-green-700"

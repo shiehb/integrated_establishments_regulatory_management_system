@@ -1,9 +1,9 @@
-// ForceChangePassword.jsx - Updated version
+// ForceChangePassword.jsx
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Layout from "../components/Layout";
-import { changePassword, firstTimeChangePassword } from "../services/api"; // Add firstTimeChangePassword
+import { changePassword, firstTimeChangePassword } from "../services/api";
 
 export default function ForceChangePassword() {
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -21,7 +21,6 @@ export default function ForceChangePassword() {
       ...formData,
       [e.target.name]: e.target.value,
     });
-    // Clear error when user types
     if (errors[e.target.name]) {
       setErrors({
         ...errors,
@@ -45,6 +44,9 @@ export default function ForceChangePassword() {
         "Password must contain at least one uppercase letter";
     } else if (!/(?=.*\d)/.test(formData.newPassword)) {
       newErrors.newPassword = "Password must contain at least one number";
+    } else if (!/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
+      newErrors.newPassword =
+        "Password must contain at least one special character (@$!%*?&)";
     }
 
     if (!formData.confirmPassword.trim()) {
@@ -63,20 +65,17 @@ export default function ForceChangePassword() {
     if (validateForm()) {
       setIsSubmitting(true);
       try {
-        // Use firstTimeChangePassword instead of changePassword
         await firstTimeChangePassword(formData.newPassword);
 
-        // Show success notification
         if (window.showNotification) {
           window.showNotification("success", "Password changed successfully!");
         }
 
-        navigate("/"); // Go to dashboard after password change
+        navigate("/");
       } catch (err) {
         const errorMessage =
           err.response?.data?.detail || "Failed to change password.";
 
-        // Show error notification
         if (window.showNotification) {
           window.showNotification("error", errorMessage);
         }
@@ -195,6 +194,7 @@ export default function ForceChangePassword() {
             <li>• At least one uppercase letter (A-Z)</li>
             <li>• At least one lowercase letter (a-z)</li>
             <li>• At least one number (0-9)</li>
+            <li>• At least one special character (@$!%*?&)</li>
           </ul>
         </div>
       </div>

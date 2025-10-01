@@ -5,6 +5,8 @@ from datetime import timedelta
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import secrets
+import string
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -76,8 +78,16 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
-# Load default password for new users
-DEFAULT_USER_PASSWORD = os.getenv("DEFAULT_USER_PASSWORD", "Temp1234")
+# Password generation function
+def generate_secure_password(length=8):
+    """Generate a secure random password"""
+    alphabet = string.ascii_letters + string.digits + "!@#$%"
+    while True:
+        password = ''.join(secrets.choice(alphabet) for _ in range(length))
+        if (any(c.islower() for c in password) and 
+            any(c.isupper() for c in password) and 
+            any(c.isdigit() for c in password)):
+            return password
 
 # System Configuration Management
 # This will be overridden by database configuration if available
@@ -93,7 +103,6 @@ def get_database_config():
             'EMAIL_HOST_USER': config.email_host_user,
             'EMAIL_HOST_PASSWORD': config.email_host_password,
             'DEFAULT_FROM_EMAIL': config.default_from_email,
-            'DEFAULT_USER_PASSWORD': config.default_user_password,
             'ACCESS_TOKEN_LIFETIME': timedelta(minutes=config.access_token_lifetime_minutes),
             'REFRESH_TOKEN_LIFETIME': timedelta(days=config.refresh_token_lifetime_days),
             'ROTATE_REFRESH_TOKENS': config.rotate_refresh_tokens,
@@ -113,7 +122,6 @@ if db_config:
     EMAIL_HOST_USER = db_config['EMAIL_HOST_USER']
     EMAIL_HOST_PASSWORD = db_config['EMAIL_HOST_PASSWORD']
     DEFAULT_FROM_EMAIL = db_config['DEFAULT_FROM_EMAIL']
-    DEFAULT_USER_PASSWORD = db_config['DEFAULT_USER_PASSWORD']
     
     # Update JWT settings
     SIMPLE_JWT.update({

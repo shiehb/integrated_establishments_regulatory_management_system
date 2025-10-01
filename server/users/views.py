@@ -14,6 +14,9 @@ from django.core.cache import cache
 from django.utils import timezone
 from django.db.models import Q
 
+# Import from system_config for password generation
+from system_config.models import SystemConfiguration
+
 # Notifications
 from notifications.models import Notification
 
@@ -38,14 +41,17 @@ class RegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
 
-            default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
-            send_user_welcome_email(user, default_password)
+            # Get the auto-generated password that was used
+            generated_password = SystemConfiguration.generate_default_password()
+            
+            # Send welcome email with auto-generated password
+            send_user_welcome_email(user, generated_password)
 
             # 📌 Log user creation
             log_activity(
                 request.user if request.user.is_authenticated else None,
                 "create",
-                f"New user registered: {user.email}",
+                f"New user registered: {user.email} with auto-generated password",
                 request=request
             )
 
@@ -298,10 +304,7 @@ def change_password(request):
     if not user.check_password(old_password):
         return Response({'detail': 'Old password is incorrect.'}, status=400)
 
-    default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
-    if new_password == default_password:
-        return Response({'detail': 'Cannot use the default password again.'}, status=400)
-
+    # Don't allow reusing the same password
     if new_password == old_password:
         return Response({'detail': 'New password cannot be the same as old password.'}, status=400)
 
@@ -330,10 +333,6 @@ def first_time_change_password(request):
 
     if not new_password:
         return Response({'detail': 'New password is required.'}, status=400)
-
-    default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
-    if new_password == default_password:
-        return Response({'detail': 'Cannot use the default password again.'}, status=400)
 
     user.set_password(new_password)
     user.must_change_password = False
@@ -401,10 +400,6 @@ def reset_password_with_otp(request):
         user = User.objects.get(email=email)
     except User.DoesNotExist:
         return Response({'detail': 'User with this email does not exist.'}, status=404)
-
-    default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
-    if new_password == default_password:
-        return Response({'detail': 'Cannot use the default password.'}, status=400)
 
     user.set_password(new_password)
     user.must_change_password = False

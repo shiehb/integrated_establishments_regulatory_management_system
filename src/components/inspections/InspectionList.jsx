@@ -296,6 +296,10 @@ export default function InspectionList({
   const hasActiveFilters =
     searchQuery || activeFilterCount > 0 || sortConfig.key;
 
+  // Calculate filtered count for display
+  const filteredCount = totalCount;
+  const totalInspections = inspections.length;
+
   const statusLabels = {
     PENDING: "Pending",
     LEGAL_REVIEW: "Legal Review",
@@ -577,7 +581,9 @@ export default function InspectionList({
 
           {/* Export Selected */}
           <button
-            onClick={selectedInspections.length > 0 ? handleExportSelected : undefined}
+            onClick={
+              selectedInspections.length > 0 ? handleExportSelected : undefined
+            }
             disabled={selectedInspections.length === 0}
             className={`flex items-center gap-1 px-3 py-1 text-sm rounded ${
               selectedInspections.length > 0
@@ -601,6 +607,25 @@ export default function InspectionList({
           )}
         </div>
       </div>
+
+      {/* 📊 Search results info */}
+      {(hasActiveFilters || filteredCount !== totalInspections) && (
+        <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
+          <div>
+            {filteredCount === totalInspections
+              ? `Showing all ${totalInspections} inspection(s)`
+              : `Showing ${filteredCount} of ${totalInspections} inspection(s)`}
+          </div>
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              className="underline text-sky-600 hover:text-sky-700"
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">

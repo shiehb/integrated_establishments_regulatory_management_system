@@ -5,17 +5,7 @@ import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
 import Notification from "../components/Notification";
 import ConfirmationDialog from "../components/common/ConfirmationDialog";
-import {
-  Mail,
-  Lock,
-  Clock,
-  Save,
-  TestTube,
-  Eye,
-  EyeOff,
-  Settings,
-  X,
-} from "lucide-react";
+import { Mail, Clock, Save, TestTube, Eye, EyeOff, X } from "lucide-react";
 import api, { getProfile } from "../services/api";
 
 const MASKED = "••••••••";
@@ -28,7 +18,6 @@ const SystemConfiguration = () => {
     email_host_user: "",
     email_host_password: "",
     default_from_email: "",
-    default_user_password: "Temp1234",
     access_token_lifetime_minutes: 60,
     refresh_token_lifetime_days: 1,
     rotate_refresh_tokens: true,
@@ -51,7 +40,6 @@ const SystemConfiguration = () => {
   });
 
   const [showEmailPassword, setShowEmailPassword] = useState(false);
-  const [showDefaultPassword, setShowDefaultPassword] = useState(false);
   const [emailPasswordMasked, setEmailPasswordMasked] = useState(false);
 
   const [testEmail, setTestEmail] = useState("");
@@ -170,9 +158,6 @@ const SystemConfiguration = () => {
       if (payload.email_host_password === MASKED) {
         delete payload.email_host_password;
       }
-      if (payload.default_user_password === MASKED) {
-        delete payload.default_user_password;
-      }
 
       const response = await api.put("system/config/update/", payload);
       showMessage("Configuration saved successfully!", "success");
@@ -281,8 +266,7 @@ const SystemConfiguration = () => {
                 )}
               </h1>
               <p className="mt-1 text-gray-600">
-                Manage email settings, default passwords, and access token
-                configurations
+                Manage email settings and access token configurations
               </p>
             </div>
             <div className="flex gap-2 mt-1">
@@ -497,149 +481,113 @@ const SystemConfiguration = () => {
               </div>
             </div>
 
-            {/* Default Password Configuration (Right column) */}
-            <div className="flex flex-col gap-6 md:col-span-1">
-              <div className="p-6 bg-white rounded shadow">
-                <div className="flex items-center mb-4">
-                  <Lock className="mr-2 text-sky-700" size={20} />
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Default Password Configuration
-                  </h2>
+            {/* Access Token Configuration (Right column) */}
+            <div className="p-6 bg-white rounded shadow">
+              <div className="flex items-center mb-4">
+                <Clock className="mr-2 text-sky-700" size={20} />
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Access Token Configuration
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block mb-1 text-sm font-medium text-gray-700">
+                    Access Token Lifetime (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    value={config.access_token_lifetime_minutes}
+                    onChange={(e) =>
+                      handleInputChange(
+                        "access_token_lifetime_minutes",
+                        parseInt(e.target.value)
+                      )
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    min="5"
+                    max="1440"
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    How long access tokens remain valid (5-1440 minutes)
+                  </p>
                 </div>
 
                 <div>
                   <label className="block mb-1 text-sm font-medium text-gray-700">
-                    Default User Password
+                    Refresh Token Lifetime (days)
                   </label>
-                  <div className="relative">
-                    <input
-                      type={showDefaultPassword ? "text" : "password"}
-                      value={config.default_user_password}
-                      onChange={(e) =>
-                        handleInputChange(
-                          "default_user_password",
-                          e.target.value
-                        )
-                      }
-                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
-                      placeholder="Enter default password for new users"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setShowDefaultPassword(!showDefaultPassword)
-                      }
-                      className="absolute text-gray-500 transform -translate-y-1/2 right-2 top-1/2 hover:text-gray-700"
-                    >
-                      {showDefaultPassword ? (
-                        <EyeOff size={16} />
-                      ) : (
-                        <Eye size={16} />
-                      )}
-                    </button>
-                  </div>
+                  <input
+                    type="number"
+                    value={config.refresh_token_lifetime_days}
+                    onChange={(e) =>
+                      handleInputChange(
+                        "refresh_token_lifetime_days",
+                        parseInt(e.target.value)
+                      )
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    min="1"
+                    max="365"
+                  />
                   <p className="mt-1 text-sm text-gray-500">
-                    This password will be assigned to new users and they will be
-                    required to change it on first login.
+                    How long refresh tokens remain valid (1-365 days)
                   </p>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="rotate_refresh_tokens"
+                    checked={config.rotate_refresh_tokens}
+                    onChange={(e) =>
+                      handleInputChange(
+                        "rotate_refresh_tokens",
+                        e.target.checked
+                      )
+                    }
+                    className="w-4 h-4 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
+                  />
+                  <label
+                    htmlFor="rotate_refresh_tokens"
+                    className="block ml-2 text-sm text-gray-700"
+                  >
+                    Rotate Refresh Tokens
+                  </label>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="blacklist_after_rotation"
+                    checked={config.blacklist_after_rotation}
+                    onChange={(e) =>
+                      handleInputChange(
+                        "blacklist_after_rotation",
+                        e.target.checked
+                      )
+                    }
+                    className="w-4 h-4 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
+                  />
+                  <label
+                    htmlFor="blacklist_after_rotation"
+                    className="block ml-2 text-sm text-gray-700"
+                  >
+                    Blacklist After Rotation
+                  </label>
                 </div>
               </div>
 
-              <div className="p-6 bg-white rounded shadow">
-                <div className="flex items-center mb-4">
-                  <Clock className="mr-2 text-sky-700" size={20} />
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Access Token Configuration
-                  </h2>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="block mb-1 text-sm font-medium text-gray-700">
-                      Access Token Lifetime <div>(minutes)</div>
-                    </label>
-                    <input
-                      type="number"
-                      value={config.access_token_lifetime_minutes}
-                      onChange={(e) =>
-                        handleInputChange(
-                          "access_token_lifetime_minutes",
-                          parseInt(e.target.value)
-                        )
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
-                      min="5"
-                      max="1440"
-                    />
-                    <p className="mt-1 text-sm text-gray-500">
-                      How long access tokens remain valid (5-1440 minutes)
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block mb-1 text-sm font-medium text-gray-700">
-                      Refresh Token Lifetime <div>(days)</div>
-                    </label>
-                    <input
-                      type="number"
-                      value={config.refresh_token_lifetime_days}
-                      onChange={(e) =>
-                        handleInputChange(
-                          "refresh_token_lifetime_days",
-                          parseInt(e.target.value)
-                        )
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500"
-                      min="1"
-                      max="365"
-                    />
-                    <p className="mt-1 text-sm text-gray-500">
-                      How long refresh tokens remain valid (1-365 days)
-                    </p>
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="rotate_refresh_tokens"
-                      checked={config.rotate_refresh_tokens}
-                      onChange={(e) =>
-                        handleInputChange(
-                          "rotate_refresh_tokens",
-                          e.target.checked
-                        )
-                      }
-                      className="w-4 h-4 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
-                    />
-                    <label
-                      htmlFor="rotate_refresh_tokens"
-                      className="block ml-2 text-sm text-gray-700"
-                    >
-                      Rotate Refresh Tokens
-                    </label>
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="blacklist_after_rotation"
-                      checked={config.blacklist_after_rotation}
-                      onChange={(e) =>
-                        handleInputChange(
-                          "blacklist_after_rotation",
-                          e.target.checked
-                        )
-                      }
-                      className="w-4 h-4 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
-                    />
-                    <label
-                      htmlFor="blacklist_after_rotation"
-                      className="block ml-2 text-sm text-gray-700"
-                    >
-                      Blacklist After Rotation
-                    </label>
-                  </div>
-                </div>
+              {/* Password Generation Info */}
+              <div className="pt-4 mt-6 border-t border-gray-200">
+                <h3 className="mb-2 font-medium text-gray-900 text-md">
+                  Password Information
+                </h3>
+                <p className="text-sm text-gray-600">
+                  New user passwords are automatically generated as secure
+                  8-character passwords containing uppercase, lowercase, and
+                  numbers.
+                </p>
               </div>
             </div>
           </div>

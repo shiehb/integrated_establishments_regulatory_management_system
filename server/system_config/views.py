@@ -180,7 +180,6 @@ def get_current_settings(request):
             'email_use_tls': getattr(settings, 'EMAIL_USE_TLS', True),
             'email_host_user': getattr(settings, 'EMAIL_HOST_USER', ''),
             'default_from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', ''),
-            'default_user_password': getattr(settings, 'DEFAULT_USER_PASSWORD', ''),
             'access_token_lifetime': getattr(settings, 'SIMPLE_JWT', {}).get('ACCESS_TOKEN_LIFETIME', ''),
             'refresh_token_lifetime': getattr(settings, 'SIMPLE_JWT', {}).get('REFRESH_TOKEN_LIFETIME', ''),
         }

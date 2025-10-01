@@ -1,9 +1,10 @@
+// ChangePassword.jsx
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Layout from "../components/Layout";
 import { changePassword } from "../services/api";
 import { useNavigate } from "react-router-dom";
-import ConfirmationDialog from "../components/common/ConfirmationDialog"; // Add this import
+import ConfirmationDialog from "../components/common/ConfirmationDialog";
 
 export default function ChangePassword() {
   const [showOldPassword, setShowOldPassword] = useState(false);
@@ -51,6 +52,9 @@ export default function ChangePassword() {
         "Password must contain at least one uppercase letter";
     } else if (!/(?=.*\d)/.test(formData.newPassword)) {
       newErrors.newPassword = "Password must contain at least one number";
+    } else if (!/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
+      newErrors.newPassword =
+        "Password must contain at least one special character (@$!%*?&)";
     } else if (formData.newPassword === formData.oldPassword) {
       newErrors.newPassword = "New password cannot be the same as old password";
     }
@@ -78,12 +82,10 @@ export default function ChangePassword() {
     try {
       await changePassword(formData.oldPassword, formData.newPassword);
 
-      // Show success notification
       if (window.showNotification) {
         window.showNotification("success", "Password changed successfully!");
       }
 
-      // Reset form
       setFormData({
         oldPassword: "",
         newPassword: "",
@@ -91,12 +93,10 @@ export default function ChangePassword() {
       });
       setShowConfirm(false);
 
-      // Navigate back after a short delay
       setTimeout(() => {
         navigate(-1);
       }, 1000);
     } catch (err) {
-      // Show error notification
       if (window.showNotification) {
         const errorMessage =
           err.response?.data?.detail ||
@@ -260,11 +260,11 @@ export default function ChangePassword() {
             <li>• At least one uppercase letter (A-Z)</li>
             <li>• At least one lowercase letter (a-z)</li>
             <li>• At least one number (0-9)</li>
+            <li>• At least one special character (@$!%*?&)</li>
           </ul>
         </div>
       </div>
 
-      {/* ✅ Confirmation Dialog */}
       <ConfirmationDialog
         open={showConfirm}
         title="Confirm Password Change"

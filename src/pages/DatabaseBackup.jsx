@@ -238,8 +238,9 @@ const DatabaseBackup = () => {
       <Header />
       <LayoutWithSidebar userLevel={userLevel}>
         <div className="p-4 bg-white h-[calc(100vh-165px)] overflow-y-auto">
-          <h1 className="flex items-center mb-6 text-2xl font-bold text-sky-600">
-            <Database className="mr-2" /> Database Backup & Restore
+          <h1 className="flex items-center mb-4 text-2xl font-bold text-sky-600">
+            {" "}
+            Database Backup & Restore
           </h1>
 
           {notification.open && (
@@ -252,12 +253,12 @@ const DatabaseBackup = () => {
           )}
 
           {/* Updated Layout: Backup/Restore on the left, Table on the right */}
-          <div className="flex flex-col gap-6 lg:flex-row">
+          <div className="flex flex-col gap-4 lg:flex-row">
             {/* Backup & Restore Section - Left side, stacked vertically */}
             <div className="flex flex-col gap-4 lg:w-1/3">
               {/* Backup Section - Top Left */}
-              <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow-md">
-                <h2 className="mb-2 text-lg font-semibold text-gray-900">
+              <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow">
+                <h2 className="mb-2 text-lg font-semibold text-sky-600">
                   Create Backup
                 </h2>
                 <div className="flex-1 space-y-6">
@@ -274,7 +275,7 @@ const DatabaseBackup = () => {
                           <div
                             key={format}
                             onClick={() => setBackupFormat(format)}
-                            className={`cursor-pointer py-2 px-4 border-2 rounded-lg shadow-sm transition flex flex-col items-center
+                            className={`cursor-pointer py-2 px-4 border-2 rounded-lg shadow transition flex flex-col items-center
                               ${
                                 isSelected
                                   ? "border-sky-600 bg-sky-50 ring-2 ring-sky-500"
@@ -343,8 +344,8 @@ const DatabaseBackup = () => {
               </div>
 
               {/* Restore Section - Bottom Left */}
-              <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow-md">
-                <h2 className="mb-4 text-lg font-semibold text-gray-900">
+              <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow">
+                <h2 className="mb-4 text-lg font-semibold text-sky-600">
                   Restore Backup
                 </h2>
                 <div className="flex-1 space-y-6">
@@ -459,10 +460,10 @@ const DatabaseBackup = () => {
 
             {/* Table Section - Takes full width on mobile, right on desktop */}
             <div className="flex-1">
-              <div className="bg-white border border-gray-200 rounded-lg shadow-md">
+              <div className="bg-white border border-gray-200 rounded-lg shadow">
                 <div className="p-4 border-b border-gray-200 rounded-t-lg bg-gray-50">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">
+                    <h3 className="text-lg font-semibold text-sky-600">
                       Available Backups
                     </h3>
                     <button
@@ -488,10 +489,14 @@ const DatabaseBackup = () => {
                         <th className="p-1 border border-gray-300">
                           File Name
                         </th>
-                        <th className="p-1 border border-gray-300">Format</th>
-                        <th className="p-1 border border-gray-300">Created</th>
-                        <th className="p-1 border border-gray-300">Size</th>
                         <th className="p-1 text-center border border-gray-300">
+                          Format
+                        </th>
+                        <th className="p-1 border border-gray-300">Created</th>
+                        <th className="p-1 text-center border border-gray-300">
+                          Size
+                        </th>
+                        <th className="p-1 text-center border border-gray-300 w-35">
                           Actions
                         </th>
                       </tr>
@@ -534,7 +539,7 @@ const DatabaseBackup = () => {
                                 </span>
                               </div>
                             </td>
-                            <td className="px-2 py-3 border border-gray-300">
+                            <td className="px-2 py-3 text-center border border-gray-300">
                               <span
                                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                   backup.format === "json"

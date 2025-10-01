@@ -12,7 +12,6 @@ class SystemConfigurationSerializer(serializers.ModelSerializer):
             'email_host_user',
             'email_host_password',
             'default_from_email',
-            'default_user_password',
             'access_token_lifetime_minutes',
             'refresh_token_lifetime_days',
             'rotate_refresh_tokens',
@@ -44,12 +43,6 @@ class SystemConfigurationSerializer(serializers.ModelSerializer):
         if value > 365:
             raise serializers.ValidationError("Refresh token lifetime cannot exceed 365 days")
         return value
-    
-    def validate_default_user_password(self, value):
-        """Validate default password meets security requirements"""
-        if len(value) < 8:
-            raise serializers.ValidationError("Default password must be at least 8 characters long")
-        return value
 
 class SystemConfigurationUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating configuration with password masking"""
@@ -64,7 +57,6 @@ class SystemConfigurationUpdateSerializer(serializers.ModelSerializer):
             'email_host_user',
             'email_host_password',
             'default_from_email',
-            'default_user_password',
             'access_token_lifetime_minutes',
             'refresh_token_lifetime_days',
             'rotate_refresh_tokens',

@@ -115,7 +115,7 @@ export default function MapPage() {
     try {
       // Get all establishments for the map (use a large page size)
       const data = await getEstablishments({ page: 1, page_size: 10000 });
-      
+
       // Handle both paginated and non-paginated responses
       if (data.results) {
         setAllEstablishments(data.results);
@@ -581,7 +581,7 @@ export default function MapPage() {
                       <th className="p-2 text-center border border-gray-300">
                         Coordinates
                       </th>
-                      <th
+                      {/* <th
                         className="p-2 border border-gray-300 cursor-pointer"
                         onClick={() => handleSort("nature_of_business")}
                       >
@@ -596,7 +596,7 @@ export default function MapPage() {
                         <div className="flex items-center justify-center gap-1">
                           Year {getSortIcon("year_established")}
                         </div>
-                      </th>
+                      </th> */}
                     </tr>
                   </thead>
                   <tbody>
@@ -662,12 +662,12 @@ export default function MapPage() {
                               4
                             )}, ${parseFloat(e.longitude).toFixed(4)}`}
                           </td>
-                          <td className="p-2 border border-gray-300">
+                          {/* <td className="p-2 border border-gray-300">
                             {e.nature_of_business}
                           </td>
                           <td className="p-2 text-center border border-gray-300">
                             {e.year_established}
-                          </td>
+                          </td> */}
                         </tr>
                       ))
                     )}

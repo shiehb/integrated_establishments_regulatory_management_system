@@ -247,6 +247,12 @@ export default function EstablishmentList({
   const activeFilterCount = provinceFilter.length;
   const hasActiveFilters =
     searchQuery || provinceFilter.length > 0 || sortConfig.key;
+
+  // Calculate filtered count for display
+  const filteredCount =
+    searchMode || provinceFilter.length > 0 ? totalCount : totalCount;
+  const totalEstablishments = totalCount;
+
   const provinces = ["LA UNION", "PANGASINAN", "ILOCOS SUR", "ILOCOS NORTE"];
 
   return (
@@ -422,6 +428,25 @@ export default function EstablishmentList({
           )}
         </div>
       </div>
+
+      {/* 📊 Search results info */}
+      {(hasActiveFilters || filteredCount !== totalEstablishments) && (
+        <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
+          <div>
+            {filteredCount === totalEstablishments
+              ? `Showing all ${totalEstablishments} establishment(s)`
+              : `Showing ${filteredCount} of ${totalEstablishments} establishment(s)`}
+          </div>
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              className="underline text-sky-600 hover:text-sky-700"
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">
