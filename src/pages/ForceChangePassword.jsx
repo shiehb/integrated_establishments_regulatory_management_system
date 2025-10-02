@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Layout from "../components/Layout";
-import { changePassword, firstTimeChangePassword } from "../services/api";
+import { changePassword, firstTimeChangePassword, logoutUser } from "../services/api";
+import { useNotifications } from "../components/NotificationManager";
 
 export default function ForceChangePassword() {
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -15,6 +16,7 @@ export default function ForceChangePassword() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const notifications = useNotifications();
 
   const handleChange = (e) => {
     setFormData({
@@ -67,18 +69,52 @@ export default function ForceChangePassword() {
       try {
         await firstTimeChangePassword(formData.newPassword);
 
-        if (window.showNotification) {
-          window.showNotification("success", "Password changed successfully!");
+        // Show success notification
+        notifications.passwordChange(
+          "Password changed successfully! You will be logged out for security.",
+          {
+            title: "Password Change Successful",
+            duration: 3000
+          }
+        );
+
+        // Logout user after successful password change
+        const refreshToken = localStorage.getItem("refresh");
+        if (refreshToken) {
+          try {
+            await logoutUser(refreshToken);
+          } catch (logoutError) {
+            console.warn("Logout failed:", logoutError);
+            // Clear tokens manually if logout API fails
+            localStorage.removeItem("access");
+            localStorage.removeItem("refresh");
+          }
+        } else {
+          // Clear tokens if no refresh token
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
         }
 
-        navigate("/");
+        // Redirect to login page after logout
+        setTimeout(() => {
+          navigate("/login", {
+            state: {
+              message: "Password changed successfully! Please login with your new password."
+            }
+          });
+        }, 2000);
       } catch (err) {
         const errorMessage =
           err.response?.data?.detail || "Failed to change password.";
 
-        if (window.showNotification) {
-          window.showNotification("error", errorMessage);
-        }
+        // Show error notification
+        notifications.error(
+          errorMessage,
+          {
+            title: "Password Change Failed",
+            duration: 8000
+          }
+        );
 
         setErrors({
           submit: errorMessage,

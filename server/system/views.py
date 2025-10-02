@@ -111,6 +111,12 @@ def get_mysql_path():
 def run_django_dumpdata_safe():
     """Run Django dumpdata with safe parameters for older MySQL/MariaDB versions"""
     try:
+        # Set environment variables to ensure UTF-8 encoding
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        env['LANG'] = 'en_US.UTF-8'
+        env['LC_ALL'] = 'en_US.UTF-8'
+        
         # First try without natural keys (which cause issues with older MySQL)
         cmd = [
             "python", "manage.py", 
@@ -124,9 +130,11 @@ def run_django_dumpdata_safe():
             cmd, 
             capture_output=True, 
             text=True, 
+            encoding='utf-8',  # Explicitly set UTF-8 encoding
             timeout=120,
             cwd=settings.BASE_DIR,
-            shell=True
+            shell=True,
+            env=env
         )
         
         if result.returncode == 0:
@@ -143,9 +151,11 @@ def run_django_dumpdata_safe():
                 cmd, 
                 capture_output=True, 
                 text=True, 
+                encoding='utf-8',  # Explicitly set UTF-8 encoding
                 timeout=120,
                 cwd=settings.BASE_DIR,
-                shell=True
+                shell=True,
+                env=env
             )
             
             if result.returncode == 0:
@@ -384,6 +394,7 @@ def backup_database(request):
                                 stdout=output_file,
                                 stderr=subprocess.PIPE, 
                                 text=True, 
+                                encoding='utf-8',  # Explicitly set UTF-8 encoding
                                 timeout=300,
                                 shell=True
                             )
@@ -433,8 +444,14 @@ def backup_database(request):
             success, output = run_django_dumpdata_safe()
             
             if success:
-                with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(output)
+                try:
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(output)
+                except UnicodeEncodeError as e:
+                    logger.error(f"Unicode encoding error when writing backup: {e}")
+                    return JsonResponse({
+                        "error": f"Failed to write backup file due to encoding issues: {str(e)}"
+                    }, status=500)
             else:
                 logger.error(f"JSON backup failed: {output}")
                 return JsonResponse({
@@ -464,6 +481,134 @@ def backup_database(request):
         logger.error(traceback.format_exc())
         return JsonResponse({"error": f"Backup failed: {str(e)}"}, status=500)
 
+def restore_json_backup_custom(file_path, restore_options=None):
+    """Custom JSON restore function that handles conflicts gracefully"""
+    if restore_options is None:
+        restore_options = {}
+    
+    conflict_handling = restore_options.get('conflictHandling', 'skip')  # 'skip', 'replace', 'update'
+    
+    try:
+        import json
+        from django.core.serializers.json import Deserializer
+        from django.db import transaction
+        from django.contrib.contenttypes.models import ContentType
+        
+        logger.info(f"Starting custom JSON restore with conflict handling: {conflict_handling}")
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        restored_count = 0
+        skipped_count = 0
+        updated_count = 0
+        error_count = 0
+        errors = []
+        
+        with transaction.atomic():
+            for item in data:
+                try:
+                    model_class = None
+                    model_name = item.get('model', '')
+                    
+                    # Get the model class
+                    if model_name == 'users.user':
+                        from users.models import User
+                        model_class = User
+                    elif model_name == 'establishments.establishment':
+                        from establishments.models import Establishment
+                        model_class = Establishment
+                    elif model_name == 'inspections.inspection':
+                        from inspections.models import Inspection
+                        model_class = Inspection
+                    elif model_name == 'notifications.notification':
+                        from notifications.models import Notification
+                        model_class = Notification
+                    elif model_name == 'audit.auditlog':
+                        from audit.models import AuditLog
+                        model_class = AuditLog
+                    elif model_name == 'system_config.systemconfiguration':
+                        from system_config.models import SystemConfiguration
+                        model_class = SystemConfiguration
+                    elif model_name == 'admin.logentry':
+                        from django.contrib.admin.models import LogEntry
+                        model_class = LogEntry
+                    elif model_name == 'contenttypes.contenttype':
+                        from django.contrib.contenttypes.models import ContentType
+                        model_class = ContentType
+                    elif model_name == 'auth.permission':
+                        from django.contrib.auth.models import Permission
+                        model_class = Permission
+                    elif model_name == 'auth.group':
+                        from django.contrib.auth.models import Group
+                        model_class = Group
+                    
+                    if not model_class:
+                        logger.warning(f"Unknown model: {model_name}")
+                        continue
+                    
+                    pk = item.get('pk')
+                    fields = item.get('fields', {})
+                    
+                    # Check if object already exists
+                    existing_obj = None
+                    try:
+                        existing_obj = model_class.objects.get(pk=pk)
+                    except model_class.DoesNotExist:
+                        pass
+                    
+                    if existing_obj:
+                        if conflict_handling == 'skip':
+                            skipped_count += 1
+                            logger.info(f"Skipping existing {model_name} with pk={pk}")
+                            continue
+                        elif conflict_handling == 'replace':
+                            existing_obj.delete()
+                            logger.info(f"Replaced existing {model_name} with pk={pk}")
+                        elif conflict_handling == 'update':
+                            # Update existing object with new fields
+                            for field_name, field_value in fields.items():
+                                if hasattr(existing_obj, field_name):
+                                    setattr(existing_obj, field_name, field_value)
+                            existing_obj.save()
+                            updated_count += 1
+                            logger.info(f"Updated existing {model_name} with pk={pk}")
+                            continue
+                    
+                    # Create new object
+                    obj_data = {'pk': pk}
+                    obj_data.update(fields)
+                    
+                    # Use Django's deserializer for proper field handling
+                    deserialized_objects = list(Deserializer([item]))
+                    if deserialized_objects:
+                        deserialized_obj = deserialized_objects[0]
+                        deserialized_obj.save()
+                        restored_count += 1
+                        logger.info(f"Restored {model_name} with pk={pk}")
+                    
+                except Exception as e:
+                    error_count += 1
+                    error_msg = f"Error processing {model_name} pk={pk}: {str(e)}"
+                    errors.append(error_msg)
+                    logger.error(error_msg)
+                    # Continue processing other items
+                    continue
+        
+        result_message = f"Restore completed. Restored: {restored_count}, Updated: {updated_count}, Skipped: {skipped_count}, Errors: {error_count}"
+        if errors:
+            result_message += f"\nErrors: {'; '.join(errors[:5])}"  # Show first 5 errors
+            if len(errors) > 5:
+                result_message += f" ... and {len(errors) - 5} more"
+        
+        logger.info(result_message)
+        return True, result_message
+        
+    except Exception as e:
+        error_msg = f"Custom JSON restore failed: {str(e)}"
+        logger.error(error_msg)
+        return False, error_msg
+
 @csrf_exempt
 def restore_database(request):
     """Restore database from uploaded file or existing backup"""
@@ -473,14 +618,24 @@ def restore_database(request):
     try:
         file = request.FILES.get("file")
         file_name = request.POST.get("fileName")
+        restore_options = {}
         
-        # Also try to get fileName from JSON body
-        if not file_name and request.content_type == 'application/json':
+        # Extract restore options from JSON body
+        if request.content_type == 'application/json':
             try:
                 body = json.loads(request.body.decode("utf-8"))
                 file_name = body.get("fileName")
+                restore_options = body.get("restoreOptions", {})
             except json.JSONDecodeError:
                 pass
+        else:
+            # Extract restore options from form data
+            restore_options_str = request.POST.get("restoreOptions")
+            if restore_options_str:
+                try:
+                    restore_options = json.loads(restore_options_str)
+                except json.JSONDecodeError:
+                    pass
         
         file_path = None
 
@@ -534,7 +689,7 @@ def restore_database(request):
                     
                     try:
                         with open(file_path, "r", encoding="utf-8") as f:
-                            result = subprocess.run(cmd, stdin=f, capture_output=True, text=True, timeout=300, shell=True)
+                            result = subprocess.run(cmd, stdin=f, capture_output=True, text=True, encoding='utf-8', timeout=300, shell=True)
                             
                         if result.returncode != 0:
                             error_msg = result.stderr if result.stderr else "Unknown mysql error"
@@ -556,27 +711,10 @@ def restore_database(request):
                 return JsonResponse({"error": f"Unsupported database for SQL restore: {db_engine}"}, status=400)
 
         elif file_path.endswith(".json"):
-            # Use Django's loaddata for JSON restore
-            cmd = ["python", "manage.py", "loaddata", file_path]
-            
-            try:
-                result = subprocess.run(
-                    cmd, 
-                    capture_output=True, 
-                    text=True, 
-                    timeout=300,
-                    cwd=settings.BASE_DIR,
-                    shell=True
-                )
-                
-                if result.returncode != 0:
-                    error_msg = result.stderr if result.stderr else "Unknown loaddata error"
-                    return JsonResponse({
-                        "error": f"JSON restore failed: {error_msg}"
-                    }, status=500)
-                    
-            except subprocess.TimeoutExpired:
-                return JsonResponse({"error": "JSON restore timed out"}, status=500)
+            # Use custom JSON restore that handles conflicts
+            success, message = restore_json_backup_custom(file_path, restore_options)
+            if not success:
+                return JsonResponse({"error": message}, status=500)
 
         else:
             return JsonResponse({"error": "Unsupported file format"}, status=400)

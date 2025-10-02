@@ -2,6 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
+<<<<<<< HEAD
     <title>Password Reset OTP</title>
   </head>
   <body style="font-family: Arial, sans-serif; background-color:#e9ecef; margin:0; padding:20px;">
@@ -55,5 +56,147 @@
         </td>
       </tr>
     </table>
+=======
+    <title>Password Reset Verification Code - IERMS</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        margin: 0;
+        padding: 0;
+        background-color: #f8fafc;
+      }
+      .container {
+        max-width: 500px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+        padding: 25px 20px;
+        text-align: center;
+        color: white;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      .header p {
+        margin: 5px 0 0 0;
+        font-size: 13px;
+        opacity: 0.9;
+      }
+      .content {
+        padding: 25px 20px;
+        background-color: #fff;
+        text-align: center;
+      }
+      .otp-container {
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        border: 2px solid #0ea5e9;
+        border-radius: 12px;
+        padding: 25px;
+        margin: 20px 0;
+      }
+      .otp-code {
+        font-family: 'Courier New', monospace;
+        font-size: 32px;
+        font-weight: 700;
+        color: #0c4a6e;
+        letter-spacing: 8px;
+        margin: 10px 0;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+      .otp-label {
+        font-size: 14px;
+        color: #0c4a6e;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+      .expiry-notice {
+        background-color: #fef3c7;
+        border: 1px solid #f59e0b;
+        padding: 12px;
+        border-radius: 8px;
+        margin: 20px 0;
+        font-size: 13px;
+        color: #92400e;
+      }
+      .security-warning {
+        background-color: #fef2f2;
+        border: 1px solid #fca5a5;
+        padding: 12px;
+        border-radius: 8px;
+        margin: 20px 0;
+        font-size: 13px;
+        color: #991b1b;
+      }
+      .footer {
+        padding: 20px;
+        text-align: center;
+        font-size: 12px;
+        color: #6b7280;
+        background-color: #f9fafb;
+        border-top: 1px solid #e5e7eb;
+      }
+      .instructions {
+        font-size: 14px;
+        color: #374151;
+        margin: 15px 0;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Password Reset Code</h1>
+        <p>Integrated Establishments Regulatory Management System</p>
+      </div>
+
+      <div class="content">
+        <div class="instructions">
+          <p>You requested a password reset for your IERMS account.</p>
+          <p>Use the verification code below to reset your password:</p>
+        </div>
+
+        <div class="otp-container">
+          <div class="otp-label">Your Verification Code</div>
+          <div class="otp-code">{{ otp_code }}</div>
+        </div>
+
+        <div class="expiry-notice">
+          <strong>⏰ Code Expires in 10 Minutes</strong><br>
+          This code will expire in 10 minutes for security reasons.
+        </div>
+
+        <div class="security-warning">
+          <strong>🔒 Security Notice</strong><br>
+          If you didn't request this password reset, please ignore this email. 
+          Your account remains secure.
+        </div>
+
+        <div class="instructions">
+          <p><strong>Next Steps:</strong></p>
+          <p>1. Return to the password reset page</p>
+          <p>2. Enter the 6-digit code above</p>
+          <p>3. Create your new password</p>
+        </div>
+      </div>
+
+      <div class="footer">
+        <p><strong>Integrated Establishments Regulatory Management System (IERMS)</strong></p>
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p style="margin-top: 8px; font-size: 11px; color: #9ca3af;">
+          © 2024 IERMS. All rights reserved.
+        </p>
+      </div>
+    </div>
+>>>>>>> 83877d101385ed6f17baad2078dab826f3cc29cd
   </body>
 </html>

@@ -2,9 +2,10 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Welcome to Our System</title>
+    <title>Welcome to Integrated Establishments Regulatory Management System</title>
     <style>
       body {
+<<<<<<< HEAD
         font-family: Arial, sans-serif;
         line-height: 1.7;
         color: #333333;
@@ -71,6 +72,135 @@
         font-size: 11px; /* subtle */
         color: #888888;
         background: #f8f9fa;
+=======
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        margin: 0;
+        padding: 0;
+        background-color: #f8fafc;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+        padding: 30px 20px;
+        text-align: center;
+        color: white;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 600;
+      }
+      .header p {
+        margin: 8px 0 0 0;
+        font-size: 14px;
+        opacity: 0.9;
+      }
+      .content {
+        padding: 30px 20px;
+        background-color: #fff;
+      }
+      .welcome-message {
+        font-size: 16px;
+        margin-bottom: 20px;
+        color: #1f2937;
+      }
+      .credentials-box {
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+      }
+      .credential-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .credential-item:last-child {
+        border-bottom: none;
+      }
+      .credential-label {
+        font-weight: 600;
+        color: #374151;
+        font-size: 14px;
+      }
+      .credential-value {
+        font-family: 'Courier New', monospace;
+        background-color: #1f2937;
+        color: #10b981;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .password-warning {
+        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+        border: 1px solid #f59e0b;
+        padding: 16px;
+        border-radius: 8px;
+        margin: 20px 0;
+        text-align: center;
+      }
+      .password-warning strong {
+        color: #92400e;
+        font-size: 14px;
+      }
+      .password-warning p {
+        margin: 8px 0 0 0;
+        color: #92400e;
+        font-size: 13px;
+      }
+      .login-button {
+        display: inline-block;
+        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+        color: white;
+        text-decoration: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        margin: 20px 0;
+        text-align: center;
+        transition: transform 0.2s;
+      }
+      .login-button:hover {
+        transform: translateY(-1px);
+      }
+      .footer {
+        padding: 20px;
+        text-align: center;
+        font-size: 12px;
+        color: #6b7280;
+        background-color: #f9fafb;
+        border-top: 1px solid #e5e7eb;
+      }
+      .system-info {
+        background-color: #f0f9ff;
+        border-left: 4px solid #0ea5e9;
+        padding: 16px;
+        margin: 20px 0;
+        border-radius: 0 8px 8px 0;
+      }
+      .system-info h3 {
+        margin: 0 0 8px 0;
+        color: #0c4a6e;
+        font-size: 16px;
+      }
+      .system-info p {
+        margin: 0;
+        color: #0c4a6e;
+        font-size: 14px;
+>>>>>>> 83877d101385ed6f17baad2078dab826f3cc29cd
       }
     </style>
   </head>
@@ -78,11 +208,17 @@
     <div class="container">
       <!-- Header -->
       <div class="header">
+<<<<<<< HEAD
         <h1>Welcome to Our System 🎉</h1>
+=======
+        <h1>Welcome to IERMS</h1>
+        <p>Integrated Establishments Regulatory Management System</p>
+>>>>>>> 83877d101385ed6f17baad2078dab826f3cc29cd
       </div>
 
       <!-- Body -->
       <div class="content">
+<<<<<<< HEAD
         <p>
           Hello {% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}{{ user.email }}{% endif %},
         </p>
@@ -111,11 +247,69 @@
         </p>
 
         <p>If you have any questions, please contact the system administrator.</p>
+=======
+        <div class="welcome-message">
+          <p>
+            Hello <strong>{% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}{{ user.email }}{% endif %}</strong>,
+          </p>
+          <p>
+            Your account has been successfully created in the Integrated Establishments Regulatory Management System. 
+            You can now access the system using your login credentials below.
+          </p>
+        </div>
+
+        <div class="credentials-box">
+          <div class="credential-item">
+            <span class="credential-label">Email Address:</span>
+            <span class="credential-value">{{ user.email }}</span>
+          </div>
+          <div class="credential-item">
+            <span class="credential-label">Temporary Password:</span>
+            <span class="credential-value">{{ default_password }}</span>
+          </div>
+          <div class="credential-item">
+            <span class="credential-label">User Level:</span>
+            <span class="credential-value">{{ user.userlevel }}</span>
+          </div>
+          {% if user.section %}
+          <div class="credential-item">
+            <span class="credential-label">Section:</span>
+            <span class="credential-value">{{ user.section }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="password-warning">
+          <strong>🔒 Security Notice</strong>
+          <p>For your security, please change your password immediately after your first login.</p>
+        </div>
+
+        <div class="system-info">
+          <h3>📋 System Access</h3>
+          <p>Click the button below to access the system, or copy and paste the URL into your browser.</p>
+        </div>
+
+        <div style="text-align: center;">
+          <a href="{{ login_url }}" class="login-button">Access IERMS System</a>
+        </div>
+
+        <p style="font-size: 14px; color: #6b7280; margin-top: 20px;">
+          If you have any questions or need assistance, please contact your system administrator or the IT support team.
+        </p>
+>>>>>>> 83877d101385ed6f17baad2078dab826f3cc29cd
       </div>
 
       <!-- Footer -->
       <div class="footer">
+<<<<<<< HEAD
         <p>This is an automated message. Please do not reply.</p>
+=======
+        <p><strong>Integrated Establishments Regulatory Management System (IERMS)</strong></p>
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p style="margin-top: 8px; font-size: 11px; color: #9ca3af;">
+          © 2024 IERMS. All rights reserved.
+        </p>
+>>>>>>> 83877d101385ed6f17baad2078dab826f3cc29cd
       </div>
     </div>
   </body>

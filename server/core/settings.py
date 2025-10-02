@@ -43,7 +43,7 @@ INSTALLED_APPS = [
     'notifications',
     'audit',
     'inspections',
-    'system_config',
+    'system_config.apps.SystemConfigConfig',
     'system',
 ]
 
@@ -192,14 +192,6 @@ DATABASES = {
         }
     }
 }
-
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
 
 
 

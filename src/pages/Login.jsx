@@ -1,8 +1,9 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import Layout from "../components/Layout";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { loginUser } from "../services/api";
+import { useNotifications } from "../components/NotificationManager";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -13,6 +14,24 @@ export default function Login() {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const passwordInputRef = useRef(null);
+  const notifications = useNotifications();
+
+  // Show message from state (e.g., after password change)
+  useEffect(() => {
+    if (location.state?.message) {
+      notifications.success(
+        location.state.message,
+        {
+          title: "Success",
+          duration: 5000
+        }
+      );
+      // Clear the state to prevent showing the message again
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.state, navigate, location.pathname, notifications]);
 
   const handleChange = (e) => {
     setFormData({
@@ -51,15 +70,83 @@ export default function Login() {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
+    setErrors({}); // Clear previous errors
+    
     try {
       const loginRes = await loginUser(formData.email, formData.password);
+      
+      // Show success notification
+      notifications.login(
+        "Login successful! Welcome back.",
+        {
+          title: "Login Successful",
+          duration: 3000
+        }
+      );
+      
       if (loginRes.must_change_password) {
         navigate("/force-change-password");
       } else {
         navigate("/");
       }
     } catch (err) {
-      setErrors({ general: "Invalid email or password" });
+      // Check for different types of errors
+      if (err.code === 'NETWORK_ERROR' || err.message?.includes('Network Error') || !navigator.onLine) {
+        // Network error - show general error message
+        setErrors({ general: "No internet connection. Please check your network and try again." });
+        notifications.error(
+          "No internet connection. Please check your network and try again.",
+          {
+            title: "Connection Error",
+            duration: 8000
+          }
+        );
+      } else if (err.response?.status === 401) {
+        // Invalid credentials - clear password only and show specific error
+        setFormData(prev => ({ ...prev, password: "" }));
+        setErrors({ password: "Invalid password. Please try again." });
+        // Focus the password field after clearing it
+        setTimeout(() => {
+          passwordInputRef.current?.focus();
+        }, 100);
+        notifications.error(
+          "Invalid password. Please try again.",
+          {
+            title: "Login Failed",
+            duration: 6000
+          }
+        );
+      } else if (err.response?.status === 0 || err.message?.includes('fetch')) {
+        // Server connection error - show general error message
+        setErrors({ general: "Unable to connect to server. Please check your connection and try again." });
+        notifications.error(
+          "Unable to connect to server. Please check your connection and try again.",
+          {
+            title: "Server Error",
+            duration: 8000
+          }
+        );
+      } else if (err.response?.data?.detail) {
+        // Other server errors - show specific error message
+        setErrors({ general: err.response.data.detail });
+        notifications.error(
+          err.response.data.detail,
+          {
+            title: "Login Error",
+            duration: 8000
+          }
+        );
+      } else {
+        // Generic error
+        setErrors({ general: "An error occurred. Please try again." });
+        notifications.error(
+          "An error occurred. Please try again.",
+          {
+            title: "Login Error",
+            duration: 8000
+          }
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -105,12 +192,10 @@ export default function Login() {
               <label className="block text-sm font-medium text-gray-700">
                 Password
               </label>
-              {errors.password && (
-                <p className="text-xs text-red-500">{errors.password}</p>
-              )}
             </div>
             <div className="relative">
               <input
+                ref={passwordInputRef}
                 type={showPassword ? "text" : "password"}
                 name="password"
                 placeholder="Enter your password"
@@ -132,6 +217,9 @@ export default function Login() {
                 )}
               </button>
             </div>
+            {errors.password && (
+              <p className="mt-1 text-xs text-red-500">{errors.password}</p>
+            )}
           </div>
 
           <Link

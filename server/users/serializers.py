@@ -38,14 +38,59 @@ class RegisterSerializer(serializers.ModelSerializer):
                     "section": "This field is required for Section Chief, Unit Head, and Monitoring Personnel users."
                 })
         
+        # Validate user level constraints
+        self.validate_user_level_constraints(userlevel, section)
+        
         # District is now completely optional - no validation required
 
         return data
+
+    def validate_user_level_constraints(self, userlevel, section):
+        """Validate user level constraints based on business rules"""
+        from .models import User
+        
+        # Division Chief: Only one active
+        if userlevel == "Division Chief":
+            existing_active = User.objects.filter(userlevel="Division Chief", is_active=True).first()
+            if existing_active:
+                raise serializers.ValidationError({
+                    "userlevel": f"Only one active Division Chief is allowed. Currently active: {existing_active.email}"
+                })
+        
+        # Section Chief: Only one active per law (section)
+        elif userlevel == "Section Chief":
+            if section:
+                existing_active = User.objects.filter(
+                    userlevel="Section Chief", 
+                    section=section, 
+                    is_active=True
+                ).first()
+                if existing_active:
+                    raise serializers.ValidationError({
+                        "userlevel": f"Only one active Section Chief is allowed per law. Currently active for {section}: {existing_active.email}"
+                    })
+        
+        # Unit Head: Only one active per law (section)
+        elif userlevel == "Unit Head":
+            if section:
+                existing_active = User.objects.filter(
+                    userlevel="Unit Head", 
+                    section=section, 
+                    is_active=True
+                ).first()
+                if existing_active:
+                    raise serializers.ValidationError({
+                        "userlevel": f"Only one active Unit Head is allowed per law. Currently active for {section}: {existing_active.email}"
+                    })
+        
+        # Legal Unit and Monitoring Personnel: Multiple allowed (no validation needed)
 
     def create(self, validated_data):
         # Use auto-generated password from system_config
         generated_password = SystemConfiguration.generate_default_password()
         user = User.objects.create_user(password=generated_password, **validated_data)
+        # Store the generated password in the user instance for later use
+        user._generated_password = generated_password
         return user
 
 
@@ -87,9 +132,58 @@ class UserSerializer(serializers.ModelSerializer):
                         "section": "This field is required for Section Chief, Unit Head, and Monitoring Personnel users."
                     })
         
+        # Validate user level constraints for updates
+        self.validate_user_level_constraints_for_update(userlevel, section)
+        
         # District is now completely optional - no validation required
 
         return data
+
+    def validate_user_level_constraints_for_update(self, userlevel, section):
+        """Validate user level constraints for updates, excluding current user"""
+        from .models import User
+        
+        # Get the current user being updated
+        current_user = self.instance
+        
+        # Division Chief: Only one active (excluding current user)
+        if userlevel == "Division Chief":
+            existing_active = User.objects.filter(
+                userlevel="Division Chief", 
+                is_active=True
+            ).exclude(id=current_user.id).first()
+            if existing_active:
+                raise serializers.ValidationError({
+                    "userlevel": f"Only one active Division Chief is allowed. Currently active: {existing_active.email}"
+                })
+        
+        # Section Chief: Only one active per law (section) (excluding current user)
+        elif userlevel == "Section Chief":
+            if section:
+                existing_active = User.objects.filter(
+                    userlevel="Section Chief", 
+                    section=section, 
+                    is_active=True
+                ).exclude(id=current_user.id).first()
+                if existing_active:
+                    raise serializers.ValidationError({
+                        "userlevel": f"Only one active Section Chief is allowed per law. Currently active for {section}: {existing_active.email}"
+                    })
+        
+        # Unit Head: Only one active per law (section) (excluding current user)
+        elif userlevel == "Unit Head":
+            if section:
+                existing_active = User.objects.filter(
+                    userlevel="Unit Head", 
+                    section=section, 
+                    is_active=True
+                ).exclude(id=current_user.id).first()
+                if existing_active:
+                    raise serializers.ValidationError({
+                        "userlevel": f"Only one active Unit Head is allowed per law. Currently active for {section}: {existing_active.email}"
+                    })
+        
+        # Legal Unit and Monitoring Personnel: Multiple allowed (no validation needed)
 
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
