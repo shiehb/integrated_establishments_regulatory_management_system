@@ -1,5 +1,30 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+// Custom hook for localStorage pagination
+export const useLocalStoragePagination = (storageKey, defaultPageSize = 10) => {
+  const loadFromStorage = () => {
+    try {
+      const stored = localStorage.getItem(`${storageKey}_pagination`);
+      if (stored) {
+        const paginationData = JSON.parse(stored);
+        // Check if data is not too old (7 days)
+        const isRecent = Date.now() - paginationData.timestamp < 7 * 24 * 60 * 60 * 1000;
+        if (isRecent && paginationData.page && paginationData.pageSize) {
+          return {
+            page: Math.max(1, paginationData.page),
+            pageSize: Math.max(10, Math.min(100, paginationData.pageSize))
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load pagination from localStorage:', error);
+    }
+    return { page: 1, pageSize: defaultPageSize };
+  };
+
+  return loadFromStorage();
+};
+
 export default function PaginationControls({
   currentPage,
   totalPages,
@@ -11,6 +36,7 @@ export default function PaginationControls({
   onPageSizeChange,
   startItem,
   endItem,
+  storageKey = "default_pagination", // Unique key for localStorage
 }) {
   if (totalItems === 0) return null;
 
@@ -18,13 +44,53 @@ export default function PaginationControls({
   const showStartItem = startItem || (currentPage - 1) * pageSize + 1;
   const showEndItem = endItem || Math.min(currentPage * pageSize, displayTotal);
 
+  // Save pagination state to localStorage
+  const saveToStorage = (page, size) => {
+    try {
+      const paginationData = {
+        page: page,
+        pageSize: size,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`${storageKey}_pagination`, JSON.stringify(paginationData));
+    } catch (error) {
+      console.warn('Failed to save pagination to localStorage:', error);
+    }
+  };
+
+  // Load pagination state from localStorage
+  const loadFromStorage = () => {
+    try {
+      const stored = localStorage.getItem(`${storageKey}_pagination`);
+      if (stored) {
+        const paginationData = JSON.parse(stored);
+        // Check if data is not too old (7 days)
+        const isRecent = Date.now() - paginationData.timestamp < 7 * 24 * 60 * 60 * 1000;
+        if (isRecent && paginationData.page && paginationData.pageSize) {
+          return {
+            page: Math.max(1, paginationData.page),
+            pageSize: Math.max(10, Math.min(100, paginationData.pageSize))
+          };
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load pagination from localStorage:', error);
+    }
+    return null;
+  };
+
   const goToPage = (page) => {
     const newPage = Math.max(1, Math.min(page, totalPages));
     onPageChange(newPage);
+    saveToStorage(newPage, pageSize);
   };
 
   const handlePageSizeChange = (newSize) => {
-    onPageSizeChange(parseInt(newSize));
+    const newPageSize = parseInt(newSize);
+    onPageSizeChange(newPageSize);
+    // Reset to page 1 when changing page size
+    onPageChange(1);
+    saveToStorage(1, newPageSize);
   };
 
   return (

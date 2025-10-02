@@ -22,6 +22,7 @@ export default function ConfirmationDialog({
 
   const colorClasses = {
     sky: "bg-sky-600 hover:bg-sky-700",
+    blue: "bg-blue-600 hover:bg-blue-700",
     red: "bg-red-600 hover:bg-red-700",
     green: "bg-green-600 hover:bg-green-700",
     amber: "bg-amber-600 hover:bg-amber-700",

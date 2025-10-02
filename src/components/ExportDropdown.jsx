@@ -1,0 +1,478 @@
+import { useState, useRef } from "react";
+import { 
+  Download, 
+  FileText, 
+  FileSpreadsheet, 
+  FileJson, 
+  FileCode, 
+  ChevronDown,
+  Check
+} from "lucide-react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { useNotifications } from "./NotificationManager";
+
+// Export format options
+const EXPORT_FORMATS = [
+  {
+    id: 'csv',
+    name: 'CSV',
+    icon: FileSpreadsheet,
+    description: 'Comma Separated Values',
+    color: 'text-green-600'
+  },
+  {
+    id: 'pdf',
+    name: 'PDF',
+    icon: FileText,
+    description: 'Portable Document Format',
+    color: 'text-red-600'
+  },
+  {
+    id: 'json',
+    name: 'JSON',
+    icon: FileJson,
+    description: 'JavaScript Object Notation',
+    color: 'text-yellow-600'
+  },
+  {
+    id: 'xml',
+    name: 'XML',
+    icon: FileCode,
+    description: 'eXtensible Markup Language',
+    color: 'text-blue-600'
+  }
+];
+
+export default function ExportDropdown({
+  title,
+  fileName,
+  columns,
+  rows,
+  customPdfGenerator,
+  className = "",
+  disabled = false
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState(null);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const dropdownRef = useRef(null);
+  const notifications = useNotifications();
+
+  // Close dropdown when clicking outside
+  const handleClickOutside = (event) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      setIsOpen(false);
+    }
+  };
+
+  // Add event listener for outside clicks
+  useState(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  });
+
+
+  // CSV Export
+  const handleExportCSV = () => {
+    try {
+      const csvRows = [];
+      csvRows.push(columns.join(","));
+      rows.forEach((row) => {
+        csvRows.push(row.map((cell) => `"${cell}"`).join(","));
+      });
+
+      const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csvContent));
+      link.setAttribute("download", `${fileName}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      notifications.success(
+        "CSV file exported successfully!",
+        {
+          title: "Export Complete",
+          duration: 4000
+        }
+      );
+    } catch {
+      notifications.error(
+        "Failed to export CSV file",
+        {
+          title: "Export Failed",
+          duration: 6000
+        }
+      );
+    }
+  };
+
+  // JSON Export
+  const handleExportJSON = () => {
+    try {
+      const jsonData = {
+        title: title,
+        exportDate: new Date().toISOString(),
+        columns: columns,
+        data: rows.map((row) => {
+          const obj = {};
+          columns.forEach((col, colIndex) => {
+            obj[col] = row[colIndex];
+          });
+          return obj;
+        })
+      };
+
+      const jsonContent = JSON.stringify(jsonData, null, 2);
+      const blob = new Blob([jsonContent], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${fileName}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      notifications.success(
+        "JSON file exported successfully!",
+        {
+          title: "Export Complete",
+          duration: 4000
+        }
+      );
+    } catch {
+      notifications.error(
+        "Failed to export JSON file",
+        {
+          title: "Export Failed",
+          duration: 6000
+        }
+      );
+    }
+  };
+
+  // XML Export
+  const handleExportXML = () => {
+    try {
+      let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n';
+      xmlContent += `<export>\n`;
+      xmlContent += `  <title>${title}</title>\n`;
+      xmlContent += `  <exportDate>${new Date().toISOString()}</exportDate>\n`;
+      xmlContent += `  <columns>\n`;
+      columns.forEach(col => {
+        xmlContent += `    <column>${col}</column>\n`;
+      });
+      xmlContent += `  </columns>\n`;
+      xmlContent += `  <data>\n`;
+      
+      rows.forEach((row, index) => {
+        xmlContent += `    <row id="${index + 1}">\n`;
+        columns.forEach((col, colIndex) => {
+          xmlContent += `      <${col.replace(/[^a-zA-Z0-9]/g, '_')}>${row[colIndex]}</${col.replace(/[^a-zA-Z0-9]/g, '_')}>\n`;
+        });
+        xmlContent += `    </row>\n`;
+      });
+      
+      xmlContent += `  </data>\n`;
+      xmlContent += `</export>`;
+
+      const blob = new Blob([xmlContent], { type: 'application/xml' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${fileName}.xml`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      notifications.success(
+        "XML file exported successfully!",
+        {
+          title: "Export Complete",
+          duration: 4000
+        }
+      );
+    } catch {
+      notifications.error(
+        "Failed to export XML file",
+        {
+          title: "Export Failed",
+          duration: 6000
+        }
+      );
+    }
+  };
+
+  // PDF Export
+  const handleExportPDF = async () => {
+    try {
+      setIsExporting(true);
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [330.2, 215.9],
+      });
+
+      if (customPdfGenerator) {
+        customPdfGenerator(doc, columns, rows);
+      } else {
+        // Default PDF generation with logos and formatting
+        doc.setFont("times", "normal");
+
+        // Add header information
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const safeDate = new Date().toISOString().split("T")[0];
+        const exportId = `RPT-${Date.now()}`;
+        
+        doc.setFontSize(8);
+        doc.setFont("times", "bold");
+        doc.text(`${exportId}`, pageWidth - 15, 12, { align: "right" });
+        doc.text(`${safeDate}`, pageWidth - 15, 16, { align: "right" });
+        doc.setFont("times", "normal");
+
+        // Header text (centered)
+        doc.setFontSize(12);
+        doc.setTextColor(0, 0, 0);
+        doc.text(
+          "Integrated Establishment Regulatory Management System",
+          pageWidth / 2,
+          24,
+          { align: "center" }
+        );
+        doc.text(
+          "Department of Environmental and Natural Resources",
+          pageWidth / 2,
+          29,
+          { align: "center" }
+        );
+        doc.text(
+          "Environmental Management Bureau Region I",
+          pageWidth / 2,
+          34,
+          { align: "center" }
+        );
+
+        // Report title
+        doc.setFont("times", "bold");
+        doc.setFontSize(12);
+        const titleUpper = title.toUpperCase();
+        doc.text(titleUpper, pageWidth / 2, 42, { align: "center" });
+        const titleWidth = doc.getTextWidth(titleUpper);
+        doc.line(
+          pageWidth / 2 - titleWidth / 2,
+          44,
+          pageWidth / 2 + titleWidth / 2,
+          44
+        );
+        doc.setFont("times", "normal");
+
+        // Table
+        autoTable(doc, {
+          head: [columns],
+          body: rows,
+          startY: 48,
+          styles: {
+            fontSize: 8,
+            font: "times",
+            cellPadding: 1,
+            lineWidth: 0.2,
+            textColor: [0, 0, 0],
+            fillColor: [255, 255, 255],
+          },
+          headStyles: {
+            fillColor: [200, 200, 200],
+            textColor: [0, 0, 0],
+            fontSize: 10,
+            font: "times",
+            cellPadding: 1,
+            fontStyle: "bold",
+          },
+          margin: { left: 10, right: 10 },
+          tableLineWidth: 0.2,
+        });
+
+        // Footer
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(10);
+          doc.text(`Page ${i} of ${pageCount}`, pageWidth - 15, 325, {
+            align: "right",
+          });
+        }
+      }
+
+      // Open PDF in new tab for viewing/printing
+      const blobUrl = doc.output("bloburl");
+      window.open(blobUrl, "_blank");
+
+      notifications.success(
+        "PDF file generated successfully!",
+        {
+          title: "Export Complete",
+          duration: 4000
+        }
+      );
+    } catch {
+      notifications.error(
+        "Failed to generate PDF file",
+        {
+          title: "Export Failed",
+          duration: 6000
+        }
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+
+  // Handle format selection
+  const handleFormatSelect = (format) => {
+    setSelectedFormat(format);
+    setShowConfirmation(true);
+    setIsOpen(false);
+  };
+
+  // Handle export confirmation
+  const handleConfirmExport = async () => {
+    if (!selectedFormat) return;
+
+    try {
+      switch (selectedFormat.id) {
+        case 'csv':
+          handleExportCSV();
+          break;
+        case 'pdf':
+          await handleExportPDF();
+          break;
+        case 'json':
+          handleExportJSON();
+          break;
+        case 'xml':
+          handleExportXML();
+          break;
+        default:
+          break;
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+    } finally {
+      setSelectedFormat(null);
+      setShowConfirmation(false);
+    }
+  };
+
+
+  return (
+    <>
+      <div className={`relative ${className}`} ref={dropdownRef}>
+        {/* Export Button */}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          disabled={disabled || isExporting}
+          className={`
+            flex items-center px-3 py-1 text-sm font-medium rounded
+            text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-400 disabled:cursor-not-allowed
+            transition-colors duration-200
+            ${isExporting ? 'opacity-75' : ''}
+          `}
+        >
+          <Download size={16} />
+          {isExporting ? 'Exporting...' : 'Export'}
+          <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {/* Dropdown Menu */}
+        {isOpen && (
+          <div className="absolute right-0 z-50 w-56 mt-1 bg-white border border-gray-200 rounded shadow">
+            <div className="p-2">
+              <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Export Format
+              </div>
+              
+              {/* Export Options */}
+              {EXPORT_FORMATS.map((format) => {
+                const IconComponent = format.icon;
+                return (
+                  <button
+                    key={format.id}
+                    onClick={() => handleFormatSelect(format)}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+                  >
+                    <IconComponent size={16} className={format.color} />
+                    <div className="flex-1 text-left">
+                      <div className="font-medium">{format.name}</div>
+                      <div className="text-xs text-gray-500">{format.description}</div>
+                    </div>
+                  </button>
+                );
+              })}
+
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmation && selectedFormat && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40">
+          <div className="relative p-6 bg-white rounded-lg shadow-lg w-96">
+            <div className="flex items-center gap-3 mb-4">
+              <selectedFormat.icon size={24} className={selectedFormat.color} />
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Confirm Export
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Export as {selectedFormat.name} format
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <div className="text-sm text-gray-700">
+                <div><strong>Title:</strong> {title}</div>
+                <div><strong>File:</strong> {fileName}.{selectedFormat.id}</div>
+                <div><strong>Records:</strong> {rows.length} rows</div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setSelectedFormat(null);
+                  setShowConfirmation(false);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmExport}
+                disabled={isExporting}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:bg-gray-400 transition-colors"
+              >
+                {isExporting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} />
+                    Confirm Export
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

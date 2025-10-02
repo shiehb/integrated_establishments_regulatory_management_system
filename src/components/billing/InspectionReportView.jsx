@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { mockApi } from "../../services/mockApi";
 import BillingReportPDF from "./BillingReportPDF";
-import ExportModal from "../ExportModal";
+import ExportDropdown from "../ExportDropdown";
+import { useNotifications } from "../NotificationManager";
 
 export default function InspectionReportView({
   report,
@@ -13,7 +14,7 @@ export default function InspectionReportView({
   );
   const [billing, setBilling] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
+  const notifications = useNotifications();
 
   const toggleViolation = (id) => {
     setViolations((prev) =>
@@ -33,9 +34,13 @@ export default function InspectionReportView({
       const selected = violations.filter((v) => v.selected && v.amount);
       const bill = await mockApi.createBillingFromReport(report.id, selected);
       setBilling(bill);
-      if (window.showNotification) {
-        window.showNotification("success", "Billing report created!");
-      }
+      notifications.success(
+        "Billing report created!",
+        {
+          title: "Billing Created",
+          duration: 4000
+        }
+      );
       onBillingCreated();
     } catch (err) {
       console.error("Error creating billing:", err);
@@ -44,14 +49,6 @@ export default function InspectionReportView({
     }
   };
 
-  // Prepare data for ExportModal
-  const exportColumns = ["Violation", "Law", "Description", "Status"];
-  const exportRows = report.violations.map((v) => [
-    v.code || "N/A",
-    v.law,
-    v.description,
-    v.status || "Not Resolved",
-  ]);
 
   return (
     <div className="p-4 bg-white rounded shadow">
@@ -63,12 +60,17 @@ export default function InspectionReportView({
           ← Back
         </button>
 
-        <button
-          onClick={() => setShowExportModal(true)}
-          className="px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-        >
-          Export Report
-        </button>
+        <ExportDropdown
+          title={`Inspection Report - ${report.establishment_name}`}
+          fileName={`inspection_report_${report.id}`}
+          columns={["Violation", "Law", "Description", "Status"]}
+          rows={report.violations.map((v) => [
+            v.code || "N/A",
+            v.law || "N/A",
+            v.description || "N/A",
+            v.status || "N/A"
+          ])}
+        />
       </div>
 
       <h2 className="mb-4 text-xl font-bold text-sky-600">Inspection Report</h2>
@@ -163,55 +165,6 @@ export default function InspectionReportView({
         </div>
       )}
 
-      <ExportModal
-        open={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        title={`Inspection Report - ${report.establishment_name}`}
-        fileName={`inspection_report_${report.id}`}
-        columns={exportColumns}
-        rows={exportRows}
-        customPdfGenerator={(doc, columns, rows) => {
-          // Custom PDF generator for inspection reports
-          doc.setFontSize(16);
-          doc.text("INSPECTION REPORT", 105, 20, null, null, "center");
-
-          doc.setFontSize(12);
-          doc.text(`Establishment: ${report.establishment_name}`, 20, 35);
-          doc.text(`Inspection Date: ${report.date}`, 20, 45);
-          doc.text(`Report ID: ${report.id}`, 20, 55);
-
-          // Add findings section
-          doc.setFontSize(12);
-          doc.setFont(undefined, "bold");
-          doc.text("Findings:", 20, 70);
-          doc.setFont(undefined, "normal");
-
-          // Split findings into multiple lines if too long
-          const findingsLines = doc.splitTextToSize(report.findings, 170);
-          doc.text(findingsLines, 20, 80);
-
-          // Calculate Y position for table based on findings length
-          const tableStartY = 80 + findingsLines.length * 6 + 10;
-
-          // Add violations table
-          autoTable(doc, {
-            startY: tableStartY,
-            head: [columns],
-            body: rows,
-            theme: "grid",
-            headStyles: {
-              fillColor: [41, 128, 185],
-              textColor: 255,
-              fontStyle: "bold",
-            },
-            styles: {
-              fontSize: 10,
-              cellPadding: 3,
-            },
-            margin: { left: 20, right: 20 },
-          });
-        }}
-      />
     </div>
   );
 }

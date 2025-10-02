@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
+import { useNotifications } from "../NotificationManager";
 
 export default function EditUser({ userData, onClose, onUserUpdated }) {
   const [formData, setFormData] = useState({
@@ -14,6 +15,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
   const [submitted, setSubmitted] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const notifications = useNotifications();
 
   useEffect(() => {
     console.log("User data received:", userData);
@@ -97,20 +99,25 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       };
       await api.put(`auth/users/${userData.id}/`, payload);
 
-      if (window.showNotification) {
-        window.showNotification("success", "User updated successfully!");
-      }
+      notifications.success(
+        "User updated successfully!",
+        {
+          title: "User Updated",
+          duration: 4000
+        }
+      );
 
       if (onUserUpdated) onUserUpdated();
       onClose();
     } catch (err) {
-      if (window.showNotification) {
-        window.showNotification(
-          "error",
-          "Error updating user: " +
-            (err.response?.data?.detail || JSON.stringify(err.response?.data))
-        );
-      }
+      notifications.error(
+        "Error updating user: " +
+          (err.response?.data?.detail || JSON.stringify(err.response?.data)),
+        {
+          title: "Update Failed",
+          duration: 8000
+        }
+      );
     } finally {
       setLoading(false);
     }

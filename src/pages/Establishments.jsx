@@ -12,12 +12,14 @@ import {
   getProfile,
   setEstablishmentPolygon,
 } from "../services/api";
+import { useNotifications } from "../components/NotificationManager";
 
 export default function Establishments() {
   const [showAdd, setShowAdd] = useState(false);
   const [editEstablishment, setEditEstablishment] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [userRole, setUserRole] = useState("");
+  const notifications = useNotifications();
 
   // 🔹 View state: 'list' or 'polygon'
   const [currentView, setCurrentView] = useState("list");
@@ -54,9 +56,13 @@ export default function Establishments() {
       setEstablishments(data);
     } catch (err) {
       console.error("Error fetching establishments:", err);
-      if (window.showNotification) {
-        window.showNotification("error", "Error fetching establishments");
-      }
+      notifications.error(
+        "Error fetching establishments",
+        {
+          title: "Fetch Error",
+          duration: 8000
+        }
+      );
     }
   };
 
@@ -124,14 +130,22 @@ export default function Establishments() {
       setPolygonEditMode(false);
       setHasPolygonChanges(false);
       setRefreshTrigger((prev) => prev + 1);
-      if (window.showNotification) {
-        window.showNotification("success", "Polygon saved successfully!");
-      }
+      notifications.success(
+        "Polygon saved successfully!",
+        {
+          title: "Polygon Saved",
+          duration: 4000
+        }
+      );
     } catch (err) {
       console.error("Error saving polygon:", err);
-      if (window.showNotification) {
-        window.showNotification("error", "Failed to save polygon");
-      }
+      notifications.error(
+        "Failed to save polygon",
+        {
+          title: "Save Failed",
+          duration: 8000
+        }
+      );
     } finally {
       setLoading(false);
       setShowConfirm(false);

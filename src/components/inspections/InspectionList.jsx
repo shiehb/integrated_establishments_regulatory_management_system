@@ -14,7 +14,9 @@ import {
   ChevronRight,
 } from "lucide-react";
 import WorkflowStatus from "./WorkflowStatus";
-import PaginationControls from "../PaginationControls";
+import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
+import ExportDropdown from "../ExportDropdown";
+import PrintPDF from "../PrintPDF";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -49,8 +51,11 @@ export default function InspectionList({
 }) {
   const [inspections, setInspections] = useState(propInspections);
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(pagination.pageSize || 10);
+  
+  // ✅ Pagination with localStorage
+  const savedPagination = useLocalStoragePagination("inspections_list");
+  const [currentPage, setCurrentPage] = useState(savedPagination.page);
+  const [pageSize, setPageSize] = useState(savedPagination.pageSize);
 
   // Use external search if provided, otherwise use internal
   const searchQuery =
@@ -362,50 +367,6 @@ export default function InspectionList({
     [inspections]
   );
 
-  // Export selected inspections
-  const handleExportSelected = useCallback(() => {
-    if (selectedInspections.length === 0) {
-      alert("Please select inspections to export.");
-      return;
-    }
-
-    const selected = inspections.filter((i) =>
-      selectedInspections.includes(i.id || i.code)
-    );
-
-    // Simple CSV export
-    const headers = [
-      "ID",
-      "Establishment",
-      "Section",
-      "Status",
-      "Created Date",
-    ];
-    const csvData = selected.map((inspection) => [
-      inspection.id || inspection.code,
-      getEstablishmentName(inspection),
-      inspection.section,
-      statusLabels[inspection.status] || inspection.status,
-      formatDate(inspection.created_at),
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...csvData.map((row) => row.map((field) => `"${field}"`).join(",")),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `inspections-export-${
-      new Date().toISOString().split("T")[0]
-    }.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [selectedInspections, inspections]);
 
   return (
     <div className="p-4 bg-white rounded shadow">
@@ -413,7 +374,7 @@ export default function InspectionList({
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h1 className="text-2xl font-bold text-sky-600">Inspections</h1>
 
-        <div className="flex flex-wrap items-center w-full gap-2 sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {/* Search Bar */}
           <div className="relative">
             <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
@@ -422,7 +383,7 @@ export default function InspectionList({
               placeholder="Search inspections..."
               value={searchQuery}
               onChange={(e) => handleInternalSearch(e.target.value)}
-              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full min-w-64 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border-b border-gray-300 rounded min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
             {searchQuery && (
               <button
@@ -439,167 +400,192 @@ export default function InspectionList({
           <div className="relative sort-dropdown">
             <button
               onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-              className="flex items-center gap-1 px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+              className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
               type="button"
             >
               <ArrowUpDown size={14} />
-              Sort
+              Sort by
               <ChevronDown size={14} />
             </button>
 
             {sortDropdownOpen && (
-              <div className="absolute right-0 z-20 w-48 p-2 mt-2 bg-white border rounded shadow">
-                {[
-                  { key: "id", label: "ID" },
-                  { key: "name", label: "Establishment" },
-                  { key: "section", label: "Section" },
-                  { key: "status", label: "Status" },
-                  { key: "created_at", label: "Created Date" },
-                ].map((field) => (
-                  <button
-                    key={field.key}
-                    onClick={() => handleSort(field.key)}
-                    className={`flex items-center w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-100 ${
-                      sortConfig.key === field.key
-                        ? "bg-sky-50 font-medium"
-                        : ""
-                    }`}
-                    type="button"
-                  >
-                    <span className="mr-2 text-xs text-sky-600">
-                      {sortConfig.key === field.key ? "•" : ""}
-                    </span>
-                    <span>{field.label}</span>
-                  </button>
-                ))}
+              <div className="absolute right-0 z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
+                <div className="p-2">
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Sort Options
+                  </div>
+                  
+                  {[
+                    { key: "id", label: "Inspection ID" },
+                    { key: "name", label: "Establishment" },
+                    { key: "section", label: "Section" },
+                    { key: "status", label: "Status" },
+                    { key: "created_at", label: "Created Date" },
+                  ].map((field) => (
+                    <button
+                      key={field.key}
+                      onClick={() => handleSort(field.key)}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                        sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
+                      }`}
+                      type="button"
+                    >
+                      <div className="flex-1 text-left">
+                        <div className="font-medium">{field.label}</div>
+                      </div>
+                      {sortConfig.key === field.key && (
+                        <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
 
-          {/* Filters dropdown */}
-          <div className="relative filter-dropdown">
-            <button
-              onClick={() => setFiltersOpen((prev) => !prev)}
-              className="flex items-center gap-1 px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-              type="button"
-            >
-              <Filter size={14} /> Filters
-              {activeFilterCount > 0 && ` (${activeFilterCount})`}
-            </button>
+           {/* Filters dropdown */}
+           <div className="relative filter-dropdown">
+             <button
+               onClick={() => setFiltersOpen((prev) => !prev)}
+               className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
+               type="button"
+             >
+               <ArrowUpDown size={14} />
+               Filters
+               <ChevronDown size={14} />
+               {activeFilterCount > 0 && ` (${activeFilterCount})`}
+             </button>
 
             {filtersOpen && (
-              <div className="absolute right-0 z-20 w-64 p-2 mt-2 overflow-y-auto bg-white border rounded shadow max-h-96">
-                {/* Section Filter */}
-                <div className="mb-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="text-sm font-semibold text-gray-600">
+              <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded shadow max-h-80 overflow-y-auto">
+                <div className="p-2">
+                  <div className="flex items-center justify-between px-3 py-2 mb-2">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Filter Options
+                    </div>
+                    {(sectionFilter.length > 0 || statusFilter.length > 0) && (
+                      <button
+                        onClick={clearAllFilters}
+                        className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                        type="button"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Section Filter */}
+                  <div className="mb-3">
+                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
                       Section
-                    </h4>
-                    {sectionFilter.length > 0 && (
-                      <button
-                        onClick={clearSections}
-                        className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
-                        type="button"
-                      >
-                        Clear
-                      </button>
-                    )}
+                    </div>
+                    <div className="max-h-32 overflow-y-auto">
+                      {uniqueSections.map((section) => (
+                        <button
+                          key={section}
+                          onClick={() => toggleSection(section)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                            sectionFilter.includes(section) ? "bg-sky-50 font-medium" : ""
+                          }`}
+                          type="button"
+                        >
+                          <div className="flex-1 text-left">
+                            <div className="font-medium truncate">{section}</div>
+                          </div>
+                          {sectionFilter.includes(section) && (
+                            <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="overflow-y-auto max-h-32">
-                    {uniqueSections.map((section) => (
-                      <button
-                        key={section}
-                        onClick={() => toggleSection(section)}
-                        className={`flex items-center w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-100 ${
-                          sectionFilter.includes(section)
-                            ? "bg-sky-50 font-medium"
-                            : ""
-                        }`}
-                        type="button"
-                      >
-                        <span className="mr-2 text-xs text-sky-600">
-                          {sectionFilter.includes(section) ? "•" : ""}
-                        </span>
-                        <span className="truncate">{section}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
-                {/* Status Filter */}
-                <div className="mb-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="text-sm font-semibold text-gray-600">
+                  {/* Status Filter */}
+                  <div className="mb-2">
+                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
                       Status
-                    </h4>
-                    {statusFilter.length > 0 && (
-                      <button
-                        onClick={clearStatuses}
-                        className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
-                        type="button"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <div className="overflow-y-auto max-h-32">
-                    {uniqueStatuses.map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => toggleStatus(status)}
-                        className={`flex items-center w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-100 ${
-                          statusFilter.includes(status)
-                            ? "bg-sky-50 font-medium"
-                            : ""
-                        }`}
-                        type="button"
-                      >
-                        <span className="mr-2 text-xs text-sky-600">
-                          {statusFilter.includes(status) ? "•" : ""}
-                        </span>
-                        <span className="truncate">
-                          {statusLabels[status] || status.replace(/_/g, " ")}
-                        </span>
-                      </button>
-                    ))}
+                    </div>
+                    <div className="max-h-32 overflow-y-auto">
+                      {uniqueStatuses.map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => toggleStatus(status)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                            statusFilter.includes(status) ? "bg-sky-50 font-medium" : ""
+                          }`}
+                          type="button"
+                        >
+                          <div className="flex-1 text-left">
+                            <div className="font-medium truncate">
+                              {statusLabels[status] || status.replace(/_/g, " ")}
+                            </div>
+                          </div>
+                          {statusFilter.includes(status) && (
+                            <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-
-                {/* Clear All */}
-                {hasActiveFilters && (
-                  <button
-                    onClick={clearAllFilters}
-                    className="w-full px-3 py-2 mt-2 text-xs text-center text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
-                    type="button"
-                  >
-                    Clear All Filters
-                  </button>
-                )}
               </div>
             )}
           </div>
 
           {/* Export Selected */}
-          <button
-            onClick={
-              selectedInspections.length > 0 ? handleExportSelected : undefined
+          <ExportDropdown
+            title="Inspections Export Report"
+            fileName={`inspections_export${selectedInspections.length > 0 ? `_${selectedInspections.length}_selected` : ''}`}
+            columns={["ID", "Establishment", "Section", "Status", "Created Date"]}
+            rows={selectedInspections.length > 0 ? 
+              inspections.filter(i => selectedInspections.includes(i.id || i.code)).map(inspection => [
+                inspection.id || inspection.code,
+                inspection.establishment_name,
+                inspection.section,
+                inspection.status,
+                new Date(inspection.created_at).toLocaleDateString()
+              ]) : 
+              inspections.map(inspection => [
+                inspection.id || inspection.code,
+                inspection.establishment_name,
+                inspection.section,
+                inspection.status,
+                new Date(inspection.created_at).toLocaleDateString()
+              ])
             }
-            disabled={selectedInspections.length === 0}
-            className={`flex items-center gap-1 px-3 py-1 text-sm rounded ${
-              selectedInspections.length > 0
-                ? "text-white bg-green-600 hover:bg-green-700"
-                : "text-gray-400 bg-gray-200 cursor-not-allowed"
-            }`}
-            type="button"
-          >
-            <Download size={14} />
-            Export ({selectedInspections.length})
-          </button>
+            disabled={inspections.length === 0}
+            className="flex items-center text-sm"
+          />
+
+          <PrintPDF
+            title="Inspections Report"
+            fileName="inspections_report"
+            columns={["ID", "Establishment", "Section", "Status", "Created Date"]}
+            rows={selectedInspections.length > 0 ? 
+              inspections.filter(i => selectedInspections.includes(i.id || i.code)).map(inspection => [
+                inspection.id || inspection.code,
+                inspection.establishment_name,
+                inspection.section,
+                inspection.status,
+                new Date(inspection.created_at).toLocaleDateString()
+              ]) : 
+              inspections.map(inspection => [
+                inspection.id || inspection.code,
+                inspection.establishment_name,
+                inspection.section,
+                inspection.status,
+                new Date(inspection.created_at).toLocaleDateString()
+              ])
+            }
+            selectedCount={selectedInspections.length}
+            disabled={inspections.length === 0}
+            className="flex items-center text-sm"
+          />
 
           {canCreate && onAdd && (
             <button
               onClick={onAdd}
-              className="flex items-center gap-1 px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+              className="flex items-center px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
               type="button"
             >
               + New Inspection
@@ -629,10 +615,10 @@ export default function InspectionList({
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full border border-gray-300 rounded-lg">
+        <table className="w-full border-b border-gray-300 rounded-lg">
           <thead>
             <tr className="text-sm text-left text-white bg-sky-700">
-              <th className="w-6 p-1 text-center border border-gray-300">
+              <th className="w-6 p-1 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
                   checked={
@@ -653,7 +639,7 @@ export default function InspectionList({
               ].map((col) => (
                 <th
                   key={col.key}
-                  className={`p-1 border border-gray-300 ${
+                  className={`p-1 border-b border-gray-300 ${
                     col.sortable ? "cursor-pointer hover:bg-sky-800" : ""
                   }`}
                   onClick={col.sortable ? () => handleSort(col.key) : undefined}
@@ -663,7 +649,7 @@ export default function InspectionList({
                   </div>
                 </th>
               ))}
-              <th className="p-1 text-center border border-gray-300">
+              <th className="p-1 text-center border-b border-gray-300">
                 Actions
               </th>
             </tr>
@@ -673,7 +659,7 @@ export default function InspectionList({
               <tr>
                 <td
                   colSpan="9"
-                  className="px-2 py-8 text-center border border-gray-300"
+                  className="px-2 py-8 text-center border-b border-gray-300"
                 >
                   <div className="flex items-center justify-center">
                     <div className="w-6 h-6 mr-2 border-b-2 rounded-full animate-spin border-sky-600"></div>
@@ -685,7 +671,7 @@ export default function InspectionList({
               <tr>
                 <td
                   colSpan="9"
-                  className="px-2 py-4 text-center text-gray-500 border border-gray-300"
+                  className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
                 >
                   {hasActiveFilters ? (
                     <div>
@@ -712,19 +698,19 @@ export default function InspectionList({
                 return (
                   <tr
                     key={inspectionId}
-                    className="text-xs border border-gray-300 hover:bg-gray-50"
+                    className="text-xs border-b border-gray-300 hover:bg-gray-50"
                   >
-                    <td className="p-2 text-center border border-gray-300">
+                    <td className="p-2 text-center border-b border-gray-300">
                       <input
                         type="checkbox"
                         checked={selectedInspections.includes(inspectionId)}
                         onChange={() => toggleSelect(inspectionId)}
                       />
                     </td>
-                    <td className="px-2 py-3 font-mono text-center border border-gray-300">
+                    <td className="px-2 py-3 font-mono text-center border-b border-gray-300">
                       {inspectionId}
                     </td>
-                    <td className="px-2 py-3 border border-gray-300">
+                    <td className="px-2 py-3 border-b border-gray-300">
                       <div className="font-medium">
                         {getEstablishmentName(inspection)}
                       </div>
@@ -735,7 +721,7 @@ export default function InspectionList({
                           "N/A"}
                       </div>
                     </td>
-                    <td className="px-2 py-3 border border-gray-300">
+                    <td className="px-2 py-3 border-b border-gray-300">
                       <div className="text-xs">
                         {`${address.street}, ${address.barangay}`}
                       </div>
@@ -743,25 +729,25 @@ export default function InspectionList({
                         {`${address.city}, ${address.province}`}
                       </div>
                     </td>
-                    <td className="px-2 py-3 text-center border border-gray-300">
+                    <td className="px-2 py-3 text-center border-b border-gray-300">
                       {inspection.section || "N/A"}
                     </td>
-                    <td className="px-2 py-3 border border-gray-300">
+                    <td className="px-2 py-3 border-b border-gray-300">
                       <WorkflowStatus
                         inspection={inspection}
                         userLevel={userLevel}
                         onWorkflowOpen={onWorkflowOpen}
                       />
                     </td>
-                    <td className="px-2 py-3 border border-gray-300">
+                    <td className="px-2 py-3 border-b border-gray-300">
                       {inspection.current_assignee_name ||
                         inspection.current_assigned_to?.name ||
                         "Unassigned"}
                     </td>
-                    <td className="px-2 py-3 text-center border border-gray-300">
+                    <td className="px-2 py-3 text-center border-b border-gray-300">
                       {formatDate(inspection.created_at)}
                     </td>
-                    <td className="px-2 py-3 border border-gray-300">
+                    <td className="px-2 py-3 border-b border-gray-300">
                       <div className="flex justify-center gap-1">
                         <button
                           onClick={() => onView && onView(inspection)}
@@ -802,6 +788,7 @@ export default function InspectionList({
         onPageSizeChange={handlePageSizeChange}
         startItem={startItem}
         endItem={endItem}
+        storageKey="inspections_list"
       />
     </div>
   );

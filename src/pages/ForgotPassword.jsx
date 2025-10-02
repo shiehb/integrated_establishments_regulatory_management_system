@@ -2,12 +2,14 @@ import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 import { useState } from "react";
 import { sendOtp } from "../services/api";
+import { useNotifications } from "../components/NotificationManager";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const notifications = useNotifications();
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
@@ -19,9 +21,13 @@ export default function ForgotPassword() {
       setMessage(response.detail);
 
       // Show success notification
-      if (window.showNotification) {
-        window.showNotification("success", response.detail);
-      }
+      notifications.success(
+        response.detail,
+        {
+          title: "OTP Sent",
+          duration: 4000
+        }
+      );
 
       // ✅ Automatically redirect to reset password page after successful OTP send
       if (response.detail.includes("sent")) {
@@ -48,9 +54,13 @@ export default function ForgotPassword() {
       setMessage(errorMessage);
       
       // Show error notification
-      if (window.showNotification) {
-        window.showNotification("error", errorMessage);
-      }
+      notifications.error(
+        errorMessage,
+        {
+          title: "OTP Send Failed",
+          duration: 8000
+        }
+      );
     } finally {
       setLoading(false);
     }

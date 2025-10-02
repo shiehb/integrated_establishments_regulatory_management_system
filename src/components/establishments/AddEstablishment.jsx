@@ -11,6 +11,7 @@ import {
   ILOCOS_REGION_BOUNDS,
   ILOCOS_REGION_CENTER 
 } from "../../constants/establishmentConstants";
+import { useNotifications } from "../NotificationManager";
 
 const markerIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
@@ -111,6 +112,7 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [showConfirm, setShowConfirm] = useState(false);
+  const notifications = useNotifications();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -236,9 +238,13 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
         latitude: formData.coordinates.latitude,
         longitude: formData.coordinates.longitude,
       });
-      if (window.showNotification) {
-        window.showNotification("success", "Establishment added successfully!");
-      }
+      notifications.success(
+        "Establishment added successfully!",
+        {
+          title: "Establishment Added",
+          duration: 4000
+        }
+      );
       if (onEstablishmentAdded) onEstablishmentAdded();
       onClose();
     } catch (err) {
@@ -252,11 +258,14 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
         err.response?.data?.error?.includes("already exists")
       ) {
         setErrors({ name: "An establishment with this name already exists." });
-      } else if (window.showNotification) {
-        window.showNotification(
-          "error",
+      } else {
+        notifications.error(
           "Error creating establishment: " +
-            (err.response?.data?.detail || JSON.stringify(err.response?.data))
+            (err.response?.data?.detail || JSON.stringify(err.response?.data)),
+          {
+            title: "Creation Failed",
+            duration: 8000
+          }
         );
       }
     } finally {

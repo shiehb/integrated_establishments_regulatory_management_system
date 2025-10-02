@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { mockApi } from "../../services/mockApi";
-import { Search, Filter, X, Eye, Download } from "lucide-react";
-import ExportModal from "../ExportModal";
+import { Search, Filter, X, Eye, Download, ArrowUpDown, ChevronDown } from "lucide-react";
+import ExportDropdown from "../ExportDropdown";
+import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
 
 export default function NonComplianceList({ onSelectReport }) {
   const [reports, setReports] = useState([]);
@@ -14,9 +15,13 @@ export default function NonComplianceList({ onSelectReport }) {
   const [statusFilter, setStatusFilter] = useState([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [showExportModal, setShowExportModal] = useState(false);
   const [selectedReports, setSelectedReports] = useState([]);
   const filterRef = useRef(null);
+
+  // ✅ Pagination with localStorage
+  const savedPagination = useLocalStoragePagination("noncompliance_list");
+  const [currentPage, setCurrentPage] = useState(savedPagination.page);
+  const [pageSize, setPageSize] = useState(savedPagination.pageSize);
 
   useEffect(() => {
     mockApi.getNonCompliantReports().then((data) => {
@@ -94,6 +99,39 @@ export default function NonComplianceList({ onSelectReport }) {
     });
   }, [reports, search, establishmentFilter, statusFilter, dateFrom, dateTo]);
 
+  // Pagination logic
+  const paginatedReports = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredReports.slice(startIndex, endIndex);
+  }, [filteredReports, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredReports.length / pageSize);
+  const totalCount = reports.length;
+  const filteredCount = filteredReports.length;
+
+  // Pagination handlers
+  const goToPage = (page) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
+
+  const handlePageSizeChange = (newSize) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+  };
+
+  // Calculate display range
+  const startItem = (currentPage - 1) * pageSize + 1;
+  const endItem = Math.min(currentPage * pageSize, filteredCount);
+
+  // Check if there are active filters
+  const hasActiveFilters = 
+    search || 
+    establishmentFilter.length > 0 || 
+    statusFilter.length > 0 || 
+    dateFrom || 
+    dateTo;
+
   // Toggle functions for filters
   const toggleEstablishment = (establishment) => {
     setEstablishmentFilter((prev) =>
@@ -119,10 +157,10 @@ export default function NonComplianceList({ onSelectReport }) {
   };
 
   const toggleSelectAll = () => {
-    if (selectedReports.length === filteredReports.length) {
+    if (selectedReports.length === paginatedReports.length) {
       setSelectedReports([]);
     } else {
-      setSelectedReports(filteredReports.map((r) => r.id));
+      setSelectedReports(paginatedReports.map((r) => r.id));
     }
   };
 
@@ -166,46 +204,53 @@ export default function NonComplianceList({ onSelectReport }) {
           Non-Compliant Establishments
         </h2>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {/* Search bar */}
-          <div className="relative w-full sm:w-64">
-            <Search
-              className="absolute text-gray-400 -translate-y-1/2 left-2 top-1/2"
-              size={16}
-            />
+          <div className="relative">
+            <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
             <input
               type="text"
               placeholder="Search reports..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full py-1 pl-8 pr-2 text-sm border rounded"
+              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border-b border-gray-300 rounded min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute -translate-y-1/2 right-3 top-1/2"
+              >
+                <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+              </button>
+            )}
           </div>
 
           {/* Filter button */}
           <div className="relative" ref={filterRef}>
             <button
               onClick={() => setFiltersOpen(!filtersOpen)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+               className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
             >
-              <Filter size={14} /> Filters
+               <ArrowUpDown size={14} />
+               Filters
+               <ChevronDown size={14} />
               {(establishmentFilter.length > 0 ||
                 statusFilter.length > 0 ||
                 dateFrom ||
-                dateTo) && (
-                <span className="flex items-center justify-center w-4 h-4 text-xs bg-red-500 rounded-full">
-                  {establishmentFilter.length +
+                 dateTo) && ` (${establishmentFilter.length +
                     statusFilter.length +
                     (dateFrom ? 1 : 0) +
-                    (dateTo ? 1 : 0)}
-                </span>
-              )}
+                     (dateTo ? 1 : 0)})`}
             </button>
 
             {filtersOpen && (
-              <div className="absolute right-0 z-20 p-3 mt-2 bg-white border rounded shadow w-82">
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="text-sm font-semibold">Filters</h4>
+              <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded shadow max-h-80 overflow-y-auto">
+                <div className="p-2">
+                  <div className="flex items-center justify-between px-3 py-2 mb-2">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Filter Options
+                    </div>
+                    {(establishmentFilter.length > 0 || statusFilter.length > 0 || dateFrom || dateTo) && (
                   <button
                     onClick={() => {
                       setEstablishmentFilter([]);
@@ -213,85 +258,122 @@ export default function NonComplianceList({ onSelectReport }) {
                       setDateFrom("");
                       setDateTo("");
                     }}
-                    className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                        className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
                   >
                     Clear All
                   </button>
+                    )}
                 </div>
 
                 {/* Establishment filter */}
-                <h5 className="mt-2 mb-1 text-sm font-semibold">
+                  <div className="mb-3">
+                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
                   Establishment
-                </h5>
+                    </div>
                 <div className="max-h-32 overflow-y-auto">
                   {establishmentNames.map((establishment) => (
-                    <label
+                        <button
                       key={establishment}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={establishmentFilter.includes(establishment)}
-                        onChange={() => toggleEstablishment(establishment)}
-                      />
-                      <span className="truncate">{establishment}</span>
-                    </label>
-                  ))}
+                          onClick={() => toggleEstablishment(establishment)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                            establishmentFilter.includes(establishment) ? "bg-sky-50 font-medium" : ""
+                          }`}
+                        >
+                          <div className="flex-1 text-left">
+                            <div className="font-medium truncate">{establishment}</div>
+                          </div>
+                          {establishmentFilter.includes(establishment) && (
+                            <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                 </div>
 
                 {/* Status filter */}
-                <h5 className="mt-3 mb-1 text-sm font-semibold">Status</h5>
+                  <div className="mb-3">
+                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                      Status
+                    </div>
                 {statusOptions.map((status) => (
-                  <label
+                      <button
                     key={status}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={statusFilter.includes(status)}
-                      onChange={() => toggleStatus(status)}
-                    />
-                    {status}
-                  </label>
-                ))}
+                        onClick={() => toggleStatus(status)}
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                          statusFilter.includes(status) ? "bg-sky-50 font-medium" : ""
+                        }`}
+                      >
+                        <div className="flex-1 text-left">
+                          <div className="font-medium">{status}</div>
+                        </div>
+                        {statusFilter.includes(status) && (
+                          <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
 
                 {/* Date Range filter */}
-                <h5 className="mt-3 mb-1 text-sm font-semibold">Date Range</h5>
-                <div className="flex items-center gap-2 text-sm">
-                  <label className="flex flex-col flex-1">
-                    From
+                  <div className="mb-2">
+                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                      Date Range
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          From Date
+                        </label>
                     <input
                       type="date"
                       value={dateFrom}
                       onChange={(e) => setDateFrom(e.target.value)}
-                      className="px-2 py-1 mt-1 border rounded"
+                          className="w-full px-3 py-2 text-sm border-b border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                     />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          To Date
                   </label>
-                  <label className="flex flex-col flex-1">
-                    To
                     <input
                       type="date"
                       value={dateTo}
                       onChange={(e) => setDateTo(e.target.value)}
-                      className="px-2 py-1 mt-1 border rounded"
+                          className="w-full px-3 py-2 text-sm border-b border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                     />
-                  </label>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
-          <button
-            onClick={() => selectedReports.length > 0 && setShowExportModal(true)}
-            disabled={selectedReports.length === 0}
-            className={`flex items-center gap-1 px-2 py-1 text-sm rounded ${
-              selectedReports.length > 0
-                ? "text-white bg-sky-600 hover:bg-sky-700"
-                : "text-gray-400 bg-gray-200 cursor-not-allowed"
-            }`}
-          >
-            <Download size={14} /> Export ({selectedReports.length})
-          </button>
+          <ExportDropdown
+            title="Non-Compliance Reports"
+            fileName="non_compliance_reports"
+            columns={["ID", "Establishment", "Date", "Status", "Violations"]}
+            rows={selectedReports.length > 0 ? 
+              selectedReports.map(id => {
+                const report = reports.find(r => r.id === id);
+                return [
+                  report.id,
+                  report.establishment_name,
+                  report.date,
+                  report.status,
+                  report.violations.length
+                ];
+              }) : 
+              reports.map(report => [
+                report.id,
+                report.establishment_name,
+                report.date,
+                report.status,
+                report.violations.length
+              ])
+            }
+            disabled={reports.length === 0}
+            className="flex items-center text-sm"
+          />
         </div>
       </div>
 
@@ -349,46 +431,46 @@ export default function NonComplianceList({ onSelectReport }) {
             : "No reports match your search criteria."}
         </p>
       ) : (
-        <table className="w-full border border-gray-300 rounded-lg">
+        <table className="w-full border-b border-gray-300 rounded-lg">
           <thead>
             <tr className="text-sm text-left text-white bg-sky-700">
-              <th className="w-6 p-1 text-center border border-gray-300">
+              <th className="w-6 p-1 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
                   checked={
                     selectedReports.length > 0 &&
-                    selectedReports.length === filteredReports.length
+                    selectedReports.length === paginatedReports.length
                   }
                   onChange={toggleSelectAll}
                 />
               </th>
-              <th className="p-1 border border-gray-300">Establishment</th>
-              <th className="p-1 border border-gray-300">Date</th>
-              <th className="p-1 border border-gray-300">Findings</th>
-              <th className="p-1 border border-gray-300">Status</th>
+              <th className="p-1 border-b border-gray-300">Establishment</th>
+              <th className="p-1 border-b border-gray-300">Date</th>
+              <th className="p-1 border-b border-gray-300">Findings</th>
+              <th className="p-1 border-b border-gray-300">Status</th>
               <th className="p-1 border w-10 border-gray-300">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredReports.map((r) => (
+            {paginatedReports.map((r) => (
               <tr
                 key={r.id}
-                className="text-xs text-left border border-gray-300 hover:bg-gray-50"
+                className="text-xs text-left border-b border-gray-300 hover:bg-gray-50"
               >
-                <td className="text-center border border-gray-300">
+                <td className="text-center border-b border-gray-300">
                   <input
                     type="checkbox"
                     checked={selectedReports.includes(r.id)}
                     onChange={() => toggleSelect(r.id)}
                   />
                 </td>
-                <td className="px-2 border border-gray-300">
+                <td className="px-2 border-b border-gray-300">
                   {r.establishment_name}
                 </td>
-                <td className="px-2 border border-gray-300">
+                <td className="px-2 border-b border-gray-300">
                   {formatDate(r.date)}
                 </td>
-                <td className="px-2 border border-gray-300">
+                <td className="px-2 border-b border-gray-300">
                   <div className="max-w-xs truncate" title={r.findings}>
                     {r.findings}
                   </div>
@@ -406,7 +488,7 @@ export default function NonComplianceList({ onSelectReport }) {
                     {r.status || "Pending"}
                   </span>
                 </td>
-                <td className="p-1 text-center border border-gray-300">
+                <td className="p-1 text-center border-b border-gray-300">
                   <button
                     onClick={() => onSelectReport(r)}
                     className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
@@ -420,21 +502,21 @@ export default function NonComplianceList({ onSelectReport }) {
         </table>
       )}
 
-      {/* Results count */}
-      {filteredReports.length > 0 && (
-        <div className="mt-2 text-sm text-gray-500">
-          Showing {filteredReports.length} of {reports.length} reports
-        </div>
-      )}
-
-      <ExportModal
-        open={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        title="Non-Compliance Reports"
-        fileName="non_compliance_reports"
-        columns={exportColumns}
-        rows={exportRows}
+      {/* Pagination Controls */}
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={totalCount}
+        filteredItems={filteredCount}
+        hasActiveFilters={hasActiveFilters}
+        onPageChange={goToPage}
+        onPageSizeChange={handlePageSizeChange}
+        startItem={startItem}
+        endItem={endItem}
+        storageKey="noncompliance_list"
       />
+
     </div>
   );
 }

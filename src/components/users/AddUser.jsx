@@ -1,6 +1,7 @@
 import { useState } from "react";
 import api from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
+import { useNotifications } from "../NotificationManager";
 
 export default function AddUser({ onClose, onUserAdded }) {
   const [formData, setFormData] = useState({
@@ -14,6 +15,7 @@ export default function AddUser({ onClose, onUserAdded }) {
   const [submitted, setSubmitted] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const notifications = useNotifications();
 
   // Section options depending on role
   const sectionOptionsByLevel = {
@@ -88,20 +90,25 @@ export default function AddUser({ onClose, onUserAdded }) {
       };
       await api.post("auth/register/", payload);
 
-      if (window.showNotification) {
-        window.showNotification("success", "User added successfully!");
-      }
+      notifications.success(
+        "User added successfully!",
+        {
+          title: "User Added",
+          duration: 4000
+        }
+      );
 
       if (onUserAdded) onUserAdded();
       onClose();
     } catch (err) {
-      if (window.showNotification) {
-        window.showNotification(
-          "error",
-          "Error creating user: " +
-            (err.response?.data?.detail || JSON.stringify(err.response?.data))
-        );
-      }
+      notifications.error(
+        "Error creating user: " +
+          (err.response?.data?.detail || JSON.stringify(err.response?.data)),
+        {
+          title: "Creation Failed",
+          duration: 8000
+        }
+      );
     } finally {
       setLoading(false);
     }
