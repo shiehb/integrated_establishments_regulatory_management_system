@@ -304,6 +304,26 @@ export const getAssignableUsers = async (district, role) => {
   return res.data;
 };
 
+export const makeInspectionDecision = async (id, decisionData) => {
+  const res = await api.post(`inspections/${id}/make_decision/`, decisionData);
+  return res.data;
+};
+
+export const getInspectionWorkflowHistory = async (id) => {
+  const res = await api.get(`inspections/${id}/workflow_history/`);
+  return res.data;
+};
+
+export const getAvailablePersonnel = async (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.section) params.append('section', filters.section);
+  if (filters.district) params.append('district', filters.district);
+  if (filters.userlevel) params.append('userlevel', filters.userlevel);
+  
+  const res = await api.get(`inspections/available_personnel/?${params.toString()}`);
+  return res.data;
+};
+
 // -------------------------------------------------
 // Notifications
 // -------------------------------------------------

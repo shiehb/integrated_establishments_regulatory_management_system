@@ -3,8 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from django.db.models import Q
-from .models import Inspection
-from .serializers import InspectionSerializer
+from .models import Inspection, InspectionWorkflowHistory
+from .serializers import InspectionSerializer, WorkflowDecisionSerializer
 from .regions import get_district_by_city, list_districts
 from establishments.models import Establishment
 import logging
@@ -17,6 +17,256 @@ class InspectionViewSet(viewsets.ModelViewSet):
     queryset = Inspection.objects.select_related('establishment').all()
     serializer_class = InspectionSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        """Override create to handle automatic assignment routing"""
+        inspection = serializer.save(created_by=self.request.user)
+        
+        # Auto-assign based on user level and section
+        user = self.request.user
+        section = inspection.section
+        
+        # Determine district from establishment location
+        establishment_district = self._get_establishment_district(inspection.establishment)
+        if establishment_district:
+            inspection.district = establishment_district
+        
+        if user.userlevel == "Division Chief":
+            # Auto-assign Division Chief
+            inspection.assigned_division_head = user
+            inspection.status = "DIVISION_CREATED"
+            inspection.current_assigned_to = user
+            
+            # Auto-route to Section Chief based on law/section and district
+            self._assign_section_chief(inspection, section)
+            
+            # Also assign other personnel based on district
+            if establishment_district:
+                self._assign_district_personnel(inspection, section, establishment_district)
+                
+        elif user.userlevel == "Legal Unit":
+            # Auto-assign Legal Unit
+            inspection.assigned_legal_unit = user
+            inspection.status = "LEGAL_REVIEW"
+            inspection.current_assigned_to = user
+            
+        inspection.save()
+        
+        # Record initial workflow history
+        InspectionWorkflowHistory.objects.create(
+            inspection=inspection,
+            action='FORWARD' if user.userlevel == "Division Chief" else 'INSPECT',
+            performed_by=user,
+            comments=f"Inspection created by {user.userlevel}"
+        )
+
+    def _assign_section_chief(self, inspection, section):
+        """Auto-assign Section Chief based on law/section and district"""
+        # First try to find Section Chief in the same district
+        if inspection.district:
+            # Try exact section match first
+            section_chief = User.objects.filter(
+                userlevel='Section Chief',
+                section=section,
+                district=inspection.district,
+                is_active=True
+            ).first()
+            
+            if section_chief:
+                inspection.assigned_section_chief = section_chief
+                inspection.current_assigned_to = section_chief
+                logger.info(f"Assigned Section Chief {section_chief.email} for {section} in district {inspection.district}")
+                return
+            
+            # Try combined section match (for EIA, Air, Water combined)
+            if section in ['PD-1586', 'RA-8749', 'RA-9275']:
+                section_chief = User.objects.filter(
+                    userlevel='Section Chief',
+                    section='PD-1586,RA-8749,RA-9275',
+                    district=inspection.district,
+                    is_active=True
+                ).first()
+                
+                if section_chief:
+                    inspection.assigned_section_chief = section_chief
+                    inspection.current_assigned_to = section_chief
+                    logger.info(f"Assigned combined Section Chief {section_chief.email} for {section} in district {inspection.district}")
+                    return
+        
+        # If no district-specific Section Chief found, find any active Section Chief for this section
+        section_chief = User.objects.filter(
+            userlevel='Section Chief',
+            section=section,
+            is_active=True
+        ).first()
+        
+        if section_chief:
+            inspection.assigned_section_chief = section_chief
+            inspection.current_assigned_to = section_chief
+            logger.info(f"Assigned Section Chief {section_chief.email} for {section} (no district-specific match)")
+        else:
+            # Try combined section match (for EIA, Air, Water combined)
+            if section in ['PD-1586', 'RA-8749', 'RA-9275']:
+                section_chief = User.objects.filter(
+                    userlevel='Section Chief',
+                    section='PD-1586,RA-8749,RA-9275',
+                    is_active=True
+                ).first()
+                
+                if section_chief:
+                    inspection.assigned_section_chief = section_chief
+                    inspection.current_assigned_to = section_chief
+                    logger.info(f"Assigned combined Section Chief {section_chief.email} for {section} (no district-specific match)")
+                else:
+                    logger.warning(f"No Section Chief found for section {section} or combined section")
+            else:
+                logger.warning(f"No Section Chief found for section {section}")
+
+    def _find_section_chief_for_law(self, law, district=None):
+        """Find the appropriate Section Chief for a given law"""
+        
+        # Map laws to section values
+        law_to_section_map = {
+            "PD-1586": "PD-1586",  # EIA
+            "RA-8749": "RA-8749",  # Air Quality
+            "RA-9275": "RA-9275",  # Water Quality
+            "RA-6969": "RA-6969",  # Toxic Chemicals
+            "RA-9003": "RA-9003",  # Solid Waste
+            # Handle combined section for general EIA/Air/Water management
+            "PD-1586,RA-8749,RA-9275": "PD-1586,RA-8749,RA-9275"
+        }
+        
+        section_value = law_to_section_map.get(law)
+        if not section_value:
+            logger.warning(f"No section mapping found for law: {law}")
+            return None
+        
+        # Find active Section Chief for this law
+        query = User.objects.filter(
+            userlevel="Section Chief",
+            section=section_value,
+            is_active=True
+        )
+        
+        # If district is specified, prioritize Section Chiefs in that district
+        if district:
+            # First try to find Section Chief in the same district
+            district_chief = query.filter(district=district).first()
+            if district_chief:
+                logger.info(f"Found Section Chief in same district: {district_chief.email}")
+                return district_chief
+            
+            # If no district-specific chief, find any active Section Chief for this law
+            logger.info(f"No Section Chief found in district {district}, looking for any active Section Chief for law {law}")
+        
+        # Find any active Section Chief for this law
+        section_chief = query.first()
+        if section_chief:
+            logger.info(f"Found Section Chief for law {law}: {section_chief.email}")
+        else:
+            logger.warning(f"No active Section Chief found for law: {law}")
+            
+        return section_chief
+
+    def _get_establishment_district(self, establishment):
+        """Get district based on establishment's province and city"""
+        from .regions import get_district_by_city
+        
+        province = establishment.province
+        city = establishment.city
+        
+        # Get district from city
+        district = get_district_by_city(province, city)
+        
+        if district:
+            # Format as "Province - District" to match User.DISTRICT_CHOICES
+            formatted_district = f"{province} - {district}"
+            logger.info(f"Establishment {establishment.name} ({city}, {province}) mapped to district: {formatted_district}")
+            return formatted_district
+        else:
+            logger.warning(f"No district found for establishment {establishment.name} in {city}, {province}")
+            return None
+
+    def _assign_district_personnel(self, inspection, section, district):
+        """Assign Section Chief, Unit Head, and Monitoring Personnel based on district"""
+        from users.models import User
+        
+        if not district:
+            logger.warning(f"No district available for assignment, skipping personnel assignment")
+            return
+        
+        # Map laws to section values
+        law_to_section_map = {
+            "PD-1586": "PD-1586",  # EIA
+            "RA-8749": "RA-8749",  # Air Quality
+            "RA-9275": "RA-9275",  # Water Quality
+            "RA-6969": "RA-6969",  # Toxic Chemicals
+            "RA-9003": "RA-9003",  # Solid Waste
+            "PD-1586,RA-8749,RA-9275": "PD-1586,RA-8749,RA-9275"  # Combined
+        }
+        
+        section_value = law_to_section_map.get(section)
+        if not section_value:
+            logger.warning(f"No section mapping found for law: {section}")
+            return
+        
+        # Assign Section Chief for this law in this district
+        section_chief = User.objects.filter(
+            userlevel="Section Chief",
+            section=section_value,
+            district=district,
+            is_active=True
+        ).first()
+        
+        if section_chief:
+            inspection.assigned_section_chief = section_chief
+            logger.info(f"Assigned Section Chief {section_chief.email} for {section} in {district}")
+        else:
+            # Try combined section match (for EIA, Air, Water combined)
+            if section_value in ['PD-1586', 'RA-8749', 'RA-9275']:
+                section_chief = User.objects.filter(
+                    userlevel="Section Chief",
+                    section='PD-1586,RA-8749,RA-9275',
+                    district=district,
+                    is_active=True
+                ).first()
+                
+                if section_chief:
+                    inspection.assigned_section_chief = section_chief
+                    logger.info(f"Assigned combined Section Chief {section_chief.email} for {section} in {district}")
+                else:
+                    logger.warning(f"No Section Chief found for {section} or combined section in district {district}")
+            else:
+                logger.warning(f"No Section Chief found for {section} in district {district}")
+        
+        # Assign Unit Head for this law in this district (if applicable)
+        if section_value in ["PD-1586", "RA-8749", "RA-9275"]:  # EIA, Air, Water have Unit Heads
+            unit_head = User.objects.filter(
+                userlevel="Unit Head",
+                section=section_value,
+                district=district,
+                is_active=True
+            ).first()
+            
+            if unit_head:
+                inspection.assigned_unit_head = unit_head
+                logger.info(f"Assigned Unit Head {unit_head.email} for {section} in {district}")
+            else:
+                logger.warning(f"No Unit Head found for {section} in district {district}")
+        
+        # Assign Monitoring Personnel for this law in this district
+        monitoring_personnel = User.objects.filter(
+            userlevel="Monitoring Personnel",
+            section=section_value,
+            district=district,
+            is_active=True
+        ).first()
+        
+        if monitoring_personnel:
+            inspection.assigned_monitor = monitoring_personnel
+            logger.info(f"Assigned Monitoring Personnel {monitoring_personnel.email} for {section} in {district}")
+        else:
+            logger.warning(f"No Monitoring Personnel found for {section} in district {district}")
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -169,50 +419,86 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         return Response({'suggestions': suggestions})
 
-    def perform_create(self, serializer):
-        # Auto-derive district if not provided using province+city mapping
-        district = serializer.validated_data.get('district')
-        establishment = serializer.validated_data.get('establishment')
-        section = serializer.validated_data.get('section')
 
-        if not district and isinstance(establishment, Establishment):
-            derived = get_district_by_city(establishment.province, establishment.city)
-        else:
-            derived = district
 
-        inspection = serializer.save(created_by=self.request.user, district=derived)
-
-        # Auto-assign based on user role and workflow
-        user_level = getattr(self.request.user, 'userlevel', '')
+    @action(detail=True, methods=['post'])
+    def make_decision(self, request, pk=None):
+        """Make a workflow decision (inspect/forward/complete)"""
+        inspection = self.get_object()
+        serializer = WorkflowDecisionSerializer(data=request.data)
         
-        if user_level == 'Legal Unit':
-            inspection.assigned_legal_unit = self.request.user
-            inspection.status = 'LEGAL_REVIEW'
-            inspection.current_assigned_to = self.request.user
-        elif user_level == 'Division Chief':
-            inspection.assigned_division_head = self.request.user
-            inspection.status = 'DIVISION_CREATED'
-            inspection.current_assigned_to = self.request.user
+        if serializer.is_valid():
+            action = serializer.validated_data['action']
+            comments = serializer.validated_data.get('comments', '')
             
-            if section:
-                section_chief = User.objects.filter(userlevel='Section Chief', section=section, is_active=True).first()
-                if section_chief:
-                    inspection.assigned_section_chief = section_chief
-        elif user_level == 'Section Chief':
-            inspection.assigned_section_chief = self.request.user
-            inspection.status = 'SECTION_REVIEW'
-            inspection.current_assigned_to = self.request.user
-        elif user_level == 'Unit Head':
-            inspection.assigned_unit_head = self.request.user
-            inspection.status = 'UNIT_REVIEW'
-            inspection.current_assigned_to = self.request.user
-        elif user_level == 'Monitoring Personnel':
-            inspection.assigned_monitor = self.request.user
-            inspection.status = 'MONITORING_INSPECTION'
-            inspection.current_assigned_to = self.request.user
-        
-        inspection.save()
+            success, message = inspection.make_decision(
+                user=request.user,
+                action=action,
+                comments=comments
+            )
+            
+            if success:
+                return Response({
+                    'message': message,
+                    'inspection': InspectionSerializer(inspection, context={'request': request}).data
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': message
+                }, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    @action(detail=True, methods=['get'])
+    def workflow_history(self, request, pk=None):
+        """Get workflow history for an inspection"""
+        inspection = self.get_object()
+        history = inspection.workflow_history.all()
+        
+        history_data = []
+        for h in history:
+            history_data.append({
+                'id': h.id,
+                'action': h.action,
+                'performed_by': {
+                    'id': h.performed_by.id,
+                    'name': f"{h.performed_by.first_name} {h.performed_by.last_name}".strip() or h.performed_by.email,
+                    'userlevel': h.performed_by.userlevel
+                },
+                'comments': h.comments,
+                'timestamp': h.timestamp
+            })
+        
+        return Response(history_data)
+
+    @action(detail=False, methods=['get'])
+    def available_personnel(self, request):
+        """Get available personnel for assignment based on filters"""
+        section = request.query_params.get('section')
+        district = request.query_params.get('district')
+        userlevel = request.query_params.get('userlevel')
+        
+        queryset = User.objects.filter(is_active=True)
+        
+        if section:
+            queryset = queryset.filter(section=section)
+        if district:
+            queryset = queryset.filter(district=district)
+        if userlevel:
+            queryset = queryset.filter(userlevel=userlevel)
+        
+        personnel_data = []
+        for user in queryset:
+            personnel_data.append({
+                'id': user.id,
+                'name': f"{user.first_name} {user.last_name}".strip() or user.email,
+                'email': user.email,
+                'userlevel': user.userlevel,
+                'section': user.section,
+                'district': user.district
+            })
+        
+        return Response(personnel_data)
 
     @action(detail=True, methods=['post'])
     def assign(self, request, pk=None):

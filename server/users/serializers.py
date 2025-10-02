@@ -4,6 +4,7 @@ from notifications.models import Notification
 from django.conf import settings
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from system_config.models import SystemConfiguration  # Import from system_config
+from .signals import user_created_with_password
 
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -83,14 +84,42 @@ class RegisterSerializer(serializers.ModelSerializer):
                         "userlevel": f"Only one active Unit Head is allowed per law. Currently active for {section}: {existing_active.email}"
                     })
         
-        # Legal Unit and Monitoring Personnel: Multiple allowed (no validation needed)
+        # Monitoring Personnel: Only one active per law per district
+        elif userlevel == "Monitoring Personnel":
+            if section:
+                # Get district from the request data if available
+                district = self.initial_data.get("district")
+                if district:
+                    existing_active = User.objects.filter(
+                        userlevel="Monitoring Personnel", 
+                        section=section, 
+                        district=district,
+                        is_active=True
+                    ).first()
+                    if existing_active:
+                        raise serializers.ValidationError({
+                            "userlevel": f"Only one active Monitoring Personnel is allowed per law per district. Currently active for {section} in {district}: {existing_active.email}"
+                        })
+        
+        # Legal Unit: Multiple allowed (no validation needed)
 
     def create(self, validated_data):
-        # Use auto-generated password from system_config
+        # Generate password once and pass it to create_user
         generated_password = SystemConfiguration.generate_default_password()
-        user = User.objects.create_user(password=generated_password, **validated_data)
-        # Store the generated password in the user instance for later use
-        user._generated_password = generated_password
+        # Pass password_provided as a separate parameter to avoid model field conflict
+        user = User.objects.create_user(
+            password=generated_password, 
+            password_provided=True,
+            **validated_data
+        )
+        
+        # Send the custom signal with the generated password
+        user_created_with_password.send(
+            sender=self.__class__,
+            user=user,
+            password=generated_password
+        )
+        
         return user
 
 
@@ -183,7 +212,24 @@ class UserSerializer(serializers.ModelSerializer):
                         "userlevel": f"Only one active Unit Head is allowed per law. Currently active for {section}: {existing_active.email}"
                     })
         
-        # Legal Unit and Monitoring Personnel: Multiple allowed (no validation needed)
+        # Monitoring Personnel: Only one active per law per district (excluding current user)
+        elif userlevel == "Monitoring Personnel":
+            if section:
+                # Get district from the request data if available
+                district = self.initial_data.get("district")
+                if district:
+                    existing_active = User.objects.filter(
+                        userlevel="Monitoring Personnel", 
+                        section=section, 
+                        district=district,
+                        is_active=True
+                    ).exclude(id=current_user.id).first()
+                    if existing_active:
+                        raise serializers.ValidationError({
+                            "userlevel": f"Only one active Monitoring Personnel is allowed per law per district. Currently active for {section} in {district}: {existing_active.email}"
+                        })
+        
+        # Legal Unit: Multiple allowed (no validation needed)
 
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):

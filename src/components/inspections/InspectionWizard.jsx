@@ -39,6 +39,7 @@ export default function InspectionWizard({
   const [validationErrors, setValidationErrors] = useState({});
   const [showValidationSummary, setShowValidationSummary] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
+  const [routingInfo, setRoutingInfo] = useState(null);
   const wizardRef = useRef(null);
 
   // Auto-save functionality
@@ -318,6 +319,11 @@ export default function InspectionWizard({
         console.log("Created inspection:", createdInspection);
 
         newInspections.push(createdInspection);
+        
+        // Store routing info from the first inspection (they should all be the same)
+        if (newInspections.length === 1 && createdInspection.routing_info) {
+          setRoutingInfo(createdInspection.routing_info);
+        }
       }
 
       console.log("All inspections created:", newInspections);
@@ -983,6 +989,36 @@ export default function InspectionWizard({
                 <div>• Unique inspection codes will be generated</div>
               </div>
             </div>
+            
+            {/* District-Based Routing Information for Division Chief */}
+            {userLevel === "Division Chief" && (
+              <div className="bg-sky-50 p-4 rounded-lg border border-sky-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <MapPin className="w-4 h-4 text-sky-600" />
+                  <span className="font-medium text-sky-900">District-Based Automatic Routing</span>
+                </div>
+                <div className="text-sm text-sky-700 space-y-2">
+                  <div className="bg-white p-3 rounded border border-sky-100">
+                    <div className="font-medium text-sky-800 mb-1">📍 Location-Based Assignment</div>
+                    <div>• District determined from establishment location (province + city)</div>
+                    <div>• Personnel assigned from the same district as the establishment</div>
+                  </div>
+                  <div className="bg-white p-3 rounded border border-sky-100">
+                    <div className="font-medium text-sky-800 mb-1">👥 Personnel Assignment</div>
+                    <div>• <strong>Section Chief:</strong> Assigned based on law + district</div>
+                    <div>• <strong>Unit Head:</strong> Assigned for EIA/Air/Water laws + district</div>
+                    <div>• <strong>Monitoring Personnel:</strong> Assigned based on law + district</div>
+                  </div>
+                  <div className="bg-white p-3 rounded border border-sky-100">
+                    <div className="font-medium text-sky-800 mb-1">🔄 Workflow Process</div>
+                    <div className="space-y-1">
+                      <div>• <strong>General Laws (EIA/Air/Water):</strong> Division Chief → Section Chief → Unit Head → Monitoring Personnel</div>
+                      <div>• <strong>Toxic & Solid Waste (RA-6969/RA-9003):</strong> Division Chief → Section Chief → Monitoring Personnel (bypasses unit)</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <p className="text-sm text-gray-600">
               This action cannot be undone. Are you sure you want to proceed?
             </p>

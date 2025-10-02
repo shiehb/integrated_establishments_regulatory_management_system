@@ -119,7 +119,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route
               path="/district-management"
               element={
-                <RoleRoute allowed={["Admin", "division chief"]}>
+                <RoleRoute allowed={["Admin", "Division Chief"]}>
                   <DistrictManagement />
                 </RoleRoute>
               }

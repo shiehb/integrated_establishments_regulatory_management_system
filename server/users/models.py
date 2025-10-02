@@ -1,11 +1,11 @@
-# users/models.py (updated)
+                                                                                                # users/models.py (updated)
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.utils import timezone
 from system_config.models import SystemConfiguration  # Import from system_config
 
 class UserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
+    def create_user(self, email, password=None, password_provided=False, **extra_fields):
         if not email:
             raise ValueError("Email is required")
         email = self.normalize_email(email)
@@ -15,8 +15,16 @@ class UserManager(BaseUserManager):
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
-        # Store the generated password in the user instance for later use
-        user._generated_password = password
+        
+        # Send signal for welcome email if password was auto-generated
+        if not password_provided:
+            from .signals import user_created_with_password
+            user_created_with_password.send(
+                sender=self.__class__,
+                user=user,
+                password=password
+            )
+        
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
@@ -36,11 +44,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     ]
 
     SECTION_CHOICES = [
-        ("PD-1586", "PD-1586"),
         ("RA-6969", "RA-6969"),
         ("RA-8749", "RA-8749"),
         ("RA-9275", "RA-9275"),
         ("RA-9003", "RA-9003"),
+        ("PD-1586,RA-8749,RA-9275", "EIA, Air & Water (Combined)"),
     ]
 
     DISTRICT_CHOICES = [

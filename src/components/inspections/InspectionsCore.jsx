@@ -4,6 +4,8 @@ import InspectionWizard from "./InspectionWizard";
 import ViewInspection from "./ViewInspection";
 import InspectionDisplay from "./InspectionDisplay";
 import InspectionWorkflow from "./InspectionWorkflow";
+import WorkflowDecisionModal from "./WorkflowDecisionModal";
+import WorkflowHistoryModal from "./WorkflowHistoryModal";
 import {
   getEstablishments,
   getInspections,
@@ -178,6 +180,10 @@ export default function InspectionsCore({
   const [currentFormInspection, setCurrentFormInspection] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [initialized, setInitialized] = useState(false);
+  
+  // Workflow modal states
+  const [workflowDecisionModal, setWorkflowDecisionModal] = useState({ isOpen: false, inspection: null });
+  const [workflowHistoryModal, setWorkflowHistoryModal] = useState({ isOpen: false, inspection: null });
 
   const {
     inspections,
@@ -331,6 +337,33 @@ export default function InspectionsCore({
     [setInspections]
   );
 
+  // Workflow modal handlers
+  const handleOpenWorkflowDecision = useCallback((inspection) => {
+    setWorkflowDecisionModal({ isOpen: true, inspection });
+  }, []);
+
+  const handleCloseWorkflowDecision = useCallback(() => {
+    setWorkflowDecisionModal({ isOpen: false, inspection: null });
+  }, []);
+
+  const handleWorkflowDecisionMade = useCallback((updatedInspection) => {
+    // Update the inspection in the list
+    setInspections(prev => 
+      prev.map(inspection => 
+        inspection.id === updatedInspection.id ? updatedInspection : inspection
+      )
+    );
+    handleCloseWorkflowDecision();
+  }, [setInspections]);
+
+  const handleOpenWorkflowHistory = useCallback((inspection) => {
+    setWorkflowHistoryModal({ isOpen: true, inspection });
+  }, []);
+
+  const handleCloseWorkflowHistory = useCallback(() => {
+    setWorkflowHistoryModal({ isOpen: false, inspection: null });
+  }, []);
+
   const handleViewInspection = useCallback((inspection) => {
     setViewInspection(inspection);
   }, []);
@@ -370,6 +403,8 @@ export default function InspectionsCore({
           onAdd={canCreate ? () => setShowWizard(true) : undefined}
           onView={handleViewInspection}
           onWorkflowOpen={handleWorkflowOpen}
+          onWorkflowDecision={handleOpenWorkflowDecision}
+          onWorkflowHistory={handleOpenWorkflowHistory}
           userLevel={userLevel}
           loading={loading}
           canCreate={canCreate}
@@ -419,6 +454,22 @@ export default function InspectionsCore({
           userProfile={userProfile}
         />
       )}
+
+      {/* Workflow Decision Modal */}
+      <WorkflowDecisionModal
+        inspection={workflowDecisionModal.inspection}
+        isOpen={workflowDecisionModal.isOpen}
+        onClose={handleCloseWorkflowDecision}
+        onDecisionMade={handleWorkflowDecisionMade}
+        currentUser={userProfile}
+      />
+
+      {/* Workflow History Modal */}
+      <WorkflowHistoryModal
+        inspection={workflowHistoryModal.inspection}
+        isOpen={workflowHistoryModal.isOpen}
+        onClose={handleCloseWorkflowHistory}
+      />
     </div>
   );
 }

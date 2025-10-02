@@ -41,6 +41,8 @@ export default function InspectionList({
   onView,
   userLevel = "public",
   onWorkflowOpen,
+  onWorkflowDecision,
+  onWorkflowHistory,
   loading = false,
   canCreate = false,
   userProfile = null,
@@ -757,14 +759,34 @@ export default function InspectionList({
                         >
                           <Eye size={12} /> View
                         </button>
-                        {inspection.can_act && onWorkflowOpen && (
+                        {inspection.can_act && onWorkflowDecision && (
                           <button
-                            onClick={() => onWorkflowOpen(inspection)}
+                            onClick={() => onWorkflowDecision(inspection)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-blue-600 rounded hover:bg-blue-700"
+                            type="button"
+                            title="Make Workflow Decision"
+                          >
+                            <Workflow size={12} /> Decide
+                          </button>
+                        )}
+                        {inspection.available_actions && inspection.available_actions.length > 0 && onWorkflowDecision && (
+                          <button
+                            onClick={() => onWorkflowDecision(inspection)}
                             className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
                             type="button"
-                            title="Take Workflow Action"
+                            title="Make Workflow Decision"
                           >
-                            <Workflow size={12} /> Workflow
+                            <Workflow size={12} /> Decide
+                          </button>
+                        )}
+                        {onWorkflowHistory && (
+                          <button
+                            onClick={() => onWorkflowHistory(inspection)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-gray-600 rounded hover:bg-gray-700"
+                            type="button"
+                            title="View Workflow History"
+                          >
+                            <Workflow size={12} /> History
                           </button>
                         )}
                       </div>
