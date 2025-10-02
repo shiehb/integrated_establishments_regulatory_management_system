@@ -44,9 +44,19 @@ class User(AbstractBaseUser, PermissionsMixin):
     ]
 
     DISTRICT_CHOICES = [
-        ("1st District", "1st District"),
-        ("2nd District", "2nd District"),
-        ("3rd District", "3rd District"),
+        ("La Union - 1st District", "La Union - 1st District"),
+        ("La Union - 2nd District", "La Union - 2nd District"),
+        ("La Union - 3rd District", "La Union - 3rd District"),
+        ("Ilocos Norte - 1st District", "Ilocos Norte - 1st District"),
+        ("Ilocos Norte - 2nd District", "Ilocos Norte - 2nd District"),
+        ("Ilocos Sur - 1st District", "Ilocos Sur - 1st District"),
+        ("Ilocos Sur - 2nd District", "Ilocos Sur - 2nd District"),
+        ("Pangasinan - 1st District", "Pangasinan - 1st District"),
+        ("Pangasinan - 2nd District", "Pangasinan - 2nd District"),
+        ("Pangasinan - 3rd District", "Pangasinan - 3rd District"),
+        ("Pangasinan - 4th District", "Pangasinan - 4th District"),
+        ("Pangasinan - 5th District", "Pangasinan - 5th District"),
+        ("Pangasinan - 6th District", "Pangasinan - 6th District"),
     ]
     email = models.EmailField(unique=True, max_length=255)
     first_name = models.CharField(max_length=150, blank=True)

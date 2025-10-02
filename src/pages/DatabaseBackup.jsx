@@ -61,6 +61,7 @@ const DatabaseBackup = () => {
   const [backupPath, setBackupPath] = useState("");
   const [restoreFile, setRestoreFile] = useState(null);
   const [restoreFileName, setRestoreFileName] = useState("");
+  const [conflictHandling, setConflictHandling] = useState("skip");
 
   const [processing, setProcessing] = useState(false);
   const [processingAction, setProcessingAction] = useState(""); // "backup", "restore", "delete"
@@ -180,15 +181,19 @@ const DatabaseBackup = () => {
       let response;
 
       if (selectedBackup) {
-        response = await restoreBackupByName(selectedBackup.fileName);
+        response = await restoreBackupByName(selectedBackup.fileName, {
+          conflictHandling: conflictHandling
+        });
       } else if (restoreFile) {
-        response = await restoreBackupFromFile(restoreFile);
+        response = await restoreBackupFromFile(restoreFile, {
+          conflictHandling: conflictHandling
+        });
       } else {
         showMessage("Please choose a backup file", "error");
         return;
       }
 
-      showMessage(response.message || "Database restored successfully!");
+      showMessage(response.message || "Database restored successfully!", "success");
       // Reset form
       setRestoreFile(null);
       setRestoreFileName("");
@@ -680,6 +685,27 @@ const DatabaseBackup = () => {
                       </p>
                     </div>
                   )}
+
+                  {/* Conflict Handling Options */}
+                  <div>
+                    <label className="block mb-2 text-sm font-medium text-gray-700">
+                      Conflict Handling
+                    </label>
+                    <select
+                      value={conflictHandling}
+                      onChange={(e) => setConflictHandling(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                    >
+                      <option value="skip">Skip existing records</option>
+                      <option value="replace">Replace existing records</option>
+                      <option value="update">Update existing records</option>
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {conflictHandling === 'skip' && 'Skip records that already exist in the database'}
+                      {conflictHandling === 'replace' && 'Delete and recreate records that already exist'}
+                      {conflictHandling === 'update' && 'Update existing records with new data from backup'}
+                    </p>
+                  </div>
                 </div>
                 <div className="flex justify-end mt-6">
                   <button

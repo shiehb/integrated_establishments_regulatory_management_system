@@ -9,6 +9,7 @@ import {
   FileText,
   Settings,
   Database, // ✅ add Database icon
+  Map as MapIcon,
 } from "lucide-react";
 
 // Common sidebar menu for all roles
@@ -36,6 +37,12 @@ const baseMenu = [
     icon: Database,
     adminOnly: true,
   }, // ✅ Only Admin
+  {
+    name: "District Management",
+    path: "/district-management",
+    icon: MapIcon,
+    adminOrDivisionChief: true,
+  }, // ✅ Admin or Division Chief
 ];
 
 export default function Sidebar({ userLevel = "public" }) {
@@ -76,6 +83,8 @@ export default function Sidebar({ userLevel = "public" }) {
             if (item.adminOnly && userLevel !== "Admin") return null;
             // ✅ Hide Billing Records unless Legal Unit
             if (item.legalOnly && userLevel !== "Legal Unit") return null;
+            // ✅ Hide District Management unless Admin or Division Chief
+            if (item.adminOrDivisionChief && userLevel !== "Admin" && userLevel !== "Division Chief") return null;
 
             const IconComponent = item.icon;
             return (

@@ -115,6 +115,41 @@ export const toggleUserActive = async (id) => {
   }
 };
 
+export const getDistrictUsers = async (filters = {}) => {
+  try {
+    const params = new URLSearchParams();
+    if (filters.userlevel) params.append('userlevel', filters.userlevel);
+    if (filters.district) params.append('district', filters.district);
+    if (filters.section) params.append('section', filters.section);
+    
+    const response = await api.get(`auth/district-users/?${params.toString()}`);
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to fetch district users. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const assignDistrict = async (userId, district) => {
+  try {
+    const response = await api.post(`auth/assign-district/${userId}/`, { district });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to assign district. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
 export const firstTimeChangePassword = async (newPassword) => {
   try {
     const res = await api.post("auth/first-time-change-password/", {
@@ -402,10 +437,13 @@ export const createBackup = async (format, path = "") => {
   }
 };
 
-export const restoreBackupFromFile = async (file) => {
+export const restoreBackupFromFile = async (file, restoreOptions = {}) => {
   try {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("restoreOptions", JSON.stringify({
+      conflictHandling: restoreOptions.conflictHandling || 'skip'
+    }));
 
     const res = await api.post("db/restore/", formData, {
       headers: {
@@ -424,9 +462,14 @@ export const restoreBackupFromFile = async (file) => {
   }
 };
 
-export const restoreBackupByName = async (fileName) => {
+export const restoreBackupByName = async (fileName, restoreOptions = {}) => {
   try {
-    const res = await api.post("db/restore/", { fileName });
+    const res = await api.post("db/restore/", { 
+      fileName, 
+      restoreOptions: {
+        conflictHandling: restoreOptions.conflictHandling || 'skip'
+      }
+    });
     return res.data;
   } catch (error) {
     const enhancedError = new Error(
