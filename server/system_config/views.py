@@ -8,6 +8,7 @@ from django.core.mail import send_mail
 from django.core.cache import cache
 from .models import SystemConfiguration
 from .serializers import SystemConfigurationSerializer, SystemConfigurationUpdateSerializer
+from .utils import construct_from_email, update_django_settings
 from audit.utils import log_activity
 
 @api_view(['GET'])
@@ -48,6 +49,9 @@ def update_system_configuration(request):
             )
             
             updated_config = serializer.save()
+            
+            # Update Django settings with the new configuration
+            update_django_settings()
             
             # Clear cache to ensure new settings take effect
             cache.clear()
@@ -138,12 +142,20 @@ def perform_email_test(config, test_email=None):
             settings.EMAIL_USE_TLS = config.email_use_tls
             settings.EMAIL_HOST_USER = config.email_host_user
             settings.EMAIL_HOST_PASSWORD = config.email_host_password
-            settings.DEFAULT_FROM_EMAIL = config.default_from_email or config.email_host_user
+            constructed_from_email = construct_from_email(config.default_from_email, config.email_host_user)
+            settings.DEFAULT_FROM_EMAIL = constructed_from_email
             
+            # Debug logging
+            print(f"DEBUG: Sending email with from_email: {constructed_from_email}")
+            print(f"DEBUG: EMAIL_HOST_USER: {config.email_host_user}")
+            print(f"DEBUG: DEFAULT_FROM_EMAIL: {settings.DEFAULT_FROM_EMAIL}")
+            
+            # Note: Gmail will override the from_email if it's not verified in the account
+            # This is why you're seeing jerichourbano.01.01.04@gmail.com instead of noreply@gmail.com
             send_mail(
                 subject='System Configuration Test Email',
                 message='This is a test email to verify your email configuration is working correctly.',
-                from_email=settings.DEFAULT_FROM_EMAIL,
+                from_email=constructed_from_email,  # Explicitly use the constructed email
                 recipient_list=[test_email],
                 fail_silently=False,
             )
@@ -174,15 +186,22 @@ def perform_email_test(config, test_email=None):
 def get_current_settings(request):
     """Get current Django settings for comparison"""
     try:
+        config = SystemConfiguration.get_active_config()
+        
         current_settings = {
             'email_host': getattr(settings, 'EMAIL_HOST', ''),
             'email_port': getattr(settings, 'EMAIL_PORT', 587),
             'email_use_tls': getattr(settings, 'EMAIL_USE_TLS', True),
             'email_host_user': getattr(settings, 'EMAIL_HOST_USER', ''),
             'default_from_email': getattr(settings, 'DEFAULT_FROM_EMAIL', ''),
-            'default_user_password': getattr(settings, 'DEFAULT_USER_PASSWORD', ''),
             'access_token_lifetime': getattr(settings, 'SIMPLE_JWT', {}).get('ACCESS_TOKEN_LIFETIME', ''),
             'refresh_token_lifetime': getattr(settings, 'SIMPLE_JWT', {}).get('REFRESH_TOKEN_LIFETIME', ''),
+            # Debug info
+            'database_config': {
+                'default_from_email': config.default_from_email,
+                'email_host_user': config.email_host_user,
+                'constructed_from_email': config.get_constructed_from_email(),
+            }
         }
         
         return Response(current_settings, status=status.HTTP_200_OK)

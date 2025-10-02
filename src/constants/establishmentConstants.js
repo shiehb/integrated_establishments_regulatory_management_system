@@ -1,0 +1,61 @@
+// Establishment-related constants
+
+// Allowed provinces (Ilocos Region)
+export const ALLOWED_PROVINCES = [
+  "LA UNION",
+  "ILOCOS SUR", 
+  "ILOCOS NORTE",
+  "PANGASINAN",
+];
+
+// Predefined Nature of Business options
+export const NATURE_OF_BUSINESS_OPTIONS = [
+  "RESTAURANT/FOOD SERVICE",
+  "RETAIL/WHOLESALE",
+  "MANUFACTURING",
+  "CONSTRUCTION",
+  "TRANSPORTATION",
+  "HEALTHCARE/MEDICAL",
+  "EDUCATION/TRAINING",
+  "HOSPITALITY/TOURISM",
+  "AGRICULTURE/FARMING",
+  "FISHING/AQUACULTURE",
+  "MINING",
+  "ENERGY/POWER",
+  "TELECOMMUNICATIONS",
+  "BANKING/FINANCE",
+  "INSURANCE",
+  "REAL ESTATE",
+  "CONSULTING SERVICES",
+  "LEGAL SERVICES",
+  "ACCOUNTING SERVICES",
+  "MARKETING/ADVERTISING",
+  "INFORMATION TECHNOLOGY",
+  "RESEARCH & DEVELOPMENT",
+  "WASTE MANAGEMENT",
+  "WATER SUPPLY",
+  "GOVERNMENT SERVICES",
+  "NON-PROFIT/CHARITY",
+  "ENTERTAINMENT/RECREATION",
+  "SPORTS/FITNESS",
+  "BEAUTY/COSMETICS",
+  "AUTOMOTIVE SERVICES",
+  "REPAIR SERVICES",
+  "CLEANING SERVICES",
+  "SECURITY SERVICES",
+  "OTHERS"
+];
+
+// Ilocos Region coordinates for auto-zoom
+export const ILOCOS_REGION_BOUNDS = {
+  north: 18.6,
+  south: 15.4,
+  east: 121.2,
+  west: 119.2
+};
+
+// Ilocos Region center coordinates
+export const ILOCOS_REGION_CENTER = {
+  latitude: 16.5,
+  longitude: 120.2
+};

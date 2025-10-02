@@ -5,7 +5,7 @@ export const helpTopics = [
     description: "Step by step guide to add a new establishment.",
     category: "establishment",
     tags: ["add", "establishment", "form"],
-    access: ["admin", "Division Chief", "Section Chief", "Unit Head"], // Admin and these roles can add establishments
+    access: ["admin", "Division Chief", "Section Chief", "Unit Head"],
     steps: [
       {
         title: "Open the Establishments Page",
@@ -47,7 +47,7 @@ export const helpTopics = [
       {
         title: "Find the Establishment",
         description:
-          "Use the search function or browse the list to find the establishment you want to edit.",
+          "Use the search or browse the list to find the establishment you want to edit.",
       },
       {
         title: "Click Edit Button",
@@ -76,8 +76,7 @@ export const helpTopics = [
     steps: [
       {
         title: "Access Polygon View",
-        description:
-          "Click the 'Polygon' button next to any establishment in the list.",
+        description: "Click the 'Polygon' button next to any establishment.",
       },
       {
         title: "View Existing Polygon",
@@ -92,7 +91,7 @@ export const helpTopics = [
       {
         title: "Draw or Modify",
         description:
-          "Click on the map to add points, or drag existing points to modify the polygon.",
+          "Click on the map to add points, or drag existing points to modify.",
       },
       {
         title: "Save Changes",
@@ -124,13 +123,11 @@ export const helpTopics = [
       },
       {
         title: "Select Establishments",
-        description:
-          "Choose one or more establishments to inspect from the list.",
+        description: "Choose one or more establishments to inspect.",
       },
       {
         title: "Choose Law Section",
-        description:
-          "Select the appropriate law section (PD-1586, RA-6969, etc.) for the inspection.",
+        description: "Select the appropriate law section for the inspection.",
       },
       {
         title: "Complete the Wizard",
@@ -144,7 +141,7 @@ export const helpTopics = [
     description: "Guide for adding, editing, and managing user accounts.",
     category: "user",
     tags: ["user", "management", "admin"],
-    access: ["admin"], // Only admin can manage users
+    access: ["admin"],
     steps: [
       {
         title: "Access Users Page",
@@ -157,8 +154,7 @@ export const helpTopics = [
       },
       {
         title: "Assign Role and Section",
-        description:
-          "Select appropriate user role and section from the dropdown menus.",
+        description: "Select appropriate user role and section.",
       },
       {
         title: "Set User Status",
@@ -173,7 +169,7 @@ export const helpTopics = [
     description: "Guide for editing user profile and avatar.",
     category: "user",
     tags: ["profile", "edit", "avatar"],
-    access: [], // Available to all users
+    access: [],
     steps: [
       {
         title: "Go to Profile Settings",
@@ -202,7 +198,7 @@ export const helpTopics = [
     description: "Step by step guide to change your account password.",
     category: "user",
     tags: ["password", "security", "account"],
-    access: [], // Available to all users
+    access: [],
     steps: [
       {
         title: "Access Change Password",
@@ -212,19 +208,18 @@ export const helpTopics = [
       },
       {
         title: "Enter Current Password",
-        description:
-          "Provide your current password for security verification. ",
-        image: "../assets/help/changepassword/step_2.png",
+        description: "Provide your current password for verification.",
+        image: "/assets/help/changepassword/step_2.png",
       },
       {
         title: "Set New Password",
         description: "Enter your new password and confirm it.",
-        image: "../assets/help/changepassword/step_3.png",
+        image: "/assets/help/changepassword/step_3.png",
       },
       {
         title: "Save Changes",
         description: "Click 'Save' to update your password.",
-        image: "../assets/help/changepassword/step_4.png",
+        image: "/assets/help/changepassword/step_4.png",
       },
     ],
   },
@@ -239,27 +234,27 @@ export const helpTopics = [
       {
         title: "Legal Unit",
         description:
-          "Has access to legal documents and compliance reports. Cannot modify establishments or create inspections.",
+          "Has access to legal documents and reports. Cannot modify establishments.",
       },
       {
         title: "Division Chief",
         description:
-          "Full access to manage establishments, users, and inspections. Can create and edit all content.",
+          "Full access to manage establishments, users, and inspections.",
       },
       {
         title: "Section Chief",
         description:
-          "Can manage establishments and create inspections within their section. Limited user management.",
+          "Can manage establishments and create inspections within their section.",
       },
       {
         title: "Unit Head",
         description:
-          "Can add/edit establishments and create inspections. No user management access.",
+          "Can add/edit establishments and create inspections. No user management.",
       },
       {
         title: "Monitoring Personnel",
         description:
-          "Can create inspections and edit polygons. Cannot add/edit establishment details.",
+          "Can create inspections and edit polygons. Cannot edit establishments.",
       },
     ],
   },

@@ -14,12 +14,9 @@ import {
   ChevronRight,
 } from "lucide-react";
 import WorkflowStatus from "./WorkflowStatus";
-import ExportModal from "../ExportModal";
-import {
-  getInspections,
-  searchInspections,
-  getEstablishments,
-} from "../../services/api";
+import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
+import ExportDropdown from "../ExportDropdown";
+import PrintPDF from "../PrintPDF";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -39,35 +36,35 @@ const useDebounce = (value, delay) => {
 };
 
 export default function InspectionList({
-  inspections: propInspections,
+  inspections: propInspections = [],
   onAdd,
   onView,
-  userLevel,
+  userLevel = "public",
   onWorkflowOpen,
   loading = false,
   canCreate = false,
-  pagination,
+  userProfile = null,
+  pagination = {},
   onPageChange,
-  searchQuery: propSearchQuery,
+  searchQuery: externalSearchQuery = "",
   onSearch,
 }) {
-  const [inspections, setInspections] = useState(propInspections || []);
-  const [establishments, setEstablishments] = useState([]);
-  const [loadingData, setLoadingData] = useState(true);
-  const [totalCount, setTotalCount] = useState(0);
-
-  // Use props if provided, otherwise manage state internally
+  const [inspections, setInspections] = useState(propInspections);
   const [internalSearchQuery, setInternalSearchQuery] = useState("");
+  
+  // ✅ Pagination with localStorage
+  const savedPagination = useLocalStoragePagination("inspections_list");
+  const [currentPage, setCurrentPage] = useState(savedPagination.page);
+  const [pageSize, setPageSize] = useState(savedPagination.pageSize);
+
+  // Use external search if provided, otherwise use internal
   const searchQuery =
-    propSearchQuery !== undefined ? propSearchQuery : internalSearchQuery;
+    externalSearchQuery !== undefined
+      ? externalSearchQuery
+      : internalSearchQuery;
   const setSearchQuery = onSearch || setInternalSearchQuery;
 
-  const [internalCurrentPage, setInternalCurrentPage] = useState(1);
-  const currentPage =
-    pagination?.page !== undefined ? pagination.page : internalCurrentPage;
-  const setCurrentPage = onPageChange || setInternalCurrentPage;
-
-  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   // Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -80,34 +77,23 @@ export default function InspectionList({
 
   // Export
   const [selectedInspections, setSelectedInspections] = useState([]);
-  const [showExportModal, setShowExportModal] = useState(false);
 
-  // Fetch establishments
-  const fetchEstablishments = useCallback(async () => {
-    try {
-      const data = await getEstablishments();
-      const formatted = data.results ? data.results : data; // Handle both paginated and non-paginated responses
-      setEstablishments(formatted);
-    } catch (err) {
-      console.error("Error fetching establishments:", err);
-      setEstablishments([]);
-    }
-  }, []);
-
-  // Use prop inspections or fetch internally
+  // Update inspections when prop changes
   useEffect(() => {
     if (propInspections !== undefined) {
       setInspections(propInspections);
-      setLoadingData(false);
-    } else {
-      // Internal fetching logic would go here
-      setLoadingData(false);
     }
   }, [propInspections]);
 
+  // Sync with external pagination
   useEffect(() => {
-    fetchEstablishments();
-  }, [fetchEstablishments]);
+    if (pagination.page) {
+      setCurrentPage(pagination.page);
+    }
+    if (pagination.pageSize) {
+      setPageSize(pagination.pageSize);
+    }
+  }, [pagination.page, pagination.pageSize]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -125,7 +111,7 @@ export default function InspectionList({
   }, [filtersOpen, sortDropdownOpen]);
 
   // Sorting handler
-  const handleSort = (key) => {
+  const handleSort = useCallback((key) => {
     setSortConfig((prev) => {
       if (prev.key === key) {
         if (prev.direction === "asc") return { key, direction: "desc" };
@@ -133,8 +119,8 @@ export default function InspectionList({
       }
       return { key, direction: "asc" };
     });
-    setSortDropdownOpen(false);
-  };
+    // Removed auto-close: setSortDropdownOpen(false);
+  }, []);
 
   const getSortIcon = (key) => {
     if (sortConfig.key !== key) return <ArrowUpDown size={14} />;
@@ -145,148 +131,179 @@ export default function InspectionList({
     );
   };
 
-  const sortFields = [
-    { key: "id", label: "ID" },
-    { key: "name", label: "Establishment Name" },
-    { key: "section", label: "Section" },
-    { key: "status", label: "Status" },
-    { key: "created_at", label: "Created Date" },
-  ];
-
-  const sortDirections = [
-    { key: "asc", label: "Ascending" },
-    { key: "desc", label: "Descending" },
-  ];
-
-  const handleSortFromDropdown = (fieldKey, directionKey) => {
-    if (fieldKey) {
-      setSortConfig({ key: fieldKey, direction: directionKey || "asc" });
-    } else {
-      setSortConfig({ key: null, direction: null });
-    }
-    setSortDropdownOpen(false);
-  };
-
   // Filter functions
-  const toggleSection = (section) => {
+  const toggleSection = useCallback((section) => {
     setSectionFilter((prev) =>
       prev.includes(section)
         ? prev.filter((s) => s !== section)
         : [...prev, section]
     );
-  };
+  }, []);
 
-  const toggleStatus = (status) => {
+  const toggleStatus = useCallback((status) => {
     setStatusFilter((prev) =>
       prev.includes(status)
         ? prev.filter((s) => s !== status)
         : [...prev, status]
     );
-  };
+  }, []);
 
-  const clearSections = () => setSectionFilter([]);
-  const clearStatuses = () => setStatusFilter([]);
-  const clearSearch = () => setSearchQuery("");
+  const clearSections = useCallback(() => setSectionFilter([]), []);
+  const clearStatuses = useCallback(() => setStatusFilter([]), []);
+  const clearSearch = useCallback(() => setSearchQuery(""), [setSearchQuery]);
 
-  const clearAllFilters = () => {
+  const clearAllFilters = useCallback(() => {
     setSearchQuery("");
     setSectionFilter([]);
     setStatusFilter([]);
     setSortConfig({ key: null, direction: null });
     setCurrentPage(1);
-  };
+    if (onPageChange) onPageChange(1);
+  }, [setSearchQuery, onPageChange]);
 
-  // Filter inspections
-  const filteredInspections = useMemo(() => {
-    let list = inspections.filter((inspection) => {
-      const establishment = establishments.find(
-        (e) => e.id === inspection.establishmentId
-      );
-      const matchesSection =
-        sectionFilter.length === 0 ||
-        sectionFilter.includes(inspection.section);
-      const matchesStatus =
-        statusFilter.length === 0 || statusFilter.includes(inspection.status);
+  // Filter and paginate inspections
+  const { filteredInspections, paginatedInspections, totalCount } =
+    useMemo(() => {
+      let filtered = inspections.filter((inspection) => {
+        // Search filter
+        const searchLower = debouncedSearchQuery.toLowerCase();
+        const matchesSearch =
+          !debouncedSearchQuery ||
+          inspection.id?.toLowerCase().includes(searchLower) ||
+          inspection.establishment?.name?.toLowerCase().includes(searchLower) ||
+          inspection.establishment_detail?.name
+            ?.toLowerCase()
+            .includes(searchLower) ||
+          inspection.section?.toLowerCase().includes(searchLower) ||
+          inspection.code?.toLowerCase().includes(searchLower);
 
-      return matchesSection && matchesStatus;
-    });
+        // Section filter
+        const matchesSection =
+          sectionFilter.length === 0 ||
+          sectionFilter.includes(inspection.section);
 
-    if (sortConfig.key) {
-      list = [...list].sort((a, b) => {
-        let aVal, bVal;
+        // Status filter
+        const matchesStatus =
+          statusFilter.length === 0 || statusFilter.includes(inspection.status);
 
-        if (sortConfig.key === "name") {
-          const establishmentA = establishments.find(
-            (e) => e.id === a.establishmentId
-          );
-          const establishmentB = establishments.find(
-            (e) => e.id === b.establishmentId
-          );
-          aVal = establishmentA?.name ? establishmentA.name.toLowerCase() : "";
-          bVal = establishmentB?.name ? establishmentB.name.toLowerCase() : "";
-        } else if (sortConfig.key === "id") {
-          aVal = a.id ? a.id.toLowerCase() : "";
-          bVal = b.id ? b.id.toLowerCase() : "";
-        } else if (sortConfig.key === "created_at") {
-          aVal = new Date(a.created_at).getTime();
-          bVal = new Date(b.created_at).getTime();
-        } else {
-          aVal = a[sortConfig.key] ? a[sortConfig.key].toLowerCase() : "";
-          bVal = b[sortConfig.key] ? b[sortConfig.key].toLowerCase() : "";
-        }
-
-        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
+        return matchesSearch && matchesSection && matchesStatus;
       });
-    }
 
-    return list;
-  }, [inspections, establishments, sectionFilter, statusFilter, sortConfig]);
+      // Sort
+      if (sortConfig.key) {
+        filtered = [...filtered].sort((a, b) => {
+          let aVal, bVal;
 
-  // Flatten inspections with establishment details
-  const flattenedInspections = useMemo(() => {
-    return filteredInspections.map((inspection) => {
-      const establishment = establishments.find(
-        (e) => e.id === inspection.establishmentId
-      );
+          if (sortConfig.key === "name") {
+            aVal =
+              a.establishment?.name?.toLowerCase() ||
+              a.establishment_detail?.name?.toLowerCase() ||
+              "";
+            bVal =
+              b.establishment?.name?.toLowerCase() ||
+              b.establishment_detail?.name?.toLowerCase() ||
+              "";
+          } else if (sortConfig.key === "id") {
+            aVal = (a.id || a.code || "").toLowerCase();
+            bVal = (b.id || b.code || "").toLowerCase();
+          } else if (sortConfig.key === "created_at") {
+            aVal = new Date(a.created_at || 0).getTime();
+            bVal = new Date(b.created_at || 0).getTime();
+          } else {
+            aVal = (a[sortConfig.key] || "").toString().toLowerCase();
+            bVal = (b[sortConfig.key] || "").toString().toLowerCase();
+          }
+
+          if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+          if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+          return 0;
+        });
+      }
+
+      // Paginate
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = startIndex + pageSize;
+      const paginated = filtered.slice(startIndex, endIndex);
+
       return {
-        ...inspection,
-        establishments: establishment ? [establishment] : [],
-        establishment: establishment || {},
+        filteredInspections: filtered,
+        paginatedInspections: paginated,
+        totalCount: filtered.length,
       };
-    });
-  }, [filteredInspections, establishments]);
+    }, [
+      inspections,
+      debouncedSearchQuery,
+      sectionFilter,
+      statusFilter,
+      sortConfig,
+      currentPage,
+      pageSize,
+    ]);
 
-  // Selection
-  const toggleSelect = (id) => {
+  // Selection handlers
+  const toggleSelect = useCallback((id) => {
     setSelectedInspections((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
-  };
+  }, []);
 
-  const toggleSelectAll = () => {
-    if (selectedInspections.length === flattenedInspections.length) {
+  const toggleSelectAll = useCallback(() => {
+    if (selectedInspections.length === paginatedInspections.length) {
       setSelectedInspections([]);
     } else {
-      setSelectedInspections(flattenedInspections.map((i) => i.id));
+      setSelectedInspections(paginatedInspections.map((i) => i.id || i.code));
     }
-  };
+  }, [selectedInspections.length, paginatedInspections]);
 
-  // Pagination
-  const totalCountToUse = pagination?.totalCount || totalCount;
-  const pageSize = pagination?.pageSize || 10;
-  const totalPages = Math.ceil(totalCountToUse / pageSize);
+  // Pagination handlers
+  const totalPages = Math.ceil(totalCount / pageSize);
   const startItem = (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, totalCountToUse);
+  const endItem = Math.min(currentPage * pageSize, totalCount);
 
-  const goToPage = (page) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
-  };
+  const goToPage = useCallback(
+    (page) => {
+      const newPage = Math.max(1, Math.min(page, totalPages));
+      setCurrentPage(newPage);
+      if (onPageChange) {
+        onPageChange(newPage);
+      }
+    },
+    [totalPages, onPageChange]
+  );
+
+  const handlePageSizeChange = useCallback(
+    (newSize) => {
+      const newPageSize = parseInt(newSize);
+      setPageSize(newPageSize);
+      setCurrentPage(1);
+      if (pagination.onPageSizeChange) {
+        pagination.onPageSizeChange(newPageSize);
+      }
+      if (onPageChange) {
+        onPageChange(1);
+      }
+    },
+    [pagination, onPageChange]
+  );
+
+  const handleInternalSearch = useCallback(
+    (query) => {
+      setSearchQuery(query);
+      setCurrentPage(1);
+      if (onPageChange) {
+        onPageChange(1);
+      }
+    },
+    [setSearchQuery, onPageChange]
+  );
 
   const activeFilterCount = sectionFilter.length + statusFilter.length;
   const hasActiveFilters =
     searchQuery || activeFilterCount > 0 || sortConfig.key;
+
+  // Calculate filtered count for display
+  const filteredCount = totalCount;
+  const totalInspections = inspections.length;
 
   const statusLabels = {
     PENDING: "Pending",
@@ -301,20 +318,55 @@ export default function InspectionList({
 
   const formatDate = (dateString) => {
     if (!dateString) return "";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    try {
+      return new Date(dateString).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return "";
+    }
+  };
+
+  // Get establishment name with fallbacks
+  const getEstablishmentName = (inspection) => {
+    return (
+      inspection.establishment?.name ||
+      inspection.establishment_detail?.name ||
+      "Unknown Establishment"
+    );
+  };
+
+  // Get establishment address with fallbacks
+  const getEstablishmentAddress = (inspection) => {
+    const establishment =
+      inspection.establishment || inspection.establishment_detail;
+    if (!establishment) return "N/A";
+
+    const street =
+      establishment.street_building || establishment.address?.street || "";
+    const barangay =
+      establishment.barangay || establishment.address?.barangay || "";
+    const city = establishment.city || establishment.address?.city || "";
+    const province =
+      establishment.province || establishment.address?.province || "";
+
+    return { street, barangay, city, province };
   };
 
   // Get unique sections and statuses for filters
-  const uniqueSections = [
-    ...new Set(inspections.map((i) => i.section).filter(Boolean)),
-  ].sort();
-  const uniqueStatuses = [
-    ...new Set(inspections.map((i) => i.status).filter(Boolean)),
-  ].sort();
+  const uniqueSections = useMemo(
+    () =>
+      [...new Set(inspections.map((i) => i.section).filter(Boolean))].sort(),
+    [inspections]
+  );
+
+  const uniqueStatuses = useMemo(
+    () => [...new Set(inspections.map((i) => i.status).filter(Boolean))].sort(),
+    [inspections]
+  );
+
 
   return (
     <div className="p-4 bg-white rounded shadow">
@@ -322,32 +374,34 @@ export default function InspectionList({
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h1 className="text-2xl font-bold text-sky-600">Inspections</h1>
 
-        <div className="flex flex-wrap items-center w-full gap-2 sm:w-auto">
-          {/* 🔍 Search Bar */}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {/* Search Bar */}
           <div className="relative">
             <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
             <input
               type="text"
               placeholder="Search inspections..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+              onChange={(e) => handleInternalSearch(e.target.value)}
+              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border-b border-gray-300 rounded min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
             {searchQuery && (
               <button
                 onClick={clearSearch}
                 className="absolute -translate-y-1/2 right-3 top-1/2"
+                type="button"
               >
                 <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
               </button>
             )}
           </div>
 
-          {/* 🔽 Sort Dropdown */}
+          {/* Sort Dropdown */}
           <div className="relative sort-dropdown">
             <button
               onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+              className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
+              type="button"
             >
               <ArrowUpDown size={14} />
               Sort by
@@ -355,180 +409,184 @@ export default function InspectionList({
             </button>
 
             {sortDropdownOpen && (
-              <div className="absolute right-0 z-20 w-48 p-2 mt-2 bg-white border rounded shadow">
-                <div className="mb-2">
-                  <h4 className="px-3 py-1 text-sm font-semibold text-gray-600">
-                    Sort by
-                  </h4>
-                  {sortFields.map((field) => (
+              <div className="absolute right-0 z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
+                <div className="p-2">
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Sort Options
+                  </div>
+                  
+                  {[
+                    { key: "id", label: "Inspection ID" },
+                    { key: "name", label: "Establishment" },
+                    { key: "section", label: "Section" },
+                    { key: "status", label: "Status" },
+                    { key: "created_at", label: "Created Date" },
+                  ].map((field) => (
                     <button
                       key={field.key}
-                      onClick={() =>
-                        handleSortFromDropdown(
-                          field.key,
-                          sortConfig.key === field.key
-                            ? sortConfig.direction === "asc"
-                              ? "desc"
-                              : "asc"
-                            : "asc"
-                        )
-                      }
-                      className={`flex items-center w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-100 ${
-                        sortConfig.key === field.key
-                          ? "bg-sky-50 font-medium"
-                          : ""
+                      onClick={() => handleSort(field.key)}
+                      className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                        sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
                       }`}
+                      type="button"
                     >
-                      <span className="mr-2 text-xs text-sky-600">
-                        {sortConfig.key === field.key ? "•" : ""}
-                      </span>
-                      <span>{field.label}</span>
+                      <div className="flex-1 text-left">
+                        <div className="font-medium">{field.label}</div>
+                      </div>
+                      {sortConfig.key === field.key && (
+                        <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                      )}
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
 
-                {sortConfig.key && (
-                  <>
-                    <div className="my-1 border-t border-gray-200"></div>
-                    <div>
-                      <h4 className="px-3 py-1 text-sm font-semibold text-gray-600">
-                        Order
-                      </h4>
-                      {sortDirections.map((dir) => (
+           {/* Filters dropdown */}
+           <div className="relative filter-dropdown">
+             <button
+               onClick={() => setFiltersOpen((prev) => !prev)}
+               className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
+               type="button"
+             >
+               <ArrowUpDown size={14} />
+               Filters
+               <ChevronDown size={14} />
+               {activeFilterCount > 0 && ` (${activeFilterCount})`}
+             </button>
+
+            {filtersOpen && (
+              <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded shadow max-h-80 overflow-y-auto">
+                <div className="p-2">
+                  <div className="flex items-center justify-between px-3 py-2 mb-2">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Filter Options
+                    </div>
+                    {(sectionFilter.length > 0 || statusFilter.length > 0) && (
+                      <button
+                        onClick={clearAllFilters}
+                        className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                        type="button"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Section Filter */}
+                  <div className="mb-3">
+                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                      Section
+                    </div>
+                    <div className="max-h-32 overflow-y-auto">
+                      {uniqueSections.map((section) => (
                         <button
-                          key={dir.key}
-                          onClick={() =>
-                            handleSortFromDropdown(sortConfig.key, dir.key)
-                          }
-                          className={`flex items-center w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-100 ${
-                            sortConfig.direction === dir.key
-                              ? "bg-sky-50 font-medium"
-                              : ""
+                          key={section}
+                          onClick={() => toggleSection(section)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                            sectionFilter.includes(section) ? "bg-sky-50 font-medium" : ""
                           }`}
+                          type="button"
                         >
-                          <span className="mr-2 text-xs text-sky-600">
-                            {sortConfig.direction === dir.key ? "•" : ""}
-                          </span>
-                          <span>{dir.label}</span>
+                          <div className="flex-1 text-left">
+                            <div className="font-medium truncate">{section}</div>
+                          </div>
+                          {sectionFilter.includes(section) && (
+                            <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                          )}
                         </button>
                       ))}
                     </div>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* 🎚 Filters dropdown */}
-          <div className="relative filter-dropdown">
-            <button
-              onClick={() => setFiltersOpen((prev) => !prev)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-            >
-              <Filter size={14} /> Filters
-              {activeFilterCount > 0 && ` (${activeFilterCount})`}
-            </button>
-
-            {filtersOpen && (
-              <div className="absolute right-0 z-20 w-64 p-2 mt-2 overflow-y-auto bg-white border rounded shadow max-h-96">
-                {/* Section Filter */}
-                <div className="mb-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="text-sm font-semibold text-gray-600">
-                      Section
-                    </h4>
-                    {sectionFilter.length > 0 && (
-                      <button
-                        onClick={clearSections}
-                        className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
-                      >
-                        Clear
-                      </button>
-                    )}
                   </div>
-                  <div className="overflow-y-auto max-h-32">
-                    {uniqueSections.map((section) => (
-                      <button
-                        key={section}
-                        onClick={() => toggleSection(section)}
-                        className={`flex items-center w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-100 ${
-                          sectionFilter.includes(section)
-                            ? "bg-sky-50 font-medium"
-                            : ""
-                        }`}
-                      >
-                        <span className="mr-2 text-xs text-sky-600">
-                          {sectionFilter.includes(section) ? "•" : ""}
-                        </span>
-                        <span className="truncate">{section}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
-                {/* Status Filter */}
-                <div className="mb-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="text-sm font-semibold text-gray-600">
+                  {/* Status Filter */}
+                  <div className="mb-2">
+                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
                       Status
-                    </h4>
-                    {statusFilter.length > 0 && (
-                      <button
-                        onClick={clearStatuses}
-                        className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <div className="overflow-y-auto max-h-32">
-                    {uniqueStatuses.map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => toggleStatus(status)}
-                        className={`flex items-center w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-100 ${
-                          statusFilter.includes(status)
-                            ? "bg-sky-50 font-medium"
-                            : ""
-                        }`}
-                      >
-                        <span className="mr-2 text-xs text-sky-600">
-                          {statusFilter.includes(status) ? "•" : ""}
-                        </span>
-                        <span className="truncate">
-                          {statusLabels[status] || status.replace(/_/g, " ")}
-                        </span>
-                      </button>
-                    ))}
+                    </div>
+                    <div className="max-h-32 overflow-y-auto">
+                      {uniqueStatuses.map((status) => (
+                        <button
+                          key={status}
+                          onClick={() => toggleStatus(status)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                            statusFilter.includes(status) ? "bg-sky-50 font-medium" : ""
+                          }`}
+                          type="button"
+                        >
+                          <div className="flex-1 text-left">
+                            <div className="font-medium truncate">
+                              {statusLabels[status] || status.replace(/_/g, " ")}
+                            </div>
+                          </div>
+                          {statusFilter.includes(status) && (
+                            <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-
-                {/* Clear All */}
-                {hasActiveFilters && (
-                  <button
-                    onClick={clearAllFilters}
-                    className="w-full px-3 py-2 mt-2 text-xs text-center text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
-                  >
-                    Clear All Filters
-                  </button>
-                )}
               </div>
             )}
           </div>
 
-          {selectedInspections.length > 0 && (
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-            >
-              <Download size={14} /> Export ({selectedInspections.length})
-            </button>
-          )}
+          {/* Export Selected */}
+          <ExportDropdown
+            title="Inspections Export Report"
+            fileName={`inspections_export${selectedInspections.length > 0 ? `_${selectedInspections.length}_selected` : ''}`}
+            columns={["ID", "Establishment", "Section", "Status", "Created Date"]}
+            rows={selectedInspections.length > 0 ? 
+              inspections.filter(i => selectedInspections.includes(i.id || i.code)).map(inspection => [
+                inspection.id || inspection.code,
+                inspection.establishment_name,
+                inspection.section,
+                inspection.status,
+                new Date(inspection.created_at).toLocaleDateString()
+              ]) : 
+              inspections.map(inspection => [
+                inspection.id || inspection.code,
+                inspection.establishment_name,
+                inspection.section,
+                inspection.status,
+                new Date(inspection.created_at).toLocaleDateString()
+              ])
+            }
+            disabled={inspections.length === 0}
+            className="flex items-center text-sm"
+          />
+
+          <PrintPDF
+            title="Inspections Report"
+            fileName="inspections_report"
+            columns={["ID", "Establishment", "Section", "Status", "Created Date"]}
+            rows={selectedInspections.length > 0 ? 
+              inspections.filter(i => selectedInspections.includes(i.id || i.code)).map(inspection => [
+                inspection.id || inspection.code,
+                inspection.establishment_name,
+                inspection.section,
+                inspection.status,
+                new Date(inspection.created_at).toLocaleDateString()
+              ]) : 
+              inspections.map(inspection => [
+                inspection.id || inspection.code,
+                inspection.establishment_name,
+                inspection.section,
+                inspection.status,
+                new Date(inspection.created_at).toLocaleDateString()
+              ])
+            }
+            selectedCount={selectedInspections.length}
+            disabled={inspections.length === 0}
+            className="flex items-center text-sm"
+          />
 
           {canCreate && onAdd && (
             <button
               onClick={onAdd}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+              className="flex items-center px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+              type="button"
             >
               + New Inspection
             </button>
@@ -536,23 +594,42 @@ export default function InspectionList({
         </div>
       </div>
 
+      {/* 📊 Search results info */}
+      {(hasActiveFilters || filteredCount !== totalInspections) && (
+        <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
+          <div>
+            {filteredCount === totalInspections
+              ? `Showing all ${totalInspections} inspection(s)`
+              : `Showing ${filteredCount} of ${totalInspections} inspection(s)`}
+          </div>
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              className="underline text-sky-600 hover:text-sky-700"
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full border border-gray-300 rounded-lg">
+        <table className="w-full border-b border-gray-300 rounded-lg">
           <thead>
             <tr className="text-sm text-left text-white bg-sky-700">
-              <th className="w-6 p-1 text-center border border-gray-300">
+              <th className="w-6 p-1 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
                   checked={
                     selectedInspections.length > 0 &&
-                    selectedInspections.length === flattenedInspections.length
+                    selectedInspections.length === paginatedInspections.length
                   }
                   onChange={toggleSelectAll}
                 />
               </th>
               {[
-                { key: "id", label: "ID", sortable: true },
+                { key: "id", label: "Inspection ID", sortable: true },
                 { key: "name", label: "Establishment Name", sortable: true },
                 { key: "address", label: "Address", sortable: false },
                 { key: "section", label: "Section", sortable: true },
@@ -562,8 +639,8 @@ export default function InspectionList({
               ].map((col) => (
                 <th
                   key={col.key}
-                  className={`p-1 border border-gray-300 ${
-                    col.sortable ? "cursor-pointer" : ""
+                  className={`p-1 border-b border-gray-300 ${
+                    col.sortable ? "cursor-pointer hover:bg-sky-800" : ""
                   }`}
                   onClick={col.sortable ? () => handleSort(col.key) : undefined}
                 >
@@ -572,17 +649,17 @@ export default function InspectionList({
                   </div>
                 </th>
               ))}
-              <th className="p-1 text-center border border-gray-300">
+              <th className="p-1 text-center border-b border-gray-300">
                 Actions
               </th>
             </tr>
           </thead>
           <tbody>
-            {loadingData ? (
+            {loading ? (
               <tr>
                 <td
                   colSpan="9"
-                  className="px-2 py-8 text-center border border-gray-300"
+                  className="px-2 py-8 text-center border-b border-gray-300"
                 >
                   <div className="flex items-center justify-center">
                     <div className="w-6 h-6 mr-2 border-b-2 rounded-full animate-spin border-sky-600"></div>
@@ -590,11 +667,11 @@ export default function InspectionList({
                   </div>
                 </td>
               </tr>
-            ) : flattenedInspections.length === 0 ? (
+            ) : paginatedInspections.length === 0 ? (
               <tr>
                 <td
                   colSpan="9"
-                  className="px-2 py-4 text-center text-gray-500 border border-gray-300"
+                  className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
                 >
                   {hasActiveFilters ? (
                     <div>
@@ -603,6 +680,7 @@ export default function InspectionList({
                       <button
                         onClick={clearAllFilters}
                         className="mt-2 underline text-sky-600 hover:text-sky-700"
+                        type="button"
                       >
                         Clear all filters
                       </button>
@@ -613,203 +691,104 @@ export default function InspectionList({
                 </td>
               </tr>
             ) : (
-              flattenedInspections.map((inspection) => (
-                <tr
-                  key={`${inspection.id}-${inspection.establishment.id}`}
-                  className="text-xs border border-gray-300 hover:bg-gray-50"
-                >
-                  <td className="p-2 text-center border border-gray-300">
-                    <input
-                      type="checkbox"
-                      checked={selectedInspections.includes(inspection.id)}
-                      onChange={() => toggleSelect(inspection.id)}
-                    />
-                  </td>
-                  <td className="px-2 py-3 font-medium text-center border border-gray-300">
-                    {inspection.id}
-                  </td>
-                  <td className="px-2 py-3 border border-gray-300">
-                    <div className="font-medium">
-                      {inspection.establishment.name || "N/A"}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {inspection.establishment.nature_of_business || "N/A"}
-                    </div>
-                  </td>
-                  <td className="px-2 py-3 border border-gray-300">
-                    <div className="text-xs">
-                      {`${inspection.establishment.street_building || ""}, ${
-                        inspection.establishment.barangay || ""
-                      }`}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {`${inspection.establishment.city || ""}, ${
-                        inspection.establishment.province || ""
-                      }`}
-                    </div>
-                  </td>
-                  <td className="px-2 py-3 text-center border border-gray-300">
-                    {inspection.section}
-                  </td>
-                  <td className="px-2 py-3 border border-gray-300">
-                    <WorkflowStatus
-                      inspection={{
-                        id: inspection.id,
-                        status: inspection.status,
-                        can_act: inspection.can_act,
-                        current_assignee_name: inspection.current_assignee_name,
-                        workflow_comments: inspection.workflow_comments,
-                        assigned_legal_unit_name:
-                          inspection.assigned_legal_unit_name,
-                        assigned_division_head_name:
-                          inspection.assigned_division_head_name,
-                        assigned_section_chief_name:
-                          inspection.assigned_section_chief_name,
-                        assigned_unit_head_name:
-                          inspection.assigned_unit_head_name,
-                        assigned_monitor_name: inspection.assigned_monitor_name,
-                      }}
-                      userLevel={userLevel}
-                      onWorkflowOpen={onWorkflowOpen}
-                    />
-                  </td>
-                  <td className="px-2 py-3 border border-gray-300">
-                    {inspection.current_assignee_name || "Unassigned"}
-                  </td>
-                  <td className="px-2 py-3 text-center border border-gray-300">
-                    {formatDate(inspection.created_at)}
-                  </td>
-                  <td className="px-2 py-3 border border-gray-300">
-                    <div className="flex justify-center gap-1">
-                      <button
-                        onClick={() => onView(inspection)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-white rounded bg-sky-600 hover:bg-sky-700"
-                      >
-                        <Eye size={12} /> View
-                      </button>
-                      {inspection.can_act && onWorkflowOpen && (
+              paginatedInspections.map((inspection) => {
+                const inspectionId = inspection.id || inspection.code;
+                const address = getEstablishmentAddress(inspection);
+
+                return (
+                  <tr
+                    key={inspectionId}
+                    className="text-xs border-b border-gray-300 hover:bg-gray-50"
+                  >
+                    <td className="p-2 text-center border-b border-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={selectedInspections.includes(inspectionId)}
+                        onChange={() => toggleSelect(inspectionId)}
+                      />
+                    </td>
+                    <td className="px-2 py-3 font-mono text-center border-b border-gray-300">
+                      {inspectionId}
+                    </td>
+                    <td className="px-2 py-3 border-b border-gray-300">
+                      <div className="font-medium">
+                        {getEstablishmentName(inspection)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {inspection.establishment?.nature_of_business ||
+                          inspection.establishment_detail?.nature_of_business ||
+                          inspection.establishment?.natureOfBusiness ||
+                          "N/A"}
+                      </div>
+                    </td>
+                    <td className="px-2 py-3 border-b border-gray-300">
+                      <div className="text-xs">
+                        {`${address.street}, ${address.barangay}`}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {`${address.city}, ${address.province}`}
+                      </div>
+                    </td>
+                    <td className="px-2 py-3 text-center border-b border-gray-300">
+                      {inspection.section || "N/A"}
+                    </td>
+                    <td className="px-2 py-3 border-b border-gray-300">
+                      <WorkflowStatus
+                        inspection={inspection}
+                        userLevel={userLevel}
+                        onWorkflowOpen={onWorkflowOpen}
+                      />
+                    </td>
+                    <td className="px-2 py-3 border-b border-gray-300">
+                      {inspection.current_assignee_name ||
+                        inspection.current_assigned_to?.name ||
+                        "Unassigned"}
+                    </td>
+                    <td className="px-2 py-3 text-center border-b border-gray-300">
+                      {formatDate(inspection.created_at)}
+                    </td>
+                    <td className="px-2 py-3 border-b border-gray-300">
+                      <div className="flex justify-center gap-1">
                         <button
-                          onClick={() => onWorkflowOpen(inspection)}
-                          className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
+                          onClick={() => onView && onView(inspection)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs text-white rounded bg-sky-600 hover:bg-sky-700"
+                          type="button"
+                          title="View Inspection Details"
                         >
-                          <Workflow size={12} /> Workflow
+                          <Eye size={12} /> View
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
+                        {inspection.can_act && onWorkflowOpen && (
+                          <button
+                            onClick={() => onWorkflowOpen(inspection)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
+                            type="button"
+                            title="Take Workflow Action"
+                          >
+                            <Workflow size={12} /> Workflow
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
 
       {/* Pagination */}
-      {totalCountToUse > 0 && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-gray-600">
-            Showing {startItem} to {endItem} of {totalCountToUse} entries
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-            >
-              <ChevronLeft size={16} />
-            </button>
-
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
-              }
-
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => goToPage(pageNum)}
-                  className={`px-3 py-1 text-sm rounded ${
-                    currentPage === pageNum
-                      ? "bg-sky-600 text-white"
-                      : "hover:bg-gray-100"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-
-            <button
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm">
-            <span>Show:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                // Handle page size change if needed
-              }}
-              className="px-2 py-1 border rounded"
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-            <span>per page</span>
-          </div>
-        </div>
-      )}
-
-      <ExportModal
-        open={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        title="Inspections Export Report"
-        fileName={`inspections_export${
-          searchQuery ? `_${searchQuery.replace(/[^a-zA-Z0-9]/g, "_")}` : ""
-        }_page_${currentPage}`}
-        companyName="DENR Environmental Office"
-        companySubtitle="Inspection Management System"
-        logo="/logo.png"
-        columns={[
-          "ID",
-          "Establishment Name",
-          "Address",
-          "Business Type",
-          "Section",
-          "Status",
-          "Assignee",
-          "Created Date",
-        ]}
-        rows={selectedInspections.map((id) => {
-          const inspection = flattenedInspections.find((i) => i.id === id);
-          return [
-            inspection.id,
-            inspection.establishment.name || "N/A",
-            `${inspection.establishment.street_building || ""}, ${
-              inspection.establishment.city || ""
-            }`,
-            inspection.establishment.nature_of_business || "N/A",
-            inspection.section,
-            statusLabels[inspection.status] || inspection.status,
-            inspection.current_assignee_name || "Unassigned",
-            formatDate(inspection.created_at),
-          ];
-        })}
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={totalCount}
+        hasActiveFilters={hasActiveFilters}
+        onPageChange={goToPage}
+        onPageSizeChange={handlePageSizeChange}
+        startItem={startItem}
+        endItem={endItem}
+        storageKey="inspections_list"
       />
     </div>
   );

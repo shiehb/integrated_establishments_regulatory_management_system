@@ -227,9 +227,24 @@ export const getInspectionSearchSuggestions = async (query) => {
   return res.data;
 };
 
-export const createInspection = async (payload) => {
-  const res = await api.post("inspections/", payload);
-  return res.data;
+export const createInspection = async (inspectionData) => {
+  try {
+    console.log("Sending inspection data:", inspectionData);
+    const res = await api.post("inspections/", inspectionData);
+    console.log("Inspection created successfully:", res.data);
+    return res.data;
+  } catch (error) {
+    console.error("Create inspection error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        error.response?.data?.establishment?.[0] ||
+        error.response?.data?.section?.[0] ||
+        "Failed to create inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
 export const assignInspection = async (id, payload) => {
@@ -367,4 +382,107 @@ export const searchUsers = async (query, page = 1, pageSize = 10) => {
     params: { q: query, page, page_size: pageSize },
   });
   return res.data;
+};
+
+// -------------------------------------------------
+// Database Backup & Restore
+// -------------------------------------------------
+export const createBackup = async (format, path = "") => {
+  try {
+    const res = await api.post("db/backup/", { format, path });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to create backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const restoreBackupFromFile = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const res = await api.post("db/restore/", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to restore backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const restoreBackupByName = async (fileName) => {
+  try {
+    const res = await api.post("db/restore/", { fileName });
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to restore backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const getBackups = async () => {
+  try {
+    const res = await api.get("db/backups/");
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to fetch backups. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const deleteBackup = async (fileName) => {
+  try {
+    const res = await api.delete(`db/delete/${fileName}/`);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to delete backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const downloadBackup = async (fileName) => {
+  try {
+    const response = await api.get(`db/download/${fileName}/`, {
+      // Fixed URL pattern
+      responseType: "blob",
+    });
+    return response;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to download backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };

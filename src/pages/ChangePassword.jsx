@@ -1,9 +1,11 @@
+// ChangePassword.jsx
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Layout from "../components/Layout";
-import { changePassword } from "../services/api";
+import { changePassword, logoutUser } from "../services/api";
 import { useNavigate } from "react-router-dom";
-import ConfirmationDialog from "../components/common/ConfirmationDialog"; // Add this import
+import ConfirmationDialog from "../components/common/ConfirmationDialog";
+import { useNotifications } from "../components/NotificationManager";
 
 export default function ChangePassword() {
   const [showOldPassword, setShowOldPassword] = useState(false);
@@ -18,6 +20,7 @@ export default function ChangePassword() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const notifications = useNotifications();
 
   const handleChange = (e) => {
     setFormData({
@@ -51,6 +54,9 @@ export default function ChangePassword() {
         "Password must contain at least one uppercase letter";
     } else if (!/(?=.*\d)/.test(formData.newPassword)) {
       newErrors.newPassword = "Password must contain at least one number";
+    } else if (!/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
+      newErrors.newPassword =
+        "Password must contain at least one special character (@$!%*?&)";
     } else if (formData.newPassword === formData.oldPassword) {
       newErrors.newPassword = "New password cannot be the same as old password";
     }
@@ -79,11 +85,14 @@ export default function ChangePassword() {
       await changePassword(formData.oldPassword, formData.newPassword);
 
       // Show success notification
-      if (window.showNotification) {
-        window.showNotification("success", "Password changed successfully!");
-      }
+      notifications.passwordChange(
+        "Password changed successfully! You will be logged out for security.",
+        {
+          title: "Password Change Successful",
+          duration: 3000
+        }
+      );
 
-      // Reset form
       setFormData({
         oldPassword: "",
         newPassword: "",
@@ -91,25 +100,47 @@ export default function ChangePassword() {
       });
       setShowConfirm(false);
 
-      // Navigate back after a short delay
-      setTimeout(() => {
-        navigate(-1);
-      }, 1000);
-    } catch (err) {
-      // Show error notification
-      if (window.showNotification) {
-        const errorMessage =
-          err.response?.data?.detail ||
-          err.response?.data?.old_password?.[0] ||
-          err.response?.data?.new_password?.[0] ||
-          err.message ||
-          "Failed to change password. Please try again.";
-
-        window.showNotification(
-          "error",
-          `Error changing password: ${errorMessage}`
-        );
+      // Logout user after successful password change
+      const refreshToken = localStorage.getItem("refresh");
+      if (refreshToken) {
+        try {
+          await logoutUser(refreshToken);
+        } catch (logoutError) {
+          console.warn("Logout failed:", logoutError);
+          // Clear tokens manually if logout API fails
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+        }
+      } else {
+        // Clear tokens if no refresh token
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
       }
+
+      // Redirect to login page after logout
+      setTimeout(() => {
+        navigate("/login", {
+          state: {
+            message: "Password changed successfully! Please login with your new password."
+          }
+        });
+      }, 2000);
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.detail ||
+        err.response?.data?.old_password?.[0] ||
+        err.response?.data?.new_password?.[0] ||
+        err.message ||
+        "Failed to change password. Please try again.";
+
+      // Show error notification
+      notifications.error(
+        errorMessage,
+        {
+          title: "Password Change Failed",
+          duration: 8000
+        }
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -260,11 +291,11 @@ export default function ChangePassword() {
             <li>• At least one uppercase letter (A-Z)</li>
             <li>• At least one lowercase letter (a-z)</li>
             <li>• At least one number (0-9)</li>
+            <li>• At least one special character (@$!%*?&)</li>
           </ul>
         </div>
       </div>
 
-      {/* ✅ Confirmation Dialog */}
       <ConfirmationDialog
         open={showConfirm}
         title="Confirm Password Change"

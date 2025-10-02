@@ -9,6 +9,7 @@ import {
   deleteAllNotifications,
   deleteNotification, // ADD THIS IMPORT
 } from "../services/api";
+import NotificationDetailModal from "./NotificationDetailModal";
 
 export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
@@ -16,6 +17,8 @@ export default function Notifications() {
   const [isOpen, setIsOpen] = useState(false);
   const [hoveredNotification, setHoveredNotification] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const dropdownRef = useRef(null);
   const timeoutRef = useRef(null);
 
@@ -175,6 +178,22 @@ export default function Notifications() {
     markAsRead(id);
   };
 
+  // Handle notification click to open modal
+  const handleNotificationClick = (notification) => {
+    setSelectedNotification(notification);
+    setIsModalOpen(true);
+    // Mark as read if unread
+    if (!notification.is_read) {
+      markAsRead(notification.id);
+    }
+  };
+
+  // Handle modal close
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setSelectedNotification(null);
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -262,9 +281,7 @@ export default function Notifications() {
                   className={`relative p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
                     notification.is_read ? "bg-white" : "bg-blue-50"
                   }`}
-                  onClick={() =>
-                    !notification.is_read && markAsRead(notification.id)
-                  }
+                  onClick={() => handleNotificationClick(notification)}
                   onMouseEnter={() => handleNotificationHover(notification.id)}
                   onMouseLeave={handleNotificationLeave}
                 >
@@ -318,6 +335,13 @@ export default function Notifications() {
           </div>
         </div>
       )}
+
+      {/* Notification Detail Modal */}
+      <NotificationDetailModal
+        notification={selectedNotification}
+        isOpen={isModalOpen}
+        onClose={handleModalClose}
+      />
     </div>
   );
 }

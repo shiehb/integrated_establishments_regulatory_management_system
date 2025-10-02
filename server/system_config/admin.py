@@ -5,7 +5,7 @@ from .models import SystemConfiguration
 class SystemConfigurationAdmin(admin.ModelAdmin):
     list_display = [
         'id', 'email_host', 'email_port', 'email_host_user', 
-        'default_user_password', 'access_token_lifetime_minutes',
+        'access_token_lifetime_minutes',
         'refresh_token_lifetime_days', 'is_active', 'updated_at'
     ]
     list_filter = ['is_active', 'email_use_tls', 'rotate_refresh_tokens', 'blacklist_after_rotation']
@@ -18,9 +18,6 @@ class SystemConfigurationAdmin(admin.ModelAdmin):
                 'email_host', 'email_port', 'email_use_tls',
                 'email_host_user', 'email_host_password', 'default_from_email'
             )
-        }),
-        ('Password Configuration', {
-            'fields': ('default_user_password',)
         }),
         ('JWT Token Configuration', {
             'fields': (

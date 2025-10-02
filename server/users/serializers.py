@@ -3,6 +3,7 @@ from .models import User
 from notifications.models import Notification
 from django.conf import settings
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from system_config.models import SystemConfiguration  # Import from system_config
 
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -37,20 +38,16 @@ class RegisterSerializer(serializers.ModelSerializer):
                     "section": "This field is required for Section Chief, Unit Head, and Monitoring Personnel users."
                 })
         
-        # District requirement: For Section Chief, Unit Head, Monitoring Personnel -> district required
-        # Division Chief may optionally set district; Admin/Legal Unit typically N/A
-        district = data.get("district")
-        if userlevel in ["Section Chief", "Unit Head", "Monitoring Personnel"] and not district:
-            raise serializers.ValidationError({
-                "district": "District is required for Section Chief, Unit Head, and Monitoring Personnel."
-            })
+        # District is now completely optional - no validation required
 
         return data
 
     def create(self, validated_data):
-        # Always use default password from .env
-        default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
-        user = User.objects.create_user(password=default_password, **validated_data)
+        # Use auto-generated password from system_config
+        generated_password = SystemConfiguration.generate_default_password()
+        user = User.objects.create_user(password=generated_password, **validated_data)
+        # Store the generated password in the user instance for later use
+        user._generated_password = generated_password
         return user
 
 
@@ -92,16 +89,7 @@ class UserSerializer(serializers.ModelSerializer):
                         "section": "This field is required for Section Chief, Unit Head, and Monitoring Personnel users."
                     })
         
-        # District validation on update
-        district = data.get("district")
-        if userlevel in ["Section Chief", "Unit Head", "Monitoring Personnel"] and district is None:
-            # When explicitly updating userlevel without sending district, keep existing if present
-            # but if both userlevel and district are being changed, enforce required
-            pass
-        elif userlevel in ["Section Chief", "Unit Head", "Monitoring Personnel"] and district == "":
-            raise serializers.ValidationError({
-                "district": "District is required for Section Chief, Unit Head, and Monitoring Personnel."
-            })
+        # District is now completely optional - no validation required
 
         return data
 
@@ -116,10 +104,9 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
 
-        default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
-
-        # Force password change if first login or still using default password
-        if self.user.is_first_login or self.user.check_password(default_password):
+        # Check if user is using the default password (auto-generated)
+        # We'll check if it's their first login instead of checking against a specific password
+        if self.user.is_first_login:
             self.user.must_change_password = True
             self.user.save()  # This will update updated_at
 

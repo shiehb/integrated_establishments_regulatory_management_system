@@ -2,6 +2,8 @@ from rest_framework import serializers
 from .models import SystemConfiguration
 
 class SystemConfigurationSerializer(serializers.ModelSerializer):
+    constructed_from_email = serializers.SerializerMethodField()
+    
     class Meta:
         model = SystemConfiguration
         fields = [
@@ -12,7 +14,7 @@ class SystemConfigurationSerializer(serializers.ModelSerializer):
             'email_host_user',
             'email_host_password',
             'default_from_email',
-            'default_user_password',
+            'constructed_from_email',
             'access_token_lifetime_minutes',
             'refresh_token_lifetime_days',
             'rotate_refresh_tokens',
@@ -21,7 +23,11 @@ class SystemConfigurationSerializer(serializers.ModelSerializer):
             'updated_at',
             'is_active'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'is_active']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'is_active', 'constructed_from_email']
+    
+    def get_constructed_from_email(self, obj):
+        """Get the properly constructed from email address"""
+        return obj.get_constructed_from_email()
     
     def validate_email_port(self, value):
         """Validate email port is within valid range"""
@@ -45,10 +51,25 @@ class SystemConfigurationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Refresh token lifetime cannot exceed 365 days")
         return value
     
-    def validate_default_user_password(self, value):
-        """Validate default password meets security requirements"""
-        if len(value) < 8:
-            raise serializers.ValidationError("Default password must be at least 8 characters long")
+    def validate_default_from_email(self, value):
+        """Validate default from email format - allow partial emails like noreply@"""
+        if not value:
+            return value
+        
+        # Allow partial email addresses like "noreply@" or complete emails
+        if "@" in value and not value.endswith("@"):
+            # If it contains @ and doesn't end with @, validate as complete email
+            import re
+            email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_regex, value):
+                raise serializers.ValidationError("Please enter a valid email address")
+        elif value.endswith("@"):
+            # Allow partial emails like "noreply@"
+            import re
+            partial_email_regex = r'^[a-zA-Z0-9._%+-]+@$'
+            if not re.match(partial_email_regex, value):
+                raise serializers.ValidationError("Please enter a valid email format (e.g., 'noreply@' or 'user@domain.com')")
+        
         return value
 
 class SystemConfigurationUpdateSerializer(serializers.ModelSerializer):
@@ -64,7 +85,6 @@ class SystemConfigurationUpdateSerializer(serializers.ModelSerializer):
             'email_host_user',
             'email_host_password',
             'default_from_email',
-            'default_user_password',
             'access_token_lifetime_minutes',
             'refresh_token_lifetime_days',
             'rotate_refresh_tokens',
@@ -76,6 +96,27 @@ class SystemConfigurationUpdateSerializer(serializers.ModelSerializer):
         if value == "":
             # If empty string, don't update the password
             return None
+        return value
+    
+    def validate_default_from_email(self, value):
+        """Validate default from email format - allow partial emails like noreply@"""
+        if not value:
+            return value
+        
+        # Allow partial email addresses like "noreply@" or complete emails
+        if "@" in value and not value.endswith("@"):
+            # If it contains @ and doesn't end with @, validate as complete email
+            import re
+            email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_regex, value):
+                raise serializers.ValidationError("Please enter a valid email address")
+        elif value.endswith("@"):
+            # Allow partial emails like "noreply@"
+            import re
+            partial_email_regex = r'^[a-zA-Z0-9._%+-]+@$'
+            if not re.match(partial_email_regex, value):
+                raise serializers.ValidationError("Please enter a valid email format (e.g., 'noreply@' or 'user@domain.com')")
+        
         return value
     
     def update(self, instance, validated_data):

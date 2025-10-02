@@ -2,12 +2,14 @@ import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 import { useState } from "react";
 import { sendOtp } from "../services/api";
+import { useNotifications } from "../components/NotificationManager";
 
 export default function ForgotPassword() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const notifications = useNotifications();
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
@@ -17,6 +19,15 @@ export default function ForgotPassword() {
     try {
       const response = await sendOtp(email);
       setMessage(response.detail);
+
+      // Show success notification
+      notifications.success(
+        response.detail,
+        {
+          title: "OTP Sent",
+          duration: 4000
+        }
+      );
 
       // ✅ Automatically redirect to reset password page after successful OTP send
       if (response.detail.includes("sent")) {
@@ -29,8 +40,26 @@ export default function ForgotPassword() {
         }, 1500);
       }
     } catch (error) {
-      setMessage(
-        error.response?.data?.detail || "Failed to send OTP. Please try again."
+      let errorMessage = "Failed to send OTP. Please try again.";
+      
+      // Check for different types of errors
+      if (error.code === 'NETWORK_ERROR' || error.message?.includes('Network Error') || !navigator.onLine) {
+        errorMessage = "No internet connection. Please check your network and try again.";
+      } else if (error.response?.status === 0 || error.message?.includes('fetch')) {
+        errorMessage = "Unable to connect to server. Please check your connection and try again.";
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+      
+      setMessage(errorMessage);
+      
+      // Show error notification
+      notifications.error(
+        errorMessage,
+        {
+          title: "OTP Send Failed",
+          duration: 8000
+        }
       );
     } finally {
       setLoading(false);

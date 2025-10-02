@@ -1,4 +1,3 @@
-// constants/index.js
 export * from "./lawsConstants";
 export * from "./permitsConstants";
 export * from "./complianceConstants";

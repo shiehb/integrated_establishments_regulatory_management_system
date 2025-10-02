@@ -14,8 +14,12 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { getEstablishments, searchEstablishments } from "../../services/api";
-import ExportModal from "../ExportModal";
+import { getEstablishments } from "../../services/api";
+import ExportDropdown from "../ExportDropdown";
+import PrintPDF from "../PrintPDF";
+import DateRangeDropdown from "../DateRangeDropdown";
+import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
+import { useNotifications } from "../NotificationManager";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -44,10 +48,12 @@ export default function EstablishmentList({
   const [establishments, setEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
+  const notifications = useNotifications();
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  // ✅ Pagination with localStorage
+  const savedPagination = useLocalStoragePagination("establishments_list");
+  const [currentPage, setCurrentPage] = useState(savedPagination.page);
+  const [pageSize, setPageSize] = useState(savedPagination.pageSize);
   const [searchMode, setSearchMode] = useState(false);
 
   // Search state
@@ -64,43 +70,50 @@ export default function EstablishmentList({
 
   // Export
   const [selectedEstablishments, setSelectedEstablishments] = useState([]);
-  const [showExportModal, setShowExportModal] = useState(false);
 
-  // Fetch data based on mode (search or all)
+  // Fetch data with server-side pagination
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      let data;
+      // Set search mode
       if (debouncedSearchQuery && debouncedSearchQuery.length >= 2) {
         setSearchMode(true);
-        const result = await searchEstablishments(
-          debouncedSearchQuery,
-          currentPage,
-          pageSize
-        );
-        data = result.results || [];
-        setTotalCount(result.count || 0);
       } else {
         setSearchMode(false);
-        const allData = await getEstablishments();
-        data = allData;
-        setTotalCount(allData.length);
-
-        // Apply local pagination for non-search mode
-        const startIndex = (currentPage - 1) * pageSize;
-        const endIndex = startIndex + pageSize;
-        data = data.slice(startIndex, endIndex);
       }
-      setEstablishments(data);
+
+      const response = await getEstablishments({
+        page: currentPage,
+        page_size: pageSize,
+        ...(debouncedSearchQuery &&
+          debouncedSearchQuery.length >= 2 && { search: debouncedSearchQuery }),
+        ...(provinceFilter.length > 0 && {
+          province: provinceFilter.join(","),
+        }),
+      });
+
+      if (response.results) {
+        // Server-side paginated response
+        setEstablishments(response.results);
+        setTotalCount(response.count || 0);
+      } else {
+        // Fallback for non-paginated response
+        setEstablishments(response);
+        setTotalCount(response.length);
+      }
     } catch (err) {
       console.error("Error fetching establishments:", err);
-      if (window.showNotification) {
-        window.showNotification("error", "Error fetching establishments");
-      }
+      notifications.error(
+        "Error fetching establishments",
+        {
+          title: "Fetch Error",
+          duration: 8000
+        }
+      );
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearchQuery, currentPage, pageSize]);
+  }, [currentPage, pageSize, debouncedSearchQuery, provinceFilter]);
 
   useEffect(() => {
     fetchData();
@@ -135,7 +148,7 @@ export default function EstablishmentList({
       }
       return { key, direction: "asc" };
     });
-    setSortDropdownOpen(false);
+    // Removed auto-close: setSortDropdownOpen(false);
   };
 
   const getSortIcon = (key) => {
@@ -164,7 +177,7 @@ export default function EstablishmentList({
     } else {
       setSortConfig({ key: null, direction: null });
     }
-    setSortDropdownOpen(false);
+    // Removed auto-close: setSortDropdownOpen(false);
   };
 
   // Filter functions
@@ -242,6 +255,12 @@ export default function EstablishmentList({
   const activeFilterCount = provinceFilter.length;
   const hasActiveFilters =
     searchQuery || provinceFilter.length > 0 || sortConfig.key;
+
+  // Calculate filtered count for display
+  const filteredCount =
+    searchMode || provinceFilter.length > 0 ? totalCount : totalCount;
+  const totalEstablishments = totalCount;
+
   const provinces = ["LA UNION", "PANGASINAN", "ILOCOS SUR", "ILOCOS NORTE"];
 
   return (
@@ -250,7 +269,7 @@ export default function EstablishmentList({
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <h1 className="text-2xl font-bold text-sky-600">Establishments</h1>
 
-        <div className="flex flex-wrap items-center w-full gap-2 sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {/* Search Bar */}
           <div className="relative">
             <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
@@ -259,7 +278,7 @@ export default function EstablishmentList({
               placeholder="Search establishments..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-full min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border-b border-gray-300 rounded min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
             {searchQuery && (
               <button
@@ -275,7 +294,7 @@ export default function EstablishmentList({
           <div className="relative sort-dropdown">
             <button
               onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+              className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
             >
               <ArrowUpDown size={14} />
               Sort by
@@ -283,66 +302,74 @@ export default function EstablishmentList({
             </button>
 
             {sortDropdownOpen && (
-              <div className="absolute right-0 z-20 w-40 p-2 mt-2 bg-white border rounded shadow">
-                <div className="mb-2">
-                  <h4 className="px-3 py-1 text-sm font-semibold text-gray-600">
-                    Sort by
-                  </h4>
-                  {sortFields.map((field) => (
-                    <button
-                      key={field.key}
-                      onClick={() =>
-                        handleSortFromDropdown(
-                          field.key,
-                          sortConfig.key === field.key
-                            ? sortConfig.direction === "asc"
-                              ? "desc"
-                              : "asc"
-                            : "asc"
-                        )
-                      }
-                      className={`flex items-center w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-100 ${
-                        sortConfig.key === field.key
-                          ? "bg-sky-50 font-medium"
-                          : ""
-                      }`}
-                    >
-                      <span className="mr-2 text-xs text-sky-600">
-                        {sortConfig.key === field.key ? "•" : ""}
-                      </span>
-                      <span>{field.label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {sortConfig.key && (
-                  <>
-                    <div className="my-1 border-t border-gray-200"></div>
-                    <div>
-                      <h4 className="px-3 py-1 text-sm font-semibold text-gray-600">
-                        Order
-                      </h4>
-                      {sortDirections.map((dir) => (
-                        <button
-                          key={dir.key}
-                          onClick={() =>
-                            handleSortFromDropdown(sortConfig.key, dir.key)
-                          }
-                          className={`flex items-center w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-100 ${
-                            sortConfig.direction === dir.key
-                              ? "bg-sky-50 font-medium"
-                              : ""
-                          }`}
-                        >
-                          <span className="mr-2 text-xs text-sky-600">
-                            {sortConfig.direction === dir.key ? "•" : ""}
-                          </span>
-                          <span>{dir.label}</span>
-                        </button>
-                      ))}
+              <div className="absolute right-0 z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
+                <div className="p-2">
+                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Sort Options
+                  </div>
+                  
+                  {/* Sort by Field Section */}
+                  <div className="mb-2">
+                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                      Sort by Field
                     </div>
-                  </>
-                )}
+                    {sortFields.map((field) => (
+                      <button
+                        key={field.key}
+                        onClick={() =>
+                          handleSortFromDropdown(
+                            field.key,
+                            sortConfig.key === field.key
+                              ? sortConfig.direction === "asc"
+                                ? "desc"
+                                : "asc"
+                              : "asc"
+                          )
+                        }
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                          sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
+                        }`}
+                      >
+                        <div className="flex-1 text-left">
+                          <div className="font-medium">{field.label}</div>
+                        </div>
+                        {sortConfig.key === field.key && (
+                          <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Order Section - Shown if a field is selected */}
+                  {sortConfig.key && (
+                    <>
+                      <div className="my-1 border-t border-gray-200"></div>
+                      <div>
+                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                          Sort Order
+                        </div>
+                        {sortDirections.map((dir) => (
+                          <button
+                            key={dir.key}
+                            onClick={() =>
+                              handleSortFromDropdown(sortConfig.key, dir.key)
+                            }
+                            className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                              sortConfig.direction === dir.key ? "bg-sky-50 font-medium" : ""
+                            }`}
+                          >
+                            <div className="flex-1 text-left">
+                              <div className="font-medium">{dir.label}</div>
+                            </div>
+                            {sortConfig.direction === dir.key && (
+                              <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -351,61 +378,125 @@ export default function EstablishmentList({
           <div className="relative filter-dropdown">
             <button
               onClick={() => setFiltersOpen((prev) => !prev)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+              className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
             >
-              <Filter size={14} /> Filters
+              <ArrowUpDown size={14} />
+              Filters
+              <ChevronDown size={14} />
               {activeFilterCount > 0 && ` (${activeFilterCount})`}
             </button>
 
             {filtersOpen && (
-              <div className="absolute right-0 z-20 w-56 p-2 mt-2 bg-white border rounded shadow">
-                <div className="mb-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="text-sm font-semibold text-gray-600">
-                      Province
-                    </h4>
+              <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded shadow">
+                <div className="p-2">
+                  <div className="flex items-center justify-between px-3 py-2 mb-2">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Filter Options
+                    </div>
                     {provinceFilter.length > 0 && (
                       <button
                         onClick={clearProvinces}
-                        className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                        className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
                       >
-                        Clear
+                        Clear All
                       </button>
                     )}
                   </div>
-                  {provinces.map((province) => (
-                    <button
-                      key={province}
-                      onClick={() => toggleProvince(province)}
-                      className={`flex items-center w-full px-3 py-2 text-sm text-left rounded hover:bg-gray-100 ${
-                        provinceFilter.includes(province)
-                          ? "bg-sky-50 font-medium"
-                          : ""
-                      }`}
-                    >
-                      <span className="mr-2 text-xs text-sky-600">
-                        {provinceFilter.includes(province) ? "•" : ""}
-                      </span>
-                      <span>{province}</span>
-                    </button>
-                  ))}
+                  
+                  {/* Province Section */}
+                  <div className="mb-2">
+                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                      Province
+                    </div>
+                    {provinces.map((province) => (
+                      <button
+                        key={province}
+                        onClick={() => toggleProvince(province)}
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                          provinceFilter.includes(province) ? "bg-sky-50 font-medium" : ""
+                        }`}
+                      >
+                        <div className="flex-1 text-left">
+                          <div className="font-medium">{province}</div>
+                        </div>
+                        {provinceFilter.includes(province) && (
+                          <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
-          {selectedEstablishments.length > 0 && (
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-            >
-              <Download size={14} /> Export ({selectedEstablishments.length})
-            </button>
-          )}
+          <ExportDropdown
+            title="Establishments Export Report"
+            fileName={`establishments_export${searchQuery ? `_${searchQuery}` : ""}`}
+            columns={["ID", "Name", "Nature of Business", "Province", "City", "Year Established", "Status"]}
+            rows={selectedEstablishments.length > 0 ? 
+              selectedEstablishments.map(id => {
+                const establishment = establishments.find(e => e.id === id);
+                return [
+                  establishment.id,
+                  establishment.name,
+                  establishment.nature_of_business,
+                  establishment.province,
+                  establishment.city,
+                  establishment.year_established,
+                  "Active"
+                ];
+              }) : 
+              establishments.map(establishment => [
+                establishment.id,
+                establishment.name,
+                establishment.nature_of_business,
+                establishment.province,
+                establishment.city,
+                establishment.year_established,
+                "Active"
+              ])
+            }
+            disabled={establishments.length === 0}
+            className="flex items-center text-sm"
+          />
+
+          <PrintPDF
+            title="Establishments Report"
+            fileName="establishments_report"
+            columns={["ID", "Name", "Nature of Business", "Province", "City", "Year Established", "Status"]}
+            rows={selectedEstablishments.length > 0 ? 
+              selectedEstablishments.map(id => {
+                const establishment = establishments.find(e => e.id === id);
+                return establishment ? [
+                  establishment.id,
+                  establishment.name,
+                  establishment.nature_of_business,
+                  establishment.province,
+                  establishment.city,
+                  establishment.year_established,
+                  "Active"
+                ] : [];
+              }).filter(row => row.length > 0) : 
+              establishments.map(establishment => [
+                establishment.id,
+                establishment.name,
+                establishment.nature_of_business,
+                establishment.province,
+                establishment.city,
+                establishment.year_established,
+                "Active"
+              ])
+            }
+            selectedCount={selectedEstablishments.length}
+            disabled={establishments.length === 0}
+            className="flex items-center text-sm"
+          />
+
           {canEditEstablishments && (
             <button
               onClick={onAdd}
-              className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+              className="flex items-center px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
             >
               <Plus size={16} /> Add Establishment
             </button>
@@ -413,12 +504,31 @@ export default function EstablishmentList({
         </div>
       </div>
 
+      {/* 📊 Search results info */}
+      {(hasActiveFilters || filteredCount !== totalEstablishments) && (
+        <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
+          <div>
+            {filteredCount === totalEstablishments
+              ? `Showing all ${totalEstablishments} establishment(s)`
+              : `Showing ${filteredCount} of ${totalEstablishments} establishment(s)`}
+          </div>
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              className="underline text-sky-600 hover:text-sky-700"
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full border border-gray-300 rounded-lg">
+        <table className="w-full border-b border-gray-300 rounded-lg">
           <thead>
             <tr className="text-sm text-left text-white bg-sky-700">
-              <th className="w-6 p-1 text-center border border-gray-300">
+              <th className="w-6 p-1 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
                   checked={
@@ -430,7 +540,7 @@ export default function EstablishmentList({
                 />
               </th>
               <th
-                className="p-1 border border-gray-300 cursor-pointer"
+                className="p-1 border-b border-gray-300 cursor-pointer"
                 onClick={() => handleSort("name")}
               >
                 <div className="flex items-center gap-1">
@@ -438,26 +548,28 @@ export default function EstablishmentList({
                 </div>
               </th>
               <th
-                className="p-1 border border-gray-300 cursor-pointer"
+                className="p-1 border-b border-gray-300 cursor-pointer"
                 onClick={() => handleSort("city")}
               >
                 <div className="flex items-center gap-1">
                   Address {getSortIcon("city")}
                 </div>
               </th>
-              <th className="p-1 text-center border border-gray-300">
+              <th className="p-1 text-center border-b border-gray-300">
                 Coordinates
               </th>
-              <th className="p-1 border border-gray-300">Nature of Business</th>
+              <th className="p-1 border-b border-gray-300">Nature of Business</th>
               <th
-                className="p-1 text-center border border-gray-300 cursor-pointer"
+                className="p-1 text-center border-b border-gray-300 cursor-pointer"
                 onClick={() => handleSort("year_established")}
               >
                 <div className="flex items-center justify-center gap-1">
                   Year Established {getSortIcon("year_established")}
                 </div>
               </th>
-              <th className="p-1 border border-gray-300">Actions</th>
+              <th className="p-1 text-center border-b border-gray-300">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -465,7 +577,7 @@ export default function EstablishmentList({
               <tr>
                 <td
                   colSpan="7"
-                  className="px-2 py-6 text-center text-gray-500 border border-gray-300"
+                  className="px-2 py-6 text-center text-gray-500 border-b border-gray-300"
                 >
                   <div
                     className="flex flex-col items-center justify-center"
@@ -483,7 +595,7 @@ export default function EstablishmentList({
               <tr>
                 <td
                   colSpan="7"
-                  className="px-2 py-4 text-center text-gray-500 border border-gray-300"
+                  className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
                 >
                   {hasActiveFilters ? (
                     <div>
@@ -505,37 +617,37 @@ export default function EstablishmentList({
               filteredEstablishments.map((e) => (
                 <tr
                   key={e.id}
-                  className="p-1 text-xs border border-gray-300 hover:bg-gray-50"
+                  className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
                 >
-                  <td className="text-center border border-gray-300">
+                  <td className="text-center border-b border-gray-300">
                     <input
                       type="checkbox"
                       checked={selectedEstablishments.includes(e.id)}
                       onChange={() => toggleSelect(e.id)}
                     />
                   </td>
-                  <td className="px-2 font-semibold border border-gray-300">
+                  <td className="px-2 font-semibold border-b border-gray-300">
                     {e.name}
                   </td>
-                  <td className="px-2 border border-gray-300">
+                  <td className="px-2 border-b border-gray-300">
                     {e.street_building}, {e.barangay}, {e.city}, {e.province},{" "}
                     {e.postal_code}
                   </td>
-                  <td className="px-2 text-center border border-gray-300">
+                  <td className="px-2 text-center border-b border-gray-300">
                     {e.latitude}, {e.longitude}
                   </td>
-                  <td className="px-2 border border-gray-300">
+                  <td className="px-2 border-b border-gray-300">
                     {e.nature_of_business}
                   </td>
-                  <td className="px-2 text-center border border-gray-300">
+                  <td className="px-2 text-center border-b border-gray-300">
                     {e.year_established}
                   </td>
-                  <td className="relative w-20 p-1 text-center border border-gray-300">
+                  <td className="relative w-20 p-1 text-center border-b border-gray-300">
                     <div className="flex justify-center gap-2">
                       {canEditEstablishments && (
                         <button
                           onClick={() => onEdit(e)}
-                          className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+                          className="flex items-center px-3 py-1 text-sm font-medium rounded-lg text-gray-700 bg-gray-200 hover:bg-gray-300"
                           title="Edit"
                         >
                           <Pencil size={14} />
@@ -544,7 +656,7 @@ export default function EstablishmentList({
                       )}
                       <button
                         onClick={() => onPolygon(e)}
-                        className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+                        className="flex items-center gap-1 px-2 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
                         title="Polygon"
                       >
                         <Map size={14} />
@@ -560,109 +672,22 @@ export default function EstablishmentList({
       </div>
 
       {/* Pagination */}
-      {totalCount > 0 && (
-        <div className="flex items-center justify-between mt-4">
-          <div className="text-sm text-gray-600">
-            Showing {startItem} to {endItem} of {totalCount} entries
-            {searchMode && debouncedSearchQuery && (
-              <span className="ml-2">(search results)</span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-            >
-              <ChevronLeft size={16} />
-            </button>
-
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
-              }
-
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => goToPage(pageNum)}
-                  className={`px-3 py-1 text-sm rounded ${
-                    currentPage === pageNum
-                      ? "bg-sky-600 text-white"
-                      : "hover:bg-gray-100"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-
-            <button
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="p-1 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm">
-            <span>Show:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="px-2 py-1 border rounded"
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-            <span>per page</span>
-          </div>
-        </div>
-      )}
-
-      {/* Export Modal */}
-      <ExportModal
-        open={showExportModal}
-        onClose={() => setShowExportModal(false)}
-        title="Establishments Export Report"
-        fileName={`establishments_export${
-          searchQuery ? `_${searchQuery}` : ""
-        }`}
-        companyName="DENR Environmental Office"
-        companySubtitle="Establishment Records System"
-        logo="/logo.png"
-        columns={[
-          "Name",
-          "Address",
-          "Coordinates",
-          "Nature of Business",
-          "Year Established",
-        ]}
-        rows={selectedEstablishments.map((id) => {
-          const e = establishments.find((x) => x.id === id);
-          return [
-            e.name,
-            `${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}, ${e.postal_code}`,
-            `Lat: ${e.latitude}, Lng: ${e.longitude}`,
-            e.nature_of_business,
-            e.year_established,
-          ];
-        })}
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={totalCount}
+        hasActiveFilters={searchMode && debouncedSearchQuery}
+        onPageChange={goToPage}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize);
+          setCurrentPage(1);
+        }}
+        startItem={startItem}
+        endItem={endItem}
+        storageKey="establishments_list"
       />
+
     </div>
   );
 }

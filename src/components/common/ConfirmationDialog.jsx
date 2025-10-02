@@ -22,9 +22,19 @@ export default function ConfirmationDialog({
 
   const colorClasses = {
     sky: "bg-sky-600 hover:bg-sky-700",
+    blue: "bg-blue-600 hover:bg-blue-700",
     red: "bg-red-600 hover:bg-red-700",
     green: "bg-green-600 hover:bg-green-700",
     amber: "bg-amber-600 hover:bg-amber-700",
+  };
+
+  // Check if message is a React element or string
+  const renderMessage = () => {
+    if (typeof message === "string") {
+      return <p className="mb-4 text-gray-600">{message}</p>;
+    } else {
+      return <div className="mb-4 text-gray-600">{message}</div>;
+    }
   };
 
   return (
@@ -33,11 +43,11 @@ export default function ConfirmationDialog({
         className={`w-full ${sizeClasses[size]} p-6 bg-white rounded-lg shadow-lg mx-4`}
       >
         <h3 className="mb-2 text-lg font-semibold text-gray-800">{title}</h3>
-        <p className="mb-4 text-gray-600">{message}</p>
+        {renderMessage()}
         <div className="flex justify-end gap-2">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-gray-700 transition-colors bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
             disabled={loading}
           >
             {cancelText}

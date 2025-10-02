@@ -1,6 +1,6 @@
 // /mnt/data/InspectionForm.jsx
 import React, { useState, useMemo, useEffect } from "react";
-import * as InspectionConstants from "../../data/inspectionform/index";
+import * as InspectionConstants from "../../constants/inspectionform/index";
 
 const { PREDEFINED_REMARKS } = InspectionConstants;
 
@@ -104,8 +104,8 @@ function GeneralInformation({
           ? `${establishment.latitude}, ${establishment.longitude}`
           : "";
 
-      const newData = {
-        ...data,
+      setData((prevData) => ({
+        ...prevData,
         establishmentName: formatInput.upper(establishment.name || ""),
         address: formatInput.upper(fullAddress),
         coordinates: formatInput.coords(coordsString),
@@ -117,12 +117,11 @@ function GeneralInformation({
         yearEstablished:
           establishment.yearEstablished || establishment.year_established || "",
         environmentalLaws: [inspectionData.section],
-      };
+      }));
 
-      setData(newData);
       if (onLawFilterChange) onLawFilterChange([inspectionData.section]);
     }
-  }, [inspectionData]);
+  }, []); // Empty dependency array - run only once
 
   const updateField = (field, value, formatter = formatInput.upper) => {
     setData({ ...data, [field]: formatter(value) });
@@ -145,6 +144,7 @@ function GeneralInformation({
       <div className="mt-4">
         <label className="block mb-2 text-black">
           Applicable Environmental Laws (check all that apply)
+          <span className="text-red-600">*</span>
         </label>
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
           {InspectionConstants.LAWS.map((law) => {
@@ -172,11 +172,11 @@ function GeneralInformation({
 
       <div className="mt-4">
         <label className="block mb-1 text-sm text-black">
-          Name of Establishment
+          Name of Establishment<span className="text-red-600">*</span>
         </label>
         <input
           className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
-          value={data.establishmentName}
+          value={data.establishmentName || ""}
           readOnly
         />
         {errors.establishmentName && (
@@ -186,10 +186,12 @@ function GeneralInformation({
 
       <div className="grid grid-cols-2 gap-4 mt-4">
         <div>
-          <label className="block mb-1 text-sm text-black">Address</label>
+          <label className="block mb-1 text-sm text-black">
+            Address<span className="text-red-600">*</span>
+          </label>
           <input
             className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
-            value={data.address}
+            value={data.address || ""}
             readOnly
           />
           {errors.address && (
@@ -198,11 +200,11 @@ function GeneralInformation({
         </div>
         <div>
           <label className="block mb-1 text-sm text-black">
-            Coordinates (Decimal)
+            Coordinates (Decimal)<span className="text-red-600">*</span>
           </label>
           <input
             className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
-            value={data.coordinates}
+            value={data.coordinates || ""}
             readOnly
           />
           {errors.coordinates && (
@@ -213,24 +215,27 @@ function GeneralInformation({
 
       <div className="mt-4">
         <label className="block mb-1 text-sm text-black">
-          Nature of Business
+          Nature of Business<span className="text-red-600">*</span>
         </label>
         <input
           className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
-          value={data.natureOfBusiness}
+          value={data.natureOfBusiness || ""}
           readOnly
         />
+        {errors.natureOfBusiness && (
+          <p className="text-sm text-red-600">{errors.natureOfBusiness}</p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4 mt-4">
         <div>
           <label className="block mb-1 text-sm text-black">
-            Year Established
+            Year Established<span className="text-red-600">*</span>
           </label>
           <input
             type="number"
             className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
-            value={data.yearEstablished}
+            value={data.yearEstablished || ""}
             readOnly
           />
           {errors.yearEstablished && (
@@ -239,18 +244,14 @@ function GeneralInformation({
         </div>
         <div>
           <label className="block mb-1 text-sm text-black">
-            Inspection Date & Time
+            Inspection Date & Time<span className="text-red-600">*</span>
           </label>
           <input
             type="datetime-local"
             className="w-full px-2 py-1 text-black bg-white border border-black"
             value={data.inspectionDateTime || ""}
             onChange={(e) =>
-              updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.INSPECTION_DATE_TIME,
-                e.target.value,
-                (v) => v
-              )
+              updateField("inspectionDateTime", e.target.value, (v) => v)
             }
           />
           {errors.inspectionDateTime && (
@@ -262,48 +263,58 @@ function GeneralInformation({
       <div className="grid grid-cols-3 gap-4 mt-4">
         <div>
           <label className="block mb-1 text-sm text-black">
-            Operating Hours/Day
+            Operating Hours/Day<span className="text-red-600">*</span>
           </label>
           <input
             className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.operatingHours || ""}
-            onChange={(e) =>
-              updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.OPERATING_HOURS,
-                e.target.value
-              )
-            }
+            onChange={(e) => updateField("operatingHours", e.target.value)}
           />
+          {errors.operatingHours && (
+            <p className="text-sm text-red-600">{errors.operatingHours}</p>
+          )}
         </div>
         <div>
           <label className="block mb-1 text-sm text-black">
-            Operating Days/Week
+            Operating Days/Week<span className="text-red-600">*</span>
           </label>
           <input
             className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.operatingDaysPerWeek || ""}
             onChange={(e) =>
               updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.OPERATING_DAYS_PER_WEEK,
-                formatInput.numeric(e.target.value)
+                "operatingDaysPerWeek",
+                formatInput.numeric(e.target.value),
+                (v) => v
               )
             }
           />
+          {errors.operatingDaysPerWeek && (
+            <p className="text-sm text-red-600">
+              {errors.operatingDaysPerWeek}
+            </p>
+          )}
         </div>
         <div>
           <label className="block mb-1 text-sm text-black">
-            Operating Days/Year
+            Operating Days/Year<span className="text-red-600">*</span>
           </label>
           <input
             className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
             value={data.operatingDaysPerYear || ""}
             onChange={(e) =>
               updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.OPERATING_DAYS_PER_YEAR,
-                formatInput.numeric(e.target.value)
+                "operatingDaysPerYear",
+                formatInput.numeric(e.target.value),
+                (v) => v
               )
             }
           />
+          {errors.operatingDaysPerYear && (
+            <p className="text-sm text-red-600">
+              {errors.operatingDaysPerYear}
+            </p>
+          )}
         </div>
       </div>
 
@@ -312,14 +323,14 @@ function GeneralInformation({
       <div className="grid grid-cols-2 gap-4 mt-4">
         <div>
           <label className="block mb-1 text-sm text-black">
-            Phone/ Fax No.
+            Phone/ Fax No.<span className="text-red-600">*</span>
           </label>
           <input
             className="w-full px-2 py-1 text-black bg-white border border-black"
             value={data.phoneFaxNo || ""}
             onChange={(e) =>
               updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.PHONE_FAX_NO,
+                "phoneFaxNo",
                 formatInput.numeric(e.target.value),
                 (v) => v
               )
@@ -330,17 +341,15 @@ function GeneralInformation({
           )}
         </div>
         <div>
-          <label className="block mb-1 text-sm text-black">Email Address</label>
+          <label className="block mb-1 text-sm text-black">
+            Email Address<span className="text-red-600">*</span>
+          </label>
           <input
             type="email"
             className="w-full px-2 py-1 text-black lowercase bg-white border border-black"
             value={data.emailAddress || ""}
             onChange={(e) =>
-              updateField(
-                InspectionConstants.GENERAL_INFO_FIELDS.EMAIL_ADDRESS,
-                e.target.value,
-                formatInput.lower
-              )
+              updateField("emailAddress", e.target.value, formatInput.lower)
             }
           />
           {errors.emailAddress && (
@@ -358,64 +367,64 @@ function GeneralInformation({
 function PurposeOfInspection({ state, setState, errors }) {
   const purposes = [
     {
-      id: InspectionConstants.PURPOSE_OPTIONS.VERIFY_ACCURACY,
+      id: "VERIFY_ACCURACY",
       label:
         "Verify accuracy of information submitted by the establishment pertaining to new permit applications, renewals, or modifications.",
     },
     {
-      id: InspectionConstants.PURPOSE_OPTIONS.COMPLIANCE_STATUS,
+      id: "COMPLIANCE_STATUS",
       label:
         "Determine compliance status with ECC conditions, compliance with commitments made during Technical Conference, permit conditions, and other requirements",
     },
     {
-      id: InspectionConstants.PURPOSE_OPTIONS.INVESTIGATE_COMPLAINTS,
+      id: "INVESTIGATE_COMPLAINTS",
       label: "Investigate community complaints.",
     },
     {
-      id: InspectionConstants.PURPOSE_OPTIONS.CHECK_COMMITMENTS,
+      id: "CHECK_COMMITMENTS",
       label: "Check status of commitment(s)",
     },
-    { id: InspectionConstants.PURPOSE_OPTIONS.OTHER, label: "Others" },
+    { id: "OTHER", label: "Others" },
   ];
 
   const accuracyDetailsOptions = [
     {
-      id: InspectionConstants.ACCURACY_DETAILS.POA,
+      id: "POA",
       label: "Permit to Operate Air (POA)",
     },
     {
-      id: InspectionConstants.ACCURACY_DETAILS.DP,
+      id: "DP",
       label: "Discharge Permit (DP)",
     },
     {
-      id: InspectionConstants.ACCURACY_DETAILS.PMPIN,
+      id: "PMPIN",
       label: "PMPIN Application",
     },
     {
-      id: InspectionConstants.ACCURACY_DETAILS.HW_ID,
+      id: "HW_ID",
       label: "Hazardous Waste ID Registration",
     },
     {
-      id: InspectionConstants.ACCURACY_DETAILS.HW_TRANSPORTER,
+      id: "HW_TRANSPORTER",
       label: "Hazardous Waste Transporter Registration",
     },
-    { id: InspectionConstants.ACCURACY_DETAILS.OTHER, label: "Others" },
+    { id: "OTHER", label: "Others" },
   ];
 
   const commitmentStatusOptions = [
     {
-      id: InspectionConstants.COMMITMENT_STATUS.ECOWATCH,
+      id: "ECOWATCH",
       label: "Industrial Ecowatch",
     },
     {
-      id: InspectionConstants.COMMITMENT_STATUS.PEPP,
+      id: "PEPP",
       label: "Philippine Environmental Partnership Program (PEPP)",
     },
     {
-      id: InspectionConstants.COMMITMENT_STATUS.PAB,
+      id: "PAB",
       label: "Pollution Adjudication Board (PAB)",
     },
-    { id: InspectionConstants.COMMITMENT_STATUS.OTHER, label: "Others" },
+    { id: "OTHER", label: "Others" },
   ];
 
   const togglePurpose = (id) => {
@@ -465,10 +474,8 @@ function PurposeOfInspection({ state, setState, errors }) {
             <div className="flex-1">
               <div className="text-black">{p.label}</div>
 
-              {p.id === InspectionConstants.PURPOSE_OPTIONS.VERIFY_ACCURACY &&
-                (state.purposes || []).includes(
-                  InspectionConstants.PURPOSE_OPTIONS.VERIFY_ACCURACY
-                ) && (
+              {p.id === "VERIFY_ACCURACY" &&
+                (state.purposes || []).includes("VERIFY_ACCURACY") && (
                   <div className="p-3 mt-3 ml-6 border border-gray-300 rounded">
                     <label className="block mb-2 text-sm font-medium text-black">
                       Verify accuracy of (select all that apply):
@@ -489,11 +496,8 @@ function PurposeOfInspection({ state, setState, errors }) {
                               {item.label}
                             </span>
                           </label>
-                          {item.id ===
-                            InspectionConstants.ACCURACY_DETAILS.OTHER &&
-                            (state.accuracyDetails || []).includes(
-                              InspectionConstants.ACCURACY_DETAILS.OTHER
-                            ) && (
+                          {item.id === "OTHER" &&
+                            (state.accuracyDetails || []).includes("OTHER") && (
                               <div className="mt-2 ml-6">
                                 <label className="block mb-1 text-sm text-black">
                                   Specify other accuracy details:
@@ -517,10 +521,8 @@ function PurposeOfInspection({ state, setState, errors }) {
                   </div>
                 )}
 
-              {p.id === InspectionConstants.PURPOSE_OPTIONS.CHECK_COMMITMENTS &&
-                (state.purposes || []).includes(
-                  InspectionConstants.PURPOSE_OPTIONS.CHECK_COMMITMENTS
-                ) && (
+              {p.id === "CHECK_COMMITMENTS" &&
+                (state.purposes || []).includes("CHECK_COMMITMENTS") && (
                   <div className="p-3 mt-3 ml-6 border border-gray-300 rounded">
                     <label className="block mb-2 text-sm font-medium text-black">
                       Check status of (select all that apply):
@@ -541,10 +543,9 @@ function PurposeOfInspection({ state, setState, errors }) {
                               {item.label}
                             </span>
                           </label>
-                          {item.id ===
-                            InspectionConstants.COMMITMENT_STATUS.OTHER &&
+                          {item.id === "OTHER" &&
                             (state.commitmentStatusDetails || []).includes(
-                              InspectionConstants.COMMITMENT_STATUS.OTHER
+                              "OTHER"
                             ) && (
                               <div className="mt-2 ml-6">
                                 <label className="block mb-1 text-sm text-black">
@@ -569,24 +570,21 @@ function PurposeOfInspection({ state, setState, errors }) {
                   </div>
                 )}
 
-              {p.id === InspectionConstants.PURPOSE_OPTIONS.OTHER &&
-                (state.purposes || []).includes(
-                  InspectionConstants.PURPOSE_OPTIONS.OTHER
-                ) && (
-                  <div className="mt-3 ml-6">
-                    <label className="block mb-1 text-sm text-black">
-                      Specify other purpose:
-                    </label>
-                    <textarea
-                      value={state.otherPurpose || ""}
-                      onChange={(e) =>
-                        updateField("otherPurpose", e.target.value)
-                      }
-                      placeholder="PLEASE SPECIFY..."
-                      className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
-                    />
-                  </div>
-                )}
+              {p.id === "OTHER" && (state.purposes || []).includes("OTHER") && (
+                <div className="mt-3 ml-6">
+                  <label className="block mb-1 text-sm text-black">
+                    Specify other purpose:
+                  </label>
+                  <textarea
+                    value={state.otherPurpose || ""}
+                    onChange={(e) =>
+                      updateField("otherPurpose", e.target.value)
+                    }
+                    placeholder="PLEASE SPECIFY..."
+                    className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
+                  />
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -677,11 +675,6 @@ function ComplianceStatus({ permits, setPermits, lawFilter, errors }) {
                           )
                         }
                       />
-                      {errors[`permitNumber-${originalIndex}`] && (
-                        <p className="text-sm text-red-600">
-                          {errors[`permitNumber-${originalIndex}`]}
-                        </p>
-                      )}
                     </td>
                     <td className="p-2 border border-black">
                       <input
@@ -696,11 +689,6 @@ function ComplianceStatus({ permits, setPermits, lawFilter, errors }) {
                           )
                         }
                       />
-                      {errors[`dateIssued-${originalIndex}`] && (
-                        <p className="text-sm text-red-600">
-                          {errors[`dateIssued-${originalIndex}`]}
-                        </p>
-                      )}
                     </td>
                     <td className="p-2 border border-black">
                       <input
@@ -715,11 +703,6 @@ function ComplianceStatus({ permits, setPermits, lawFilter, errors }) {
                           )
                         }
                       />
-                      {errors[`expiryDate-${originalIndex}`] && (
-                        <p className="text-sm text-red-600">
-                          {errors[`expiryDate-${originalIndex}`]}
-                        </p>
-                      )}
                     </td>
                   </tr>
                 );
@@ -768,7 +751,7 @@ function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
       });
     });
     if (changed) setItems(clone);
-  }, [lawFilter]);
+  }, [lawFilter, items, setItems]);
 
   const updateItem = (
     index,
@@ -782,115 +765,290 @@ function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
     setItems(clone);
   };
 
+  // helper to get full law name or fallback
+  const getLawFullName = (lawId) => {
+    const law = InspectionConstants.LAWS.find((l) => l.id === lawId);
+    if (law) return law.fullName;
+    if (lawId === "Pollution-Control")
+      return "Pollution Control Officer Accreditation";
+    if (lawId === "Self-Monitoring") return "Self-Monitoring Report";
+    return lawId;
+  };
+
+  // always include these in compliance summary
+  const ALWAYS_INCLUDED_LAWS = ["Pollution-Control", "Self-Monitoring"];
+
+  // extend the filter
+  const effectiveLawFilter = [
+    ...new Set([...(lawFilter || []), ...ALWAYS_INCLUDED_LAWS]),
+  ];
+
   return (
     <section className="p-4 mb-6 bg-white border border-black">
       <SectionHeader title="Summary of Compliance" />
-      {lawFilter.length === 0 && (
+      {effectiveLawFilter.length === 0 && (
         <div className="p-4 text-center text-black">
           No compliance items for selected laws.
         </div>
       )}
-      {lawFilter.map((lawId) => {
+      {effectiveLawFilter.map((lawId) => {
         const lawItems =
           InspectionConstants.getComplianceItemsByLaw(lawId) || [];
         return (
           <div key={lawId} className="mb-8">
-            <div className="mb-2 text-lg font-bold text-black">{lawId}</div>
+            {/* ✅ Full law name instead of short code */}
+            <div className="mb-2 text-lg font-bold text-black">
+              {getLawFullName(lawId)}
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full border border-collapse border-black">
                 <thead>
                   <tr>
-                    <th className="p-2 border border-black">Citation</th>
-                    <th className="p-2 border border-black">Requirement</th>
-                    <th className="p-2 border border-black">Compliant</th>
-                    <th className="p-2 border border-black">Remarks</th>
+                    <th className="p-2 border border-black w-50">
+                      Applicable Laws and Citations
+                    </th>
+                    <th className="p-2 border border-black">
+                      Compliance Requirement
+                    </th>
+                    <th className="p-2 border border-black w-15">Compliant</th>
+                    <th className="p-2 border border-black w-50">Remarks</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {lawItems.map((li) => {
-                    const globalIndex = items.findIndex(
-                      (i) => i.conditionId === li.conditionId
-                    );
-                    if (globalIndex === -1) return null;
-                    const item = items[globalIndex];
-                    return (
-                      <tr key={li.conditionId}>
-                        <td className="p-2 border border-black">
-                          {li.lawCitation}
-                        </td>
-                        <td className="p-2 border border-black">
-                          {li.complianceRequirement}
-                        </td>
-                        <td className="p-2 border border-black">
-                          {Object.values(
-                            InspectionConstants.COMPLIANCE_STATUS
-                          ).map((opt) => (
-                            <label key={opt} className="block">
+                  {(() => {
+                    // For PD-1586, don't group by citation - show each row separately
+                    if (lawId === "PD-1586") {
+                      return lawItems.map((li, idx) => {
+                        const globalIndex = items.findIndex(
+                          (i) => i.conditionId === li.conditionId
+                        );
+                        if (globalIndex === -1) return null;
+                        const item = items[globalIndex];
+
+                        return (
+                          <tr key={li.conditionId}>
+                            {/* Citation cell - NO ROWSPAN for PD-1586 */}
+                            <td className="p-2 align-top border border-black">
                               <input
-                                type="radio"
-                                name={`comp-${li.conditionId}`}
-                                checked={item.compliant === opt}
-                                onChange={() =>
+                                type="text"
+                                value={item.conditionNumber || ""}
+                                onChange={(e) =>
                                   updateItem(
                                     globalIndex,
-                                    "compliant",
-                                    opt,
+                                    "conditionNumber",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Condition No."
+                                className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
+                              />
+                            </td>
+
+                            {/* Requirement cell */}
+                            <td className="p-2 border border-black">
+                              <input
+                                type="text"
+                                value={item.complianceRequirement || ""}
+                                onChange={(e) =>
+                                  updateItem(
+                                    globalIndex,
+                                    "complianceRequirement",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="Enter Requirement"
+                                className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
+                              />
+                            </td>
+
+                            {/* Compliant radio buttons */}
+                            <td className="p-2 border border-black">
+                              {Object.values(
+                                InspectionConstants.COMPLIANCE_STATUS
+                              ).map((opt) => (
+                                <label key={opt} className="block">
+                                  <input
+                                    type="radio"
+                                    name={`comp-${li.conditionId}`}
+                                    checked={item.compliant === opt}
+                                    onChange={() =>
+                                      updateItem(
+                                        globalIndex,
+                                        "compliant",
+                                        opt,
+                                        (v) => v
+                                      )
+                                    }
+                                  />{" "}
+                                  {opt}
+                                </label>
+                              ))}
+                              {errors[`compliant-${globalIndex}`] && (
+                                <p className="text-sm text-red-600">
+                                  {errors[`compliant-${globalIndex}`]}
+                                </p>
+                              )}
+                            </td>
+
+                            {/* Remarks dropdown */}
+                            <td className="p-2 border border-black">
+                              <select
+                                value={item.remarksOption || ""}
+                                onChange={(e) =>
+                                  updateItem(
+                                    globalIndex,
+                                    "remarksOption",
+                                    e.target.value,
                                     (v) => v
                                   )
                                 }
-                              />{" "}
-                              {opt}
-                            </label>
-                          ))}
-                          {errors[`compliant-${globalIndex}`] && (
-                            <p className="text-sm text-red-600">
-                              {errors[`compliant-${globalIndex}`]}
-                            </p>
-                          )}
-                        </td>
-                        <td className="p-2 border border-black">
-                          <select
-                            value={item.remarksOption || ""}
-                            onChange={(e) =>
-                              updateItem(
-                                globalIndex,
-                                "remarksOption",
-                                e.target.value
-                              )
-                            }
-                            className="w-full px-2 py-1 text-black bg-white border border-black"
-                          >
-                            <option value="">-- Select Remark --</option>
-                            {PREDEFINED_REMARKS.map((r) => (
-                              <option key={r} value={r}>
-                                {r}
-                              </option>
-                            ))}
-                          </select>
-                          {item.remarksOption === "Other" && (
-                            <textarea
-                              value={item.remarks || ""}
-                              onChange={(e) =>
-                                updateItem(
-                                  globalIndex,
-                                  "remarks",
-                                  e.target.value,
-                                  formatInput.upper
-                                )
-                              }
-                              placeholder="ENTER REMARKS..."
-                              className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase mt-2"
-                            />
-                          )}
-                          {errors[`remarks-${globalIndex}`] && (
-                            <p className="text-sm text-red-600">
-                              {errors[`remarks-${globalIndex}`]}
-                            </p>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                                className="w-full px-2 py-1 text-black bg-white border border-black"
+                              >
+                                <option value="">-- Select Remark --</option>
+                                {PREDEFINED_REMARKS.map((r) => (
+                                  <option key={r} value={r}>
+                                    {r}
+                                  </option>
+                                ))}
+                              </select>
+                              {item.remarksOption === "Other" && (
+                                <textarea
+                                  value={item.remarks || ""}
+                                  onChange={(e) =>
+                                    updateItem(
+                                      globalIndex,
+                                      "remarks",
+                                      e.target.value,
+                                      formatInput.upper
+                                    )
+                                  }
+                                  placeholder="ENTER REMARKS..."
+                                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase mt-2"
+                                />
+                              )}
+                              {errors[`remarks-${globalIndex}`] && (
+                                <p className="text-sm text-red-600">
+                                  {errors[`remarks-${globalIndex}`]}
+                                </p>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    } else {
+                      // For other laws, keep the original grouping behavior
+                      const citationGroups = {};
+                      lawItems.forEach((li) => {
+                        if (!citationGroups[li.lawCitation])
+                          citationGroups[li.lawCitation] = [];
+                        citationGroups[li.lawCitation].push(li);
+                      });
+
+                      return Object.entries(citationGroups).map(
+                        ([citation, citationItems]) =>
+                          citationItems.map((li, idx) => {
+                            const globalIndex = items.findIndex(
+                              (i) => i.conditionId === li.conditionId
+                            );
+                            if (globalIndex === -1) return null;
+                            const item = items[globalIndex];
+
+                            return (
+                              <tr key={li.conditionId}>
+                                {/* Citation cell - WITH ROWSPAN for other laws */}
+                                {idx === 0 && (
+                                  <td
+                                    className="p-2 align-top border border-black"
+                                    rowSpan={citationItems.length}
+                                  >
+                                    {citation}
+                                  </td>
+                                )}
+
+                                {/* Requirement cell */}
+                                <td className="p-2 border border-black">
+                                  {li.complianceRequirement}
+                                </td>
+
+                                {/* Compliant radio buttons */}
+                                <td className="p-2 border border-black">
+                                  {Object.values(
+                                    InspectionConstants.COMPLIANCE_STATUS
+                                  ).map((opt) => (
+                                    <label key={opt} className="block">
+                                      <input
+                                        type="radio"
+                                        name={`comp-${li.conditionId}`}
+                                        checked={item.compliant === opt}
+                                        onChange={() =>
+                                          updateItem(
+                                            globalIndex,
+                                            "compliant",
+                                            opt,
+                                            (v) => v
+                                          )
+                                        }
+                                      />{" "}
+                                      {opt}
+                                    </label>
+                                  ))}
+                                  {errors[`compliant-${globalIndex}`] && (
+                                    <p className="text-sm text-red-600">
+                                      {errors[`compliant-${globalIndex}`]}
+                                    </p>
+                                  )}
+                                </td>
+
+                                {/* Remarks dropdown */}
+                                <td className="p-2 border border-black">
+                                  <select
+                                    value={item.remarksOption || ""}
+                                    onChange={(e) =>
+                                      updateItem(
+                                        globalIndex,
+                                        "remarksOption",
+                                        e.target.value,
+                                        (v) => v
+                                      )
+                                    }
+                                    className="w-full px-2 py-1 text-black bg-white border border-black"
+                                  >
+                                    <option value="">
+                                      -- Select Remark --
+                                    </option>
+                                    {PREDEFINED_REMARKS.map((r) => (
+                                      <option key={r} value={r}>
+                                        {r}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {item.remarksOption === "Other" && (
+                                    <textarea
+                                      value={item.remarks || ""}
+                                      onChange={(e) =>
+                                        updateItem(
+                                          globalIndex,
+                                          "remarks",
+                                          e.target.value,
+                                          formatInput.upper
+                                        )
+                                      }
+                                      placeholder="ENTER REMARKS..."
+                                      className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase mt-2"
+                                    />
+                                  )}
+                                  {errors[`remarks-${globalIndex}`] && (
+                                    <p className="text-sm text-red-600">
+                                      {errors[`remarks-${globalIndex}`]}
+                                    </p>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })
+                      );
+                    }
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -1018,6 +1176,53 @@ function SummaryOfFindingsAndObservations({
    Recommendations
    ---------------------------*/
 function Recommendations({ recState, setRecState, errors }) {
+  // Import recommendations from constants
+  const recommendations = [
+    {
+      id: "confirmatory_sampling",
+      label: "For confirmatory sampling/further monitoring",
+      category: "Monitoring",
+    },
+    {
+      id: "permit_issuance",
+      label:
+        "For issuance of Temporary/Renewal of permit to operate (POA) and/or Renewal of Discharge Permit (DP)",
+      category: "Permitting",
+    },
+    {
+      id: "pco_accreditation",
+      label:
+        "For accreditation of Pollution Control Office(PCO)/Seminar requirement of Managing Head",
+      category: "Training",
+    },
+    {
+      id: "report_submission",
+      label:
+        "For Submission of Self-Monitoring Report (SMR)/Compliance monitoring Report(CMR)",
+      category: "Reporting",
+    },
+    {
+      id: "violation_notice",
+      label: "For issuance of Notice of Violation(NOV)",
+      category: "Enforcement",
+    },
+    {
+      id: "suspension",
+      label: "For issuance of suspension of ECC/5-day CDO",
+      category: "Enforcement",
+    },
+    {
+      id: "pab_endorsement",
+      label: "For endorsement to Pollution Adjudication Board (PAB)",
+      category: "Enforcement",
+    },
+    {
+      id: "other",
+      label: "Other Recommendations",
+      category: "General",
+    },
+  ];
+
   const toggle = (label) => {
     const set = new Set(recState.checked || []);
     if (set.has(label)) set.delete(label);
@@ -1033,7 +1238,7 @@ function Recommendations({ recState, setRecState, errors }) {
     <section className="p-4 mb-6 bg-white border border-black">
       <SectionHeader title="Recommendations" />
       <div className="space-y-3">
-        {InspectionConstants.RECOMMENDATIONS.map((r) => (
+        {recommendations.map((r) => (
           <label key={r.id} className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -1192,6 +1397,7 @@ export default function App({ inspectionData }) {
     systems,
     recommendationState,
     lawFilter,
+    storageKey,
   ]);
 
   // Online/offline
@@ -1224,7 +1430,10 @@ export default function App({ inspectionData }) {
       errs.establishmentName = "Establishment name is required.";
     if (!general.address) errs.address = "Address is required.";
 
-    if (general.coordinates) {
+    // Coordinates (now required)
+    if (!general.coordinates) {
+      errs.coordinates = "Coordinates are required.";
+    } else {
       const parts = general.coordinates.split(",").map((s) => s.trim());
       if (
         parts.length !== 2 ||
@@ -1233,6 +1442,11 @@ export default function App({ inspectionData }) {
       ) {
         errs.coordinates = "Coordinates must be in 'lat, lon' decimal format.";
       }
+    }
+
+    // Nature of Business (now required)
+    if (!general.natureOfBusiness) {
+      errs.natureOfBusiness = "Nature of Business is required.";
     }
 
     if (general.yearEstablished) {
@@ -1245,7 +1459,30 @@ export default function App({ inspectionData }) {
       errs.yearEstablished = "Year established is required.";
     }
 
-    if (general.emailAddress) {
+    // Operating Hours (now required)
+    if (!general.operatingHours) {
+      errs.operatingHours = "Operating Hours/Day is required.";
+    }
+
+    // Operating Days/Week (now required)
+    if (!general.operatingDaysPerWeek) {
+      errs.operatingDaysPerWeek = "Operating Days/Week is required.";
+    }
+
+    // Operating Days/Year (now required)
+    if (!general.operatingDaysPerYear) {
+      errs.operatingDaysPerYear = "Operating Days/Year is required.";
+    }
+
+    // Phone/Fax No. (now required)
+    if (!general.phoneFaxNo) {
+      errs.phoneFaxNo = "Phone/Fax No. is required.";
+    }
+
+    // Email Address (now required)
+    if (!general.emailAddress) {
+      errs.emailAddress = "Email Address is required.";
+    } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(general.emailAddress))
         errs.emailAddress = "Enter a valid email.";
@@ -1261,22 +1498,6 @@ export default function App({ inspectionData }) {
     } else {
       errs.inspectionDateTime = "Inspection date/time is required.";
     }
-
-    // Permits
-    permits.forEach((p, i) => {
-      if (!p.permitNumber)
-        errs[`permitNumber-${i}`] = "Permit number is required.";
-      if (!p.dateIssued) {
-        errs[`dateIssued-${i}`] = "Date issued is required.";
-      } else if (isFutureDate(p.dateIssued)) {
-        errs[`dateIssued-${i}`] = "Date issued cannot be in the future.";
-      }
-      if (!p.expiryDate) {
-        errs[`expiryDate-${i}`] = "Expiry date is required.";
-      } else if (p.dateIssued && !isSameOrAfter(p.expiryDate, p.dateIssued)) {
-        errs[`expiryDate-${i}`] = "Expiry must be after issued date.";
-      }
-    });
 
     // Compliance
     complianceItems.forEach((c, i) => {
@@ -1353,7 +1574,7 @@ export default function App({ inspectionData }) {
      Render
      ====================== */
   return (
-    <div className="min-h-screen pb-8 bg-white">
+    <div className="min-h-screen bg-white">
       <InternalHeader
         onSave={handleSave}
         onClose={handleClose}
@@ -1361,7 +1582,7 @@ export default function App({ inspectionData }) {
         isOnline={isOnline}
       />
 
-      <div className="p-4 pt-28">
+      <div className="p-4 pt-2">
         <GeneralInformation
           data={general}
           setData={setGeneral}
@@ -1403,21 +1624,6 @@ export default function App({ inspectionData }) {
           setRecState={setRecommendationState}
           errors={errors}
         />
-
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={handleSave}
-            className="px-4 py-2 text-white rounded bg-sky-600"
-          >
-            Save
-          </button>
-          <button
-            onClick={handleClose}
-            className="px-4 py-2 text-gray-700 bg-gray-200 rounded"
-          >
-            Close
-          </button>
-        </div>
       </div>
     </div>
   );

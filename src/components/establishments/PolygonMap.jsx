@@ -96,7 +96,8 @@ export default function PolygonMap({
     let isMounted = true;
     (async () => {
       try {
-        const list = await getEstablishments();
+        const response = await getEstablishments({ page: 1, page_size: 10000 });
+        const list = response.results || response;
         if (!isMounted) return;
         const currentId = establishment?.id;
         const polys = (list || [])

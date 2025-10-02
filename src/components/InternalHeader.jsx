@@ -18,6 +18,7 @@ import api, { getUnreadNotificationsCount } from "../services/api";
 import Notifications from "./Notifications";
 import { useSearch } from "../contexts/SearchContext";
 import { helpTopics } from "../data/helpData";
+import { useNotifications } from "./NotificationManager";
 import {
   filterTopicsByUserLevel,
   normalizeUserLevel,
@@ -44,6 +45,7 @@ export default function InternalHeader({
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const notifications = useNotifications();
 
   const searchContainerRef = useRef(null);
   const suggestionsRef = useRef(null);
@@ -89,12 +91,22 @@ export default function InternalHeader({
     try {
       const refresh = localStorage.getItem("refresh");
       if (refresh) await api.post("auth/logout/", { refresh });
-      if (window.showNotification)
-        window.showNotification("success", "Logged out successfully!");
+      notifications.success(
+        "Logged out successfully!",
+        {
+          title: "Logout Successful",
+          duration: 3000
+        }
+      );
     } catch (err) {
       console.error("Logout error:", err);
-      if (window.showNotification)
-        window.showNotification("error", "Logout failed!");
+      notifications.error(
+        "Logout failed!",
+        {
+          title: "Logout Error",
+          duration: 6000
+        }
+      );
     } finally {
       localStorage.clear();
       sessionStorage.clear();

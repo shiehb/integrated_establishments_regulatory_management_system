@@ -5,6 +5,13 @@ import L from "leaflet";
 import { updateEstablishment } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import osm from "../map/osm-provider"; // ✅ use OSM provider
+import { 
+  ALLOWED_PROVINCES, 
+  NATURE_OF_BUSINESS_OPTIONS, 
+  ILOCOS_REGION_BOUNDS,
+  ILOCOS_REGION_CENTER 
+} from "../../constants/establishmentConstants";
+import { useNotifications } from "../NotificationManager";
 
 const markerIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
@@ -12,13 +19,6 @@ const markerIcon = new L.Icon({
   iconAnchor: [12, 41],
 });
 
-// Allowed provinces
-const ALLOWED_PROVINCES = [
-  "LA UNION",
-  "ILOCOS SUR",
-  "ILOCOS NORTE",
-  "PANGASINAN",
-];
 
 // Reverse geocode: lat/lng -> address
 async function reverseGeocode(lat, lon, setFormData) {
@@ -99,6 +99,7 @@ export default function EditEstablishment({
     id: establishmentData?.id || "",
     name: establishmentData?.name || "",
     natureOfBusiness: establishmentData?.nature_of_business || "",
+    natureOfBusinessOther: "", // For "Others" textbox
     yearEstablished: establishmentData?.year_established || "",
     address: {
       province: establishmentData?.province || "",
@@ -116,6 +117,7 @@ export default function EditEstablishment({
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [showConfirm, setShowConfirm] = useState(false);
+  const notifications = useNotifications();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -126,6 +128,32 @@ export default function EditEstablishment({
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleNatureOfBusinessChange = (e) => {
+    const { value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      natureOfBusiness: value,
+      // Clear "Others" textbox if a predefined option is selected
+      natureOfBusinessOther: value !== "OTHERS" ? "" : prev.natureOfBusinessOther,
+    }));
+    // Clear error when user starts typing
+    if (errors.natureOfBusiness) {
+      setErrors((prev) => ({ ...prev, natureOfBusiness: "" }));
+    }
+  };
+
+  const handleNatureOfBusinessOtherChange = (e) => {
+    const { value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      natureOfBusinessOther: value.toUpperCase(),
+    }));
+    // Clear error when user starts typing
+    if (errors.natureOfBusinessOther) {
+      setErrors((prev) => ({ ...prev, natureOfBusinessOther: "" }));
     }
   };
 
@@ -174,9 +202,12 @@ export default function EditEstablishment({
     }
 
     // Validate required fields
+    const isNatureOfBusinessValid = formData.natureOfBusiness.trim() && 
+      (formData.natureOfBusiness !== "OTHERS" || formData.natureOfBusinessOther.trim());
+    
     if (
       !formData.name.trim() ||
-      !formData.natureOfBusiness.trim() ||
+      !isNatureOfBusinessValid ||
       !formData.yearEstablished.trim() ||
       !formData.address.province.trim() ||
       !formData.address.city.trim() ||
@@ -195,9 +226,14 @@ export default function EditEstablishment({
   const confirmEdit = async () => {
     setLoading(true);
     try {
+      // Determine the final nature of business value
+      const finalNatureOfBusiness = formData.natureOfBusiness === "OTHERS" 
+        ? formData.natureOfBusinessOther.trim()
+        : formData.natureOfBusiness.trim();
+
       await updateEstablishment(formData.id, {
         name: formData.name.trim(),
-        nature_of_business: formData.natureOfBusiness.trim(),
+        nature_of_business: finalNatureOfBusiness,
         year_established: formData.yearEstablished.trim(),
         province: formData.address.province.trim(),
         city: formData.address.city.trim(),
@@ -207,12 +243,13 @@ export default function EditEstablishment({
         latitude: formData.coordinates.latitude,
         longitude: formData.coordinates.longitude,
       });
-      if (window.showNotification) {
-        window.showNotification(
-          "success",
-          "Establishment updated successfully!"
-        );
-      }
+      notifications.success(
+        "Establishment updated successfully!",
+        {
+          title: "Establishment Updated",
+          duration: 4000
+        }
+      );
       if (onEstablishmentUpdated) onEstablishmentUpdated();
       onClose();
     } catch (err) {
@@ -226,11 +263,14 @@ export default function EditEstablishment({
         err.response?.data?.error?.includes("already exists")
       ) {
         setErrors({ name: "An establishment with this name already exists." });
-      } else if (window.showNotification) {
-        window.showNotification(
-          "error",
+      } else {
+        notifications.error(
           "Error updating establishment: " +
-            (err.response?.data?.detail || JSON.stringify(err.response?.data))
+            (err.response?.data?.detail || JSON.stringify(err.response?.data)),
+          {
+            title: "Update Failed",
+            duration: 8000
+          }
         );
       }
     } finally {
@@ -239,22 +279,30 @@ export default function EditEstablishment({
     }
   };
 
-  const Label = ({ field, children }) => (
-    <label className="flex items-center justify-between text-sm font-medium text-gray-700">
-      <span>
-        {children} <span className="text-red-500">*</span>
-      </span>
-      {submitted &&
-        (field.includes(".")
-          ? !field
-              .split(".")
-              .reduce((o, i) => (o ? o[i] : ""), formData)
-              ?.trim()
-          : !formData[field]?.trim()) && (
+  const Label = ({ field, children }) => {
+    const isRequired = submitted && (
+      field.includes(".")
+        ? !field
+            .split(".")
+            .reduce((o, i) => (o ? o[i] : ""), formData)
+            ?.trim()
+        : field === "natureOfBusiness"
+        ? !formData.natureOfBusiness?.trim() || 
+          (formData.natureOfBusiness === "OTHERS" && !formData.natureOfBusinessOther?.trim())
+        : !formData[field]?.trim()
+    );
+
+    return (
+      <label className="flex items-center justify-between text-sm font-medium text-gray-700">
+        <span>
+          {children} <span className="text-red-500">*</span>
+        </span>
+        {isRequired && (
           <span className="text-xs text-red-500">Required</span>
         )}
-    </label>
-  );
+      </label>
+    );
+  };
 
   return (
     <div className="grid w-full max-w-6xl grid-cols-1 gap-6 p-8 bg-white shadow-lg md:grid-cols-2 rounded-2xl">
@@ -286,13 +334,29 @@ export default function EditEstablishment({
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <Label field="natureOfBusiness">Nature of Business</Label>
-              <input
-                type="text"
+              <select
                 name="natureOfBusiness"
                 value={formData.natureOfBusiness}
-                onChange={handleChange}
+                onChange={handleNatureOfBusinessChange}
                 className="w-full p-2 border rounded-lg"
-              />
+              >
+                <option value="">Select Nature of Business</option>
+                {NATURE_OF_BUSINESS_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+              {formData.natureOfBusiness === "OTHERS" && (
+                <input
+                  type="text"
+                  name="natureOfBusinessOther"
+                  value={formData.natureOfBusinessOther}
+                  onChange={handleNatureOfBusinessOtherChange}
+                  placeholder="Please specify..."
+                  className="w-full p-2 mt-2 border rounded-lg"
+                />
+              )}
             </div>
             <div>
               <Label field="yearEstablished">Year Established</Label>
@@ -476,11 +540,16 @@ export default function EditEstablishment({
       <div className="order-2 h-[600px] w-full rounded-lg overflow-hidden shadow">
         <MapContainer
           center={[
-            formData.coordinates.latitude || 12.8797,
-            formData.coordinates.longitude || 121.774,
+            formData.coordinates.latitude || ILOCOS_REGION_CENTER.latitude,
+            formData.coordinates.longitude || ILOCOS_REGION_CENTER.longitude,
           ]}
-          zoom={formData.coordinates.latitude ? 15 : 6}
+          zoom={formData.coordinates.latitude ? 18 : 8} // Zoom to show Ilocos Region
           style={{ height: "100%", width: "100%" }}
+          bounds={[
+            [ILOCOS_REGION_BOUNDS.south, ILOCOS_REGION_BOUNDS.west],
+            [ILOCOS_REGION_BOUNDS.north, ILOCOS_REGION_BOUNDS.east]
+          ]}
+          boundsOptions={{ padding: [20, 20] }}
         >
           <TileLayer
             url={osm.maptiler.url}

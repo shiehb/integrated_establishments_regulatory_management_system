@@ -8,11 +8,13 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from .utils.email_utils import send_user_welcome_email
 from .utils.otp_utils import generate_otp, verify_otp, send_otp_email
 from django.core.cache import cache
 from django.utils import timezone
 from django.db.models import Q
+
+# Import from system_config for password generation
+# from system_config.models import SystemConfiguration  # No longer needed in views
 
 # Notifications
 from notifications.models import Notification
@@ -38,14 +40,11 @@ class RegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
 
-            default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
-            send_user_welcome_email(user, default_password)
-
             # 📌 Log user creation
             log_activity(
                 request.user if request.user.is_authenticated else None,
                 "create",
-                f"New user registered: {user.email}",
+                f"New user registered: {user.email} with auto-generated password",
                 request=request
             )
 
@@ -160,6 +159,57 @@ class UserListView(generics.ListAPIView):
 
     def get_queryset(self):
         return User.objects.exclude(userlevel="Admin").order_by('-updated_at')
+    
+    def list(self, request, *args, **kwargs):
+        # Get pagination parameters
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        
+        # Get filtered queryset
+        queryset = self.get_queryset()
+        
+        # Apply search filter if provided
+        search = request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(email__icontains=search) |
+                Q(section__icontains=search)
+            )
+        
+        # Apply role filter if provided
+        role = request.query_params.get('role')
+        if role:
+            queryset = queryset.filter(userlevel=role)
+        
+        # Apply status filter if provided
+        status = request.query_params.get('status')
+        if status:
+            if status == 'active':
+                queryset = queryset.filter(is_active=True)
+            elif status == 'inactive':
+                queryset = queryset.filter(is_active=False)
+        
+        # Calculate pagination
+        total_count = queryset.count()
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        
+        # Apply pagination
+        users = queryset[start_index:end_index]
+        
+        # Serialize data
+        serializer = self.get_serializer(users, many=True)
+        
+        # Return paginated response
+        return Response({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size,
+            'results': serializer.data
+        })
 
 
 # ---------------------------
@@ -247,10 +297,7 @@ def change_password(request):
     if not user.check_password(old_password):
         return Response({'detail': 'Old password is incorrect.'}, status=400)
 
-    default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
-    if new_password == default_password:
-        return Response({'detail': 'Cannot use the default password again.'}, status=400)
-
+    # Don't allow reusing the same password
     if new_password == old_password:
         return Response({'detail': 'New password cannot be the same as old password.'}, status=400)
 
@@ -279,10 +326,6 @@ def first_time_change_password(request):
 
     if not new_password:
         return Response({'detail': 'New password is required.'}, status=400)
-
-    default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
-    if new_password == default_password:
-        return Response({'detail': 'Cannot use the default password again.'}, status=400)
 
     user.set_password(new_password)
     user.must_change_password = False
@@ -350,10 +393,6 @@ def reset_password_with_otp(request):
         user = User.objects.get(email=email)
     except User.DoesNotExist:
         return Response({'detail': 'User with this email does not exist.'}, status=404)
-
-    default_password = getattr(settings, "DEFAULT_USER_PASSWORD", "Temp1234")
-    if new_password == default_password:
-        return Response({'detail': 'Cannot use the default password.'}, status=400)
 
     user.set_password(new_password)
     user.must_change_password = False

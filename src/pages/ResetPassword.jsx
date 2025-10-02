@@ -1,8 +1,11 @@
+// ResetPassword.jsx
 import { useNavigate } from "react-router-dom";
 import Layout from "../components/Layout";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, RotateCcw } from "lucide-react";
 import { resetPasswordWithOtp, sendOtp } from "../services/api";
+import OTPInput from "../components/common/OTPInput";
+import { useNotifications } from "../components/NotificationManager";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -19,6 +22,7 @@ export default function ResetPassword() {
   const [message, setMessage] = useState("");
   const [errors, setErrors] = useState({});
   const [countdown, setCountdown] = useState(0);
+  const notifications = useNotifications();
 
   useEffect(() => {
     const savedEmail = localStorage.getItem("resetEmail");
@@ -56,6 +60,32 @@ export default function ResetPassword() {
     }
   };
 
+  const handleOTPChange = (otp) => {
+    setFormData({
+      ...formData,
+      otp: otp,
+    });
+
+    if (errors.otp) {
+      setErrors({
+        ...errors,
+        otp: "",
+      });
+    }
+
+    if (message) {
+      setMessage("");
+    }
+  };
+
+  const handleOTPComplete = (otp) => {
+    // Optional: Auto-submit when OTP is complete
+    // You can uncomment this if you want auto-submission
+    // if (formData.newPassword && formData.confirmPassword) {
+    //   handleSubmit();
+    // }
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -77,6 +107,9 @@ export default function ResetPassword() {
         "Password must contain at least one uppercase letter";
     } else if (!/(?=.*\d)/.test(formData.newPassword)) {
       newErrors.newPassword = "Password must contain at least one number";
+    } else if (!/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
+      newErrors.newPassword =
+        "Password must contain at least one special character (@$!%*?&)";
     }
 
     if (!formData.confirmPassword.trim()) {
@@ -107,35 +140,45 @@ export default function ResetPassword() {
       );
 
       // Show success notification
-      if (window.showNotification) {
-        window.showNotification(
-          "success",
-          response.detail || "Password reset successfully!"
-        );
-      }
+      notifications.passwordChange(
+        response.detail || "Password reset successfully!",
+        {
+          title: "Password Reset Successful",
+          duration: 4000
+        }
+      );
 
-      // Clear the stored email after successful reset
       localStorage.removeItem("resetEmail");
 
-      // Redirect to login with success message
       setTimeout(() => {
         navigate("/login", {
           state: {
             message:
               "Password reset successfully! Please login with your new password.",
-            email: formData.email, // Pre-fill email in login form
+            email: formData.email,
           },
         });
       }, 2000);
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail ||
-        "Failed to reset password. Please try again.";
+      let errorMessage = "Failed to reset password. Please try again.";
+      
+      // Check for different types of errors
+      if (error.code === 'NETWORK_ERROR' || error.message?.includes('Network Error') || !navigator.onLine) {
+        errorMessage = "No internet connection. Please check your network and try again.";
+      } else if (error.response?.status === 0 || error.message?.includes('fetch')) {
+        errorMessage = "Unable to connect to server. Please check your connection and try again.";
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
 
       // Show error notification
-      if (window.showNotification) {
-        window.showNotification("error", errorMessage);
-      }
+      notifications.error(
+        errorMessage,
+        {
+          title: "Password Reset Failed",
+          duration: 8000
+        }
+      );
     } finally {
       setLoading(false);
     }
@@ -151,23 +194,35 @@ export default function ResetPassword() {
       const response = await sendOtp(formData.email);
 
       // Show success notification
-      if (window.showNotification) {
-        window.showNotification(
-          "success",
-          response.detail || "OTP sent successfully!"
-        );
-      }
+      notifications.success(
+        response.detail || "OTP sent successfully!",
+        {
+          title: "OTP Sent",
+          duration: 4000
+        }
+      );
 
       setCountdown(60);
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.detail ||
-        "Failed to resend OTP. Please try again.";
+      let errorMessage = "Failed to resend OTP. Please try again.";
+      
+      // Check for different types of errors
+      if (error.code === 'NETWORK_ERROR' || error.message?.includes('Network Error') || !navigator.onLine) {
+        errorMessage = "No internet connection. Please check your network and try again.";
+      } else if (error.response?.status === 0 || error.message?.includes('fetch')) {
+        errorMessage = "Unable to connect to server. Please check your connection and try again.";
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
 
       // Show error notification
-      if (window.showNotification) {
-        window.showNotification("error", errorMessage);
-      }
+      notifications.error(
+        errorMessage,
+        {
+          title: "OTP Send Failed",
+          duration: 8000
+        }
+      );
     } finally {
       setResendLoading(false);
     }
@@ -190,9 +245,9 @@ export default function ResetPassword() {
           <input type="hidden" name="email" value={formData.email} />
 
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between mb-3">
               <label className="block text-sm font-medium text-gray-700">
-                6-Digit Code
+                6-Digit Verification Code
               </label>
               <button
                 type="button"
@@ -208,21 +263,24 @@ export default function ResetPassword() {
                   : "Resend OTP"}
               </button>
             </div>
-            <input
-              type="text"
-              name="otp"
-              placeholder="Enter OTP code sent to your email"
+            
+            <OTPInput
+              length={6}
               value={formData.otp}
-              onChange={handleChange}
-              required
-              maxLength={6}
-              className={`w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
-                errors.otp ? "border-red-500" : "border-gray-300"
-              }`}
+              onChange={handleOTPChange}
+              onComplete={handleOTPComplete}
+              disabled={loading}
+              error={!!errors.otp}
+              className="mb-2"
             />
+            
             {errors.otp && (
-              <p className="mt-1 text-xs text-red-500">{errors.otp}</p>
+              <p className="mt-2 text-xs text-red-500 text-center">{errors.otp}</p>
             )}
+            
+            <p className="mt-2 text-xs text-gray-500 text-center">
+              Enter the 6-digit code sent to {formData.email}
+            </p>
           </div>
 
           <div>
@@ -324,6 +382,7 @@ export default function ResetPassword() {
             <li>• At least one uppercase letter (A-Z)</li>
             <li>• At least one lowercase letter (a-z)</li>
             <li>• At least one number (0-9)</li>
+            <li>• At least one special character (@$!%*?&)</li>
           </ul>
         </div>
       </div>
