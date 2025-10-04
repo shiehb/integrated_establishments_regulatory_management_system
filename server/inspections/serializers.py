@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Inspection, InspectionWorkflowHistory
+from .models import Inspection, InspectionWorkflowHistory, InspectionLawAssignment
 
 
 class InspectionSerializer(serializers.ModelSerializer):
@@ -14,6 +14,8 @@ class InspectionSerializer(serializers.ModelSerializer):
     routing_info = serializers.SerializerMethodField(read_only=True)
     available_actions = serializers.SerializerMethodField(read_only=True)
     workflow_history = serializers.SerializerMethodField(read_only=True)
+    law_assignments = serializers.SerializerMethodField(read_only=True)
+    compliance_info = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Inspection
@@ -23,17 +25,18 @@ class InspectionSerializer(serializers.ModelSerializer):
     def get_establishment_detail(self, obj):
         e = obj.establishment
         return {
-            'id': e.id,
-            'name': e.name,
-            'nature_of_business': e.nature_of_business,
-            'province': e.province,
-            'city': e.city,
-            'barangay': e.barangay,
-            'street_building': e.street_building,
-            'postal_code': e.postal_code,
-            'latitude': str(e.latitude),
-            'longitude': str(e.longitude),
-        }
+        'id': e.id,
+        'name': e.name,
+        'nature_of_business': e.nature_of_business,
+        'year_established': e.year_established,  # ✅ added
+        'province': e.province,
+        'city': e.city,
+        'barangay': e.barangay,
+        'street_building': e.street_building,
+        'postal_code': e.postal_code,
+        'latitude': str(e.latitude),
+        'longitude': str(e.longitude),
+    }
 
     def _full_name(self, u):
         if not u:
@@ -56,8 +59,7 @@ class InspectionSerializer(serializers.ModelSerializer):
         return self._full_name(obj.assigned_monitor)
 
     def get_current_assignee_name(self, obj):
-        current_assignee = obj.get_current_assignee()
-        return self._full_name(current_assignee)
+        return self._full_name(obj.current_assigned_to)
 
     def get_can_act(self, obj):
         request = self.context.get('request')
@@ -138,6 +140,60 @@ class InspectionSerializer(serializers.ModelSerializer):
             for h in history
         ]
 
+    def get_law_assignments(self, obj):
+        """Get law assignments for this inspection"""
+        assignments = obj.law_assignments.all()
+        return [
+            {
+                'id': assignment.id,
+                'law_code': assignment.law_code,
+                'law_name': assignment.law_name,
+                'law_status': assignment.law_status,
+                'can_section_chief_forward': assignment.can_section_chief_forward(),
+                'available_forward_options': assignment.get_available_forward_options(),
+                'assigned_to_section_chief': {
+                    'id': assignment.assigned_to_section_chief.id if assignment.assigned_to_section_chief else None,
+                    'name': self._full_name(assignment.assigned_to_section_chief),
+                    'email': assignment.assigned_to_section_chief.email if assignment.assigned_to_section_chief else None,
+                    'section': assignment.assigned_to_section_chief.section if assignment.assigned_to_section_chief else None,
+                    'district': assignment.assigned_to_section_chief.district if assignment.assigned_to_section_chief else None
+                } if assignment.assigned_to_section_chief else None,
+                'assigned_to_unit_head': {
+                    'id': assignment.assigned_to_unit_head.id if assignment.assigned_to_unit_head else None,
+                    'name': self._full_name(assignment.assigned_to_unit_head),
+                    'email': assignment.assigned_to_unit_head.email if assignment.assigned_to_unit_head else None,
+                    'section': assignment.assigned_to_unit_head.section if assignment.assigned_to_unit_head else None,
+                    'district': assignment.assigned_to_unit_head.district if assignment.assigned_to_unit_head else None
+                } if assignment.assigned_to_unit_head else None,
+                'assigned_to_monitoring_personnel': {
+                    'id': assignment.assigned_to_monitoring_personnel.id if assignment.assigned_to_monitoring_personnel else None,
+                    'name': self._full_name(assignment.assigned_to_monitoring_personnel),
+                    'email': assignment.assigned_to_monitoring_personnel.email if assignment.assigned_to_monitoring_personnel else None,
+                    'section': assignment.assigned_to_monitoring_personnel.section if assignment.assigned_to_monitoring_personnel else None,
+                    'district': assignment.assigned_to_monitoring_personnel.district if assignment.assigned_to_monitoring_personnel else None
+                } if assignment.assigned_to_monitoring_personnel else None,
+                'created_at': assignment.created_at,
+                'updated_at': assignment.updated_at
+            }
+            for assignment in assignments
+        ]
+
+    def get_compliance_info(self, obj):
+        """Get compliance tracking information"""
+        return {
+            'compliance_status': obj.compliance_status,
+            'compliance_notes': obj.compliance_notes,
+            'violations_found': obj.violations_found,
+            'compliance_plan': obj.compliance_plan,
+            'compliance_deadline': obj.compliance_deadline,
+            'notice_of_violation_sent': obj.notice_of_violation_sent,
+            'notice_of_order_sent': obj.notice_of_order_sent,
+            'penalties_imposed': obj.penalties_imposed,
+            'legal_unit_comments': obj.legal_unit_comments,
+            'is_compliant': obj.compliance_status == 'COMPLIANT',
+            'requires_legal_review': obj.compliance_status == 'NON_COMPLIANT' and obj.status == 'LEGAL_REVIEW'
+        }
+
     def validate(self, data):
         # Require district for Section Chief/Unit Head/Monitoring Personnel assignments
         if data.get('assigned_monitor') or data.get('assigned_unit_head') or data.get('assigned_section_chief'):
@@ -150,5 +206,47 @@ class WorkflowDecisionSerializer(serializers.Serializer):
     """Serializer for workflow decisions"""
     action = serializers.ChoiceField(choices=Inspection.ACTION_CHOICES)
     comments = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+    compliance_status = serializers.ChoiceField(choices=Inspection.COMPLIANCE_CHOICES, required=False)
+    violations_found = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+    compliance_notes = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+
+
+class InspectionLawAssignmentSerializer(serializers.ModelSerializer):
+    """Serializer for law assignments"""
+    assigned_to_section_chief_name = serializers.SerializerMethodField(read_only=True)
+    assigned_to_unit_head_name = serializers.SerializerMethodField(read_only=True)
+    assigned_to_monitoring_personnel_name = serializers.SerializerMethodField(read_only=True)
+    inspection_code = serializers.SerializerMethodField(read_only=True)
+    can_section_chief_forward = serializers.SerializerMethodField(read_only=True)
+    available_forward_options = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = InspectionLawAssignment
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+    
+    def get_assigned_to_section_chief_name(self, obj):
+        if obj.assigned_to_section_chief:
+            return f"{obj.assigned_to_section_chief.first_name} {obj.assigned_to_section_chief.last_name}".strip() or obj.assigned_to_section_chief.email
+        return None
+    
+    def get_assigned_to_unit_head_name(self, obj):
+        if obj.assigned_to_unit_head:
+            return f"{obj.assigned_to_unit_head.first_name} {obj.assigned_to_unit_head.last_name}".strip() or obj.assigned_to_unit_head.email
+        return None
+    
+    def get_assigned_to_monitoring_personnel_name(self, obj):
+        if obj.assigned_to_monitoring_personnel:
+            return f"{obj.assigned_to_monitoring_personnel.first_name} {obj.assigned_to_monitoring_personnel.last_name}".strip() or obj.assigned_to_monitoring_personnel.email
+        return None
+    
+    def get_inspection_code(self, obj):
+        return obj.inspection.code if obj.inspection else None
+    
+    def get_can_section_chief_forward(self, obj):
+        return obj.can_section_chief_forward()
+    
+    def get_available_forward_options(self, obj):
+        return obj.get_available_forward_options()
 
 

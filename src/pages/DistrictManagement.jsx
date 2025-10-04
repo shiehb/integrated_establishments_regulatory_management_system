@@ -3,6 +3,8 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
 import { useNotifications } from "../components/NotificationManager";
+import ConfirmationDialog from "../components/common/ConfirmationDialog";
+import PaginationControls, { useLocalStoragePagination } from "../components/PaginationControls";
 import { 
   MapPin, 
   Users, 
@@ -15,6 +17,7 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
+  Trash2,
 } from "lucide-react";
 import { getDistrictUsers, assignDistrict, getProfile } from "../services/api";
 
@@ -73,9 +76,10 @@ export default function DistrictManagement() {
   // All laws view state
   const [showAllLaws, setShowAllLaws] = useState(false);
   
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  // Pagination with localStorage
+  const savedPagination = useLocalStoragePagination("district_management");
+  const [currentPage, setCurrentPage] = useState(savedPagination.page);
+  const [pageSize, setPageSize] = useState(savedPagination.pageSize);
   
   // UI state
   const [showFilters, setShowFilters] = useState(false);
@@ -83,6 +87,10 @@ export default function DistrictManagement() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assigningDistrict, setAssigningDistrict] = useState("");
   const [processing, setProcessing] = useState(false);
+  
+  // Confirmation dialog states
+  const [showAssignConfirm, setShowAssignConfirm] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   
   // Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
@@ -163,6 +171,11 @@ export default function DistrictManagement() {
     setShowAssignModal(true);
   };
 
+  const handleRemoveDistrict = (user) => {
+    setSelectedUser(user);
+    setShowRemoveConfirm(true);
+  };
+
   const handleConfirmAssign = async () => {
     if (!selectedUser) return;
     
@@ -170,12 +183,14 @@ export default function DistrictManagement() {
     try {
       await assignDistrict(selectedUser.id, assigningDistrict);
       
+      const actionText = selectedUser.district ? 'reassigned' : 'assigned';
       notifications.success(
-        `District ${assigningDistrict ? 'assigned' : 'removed'} successfully!`,
+        `District ${actionText} successfully!`,
         { title: "Success", duration: 4000 }
       );
       
       setShowAssignModal(false);
+      setShowAssignConfirm(false);
       setSelectedUser(null);
       setAssigningDistrict("");
       
@@ -184,6 +199,33 @@ export default function DistrictManagement() {
     } catch (error) {
       notifications.error(
         error.message || "Failed to assign district",
+        { title: "Error", duration: 5000 }
+      );
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!selectedUser) return;
+    
+    setProcessing(true);
+    try {
+      await assignDistrict(selectedUser.id, ""); // Empty string removes district
+      
+      notifications.success(
+        "District removed successfully!",
+        { title: "Success", duration: 4000 }
+      );
+      
+      setShowRemoveConfirm(false);
+      setSelectedUser(null);
+      
+      // Refresh users
+      fetchUsers();
+    } catch (error) {
+      notifications.error(
+        error.message || "Failed to remove district",
         { title: "Error", duration: 5000 }
       );
     } finally {
@@ -252,9 +294,14 @@ export default function DistrictManagement() {
   const endIndex = startIndex + pageSize;
   const paginatedUsers = sortedUsers.slice(startIndex, endIndex);
   
-  const goToPage = (page) => {
+  const goToPage = useCallback((page) => {
     setCurrentPage(page);
-  };
+  }, []);
+
+  const handlePageSizeChange = useCallback((newSize) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+  }, []);
   
   // Reset to first page when filters change
   useEffect(() => {
@@ -275,295 +322,271 @@ export default function DistrictManagement() {
     );
   }
 
+  // Check if user has access to District Management (Admin or Section Chief only)
+  const userLevel = userProfile?.userlevel?.trim();
+  const hasAccess = userLevel === "Admin" || userLevel === "Section Chief";
+
+  if (!hasAccess) {
+    return (
+      <>
+        <Header />
+        <LayoutWithSidebar userLevel={userProfile?.userlevel}>
+          <div className="flex items-center justify-center h-[calc(100vh-160px)]">
+            <div className="text-center">
+              <div className="inline-block p-8 bg-white border border-gray-200 rounded-lg shadow-sm">
+                <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                  <X size={32} className="text-red-600" />
+                </div>
+                <h2 className="mb-2 text-xl font-semibold text-gray-800">
+                  Access Denied
+                </h2>
+                <p className="mb-4 text-gray-600">
+                  District Management is only available to Admins and Section Chiefs.
+                </p>
+                <p className="text-sm text-gray-500">
+                  Your current role: <span className="font-medium text-gray-700">{userLevel || "Unknown"}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </LayoutWithSidebar>
+        <Footer />
+      </>
+    );
+  }
+
   const currentSection = sections.find(s => s.value === selectedSection);
 
   return (
     <>
       <Header />
       <LayoutWithSidebar userLevel={userProfile?.userlevel}>
-        <div className="p-6 bg-gray-50 min-h-[calc(100vh-160px)]">
-          {/* Page Header */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">District Management</h1>
-                <p className="text-gray-600 mt-1">Manage monitoring personnel district assignments across environmental laws</p>
-              </div>
-            </div>
-          </div>
-
+        <div className="p-4 bg-white h-[calc(100vh-160px)]">
           {/* Top controls */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                {/* 🔍 Local Search Bar */}
-                <div className="relative">
-                  <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search monitoring personnel..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-80 py-2 pl-10 pr-8 transition bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="absolute -translate-y-1/2 right-3 top-1/2"
-                    >
-                      <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                    </button>
-                  )}
-                </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div>
+              <h1 className="text-2xl font-bold text-sky-600">District Management</h1>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              {/* 🔍 Local Search Bar */}
+              <div className="relative">
+                <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search monitoring personnel..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full py-0.5 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-lg min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute -translate-y-1/2 right-3 top-1/2"
+                  >
+                    <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                  </button>
+                )}
               </div>
 
-              <div className="flex items-center gap-3">
-                {/* 🔽 Sort Dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  >
-                    <ArrowUpDown size={16} />
-                    Sort by
-                    <ChevronDown size={14} />
-                  </button>
+              {/* 🔽 Sort Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
+                >
+                  <ArrowUpDown size={14} />
+                  Sort by
+                  <ChevronDown size={14} />
+                </button>
 
-                  {showFilters && (
-                    <div className="absolute right-0 z-20 w-56 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg">
-                      <div className="p-3">
-                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                          Sort Options
-                        </div>
-                        
-                        {/* Sort by Field Section */}
-                        <div className="mb-2">
-                          <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                            Sort by Field
-                          </div>
-                          {[
-                            { key: "name", label: "Full Name" },
-                            { key: "email", label: "Email" },
-                            ...(showAllLaws ? [{ key: "section", label: "Law" }] : []),
-                            { key: "district", label: "District" },
-                            { key: "is_active", label: "Status" },
-                          ].map((field) => (
-                            <button
-                              key={field.key}
-                              onClick={() => handleSort(field.key)}
-                              className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                                sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
-                              }`}
-                            >
-                              <div className="flex-1 text-left">
-                                <div className="font-medium">{field.label}</div>
-                              </div>
-                              {sortConfig.key === field.key && (
-                                <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
+                {showFilters && (
+                  <div className="absolute right-0 z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
+                    <div className="p-2">
+                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Sort Options
                       </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 🎚 Filters dropdown */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowFilters(!showFilters)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  >
-                    <Filter size={16} />
-                    Filters
-                    <ChevronDown size={14} />
-                    {hasActiveFilters && (
-                      <span className="ml-1 px-2 py-0.5 text-xs font-medium text-white bg-sky-600 rounded-full">
-                        1
-                      </span>
-                    )}
-                  </button>
-
-                  {showFilters && (
-                    <div className="absolute right-0 z-20 w-72 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg">
-                      <div className="p-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="text-sm font-semibold text-gray-900">
-                            Filter Options
-                          </div>
-                          {hasActiveFilters && (
-                            <button
-                              onClick={clearFilters}
-                              className="px-3 py-1 text-xs text-sky-600 bg-sky-50 rounded-md hover:bg-sky-100 transition-colors"
-                            >
-                              Clear All
-                            </button>
-                          )}
+                      
+                      {/* Sort by Field Section */}
+                      <div className="mb-2">
+                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                          Sort by Field
                         </div>
-                        
-                        {/* Province Section */}
-                        <div className="mb-4">
-                          <label className="block mb-2 text-sm font-medium text-gray-700">
-                            Province
-                          </label>
-                          <select
-                            value={selectedProvince}
-                            onChange={(e) => {
-                              setSelectedProvince(e.target.value);
-                              setSelectedDistrict(""); // Reset district when province changes
-                            }}
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                          >
-                            <option value="">All Provinces</option>
-                            {provinces.map((province) => (
-                              <option key={province.value} value={province.value}>
-                                {province.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* District Section */}
-                        <div>
-                          <label className="block mb-2 text-sm font-medium text-gray-700">
-                            District
-                          </label>
-                          <select
-                            value={selectedDistrict}
-                            onChange={(e) => setSelectedDistrict(e.target.value)}
-                            disabled={!selectedProvince}
-                            className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
-                              !selectedProvince ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
+                        {[
+                          { key: "name", label: "Full Name" },
+                          { key: "email", label: "Email" },
+                          ...(showAllLaws ? [{ key: "section", label: "Law" }] : []),
+                          { key: "district", label: "District" },
+                          { key: "is_active", label: "Status" },
+                        ].map((field) => (
+                          <button
+                            key={field.key}
+                            onClick={() => handleSort(field.key)}
+                            className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                              sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
                             }`}
                           >
-                            <option value="">All Districts</option>
-                            {districts.map((district) => (
-                              <option key={district} value={`${selectedProvince} - ${district}`}>
-                                {district}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                            <div className="flex-1 text-left">
+                              <div className="font-medium">{field.label}</div>
+                            </div>
+                            {sortConfig.key === field.key && (
+                              <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                            )}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 🎚 Filters dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
+                >
+                  <Filter size={14} />
+                  Filters
+                  <ChevronDown size={14} />
+                  {hasActiveFilters && ` (1)`}
+                </button>
+
+                {showFilters && (
+                  <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded shadow">
+                    <div className="p-2">
+                      <div className="flex items-center justify-between px-3 py-2 mb-2">
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          Filter Options
+                        </div>
+                        {hasActiveFilters && (
+                          <button
+                            onClick={clearFilters}
+                            className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Province Section */}
+                      <div className="mb-3">
+                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                          Province
+                        </div>
+                        <select
+                          value={selectedProvince}
+                          onChange={(e) => {
+                            setSelectedProvince(e.target.value);
+                            setSelectedDistrict(""); // Reset district when province changes
+                          }}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                        >
+                          <option value="">All Provinces</option>
+                          {provinces.map((province) => (
+                            <option key={province.value} value={province.value}>
+                              {province.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* District Section */}
+                      <div className="mb-2">
+                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                          District
+                        </div>
+                        <select
+                          value={selectedDistrict}
+                          onChange={(e) => setSelectedDistrict(e.target.value)}
+                          disabled={!selectedProvince}
+                          className={`w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
+                            !selectedProvince ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          <option value="">All Districts</option>
+                          {districts.map((district) => (
+                            <option key={district} value={`${selectedProvince} - ${district}`}>
+                              {district}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Section Tabs */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Environmental Laws</h3>
-              <p className="text-sm text-gray-600">Select a law to view its monitoring personnel</p>
-            </div>
-            
-            <div className="flex flex-wrap gap-3">
-              {/* All Laws Tab */}
-              <button
-                onClick={() => {
-                  setShowAllLaws(true);
-                  setSelectedSection("");
-                }}
-                className={`px-6 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
-                  showAllLaws
-                    ? "bg-sky-600 text-white shadow-md"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-sm"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Users size={16} />
-                  All Laws
-                </div>
-              </button>
-              
-              {/* Individual Law Tabs */}
-              {sections.map((section) => (
+          <div className="mb-4">
+            <div className="border-b border-gray-200">
+              <nav className="flex space-x-8">
+                {/* All Laws Tab */}
                 <button
-                  key={section.value}
                   onClick={() => {
-                    setSelectedSection(section.value);
-                    setShowAllLaws(false);
+                    setShowAllLaws(true);
+                    setSelectedSection("");
                   }}
-                  className={`px-6 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
-                    selectedSection === section.value && !showAllLaws
-                      ? "bg-sky-600 text-white shadow-md"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-sm"
+                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    showAllLaws
+                      ? 'border-sky-500 text-sky-600 bg-sky-50'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <MapPin size={16} />
-                    {section.label}
-                  </div>
+                  All Laws
                 </button>
-              ))}
+                
+                {/* Individual Law Tabs */}
+                {sections.map((section) => (
+                  <button
+                    key={section.value}
+                    onClick={() => {
+                      setSelectedSection(section.value);
+                      setShowAllLaws(false);
+                    }}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                      selectedSection === section.value && !showAllLaws
+                        ? 'border-sky-500 text-sky-600 bg-sky-50'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {section.label}
+                  </button>
+                ))}
+              </nav>
             </div>
-
-            {/* Current Section Info */}
-            {showAllLaws ? (
-              <div className="mt-4 p-4 bg-sky-50 border border-sky-200 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 bg-sky-600 rounded-lg">
-                    <Users size={20} className="text-white" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-sky-900">All Environmental Laws</h4>
-                    <p className="text-sm text-sky-700">Viewing all monitoring personnel across all environmental laws</p>
-                  </div>
-                </div>
-              </div>
-            ) : currentSection && (
-              <div className="mt-4 p-4 bg-sky-50 border border-sky-200 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 bg-sky-600 rounded-lg">
-                    <MapPin size={20} className="text-white" />
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-sky-900">{currentSection.label}</h4>
-                    <p className="text-sm text-sky-700">{currentSection.fullLabel}</p>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* 📊 Search results info */}
-          {(hasActiveFilters || filteredUsers.length !== users.length) && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                    <span className="text-sm font-medium text-gray-900">
-                      {filteredUsers.length === users.length
-                        ? `Showing all ${users.length} monitoring personnel`
-                        : `Showing ${filteredUsers.length} of ${users.length} monitoring personnel`}
-                    </span>
-                  </div>
-                  {hasActiveFilters && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">Active filters:</span>
-                      {selectedProvince && (
-                        <span className="px-2 py-1 text-xs font-medium text-sky-600 bg-sky-50 rounded-full">
-                          {selectedProvince}
-                        </span>
-                      )}
-                      {selectedDistrict && (
-                        <span className="px-2 py-1 text-xs font-medium text-sky-600 bg-sky-50 rounded-full">
-                          {selectedDistrict.split(' - ')[1]}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
+          {(hasActiveFilters || filteredUsers.length !== users.length || (showAllLaws === false && selectedSection)) && (
+            <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
+              <div>
+                {showAllLaws === false && selectedSection ? (
+                  <span>
+                    Showing {filteredUsers.length} monitoring personnel for <span className="font-medium text-sky-600">{currentSection?.label}</span>
+                  </span>
+                ) : filteredUsers.length === users.length ? (
+                  `Showing all ${users.length} monitoring personnel`
+                ) : (
+                  `Showing ${filteredUsers.length} of ${users.length} monitoring personnel`
+                )}
+              </div>
+              <div className="flex gap-2">
+                {showAllLaws === false && selectedSection && (
+                  <button
+                    onClick={() => setShowAllLaws(true)}
+                    className="underline text-sky-600 hover:text-sky-700"
+                  >
+                    Show All Laws
+                  </button>
+                )}
                 {hasActiveFilters && (
                   <button
                     onClick={clearFilters}
-                    className="flex items-center gap-2 px-3 py-1 text-sm text-sky-600 bg-sky-50 rounded-md hover:bg-sky-100 transition-colors"
+                    className="underline text-sky-600 hover:text-sky-700"
                   >
-                    <X size={14} />
                     Clear all filters
                   </button>
                 )}
@@ -572,263 +595,196 @@ export default function DistrictManagement() {
           )}
 
           {/* Table */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-sm text-left text-white bg-gradient-to-r from-sky-600 to-sky-700">
-                    <th className="px-6 py-4">
-                      <button
-                        onClick={() => handleSort('name')}
-                        className="flex items-center gap-2 hover:text-gray-200 transition-colors font-medium"
-                      >
-                        Full Name
-                        {getSortIcon('name')}
-                      </button>
-                    </th>
-                    <th className="px-6 py-4 font-medium">Email</th>
-                    {showAllLaws && (
-                      <th className="px-6 py-4">
+          <table className="w-full border border-gray-300 rounded-lg">
+            <thead>
+              <tr className="text-sm text-left text-white bg-sky-700">
+                <th className="p-1 border-b border-gray-300">
+                  <button
+                    onClick={() => handleSort('name')}
+                    className="flex items-center gap-1 hover:text-gray-200 transition-colors font-medium"
+                  >
+                    Full Name {getSortIcon('name')}
+                  </button>
+                </th>
+                <th className="p-1 border-b border-gray-300 font-medium">Email</th>
+                {showAllLaws && (
+                  <th className="p-1 border-b border-gray-300">
+                    <button
+                      onClick={() => handleSort('section')}
+                      className="flex items-center gap-1 hover:text-gray-200 transition-colors font-medium"
+                    >
+                      Law {getSortIcon('section')}
+                    </button>
+                  </th>
+                )}
+                <th className="p-1 border-b border-gray-300">
+                  <button
+                    onClick={() => handleSort('district')}
+                    className="flex items-center gap-1 hover:text-gray-200 transition-colors font-medium"
+                  >
+                    District {getSortIcon('district')}
+                  </button>
+                </th>
+                <th className="p-1 border-b border-gray-300">
+                  <button
+                    onClick={() => handleSort('is_active')}
+                    className="flex items-center gap-1 hover:text-gray-200 transition-colors font-medium"
+                  >
+                    Status {getSortIcon('is_active')}
+                  </button>
+                </th>
+                <th className="p-1 text-center border-b border-gray-300 w-35 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td
+                    colSpan={showAllLaws ? "6" : "5"}
+                    className="px-2 py-8 text-center border-b border-gray-300"
+                  >
+                    <div
+                      className="flex flex-col items-center justify-center p-4"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <div className="w-8 h-8 mb-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
+                      <p className="text-sm text-gray-600">Loading monitoring personnel...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedUsers.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={showAllLaws ? "6" : "5"}
+                    className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
+                  >
+                    {hasActiveFilters ? (
+                      <div>
+                        No monitoring personnel found matching your criteria.
+                        <br />
                         <button
-                          onClick={() => handleSort('section')}
-                          className="flex items-center gap-2 hover:text-gray-200 transition-colors font-medium"
+                          onClick={clearFilters}
+                          className="mt-2 underline text-sky-600 hover:text-sky-700"
                         >
-                          Law
-                          {getSortIcon('section')}
+                          Clear all filters
                         </button>
-                      </th>
+                      </div>
+                    ) : (
+                      "No monitoring personnel found."
                     )}
-                    <th className="px-6 py-4">
-                      <button
-                        onClick={() => handleSort('district')}
-                        className="flex items-center gap-2 hover:text-gray-200 transition-colors font-medium"
-                      >
-                        District
-                        {getSortIcon('district')}
-                      </button>
-                    </th>
-                    <th className="px-6 py-4">
-                      <button
-                        onClick={() => handleSort('is_active')}
-                        className="flex items-center gap-2 hover:text-gray-200 transition-colors font-medium"
-                      >
-                        Status
-                        {getSortIcon('is_active')}
-                      </button>
-                    </th>
-                    <th className="px-6 py-4 text-center font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {loading ? (
-                    <tr>
-                      <td
-                        colSpan={showAllLaws ? "6" : "5"}
-                        className="px-6 py-12 text-center"
-                      >
-                        <div
-                          className="flex flex-col items-center justify-center"
-                          role="status"
-                          aria-live="polite"
+                  </td>
+                </tr>
+              ) : (
+                paginatedUsers.map((user) => (
+                  <tr
+                    key={user.id}
+                    className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
+                  >
+                    <td className="px-2 font-semibold border-b border-gray-300">
+                      <div className="flex items-center">
+                        <Users className="h-4 w-4 text-gray-400 mr-2" />
+                        {getFullName(user)}
+                      </div>
+                    </td>
+                    <td className="px-2 border-b border-gray-300">
+                      <div className="text-sm text-gray-600">{user.email}</div>
+                    </td>
+                    {showAllLaws && (
+                      <td className="px-2 border-b border-gray-300">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-gray-900">{user.section}</span>
+                          <span className="text-xs text-gray-500">{getSectionDisplayName(user.section)}</span>
+                        </div>
+                      </td>
+                    )}
+                    <td className="px-2 border-b border-gray-300">
+                      {user.district ? (
+                        <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                          <MapPin size={12} />
+                          {user.district}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">
+                          <X size={12} />
+                          Not Assigned
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-2 text-center border-b border-gray-300">
+                      {user.is_active ? (
+                        <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                          Inactive
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-1 text-center border-b border-gray-300">
+                      <div className="flex justify-center gap-1">
+                        <button
+                          onClick={() => handleAssignDistrict(user)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs text-white transition-colors rounded bg-sky-600 hover:bg-sky-700"
+                          title={user.district ? "Reassign District" : "Assign District"}
                         >
-                          <div className="w-8 h-8 mb-3 border-4 border-sky-200 border-t-sky-600 rounded-full animate-spin"></div>
-                          <p className="text-sm text-gray-600">Loading monitoring personnel...</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : paginatedUsers.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={showAllLaws ? "6" : "5"}
-                        className="px-6 py-12 text-center"
-                      >
-                        <div className="flex flex-col items-center">
-                          <div className="w-16 h-16 mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                            <Users size={24} className="text-gray-400" />
-                          </div>
-                          <h3 className="text-lg font-medium text-gray-900 mb-2">No monitoring personnel found</h3>
-                          <p className="text-gray-500 mb-4">
-                            {hasActiveFilters 
-                              ? "No personnel match your current filters"
-                              : showAllLaws 
-                                ? "No monitoring personnel are registered"
-                                : `No personnel found for ${currentSection?.label}`
-                            }
-                          </p>
-                          {hasActiveFilters && (
-                            <button
-                              onClick={clearFilters}
-                              className="px-4 py-2 text-sm text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors"
-                            >
-                              Clear all filters
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedUsers.map((user) => (
-                      <tr
-                        key={user.id}
-                        className="hover:bg-gray-50 transition-colors"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {getFullName(user)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-600">{user.email}</div>
-                        </td>
-                        {showAllLaws && (
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-gray-900">{user.section}</span>
-                              <span className="text-xs text-gray-500">{getSectionDisplayName(user.section)}</span>
-                            </div>
-                          </td>
-                        )}
-                        <td className="px-6 py-4">
-                          {user.district ? (
-                            <div className="flex flex-col">
-                              <span className="inline-flex items-center gap-2 px-3 py-1 text-xs font-medium text-green-700 bg-green-50 rounded-full">
-                                <MapPin size={12} />
-                                {user.district}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="inline-flex items-center gap-2 px-3 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
-                              <X size={12} />
-                              Not Assigned
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          {user.is_active ? (
-                            <span className="inline-flex items-center gap-2 px-3 py-1 text-xs font-medium text-green-700 bg-green-50 rounded-full">
-                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                              Active
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-2 px-3 py-1 text-xs font-medium text-red-700 bg-red-50 rounded-full">
-                              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                              Inactive
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-center">
+                          <MapPin size={12} />
+                          {user.district ? "Reassign" : "Assign"}
+                        </button>
+                        {user.district && (
                           <button
-                            onClick={() => handleAssignDistrict(user)}
-                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors"
-                            title="Assign District"
+                            onClick={() => handleRemoveDistrict(user)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-white transition-colors rounded bg-red-600 hover:bg-red-700"
+                            title="Remove District"
                           >
-                            <MapPin size={14} />
-                            Assign
+                            <Trash2 size={12} />
+                            Remove
                           </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
 
           {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-700">
-                    Showing <span className="font-medium">{startIndex + 1}</span> to <span className="font-medium">{Math.min(endIndex, totalUsers)}</span> of <span className="font-medium">{totalUsers}</span> results
-                  </span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
-                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                  >
-                    <option value={5}>5 per page</option>
-                    <option value={10}>10 per page</option>
-                    <option value={25}>25 per page</option>
-                    <option value={50}>50 per page</option>
-                  </select>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => goToPage(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <ChevronLeft size={16} />
-                    Previous
-                  </button>
-                  
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                      // Show first page, last page, current page, and pages around current page
-                      if (
-                        page === 1 ||
-                        page === totalPages ||
-                        (page >= currentPage - 1 && page <= currentPage + 1)
-                      ) {
-                        return (
-                          <button
-                            key={page}
-                            onClick={() => goToPage(page)}
-                            className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                              page === currentPage
-                                ? "bg-sky-600 text-white shadow-sm"
-                                : "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 hover:border-gray-400"
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        );
-                      } else if (
-                        page === currentPage - 2 ||
-                        page === currentPage + 2
-                      ) {
-                        return <span key={page} className="px-2 text-gray-500">...</span>;
-                      }
-                      return null;
-                    })}
-                  </div>
-                  
-                  <button
-                    onClick={() => goToPage(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    Next
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={totalUsers}
+            filteredItems={filteredUsers.length}
+            hasActiveFilters={hasActiveFilters}
+            onPageChange={goToPage}
+            onPageSizeChange={handlePageSizeChange}
+            startItem={startIndex + 1}
+            endItem={Math.min(endIndex, totalUsers)}
+            storageKey="district_management"
+          />
         </div>
         
         {/* Assign District Modal */}
         {showAssignModal && selectedUser && (
-          <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="w-full max-w-lg mx-4 bg-white rounded-2xl shadow-2xl">
-              <div className="p-8">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
+            <div className="w-full max-w-lg mx-4 bg-white rounded-lg shadow-lg">
+              <div className="p-6">
+                <div className="mb-4">
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">
                     Assign District
                   </h2>
-                  <p className="text-gray-600">
+                  <p className="text-sm text-gray-600">
                     Assign a district to <span className="font-semibold text-gray-900">{getFullName(selectedUser)}</span>
                   </p>
                 </div>
               
-                <div className="space-y-6">
+                <div className="space-y-4">
                   <div>
-                    <label className="block mb-3 text-sm font-medium text-gray-700">
+                    <label className="block mb-2 text-sm font-medium text-gray-700">
                       Province
                     </label>
                     <select
@@ -843,7 +799,7 @@ export default function DistrictManagement() {
                           setAssigningDistrict('');
                         }
                       }}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors"
                     >
                       <option value="">No Province</option>
                       {provinces.map((province) => (
@@ -855,14 +811,14 @@ export default function DistrictManagement() {
                   </div>
                   
                   <div>
-                    <label className="block mb-3 text-sm font-medium text-gray-700">
+                    <label className="block mb-2 text-sm font-medium text-gray-700">
                       District
                     </label>
                     <select
                       value={assigningDistrict}
                       onChange={(e) => setAssigningDistrict(e.target.value)}
                       disabled={!assigningDistrict.split(' - ')[0]}
-                      className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors ${
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors ${
                         !assigningDistrict.split(' - ')[0] ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''
                       }`}
                     >
@@ -875,33 +831,98 @@ export default function DistrictManagement() {
                     </select>
                   </div>
                   
-                  <div className="p-4 bg-gray-50 rounded-lg">
+                  <div className="p-3 bg-gray-50 rounded-lg">
                     <p className="text-sm text-gray-600">
                       <span className="font-medium text-gray-900">Current Section:</span> {selectedUser.section || "N/A"}
                     </p>
                   </div>
                 </div>
                 
-                <div className="flex gap-4 mt-8">
+                <div className="flex gap-3 mt-6">
                   <button
                     onClick={() => setShowAssignModal(false)}
                     disabled={processing}
-                    className="flex-1 px-6 py-3 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                    className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={handleConfirmAssign}
-                    disabled={processing}
-                    className="flex-1 px-6 py-3 text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                    onClick={() => {
+                      setShowAssignModal(false);
+                      setShowAssignConfirm(true);
+                    }}
+                    disabled={processing || !assigningDistrict}
+                    className="flex-1 px-4 py-2 text-white bg-sky-600 rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
                   >
-                    {processing ? "Processing..." : "Assign District"}
+                    {selectedUser?.district ? "Reassign District" : "Assign District"}
                   </button>
                 </div>
               </div>
             </div>
           </div>
         )}
+
+        {/* Assign/Reassign Confirmation Dialog */}
+        <ConfirmationDialog
+          open={showAssignConfirm}
+          title={selectedUser?.district ? "Reassign District" : "Assign District"}
+          message={
+            <div>
+              <p className="mb-2">
+                Are you sure you want to {selectedUser?.district ? 'reassign' : 'assign'} the district for{" "}
+                <span className="font-semibold text-gray-900">{selectedUser ? getFullName(selectedUser) : ''}</span>?
+              </p>
+              {selectedUser?.district && (
+                <p className="text-sm text-gray-500">
+                  Current district: <span className="font-medium">{selectedUser.district}</span>
+                </p>
+              )}
+              {assigningDistrict && (
+                <p className="text-sm text-gray-500">
+                  New district: <span className="font-medium">{assigningDistrict}</span>
+                </p>
+              )}
+            </div>
+          }
+          confirmText={selectedUser?.district ? "Reassign" : "Assign"}
+          cancelText="Cancel"
+          confirmColor="sky"
+          loading={processing}
+          onConfirm={handleConfirmAssign}
+          onCancel={() => {
+            setShowAssignConfirm(false);
+            setSelectedUser(null);
+            setAssigningDistrict("");
+          }}
+        />
+
+        {/* Remove District Confirmation Dialog */}
+        <ConfirmationDialog
+          open={showRemoveConfirm}
+          title="Remove District Assignment"
+          message={
+            <div>
+              <p className="mb-2">
+                Are you sure you want to remove the district assignment for{" "}
+                <span className="font-semibold text-gray-900">{selectedUser ? getFullName(selectedUser) : ''}</span>?
+              </p>
+              {selectedUser?.district && (
+                <p className="text-sm text-gray-500">
+                  Current district: <span className="font-medium">{selectedUser.district}</span>
+                </p>
+              )}
+            </div>
+          }
+          confirmText="Remove"
+          cancelText="Cancel"
+          confirmColor="red"
+          loading={processing}
+          onConfirm={handleConfirmRemove}
+          onCancel={() => {
+            setShowRemoveConfirm(false);
+            setSelectedUser(null);
+          }}
+        />
       </LayoutWithSidebar>
       <Footer />
     </>

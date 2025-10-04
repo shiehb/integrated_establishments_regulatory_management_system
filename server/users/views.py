@@ -515,11 +515,11 @@ def district_users_list(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def assign_district(request, pk):
-    """Assign or update district for a user (Admin or Division Chief only)"""
-    # Check if user is Admin or Division Chief
-    if request.user.userlevel not in ["Admin", "Division Chief"]:
+    """Assign or update district for a user (Admin or Section Chief only)"""
+    # Check if user is Admin or Section Chief
+    if request.user.userlevel not in ["Admin", "Section Chief"]:
         return Response({
-            'detail': 'Only Admin or Division Chief can assign districts.'
+            'detail': 'Only Admin or Section Chief can assign districts.'
         }, status=status.HTTP_403_FORBIDDEN)
     try:
         user = User.objects.get(pk=pk)

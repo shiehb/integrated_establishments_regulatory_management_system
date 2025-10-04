@@ -48,6 +48,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         ("RA-8749", "RA-8749"),
         ("RA-9275", "RA-9275"),
         ("RA-9003", "RA-9003"),
+        ("PD-1586", "PD-1586"),
         ("PD-1586,RA-8749,RA-9275", "EIA, Air & Water (Combined)"),
     ]
 

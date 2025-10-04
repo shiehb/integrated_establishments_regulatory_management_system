@@ -282,6 +282,22 @@ export const createInspection = async (inspectionData) => {
   }
 };
 
+export const deleteInspection = async (id) => {
+  try {
+    const res = await api.delete(`inspections/${id}/`);
+    return res.data;
+  } catch (error) {
+    console.error("Delete inspection error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to delete inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
 export const assignInspection = async (id, payload) => {
   const res = await api.post(`inspections/${id}/assign/`, payload);
   return res.data;
@@ -322,6 +338,190 @@ export const getAvailablePersonnel = async (filters = {}) => {
   
   const res = await api.get(`inspections/available_personnel/?${params.toString()}`);
   return res.data;
+};
+
+// Workflow action functions
+export const makeWorkflowDecision = async (id, action, comments = '') => {
+  try {
+    const res = await api.post(`inspections/${id}/make_decision/`, { 
+      action, 
+      comments 
+    });
+    return res.data;
+  } catch (error) {
+    console.error("Workflow decision error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to perform workflow decision. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const sectionReview = async (id, comments = '') => {
+  try {
+    const res = await api.post(`inspections/${id}/section_review/`, { comments });
+    return res.data;
+  } catch (error) {
+    console.error("Section review error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to perform section review. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const forwardToMonitoring = async (id, comments = '') => {
+  try {
+    const res = await api.post(`inspections/${id}/forward_to_monitoring/`, { comments });
+    return res.data;
+  } catch (error) {
+    console.error("Forward to monitoring error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to forward to monitoring. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const unitReview = async (id, comments = '') => {
+  try {
+    const res = await api.post(`inspections/${id}/unit_review/`, { comments });
+    return res.data;
+  } catch (error) {
+    console.error("Unit review error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to perform unit review. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const monitoringInspection = async (id, comments = '') => {
+  try {
+    const res = await api.post(`inspections/${id}/monitoring_inspection/`, { comments });
+    return res.data;
+  } catch (error) {
+    console.error("Monitoring inspection error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to perform monitoring inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+// Return path handling
+export const advanceReturnPath = async (id) => {
+  try {
+    const res = await api.post(`inspections/${id}/advance_return_path/`);
+    return res.data;
+  } catch (error) {
+    console.error("Advance return path error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to advance return path. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+// Legal Unit actions
+export const sendNoticeOfViolation = async (id, novData) => {
+  try {
+    const res = await api.post(`inspections/${id}/send_notice_of_violation/`, novData);
+    return res.data;
+  } catch (error) {
+    console.error("Send NOV error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to send Notice of Violation. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const sendNoticeOfOrder = async (id, nooData) => {
+  try {
+    const res = await api.post(`inspections/${id}/send_notice_of_order/`, nooData);
+    return res.data;
+  } catch (error) {
+    console.error("Send NOO error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to send Notice of Order. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const closeCase = async (id, closureData) => {
+  try {
+    const res = await api.post(`inspections/${id}/close_case/`, closureData);
+    return res.data;
+  } catch (error) {
+    console.error("Close case error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to close case. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+// Compliance tracking
+export const updateComplianceStatus = async (id, complianceData) => {
+  try {
+    const res = await api.post(`inspections/${id}/update_compliance/`, complianceData);
+    return res.data;
+  } catch (error) {
+    console.error("Update compliance error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to update compliance status. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+// Tab counts for role-based dashboards
+export const getTabCounts = async () => {
+  try {
+    const res = await api.get('inspections/tab_counts/');
+    return res.data;
+  } catch (error) {
+    console.error("Get tab counts error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to get tab counts. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
 // -------------------------------------------------
