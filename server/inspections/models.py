@@ -226,19 +226,24 @@ class Inspection(models.Model):
         from django.contrib.auth import get_user_model
         User = get_user_model()
         
+        # Special case: PD-1586, RA-8749, RA-9275 should be assigned to combined section
+        target_section = self.law
+        if self.law in ['PD-1586', 'RA-8749', 'RA-9275']:
+            target_section = 'PD-1586,RA-8749,RA-9275'  # EIA, Air & Water Combined
+        
         # Auto-assign Section Chief
         section_chief = User.objects.filter(
             userlevel='Section Chief',
-            section=self.law,
+            section=target_section,
             district=self.district if self.district else None,
             is_active=True
         ).first()
         
-        # If no district match, find any section chief for this law
+        # If no district match, find any section chief for this target section
         if not section_chief and self.district:
             section_chief = User.objects.filter(
                 userlevel='Section Chief',
-                section=self.law,
+                section=target_section,
                 is_active=True
             ).first()
         
@@ -279,7 +284,11 @@ class Inspection(models.Model):
         
         # For non-division/legal roles, filter by law
         if required_level not in ['Division Chief', 'Legal Unit']:
-            query = query.filter(section=self.law)
+            # Special case: PD-1586, RA-8749, RA-9275 should use combined section
+            target_section = self.law
+            if self.law in ['PD-1586', 'RA-8749', 'RA-9275']:
+                target_section = 'PD-1586,RA-8749,RA-9275'  # EIA, Air & Water Combined
+            query = query.filter(section=target_section)
         
         # For all roles except division/legal, prefer same district
         if self.district and required_level not in ['Division Chief', 'Legal Unit']:

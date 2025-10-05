@@ -114,8 +114,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         elif tab == 'forwarded':
             # Inspections they forwarded (track by history or filter by law)
+            # Special case: If user is in combined EIA section, also show PD-1586, RA-8749, RA-9275 inspections
+            law_filter = Q(law=user.section)
+            if user.section == 'PD-1586,RA-8749,RA-9275':
+                law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
+            
             return queryset.filter(
-                law=user.section,
+                law_filter,
                 current_status__in=[
                     'UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_COMPLETED',
                     'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
@@ -128,8 +133,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 current_status='SECTION_REVIEWED'
             )
         else:
+            # Special case: If user is in combined EIA section, also show PD-1586, RA-8749, RA-9275 inspections
+            law_filter = Q(law=user.section)
+            if user.section == 'PD-1586,RA-8749,RA-9275':
+                law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
+            
             return queryset.filter(
-                Q(assigned_to=user) | Q(law=user.section)
+                Q(assigned_to=user) | law_filter
             )
     
     def _filter_unit_head(self, queryset, user, tab):
@@ -147,8 +157,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 current_status__in=['UNIT_IN_PROGRESS', 'UNIT_COMPLETED']
             )
         elif tab == 'forwarded':
+            # Special case: If user is in combined EIA section, also show PD-1586, RA-8749, RA-9275 inspections
+            law_filter = Q(law=user.section)
+            if user.section == 'PD-1586,RA-8749,RA-9275':
+                law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
+            
             return queryset.filter(
-                law=user.section,
+                law_filter,
                 district=user.district,
                 current_status__in=[
                     'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
@@ -161,8 +176,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 current_status='UNIT_REVIEWED'
             )
         else:
+            # Special case: If user is in combined EIA section, also show PD-1586, RA-8749, RA-9275 inspections
+            law_filter = Q(law=user.section)
+            if user.section == 'PD-1586,RA-8749,RA-9275':
+                law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
+            
             return queryset.filter(
-                Q(assigned_to=user) | Q(law=user.section, district=user.district)
+                Q(assigned_to=user) | Q(law_filter, district=user.district)
             )
     
     def get_serializer_class(self):
@@ -521,9 +541,14 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Find Section Chief (original assignee or based on law)
         from users.models import User
+        # Special case: PD-1586, RA-8749, RA-9275 should use combined section
+        target_section = inspection.law
+        if inspection.law in ['PD-1586', 'RA-8749', 'RA-9275']:
+            target_section = 'PD-1586,RA-8749,RA-9275'  # EIA, Air & Water Combined
+        
         section_chief = User.objects.filter(
             userlevel='Section Chief',
-            section=inspection.law  # Assuming law maps to section
+            section=target_section
         ).first()
         
         if section_chief:
@@ -568,11 +593,19 @@ class InspectionViewSet(viewsets.ModelViewSet):
         # Section Chief can forward directly to Unit or Monitoring
         if inspection.current_status == 'SECTION_ASSIGNED':
             # Check if unit head exists for this law
-            unit_head = User.objects.filter(
-                userlevel='Unit Head',
-                section=inspection.law,
-                is_active=True
-            ).first()
+            # Special logic based on user's section:
+            # - If user is in combined section: look for Unit Head by specific law
+            # - If user is in individual section: go directly to Monitoring Personnel
+            if user.section == 'PD-1586,RA-8749,RA-9275':
+                # Combined section: look for Unit Head by specific law
+                unit_head = User.objects.filter(
+                    userlevel='Unit Head',
+                    section=inspection.law,  # Use the specific law, not combined section
+                    is_active=True
+                ).first()
+            else:
+                # Individual section: go directly to Monitoring Personnel
+                unit_head = None
             
             if unit_head:
                 next_status = 'UNIT_ASSIGNED'
@@ -598,7 +631,17 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         
         # Get next assignee
-        next_assignee = inspection.get_next_assignee(next_status)
+        if next_status == 'UNIT_ASSIGNED' and user.section == 'PD-1586,RA-8749,RA-9275':
+            # Special case: For combined section forwarding to Unit Head, use specific law
+            next_assignee = User.objects.filter(
+                userlevel='Unit Head',
+                section=inspection.law,  # Use the specific law, not combined section
+                is_active=True
+            ).first()
+        else:
+            # Use normal assignment logic
+            next_assignee = inspection.get_next_assignee(next_status)
+        
         if not next_assignee:
             return Response(
                 {'error': f'No personnel found for {next_status}'},

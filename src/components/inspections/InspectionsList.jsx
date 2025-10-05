@@ -31,7 +31,6 @@ import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
 import { useInspectionActions } from "../../hooks/useInspectionActions";
-import ForwardModal from "./ForwardModal";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -244,7 +243,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       return;
     }
     
-    // For forward action, show the ForwardModal
+    // For forward action, show simple confirmation
     if (action === 'forward') {
       setActionConfirmation({ 
         open: true, 
@@ -1050,7 +1049,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
       {/* Action Confirmation Dialog */}
       <ConfirmationDialog
-        open={actionConfirmation.open && actionConfirmation.action !== 'forward'}
+        open={actionConfirmation.open}
         title="Confirm Workflow Action"
         message={
           <div>
@@ -1083,14 +1082,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         onConfirm={executeAction}
       />
 
-      {/* Forward Modal */}
-      <ForwardModal
-        open={actionConfirmation.open && actionConfirmation.action === 'forward'}
-        inspection={actionConfirmation.inspection}
-        userLevel={userLevel}
-        onClose={() => setActionConfirmation({ open: false, inspection: null, action: null })}
-        onSubmit={handleAction}
-      />
     </div>
   );
 }
