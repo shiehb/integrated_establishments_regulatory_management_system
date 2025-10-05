@@ -23,7 +23,7 @@ import SystemConfiguration from "./pages/SystemConfiguration";
 import DatabaseBackup from "./pages/DatabaseBackup"; // ✅ import new page
 import DistrictManagement from "./pages/DistrictManagement";
 import DebugActions from "./components/inspections/DebugActions";
-import InspectionForm from "./components/inspections/InspectionForm";
+import InspectionForm from "./components/inspection-form/InspectionForm";
 import PublicRoute from "./components/PublicRoute";
 import PrivateRoute from "./components/PrivateRoute";
 import RoleRoute from "./components/RoleRoute";

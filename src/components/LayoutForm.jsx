@@ -10,7 +10,7 @@ export default function LayoutForm({ children }) {
       </div>
 
       {/* Main content area (between header & footer) */}
-      <main className="flex flex-1 w-full min-h-0 pt-20 pb-16 overflow-hidden">
+      <main className="flex flex-1 w-full min-h-0 pt-20 pb-16 overflow-y-auto">
         {children}
       </main>
 
