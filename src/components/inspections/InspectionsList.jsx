@@ -1,41 +1,43 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Eye,
-  Play,
-  ArrowRight,
-  CheckCircle,
   Plus,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Download,
   Filter,
   Search,
   X,
-  XCircle,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileText,
   Calendar,
-  MapPin,
-  Users,
-  Clock,
-  Building,
-  Trash2
+  Building
 } from "lucide-react";
 import { 
   getProfile, 
   getInspections, 
-  deleteInspection
+  deleteInspection,
+  assignToMe,
+  startInspection,
+  completeInspection,
+  forwardInspection,
+  reviewInspection,
+  forwardToLegal,
+  sendNOV,
+  sendNOO,
+  closeInspection
 } from "../../services/api";
 import StatusBadge from "./StatusBadge";
-import ActionButtons from "./ActionButtons";
+import InspectionTabs from "./InspectionTabs";
+import InspectionActions from "./InspectionActions";
+import { roleTabs, tabDisplayNames } from "../../constants/inspectionConstants";
 import ExportDropdown from "../ExportDropdown";
 import PrintPDF from "../PrintPDF";
 import DateRangeDropdown from "../DateRangeDropdown";
 import ConfirmationDialog from "../common/ConfirmationDialog";
+import { useNotifications } from "../NotificationManager";
 import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
 
 // Debounce hook
@@ -57,6 +59,7 @@ const useDebounce = (value, delay) => {
 
 export default function InspectionsList({ onAdd, onView, onWorkflow, onCompliance, onLegalUnit, refreshTrigger, userLevel = 'Division Chief' }) {
   const navigate = useNavigate();
+  const notifications = useNotifications();
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
@@ -75,7 +78,10 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
   const [dateTo, setDateTo] = useState("");
 
   // 📑 Tab state for role-based tabs
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState(() => {
+    const availableTabs = roleTabs[userLevel] || ['all'];
+    return availableTabs[0];
+  });
 
   // ✅ Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
@@ -92,39 +98,14 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
   // ✅ Bulk select
   const [selectedInspections, setSelectedInspections] = useState([]);
 
-  // Get role-based tabs following exact workflow specification
+  // Get role-based tabs using the new constants
   const getRoleBasedTabs = () => {
-    switch (userLevel) {
-      case 'Division Chief':
-        return [
-          { id: 'created', label: 'Created Inspections', count: 0 },
-          { id: 'tracking', label: 'Tracking', count: 0 }
-        ];
-      case 'Section Chief':
-        return [
-          { id: 'received', label: 'Received Inspections', count: 0 },
-          { id: 'my_inspections', label: 'My Inspections', count: 0 },
-          { id: 'forwarded', label: 'Forwarded List', count: 0 },
-          { id: 'review', label: 'Review List', count: 0 }
-        ];
-      case 'Unit Head':
-        return [
-          { id: 'received', label: 'Received Inspections', count: 0 },
-          { id: 'my_inspections', label: 'My Inspections', count: 0 },
-          { id: 'forwarded', label: 'Forwarded List', count: 0 },
-          { id: 'review', label: 'Review List', count: 0 }
-        ];
-      case 'Monitoring Personnel':
-        return [
-          { id: 'assigned', label: 'Assigned Inspections', count: 0 }
-        ];
-      case 'Legal Unit':
-        return [
-          { id: 'non_compliant', label: 'Non-Compliant Cases', count: 0 }
-        ];
-      default:
-        return [{ id: 'all', label: 'All Inspections', count: 0 }];
-    }
+    const availableTabs = roleTabs[userLevel] || ['all'];
+    return availableTabs.map(tab => ({
+      id: tab,
+      label: tabDisplayNames[tab] || tab,
+      count: 0
+    }));
   };
 
   const fetchAllInspections = useCallback(async () => {
@@ -186,7 +167,14 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
     }
   }, [currentPage, pageSize, debouncedSearchQuery, statusFilter, sectionFilter, priorityFilter, activeTab, userLevel, currentUser]);
 
-  // Handle action clicks by delegating to parent workflow handler
+  // Action confirmation states
+  const [actionConfirmation, setActionConfirmation] = useState({ 
+    open: false, 
+    inspection: null, 
+    action: null 
+  });
+
+  // Handle action clicks with simple confirmation
   const handleActionClick = useCallback((inspectionId, action) => {
     const inspection = inspections.find(i => i.id === inspectionId);
     if (!inspection) {
@@ -194,37 +182,102 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
       return;
     }
 
-    // Handle modal-based actions
-    if (action === 'forward') {
-      onWorkflow && onWorkflow(inspection, 'forward');
-    } else if (action === 'review') {
-      onWorkflow && onWorkflow(inspection, 'review');
-    } else if (action === 'send_nov') {
-      onLegalUnit && onLegalUnit(inspection);
-    } else if (action === 'send_noo') {
-      onLegalUnit && onLegalUnit(inspection);
-    } else if (action === 'complete' && userLevel === 'Monitoring Personnel') {
-      onCompliance && onCompliance(inspection);
-    } else {
-      // For direct API actions, delegate to parent workflow handler
-      onWorkflow && onWorkflow(inspection, action);
+    // Show simple confirmation for all actions
+    setActionConfirmation({ 
+      open: true, 
+      inspection, 
+      action 
+    });
+  }, [inspections]);
+
+
+  // Execute confirmed action
+  const executeAction = useCallback(async () => {
+    const { inspection, action } = actionConfirmation;
+    if (!inspection || !action) return;
+
+    try {
+      let result;
+      let successMessage = '';
+
+      switch (action) {
+        case 'assign_to_me':
+          result = await assignToMe(inspection.id);
+          successMessage = `Inspection ${inspection.code} has been assigned to you.`;
+          break;
+        case 'start':
+          result = await startInspection(inspection.id);
+          successMessage = `Inspection ${inspection.code} has been started.`;
+          break;
+        case 'complete':
+          result = await completeInspection(inspection.id, { 
+            remarks: 'Inspection completed',
+            compliance_decision: 'COMPLIANT' // Default to compliant, can be changed later
+          });
+          successMessage = `Inspection ${inspection.code} has been completed.`;
+          break;
+        case 'forward':
+          result = await forwardInspection(inspection.id, { remarks: 'Inspection forwarded' });
+          successMessage = `Inspection ${inspection.code} has been forwarded.`;
+          break;
+        case 'review':
+          result = await reviewInspection(inspection.id, { remarks: 'Inspection reviewed' });
+          successMessage = `Inspection ${inspection.code} has been reviewed.`;
+          break;
+        case 'send_nov':
+          result = await sendNOV(inspection.id, {
+            violations: 'Violations found during inspection',
+            compliance_instructions: 'Please address the violations',
+            compliance_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+            remarks: 'Notice of Violation sent'
+          });
+          successMessage = `Notice of Violation sent for inspection ${inspection.code}.`;
+          break;
+        case 'send_noo':
+          result = await sendNOO(inspection.id, {
+            penalty_fees: 'Penalty fees apply',
+            violation_breakdown: 'Detailed violation breakdown',
+            payment_deadline: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 15 days from now
+            remarks: 'Notice of Order sent'
+          });
+          successMessage = `Notice of Order sent for inspection ${inspection.code}.`;
+          break;
+        case 'forward_to_legal':
+          result = await forwardToLegal(inspection.id, { remarks: 'Forwarded to Legal Unit' });
+          successMessage = `Inspection ${inspection.code} has been forwarded to Legal Unit.`;
+          break;
+        case 'close':
+          result = await closeInspection(inspection.id, { remarks: 'Inspection closed' });
+          successMessage = `Inspection ${inspection.code} has been closed.`;
+          break;
+        default:
+          throw new Error(`Unknown action: ${action}`);
+      }
+
+      notifications.success(successMessage, { title: 'Success' });
+      setActionConfirmation({ open: false, inspection: null, action: null });
+      fetchAllInspections();
+    } catch (error) {
+      console.error('Action error:', error);
+      notifications.error(
+        error.response?.data?.detail || error.message || 'Action failed. Please try again.',
+        { title: 'Error' }
+      );
     }
-  }, [inspections, onWorkflow, onCompliance, onLegalUnit, userLevel]);
+  }, [actionConfirmation, notifications, fetchAllInspections]);
 
   // Delete inspection function
   const handleDeleteInspection = useCallback(async (inspection) => {
     try {
       await deleteInspection(inspection.id);
-      alert(`Inspection ${inspection.code} deleted successfully`);
-      // Refresh the inspections list
+      notifications.success(`Inspection ${inspection.code} deleted successfully`, { title: 'Success' });
       fetchAllInspections();
-      // Close confirmation dialog
       setDeleteConfirmation({ open: false, inspection: null });
     } catch (error) {
       console.error('Error deleting inspection:', error);
-      alert(`Error deleting inspection: ${error.message}`);
+      notifications.error(`Error deleting inspection: ${error.message}`, { title: 'Error' });
     }
-  }, [fetchAllInspections]);
+  }, [fetchAllInspections, notifications]);
 
   // Fetch user profile
   useEffect(() => {
@@ -774,30 +827,11 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
       </div>
 
       {/* Role-based Tabs */}
-      <div className="mb-4">
-        <div className="border-b border-gray-200">
-          <nav className="flex space-x-8">
-            {getRoleBasedTabs().map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-sky-500 text-sky-600 bg-sky-50'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                {tab.label}
-                {tab.count > 0 && (
-                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-800">
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </div>
+      <InspectionTabs 
+        userLevel={userLevel}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
 
       {/* Table Content - Migrated from InspectionTable */}
       <div className="overflow-x-auto">
@@ -923,7 +957,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                   <td className="px-6 py-4 whitespace-nowrap">
                     <StatusBadge 
                       status={inspection.current_status} 
-                      simplifiedStatus={inspection.simplified_status} 
                     />
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -954,11 +987,10 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
-                    <ActionButtons 
+                    <InspectionActions 
                       inspection={inspection}
-                      onActionClick={handleActionClick}
-                      userLevel={userLevel}
-                      activeTab={activeTab}
+                      availableActions={inspection.available_actions || []}
+                      onAction={handleActionClick}
                     />
                   </td>
                 </tr>
@@ -1001,6 +1033,41 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
         size="md"
         onCancel={() => setDeleteConfirmation({ open: false, inspection: null })}
         onConfirm={() => handleDeleteInspection(deleteConfirmation.inspection)}
+      />
+
+      {/* Action Confirmation Dialog */}
+      <ConfirmationDialog
+        open={actionConfirmation.open}
+        title="Confirm Workflow Action"
+        message={
+          <div>
+            <p className="mb-2">
+              <strong>Inspection:</strong> {actionConfirmation.inspection?.code}
+            </p>
+            <p className="mb-2">
+              <strong>Current Status:</strong> {actionConfirmation.inspection?.current_status}
+            </p>
+            <p className="mb-2">
+              <strong>Establishment:</strong> {
+                actionConfirmation.inspection?.establishments_detail?.length > 0 
+                  ? actionConfirmation.inspection.establishments_detail.map(est => est.name).join(', ')
+                  : 'No establishments'
+              }
+            </p>
+            <p className="mb-2">
+              <strong>Action:</strong> {actionConfirmation.action?.replace('_', ' ').toUpperCase()}
+            </p>
+            <p className="text-sm text-gray-600">
+              Are you sure you want to perform this action?
+            </p>
+          </div>
+        }
+        confirmText="Confirm"
+        cancelText="Cancel"
+        confirmColor="sky"
+        size="lg"
+        onCancel={() => setActionConfirmation({ open: false, inspection: null, action: null })}
+        onConfirm={executeAction}
       />
     </div>
   );

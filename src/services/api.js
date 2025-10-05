@@ -335,6 +335,11 @@ export const sendNOO = async (id, data) => {
   return res.data;
 };
 
+export const closeInspection = async (id, data) => {
+  const res = await api.post(`inspections/${id}/close/`, data);
+  return res.data;
+};
+
 export const getInspectionHistory = async (id) => {
   const res = await api.get(`inspections/${id}/history/`);
   return res.data;

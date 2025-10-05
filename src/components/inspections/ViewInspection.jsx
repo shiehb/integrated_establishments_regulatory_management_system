@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   Eye
 } from "lucide-react";
-import ComplianceTracking from "./ComplianceTracking";
 
 export default function ViewInspection({ inspection, onClose, onEdit }) {
   const [activeTab, setActiveTab] = useState('details');
@@ -316,13 +315,52 @@ export default function ViewInspection({ inspection, onClose, onEdit }) {
         {activeTab === 'compliance' && (
           <div className="space-y-6">
             <h4 className="text-lg font-medium text-gray-900">Compliance Information</h4>
-            <ComplianceTracking 
-              inspection={inspection}
-              onComplianceDecision={(decisionData) => {
-                console.log('Compliance decision made:', decisionData);
-                // Here you would typically make an API call to submit the compliance decision
-              }}
-            />
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Compliance Decision
+                  </label>
+                  <div className="text-sm text-gray-900">
+                    {inspection.form?.compliance_decision || 'Pending'}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Violations Found
+                  </label>
+                  <div className="text-sm text-gray-900">
+                    {inspection.form?.violations_found || 'None'}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Compliance Plan
+                  </label>
+                  <div className="text-sm text-gray-900">
+                    {inspection.form?.compliance_plan || 'Not specified'}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Compliance Deadline
+                  </label>
+                  <div className="text-sm text-gray-900">
+                    {inspection.form?.compliance_deadline || 'Not set'}
+                  </div>
+                </div>
+              </div>
+              {inspection.form?.findings_summary && (
+                <div className="mt-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Findings Summary
+                  </label>
+                  <div className="text-sm text-gray-900 bg-gray-50 p-3 rounded-md">
+                    {inspection.form.findings_summary}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

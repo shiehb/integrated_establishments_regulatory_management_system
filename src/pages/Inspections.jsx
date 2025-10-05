@@ -16,15 +16,16 @@ import {
   reviewInspection,
   forwardToLegal,
   sendNOV,
-  sendNOO
+  sendNOO,
+  closeInspection
 } from "../services/api";
-import ComplianceModal from "../components/inspections/ComplianceModal";
-import LegalUnitModal from "../components/inspections/LegalUnitModal";
-import ForwardModal from "../components/inspections/ForwardModal";
-import CompleteModal from "../components/inspections/CompleteModal";
-import ReviewModal from "../components/inspections/ReviewModal";
-import NOVModal from "../components/inspections/NOVModal";
-import NOOModal from "../components/inspections/NOOModal";
+import ComplianceModal from "../components/inspections/modals/ComplianceModal";
+import LegalUnitModal from "../components/inspections/modals/LegalUnitModal";
+import ForwardModal from "../components/inspections/modals/ForwardModal";
+import CompleteModal from "../components/inspections/modals/CompleteModal";
+import ReviewModal from "../components/inspections/modals/ReviewModal";
+import NOVModal from "../components/inspections/modals/NOVModal";
+import NOOModal from "../components/inspections/modals/NOOModal";
 
 export default function Inspections() {
   const [showAdd, setShowAdd] = useState(false);
@@ -62,6 +63,9 @@ export default function Inspections() {
       } else if (actionType === 'send_noo') {
         setNooModal({ open: true, inspection });
         return;
+      } else if (actionType === 'complete') {
+        setCompleteModal({ open: true, inspection });
+        return;
       }
 
       let result;
@@ -74,17 +78,12 @@ export default function Inspections() {
       } else if (actionType === 'start') {
         result = await startInspection(inspection.id);
         actionMessage = `Inspection ${inspection.code} has been started.`;
-      } else if (actionType === 'complete') {
-        // For monitoring personnel, show complete modal
-        if (userLevel === 'Monitoring Personnel') {
-          setCompleteModal({ open: true, inspection });
-          return;
-        }
-        result = await completeInspection(inspection.id, { remarks: 'Inspection completed' });
-        actionMessage = `Inspection ${inspection.code} has been completed.`;
       } else if (actionType === 'forward_to_legal') {
         result = await forwardToLegal(inspection.id, { remarks: 'Forwarded to Legal Unit' });
         actionMessage = `Inspection ${inspection.code} has been forwarded to Legal Unit.`;
+      } else if (actionType === 'close') {
+        result = await closeInspection(inspection.id, { remarks: 'Inspection closed' });
+        actionMessage = `Inspection ${inspection.code} has been closed.`;
       } else {
         // Fallback for other actions
         actionMessage = `Workflow action for inspection: ${inspection.code}\nStatus: ${inspection.status}`;
