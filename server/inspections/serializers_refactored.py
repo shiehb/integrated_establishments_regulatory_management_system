@@ -83,7 +83,6 @@ class InspectionSerializer(serializers.ModelSerializer):
     """Main inspection serializer with all related data"""
     
     # Related data
-    establishments = serializers.SerializerMethodField()
     establishments_detail = serializers.SerializerMethodField()
     form = InspectionFormSerializer(read_only=True)
     history = InspectionHistorySerializer(many=True, read_only=True)
@@ -97,7 +96,7 @@ class InspectionSerializer(serializers.ModelSerializer):
     simplified_status = serializers.SerializerMethodField()
     can_user_act = serializers.SerializerMethodField()
     available_actions = serializers.SerializerMethodField()
-
+    
     class Meta:
         model = Inspection
         fields = [
@@ -110,10 +109,6 @@ class InspectionSerializer(serializers.ModelSerializer):
             'can_user_act', 'available_actions'
         ]
         read_only_fields = ['id', 'code', 'created_at', 'updated_at']
-    
-    def get_establishments(self, obj):
-        """Get establishment IDs"""
-        return list(obj.establishments.values_list('id', flat=True))
     
     def get_establishments_detail(self, obj):
         """Get detailed establishment information"""
@@ -153,20 +148,20 @@ class InspectionSerializer(serializers.ModelSerializer):
         if request and request.user:
             return obj.assigned_to == request.user
         return False
-
+    
     def get_available_actions(self, obj):
         """Get available actions for current user"""
         request = self.context.get('request')
         if not request or not request.user:
             return []
-
+        
         user = request.user
         status = obj.current_status
         
         # Can only act if assigned to you
         if obj.assigned_to != user:
             return []
-
+        
         # Define actions based on status and user level
         actions_map = {
             ('SECTION_ASSIGNED', 'Section Chief'): ['assign_to_me', 'forward'],
@@ -297,3 +292,4 @@ class NOOSerializer(serializers.Serializer):
     violation_breakdown = serializers.CharField(required=True)
     payment_deadline = serializers.DateField(required=True)
     remarks = serializers.CharField(required=False, allow_blank=True)
+

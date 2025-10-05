@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Eye,
   Play,
@@ -24,13 +25,18 @@ import {
   Building,
   Trash2
 } from "lucide-react";
-import api, { deleteInspection, getProfile } from "../../services/api";
+import { 
+  getProfile, 
+  getInspections, 
+  deleteInspection
+} from "../../services/api";
+import StatusBadge from "./StatusBadge";
+import ActionButtons from "./ActionButtons";
 import ExportDropdown from "../ExportDropdown";
 import PrintPDF from "../PrintPDF";
 import DateRangeDropdown from "../DateRangeDropdown";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
-import SectionLawTab from "./SectionLawTab";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -49,133 +55,8 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
-// Status display mapping
-const getStatusDisplay = (status) => {
-  const statusMap = {
-    'DIVISION_CREATED': { label: 'Division Created', color: 'bg-blue-100 text-blue-800' },
-    'SECTION_ASSIGNED': { label: 'Section Assigned', color: 'bg-yellow-100 text-yellow-800' },
-    'SECTION_IN_PROGRESS': { label: 'Section In Progress', color: 'bg-orange-100 text-orange-800' },
-    'SECTION_COMPLETED': { label: 'Section Completed', color: 'bg-orange-200 text-orange-900' },
-    'UNIT_ASSIGNED': { label: 'Unit Assigned', color: 'bg-purple-100 text-purple-800' },
-    'UNIT_IN_PROGRESS': { label: 'Unit In Progress', color: 'bg-indigo-100 text-indigo-800' },
-    'UNIT_COMPLETED': { label: 'Unit Completed', color: 'bg-indigo-200 text-indigo-900' },
-    'MONITORING_ASSIGN': { label: 'Monitoring Assigned', color: 'bg-pink-100 text-pink-800' },
-    'MONITORING_IN_PROGRESS': { label: 'Monitoring In Progress', color: 'bg-cyan-100 text-cyan-800' },
-    'MONITORING_COMPLETED_COMPLIANT': { label: 'Monitoring Completed - Compliant', color: 'bg-green-100 text-green-800' },
-    'NON_COMPLIANT_RETURN': { label: 'Non-Compliant Return', color: 'bg-red-100 text-red-800' },
-    'UNIT_REVIEWED': { label: 'Unit Reviewed', color: 'bg-purple-200 text-purple-900' },
-    'SECTION_REVIEWED': { label: 'Section Reviewed', color: 'bg-yellow-200 text-yellow-900' },
-    'DIVISION_REVIEWED': { label: 'Division Reviewed', color: 'bg-blue-200 text-blue-900' },
-    'LEGAL_REVIEW': { label: 'Legal Review', color: 'bg-red-100 text-red-800' },
-    'NOV_SENT': { label: 'Notice of Violation Sent', color: 'bg-red-200 text-red-900' },
-    'NOO_SENT': { label: 'Notice of Order Sent', color: 'bg-red-300 text-red-1000' },
-    'CLOSED': { label: 'Closed', color: 'bg-green-200 text-green-900' },
-    'REJECTED': { label: 'Rejected', color: 'bg-gray-100 text-gray-800' }
-  };
-  return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-800' };
-};
-
-// Section display mapping
-const getSectionDisplay = (section) => {
-  const sectionMap = {
-    'PD-1586': 'EIA Monitoring',
-    'RA-8749': 'Air Quality Monitoring',
-    'RA-9275': 'Water Quality Monitoring',
-    'RA-6969': 'Toxic Chemicals Monitoring',
-    'RA-9003': 'Solid Waste Management'
-  };
-  return sectionMap[section] || section;
-};
-
-// Priority display mapping
-const getPriorityDisplay = (priority) => {
-  const priorityMap = {
-    'LOW': { label: 'Low', color: 'bg-gray-100 text-gray-800' },
-    'MEDIUM': { label: 'Medium', color: 'bg-yellow-100 text-yellow-800' },
-    'HIGH': { label: 'High', color: 'bg-orange-100 text-orange-800' },
-    'URGENT': { label: 'Urgent', color: 'bg-red-100 text-red-800' }
-  };
-  return priorityMap[priority] || { label: priority, color: 'bg-gray-100 text-gray-800' };
-};
-
-// Auto-assignment logic based on workflow diagram
-const applyAutoAssignment = (inspections, userLevel) => {
-  return inspections.map(inspection => {
-    // Mock personnel data for auto-assignment
-    const mockPersonnel = [
-      { id: 1, name: 'John Doe', userlevel: 'Section Chief', section: 'PD-1586,RA-8749,RA-9275', district: 'La Union - 1st District' },
-      { id: 2, name: 'Jane Smith', userlevel: 'Unit Head', section: 'PD-1586', district: 'La Union - 1st District' },
-      { id: 3, name: 'Mike Johnson', userlevel: 'Monitoring Personnel', section: 'PD-1586', district: 'La Union - 1st District' },
-      { id: 4, name: 'Sarah Wilson', userlevel: 'Monitoring Personnel', section: 'RA-8749', district: 'La Union - 2nd District' },
-      { id: 5, name: 'Legal Unit', userlevel: 'Legal Unit', section: 'ALL', district: 'ALL' }
-    ];
-
-    let assignedPersonnel = null;
-
-    // Auto-assignment rules from workflow diagram
-    switch (inspection.status) {
-      case 'DIVISION_CREATED':
-        // Auto-assign to Section Chief based on section
-        assignedPersonnel = mockPersonnel.find(p => 
-          p.userlevel === 'Section Chief' && 
-          p.section.includes(inspection.section)
-        );
-        break;
-
-      case 'SECTION_REVIEW':
-        // Section Chief is already assigned
-        assignedPersonnel = mockPersonnel.find(p => 
-          p.userlevel === 'Section Chief' && 
-          p.section.includes(inspection.section)
-        );
-        break;
-
-      case 'UNIT_REVIEW':
-        // Auto-assign to Unit Head if exists for section (PD-1586, RA-8749, RA-9275)
-        if (['PD-1586', 'RA-8749', 'RA-9275'].includes(inspection.section)) {
-          assignedPersonnel = mockPersonnel.find(p => 
-            p.userlevel === 'Unit Head' && 
-            p.section === inspection.section &&
-            p.district === inspection.establishment_detail?.district
-          );
-        }
-        break;
-
-      case 'MONITORING_ASSIGN':
-        // Auto-assign to Monitoring Personnel based on district + law matching
-        assignedPersonnel = mockPersonnel.find(p => 
-          p.userlevel === 'Monitoring Personnel' && 
-          p.section === inspection.section &&
-          p.district === inspection.establishment_detail?.district
-        );
-        break;
-
-      case 'MONITORING_INSPECTION':
-        // Monitoring Personnel is already assigned
-        assignedPersonnel = mockPersonnel.find(p => 
-          p.userlevel === 'Monitoring Personnel' && 
-          p.section === inspection.section &&
-          p.district === inspection.establishment_detail?.district
-        );
-        break;
-
-      case 'LEGAL_REVIEW':
-        // Auto-assign to Legal Unit
-        assignedPersonnel = mockPersonnel.find(p => p.userlevel === 'Legal Unit');
-        break;
-    }
-
-    return {
-      ...inspection,
-      assigned_to: assignedPersonnel?.name || 'Unassigned',
-      current_assignee_name: assignedPersonnel?.name || 'Unassigned',
-      assigned_personnel_id: assignedPersonnel?.id || null,
-      can_act: assignedPersonnel?.userlevel === userLevel
-    };
-  });
-};
-
 export default function InspectionsList({ onAdd, onView, onWorkflow, onCompliance, onLegalUnit, refreshTrigger, userLevel = 'Division Chief' }) {
+  const navigate = useNavigate();
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
@@ -192,7 +73,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
   const [priorityFilter, setPriorityFilter] = useState([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  
 
   // 📑 Tab state for role-based tabs
   const [activeTab, setActiveTab] = useState('all');
@@ -212,35 +92,35 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
   // ✅ Bulk select
   const [selectedInspections, setSelectedInspections] = useState([]);
 
-  // Get role-based tabs following workflow diagram
+  // Get role-based tabs following exact workflow specification
   const getRoleBasedTabs = () => {
     switch (userLevel) {
       case 'Division Chief':
         return [
-          { id: 'create_inspection', label: 'Create Inspection', count: 0 },
-          { id: 'review_list', label: 'Review List', count: 0 }
+          { id: 'created', label: 'Created Inspections', count: 0 },
+          { id: 'tracking', label: 'Tracking', count: 0 }
         ];
       case 'Section Chief':
         return [
-          { id: 'created_inspections', label: 'Created Inspections', count: 0 },
+          { id: 'received', label: 'Received Inspections', count: 0 },
           { id: 'my_inspections', label: 'My Inspections', count: 0 },
           { id: 'forwarded', label: 'Forwarded List', count: 0 },
-          { id: 'review_list', label: 'Review List', count: 0 }
+          { id: 'review', label: 'Review List', count: 0 }
         ];
       case 'Unit Head':
         return [
-          { id: 'received_inspections', label: 'Received Inspections', count: 0 },
+          { id: 'received', label: 'Received Inspections', count: 0 },
           { id: 'my_inspections', label: 'My Inspections', count: 0 },
           { id: 'forwarded', label: 'Forwarded List', count: 0 },
-          { id: 'review_list', label: 'Review List', count: 0 }
+          { id: 'review', label: 'Review List', count: 0 }
         ];
       case 'Monitoring Personnel':
         return [
-          { id: 'assigned_inspections', label: 'My Assigned Inspections', count: 0 }
+          { id: 'assigned', label: 'Assigned Inspections', count: 0 }
         ];
       case 'Legal Unit':
         return [
-          { id: 'legal_review', label: 'Non-Compliant Cases', count: 0 }
+          { id: 'non_compliant', label: 'Non-Compliant Cases', count: 0 }
         ];
       default:
         return [{ id: 'all', label: 'All Inspections', count: 0 }];
@@ -256,265 +136,86 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
         return;
       }
 
-      const params = new URLSearchParams({
-        page: currentPage.toString(),
-        page_size: pageSize.toString(),
-        tab: activeTab, // Add tab parameter for role-based filtering
-      });
+      console.log('Fetching inspections for tab:', activeTab, 'userLevel:', userLevel);
+
+      // Use the new getInspections API function with exact tab mapping
+      const params = {
+        page: currentPage,
+        page_size: pageSize,
+        tab: activeTab, // Exact tab mapping as specified
+      };
 
       // Add search parameter if provided
       if (debouncedSearchQuery) {
-        params.append("search", debouncedSearchQuery);
+        params.search = debouncedSearchQuery;
       }
 
       // Add status filter if selected
       if (statusFilter.length > 0) {
-        params.append("status", statusFilter.join(","));
+        params.status = statusFilter.join(",");
       }
 
       // Add section filter if selected
       if (sectionFilter.length > 0) {
-        params.append("section", sectionFilter.join(","));
+        params.section = sectionFilter.join(",");
       }
 
       // Add priority filter if selected
       if (priorityFilter.length > 0) {
-        params.append("priority", priorityFilter.join(","));
+        params.priority = priorityFilter.join(",");
       }
 
-      const res = await api.get(`inspections/?${params.toString()}`);
+      const response = await getInspections(params);
+      console.log('Inspections response:', response);
 
-      if (res.data.results) {
+      if (response.results) {
         // Server-side paginated response
-        setInspections(res.data.results);
-        setTotalCount(res.data.count || 0);
+        setInspections(response.results);
+        setTotalCount(response.count || 0);
       } else {
         // Fallback for non-paginated response
-        setInspections(res.data);
-        setTotalCount(res.data.length);
+        setInspections(response);
+        setTotalCount(response.length);
       }
     } catch (err) {
       console.error("Error fetching inspections:", err);
-      // Use mock data for demonstration with role-based filtering
-      const allMockInspections = [
-        {
-          id: 1,
-          code: 'EIA-2025-0001',
-          establishment_name: 'ABC Manufacturing Corp.',
-          establishment_detail: {
-            name: 'ABC Manufacturing Corp.',
-            city: 'San Fernando',
-            province: 'La Union',
-            district: 'La Union - 1st District'
-          },
-          section: 'PD-1586',
-          status: 'DIVISION_CREATED',
-          priority: 'MEDIUM',
-          assigned_to: 'John Doe',
-          current_assignee_name: 'John Doe',
-          created_at: '2025-01-15T08:00:00Z',
-          updated_at: '2025-01-15T10:30:00Z',
-          can_act: true,
-          created_by: 'Division Chief'
-        },
-        {
-          id: 2,
-          code: 'AIR-2025-0002',
-          establishment_name: 'XYZ Industries Inc.',
-          establishment_detail: {
-            name: 'XYZ Industries Inc.',
-            city: 'Bauang',
-            province: 'La Union',
-            district: 'La Union - 2nd District'
-          },
-          section: 'RA-8749',
-          status: 'SECTION_REVIEW',
-          priority: 'HIGH',
-          assigned_to: 'Jane Smith',
-          current_assignee_name: 'Jane Smith',
-          created_at: '2025-01-14T09:15:00Z',
-          updated_at: '2025-01-14T14:20:00Z',
-          can_act: true,
-          created_by: 'Division Chief'
-        },
-        {
-          id: 3,
-          code: 'WATER-2025-0003',
-          establishment_name: 'DEF Processing Plant',
-          establishment_detail: {
-            name: 'DEF Processing Plant',
-            city: 'San Juan',
-            province: 'La Union',
-            district: 'La Union - 1st District'
-          },
-          section: 'RA-9275',
-          status: 'MONITORING_INSPECTION',
-          priority: 'LOW',
-          assigned_to: 'Mike Johnson',
-          current_assignee_name: 'Mike Johnson',
-          created_at: '2025-01-13T11:30:00Z',
-          updated_at: '2025-01-13T16:45:00Z',
-          can_act: true,
-          created_by: 'Division Chief'
-        },
-        {
-          id: 4,
-          code: 'TOX-2025-0004',
-          establishment_name: 'GHI Chemical Plant',
-          establishment_detail: {
-            name: 'GHI Chemical Plant',
-            city: 'Agoo',
-            province: 'La Union',
-            district: 'La Union - 2nd District'
-          },
-          section: 'RA-6969',
-          status: 'LEGAL_REVIEW',
-          priority: 'URGENT',
-          assigned_to: 'Legal Unit',
-          current_assignee_name: 'Legal Unit',
-          created_at: '2025-01-12T14:20:00Z',
-          updated_at: '2025-01-12T16:30:00Z',
-          can_act: true,
-          created_by: 'Division Chief'
-        },
-        {
-          id: 5,
-          code: 'EIA-2025-0005',
-          establishment_name: 'JKL Construction Ltd.',
-          establishment_detail: {
-            name: 'JKL Construction Ltd.',
-            city: 'San Fernando',
-            province: 'La Union',
-            district: 'La Union - 1st District'
-          },
-          section: 'PD-1586',
-          status: 'UNIT_REVIEW',
-          priority: 'MEDIUM',
-          assigned_to: 'Jane Smith',
-          current_assignee_name: 'Jane Smith',
-          created_at: '2025-01-13T10:15:00Z',
-          updated_at: '2025-01-13T11:45:00Z',
-          can_act: true,
-          created_by: 'Division Chief'
-        },
-        {
-          id: 6,
-          code: 'AIR-2025-0006',
-          establishment_name: 'MNO Manufacturing Inc.',
-          establishment_detail: {
-            name: 'MNO Manufacturing Inc.',
-            city: 'Bauang',
-            province: 'La Union',
-            district: 'La Union - 2nd District'
-          },
-          section: 'RA-8749',
-          status: 'UNIT_REVIEW',
-          priority: 'HIGH',
-          assigned_to: 'Jane Smith',
-          current_assignee_name: 'Jane Smith',
-          created_at: '2025-01-14T08:30:00Z',
-          updated_at: '2025-01-14T09:15:00Z',
-          can_act: true,
-          created_by: 'Division Chief'
-        }
-      ];
-
-      // Apply auto-assignment logic based on workflow diagram
-      const autoAssignedInspections = applyAutoAssignment(allMockInspections, userLevel);
-
-      // Filter based on active tab and user level following workflow diagram
-      let filteredInspections = autoAssignedInspections;
-      
-      switch (userLevel) {
-        case 'Division Chief':
-          // Division Chief: Filter by active tab (section)
-          if (activeTab === 'all') {
-            filteredInspections = autoAssignedInspections;
-          } else {
-            // Filter by specific section
-            filteredInspections = autoAssignedInspections.filter(i => i.section === activeTab);
-          }
-          break;
-        case 'Section Chief':
-          if (activeTab === 'created_inspections') {
-            // Tab 1: Created Inspections (from Division Chief) - show both DIVISION_CREATED and SECTION_ASSIGNED
-            filteredInspections = autoAssignedInspections.filter(i => 
-              ['DIVISION_CREATED', 'SECTION_ASSIGNED'].includes(i.status) && 
-              i.current_assigned_to === currentUser?.id
-            );
-          } else if (activeTab === 'my_inspections') {
-            // Tab 2: My Inspections (after Inspect button)
-            filteredInspections = autoAssignedInspections.filter(i => 
-              i.status === 'SECTION_IN_PROGRESS' && i.current_assigned_to === currentUser?.id
-            );
-          } else if (activeTab === 'forwarded') {
-            // Tab 3: Forwarded List (only show inspections that were actually forwarded by this Section Chief)
-            filteredInspections = autoAssignedInspections.filter(i => 
-              i.assigned_section_chief === currentUser?.id && 
-              ['UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_COMPLETED', 'MONITORING_ASSIGN', 'MONITORING_IN_PROGRESS', 'MONITORING_COMPLETED_COMPLIANT', 'NON_COMPLIANT_RETURN', 'LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT'].includes(i.status)
-            );
-          } else if (activeTab === 'review_list') {
-            // Tab 4: Review List (from Unit Head)
-            filteredInspections = autoAssignedInspections.filter(i => 
-              i.status === 'SECTION_REVIEWED' && i.current_assigned_to === currentUser?.id
-            );
-          }
-          break;
-        case 'Unit Head':
-          if (activeTab === 'received_inspections') {
-            // Tab 1: Received from Section
-            filteredInspections = autoAssignedInspections.filter(i => 
-              i.status === 'UNIT_ASSIGNED' && i.current_assigned_to === currentUser?.id
-            );
-          } else if (activeTab === 'my_inspections') {
-            // Tab 2: My Inspections (after Inspect button)
-            filteredInspections = autoAssignedInspections.filter(i => 
-              i.status === 'UNIT_IN_PROGRESS' && i.current_assigned_to === currentUser?.id
-            );
-          } else if (activeTab === 'forwarded') {
-            // Tab 3: Forwarded List (only show inspections that were actually forwarded by this Unit Head)
-            filteredInspections = autoAssignedInspections.filter(i => 
-              i.assigned_unit_head === currentUser?.id && 
-              ['MONITORING_ASSIGN', 'MONITORING_IN_PROGRESS', 'MONITORING_COMPLETED_COMPLIANT', 'NON_COMPLIANT_RETURN'].includes(i.status)
-            );
-          } else if (activeTab === 'review_list') {
-            // Tab 4: Review List (from Monitoring)
-            filteredInspections = autoAssignedInspections.filter(i => 
-              i.status === 'UNIT_REVIEWED' && i.current_assigned_to === currentUser?.id
-            );
-          }
-          break;
-        case 'Monitoring Personnel':
-          if (activeTab === 'assigned_inspections') {
-            // Assigned Inspections (auto-assigned)
-            filteredInspections = autoAssignedInspections.filter(i => 
-              ['MONITORING_ASSIGN', 'MONITORING_IN_PROGRESS'].includes(i.status) && 
-              i.current_assigned_to === currentUser?.id
-            );
-          }
-          break;
-        case 'Legal Unit':
-          if (activeTab === 'legal_review') {
-            // Legal Review (non-compliant cases)
-            filteredInspections = autoAssignedInspections.filter(i => 
-              ['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT'].includes(i.status) && 
-              i.current_assigned_to === currentUser?.id
-            );
-          }
-          break;
-      }
-
-      setInspections(filteredInspections);
-      setTotalCount(filteredInspections.length);
+      setInspections([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
   }, [currentPage, pageSize, debouncedSearchQuery, statusFilter, sectionFilter, priorityFilter, activeTab, userLevel, currentUser]);
 
+  // Handle action clicks by delegating to parent workflow handler
+  const handleActionClick = useCallback((inspectionId, action) => {
+    const inspection = inspections.find(i => i.id === inspectionId);
+    if (!inspection) {
+      console.error('Inspection not found:', inspectionId);
+      return;
+    }
+
+    // Handle modal-based actions
+    if (action === 'forward') {
+      onWorkflow && onWorkflow(inspection, 'forward');
+    } else if (action === 'review') {
+      onWorkflow && onWorkflow(inspection, 'review');
+    } else if (action === 'send_nov') {
+      onLegalUnit && onLegalUnit(inspection);
+    } else if (action === 'send_noo') {
+      onLegalUnit && onLegalUnit(inspection);
+    } else if (action === 'complete' && userLevel === 'Monitoring Personnel') {
+      onCompliance && onCompliance(inspection);
+    } else {
+      // For direct API actions, delegate to parent workflow handler
+      onWorkflow && onWorkflow(inspection, action);
+    }
+  }, [inspections, onWorkflow, onCompliance, onLegalUnit, userLevel]);
+
   // Delete inspection function
   const handleDeleteInspection = useCallback(async (inspection) => {
     try {
       await deleteInspection(inspection.id);
+      alert(`Inspection ${inspection.code} deleted successfully`);
       // Refresh the inspections list
       fetchAllInspections();
       // Close confirmation dialog
@@ -525,19 +226,24 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
     }
   }, [fetchAllInspections]);
 
-  // Fetch all inspections on component mount and when pagination/filters change
   // Fetch user profile
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
         const profile = await getProfile();
         setCurrentUser(profile);
+        
+        // Set default tab based on user level
+        const tabs = getRoleBasedTabs();
+        if (tabs.length > 0 && !activeTab) {
+          setActiveTab(tabs[0].id);
+        }
       } catch (error) {
         console.error('Error fetching user profile:', error);
       }
     };
     fetchUserProfile();
-  }, []);
+  }, [userLevel]);
 
   useEffect(() => {
     fetchAllInspections();
@@ -599,11 +305,11 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
   // Sort options for dropdown
   const sortFields = [
     { key: "code", label: "Inspection Code" },
-    { key: "establishment_name", label: "Establishment" },
-    { key: "status", label: "Status" },
-    { key: "priority", label: "Priority" },
+    { key: "establishments_detail", label: "Establishments" },
+    { key: "law", label: "Law" },
+    { key: "current_status", label: "Status" },
+    { key: "assigned_to_name", label: "Assigned To" },
     { key: "created_at", label: "Created Date" },
-    { key: "updated_at", label: "Updated Date" },
   ];
 
   const sortDirections = [
@@ -616,23 +322,23 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
     let list = inspections.filter((inspection) => {
       // Apply local search filter
       const query = debouncedSearchQuery.toLowerCase();
-      const establishmentName = inspection.establishment_name || inspection.establishment_detail?.name || "";
+      const establishmentNames = inspection.establishments_detail?.map(est => est.name).join(' ') || "";
       const code = inspection.code || "";
-      const section = getSectionDisplay(inspection.section) || "";
+      const law = inspection.law || "";
 
       const matchesSearch = debouncedSearchQuery
-        ? establishmentName.toLowerCase().includes(query) ||
+        ? establishmentNames.toLowerCase().includes(query) ||
           code.toLowerCase().includes(query) ||
-          section.toLowerCase().includes(query)
+          law.toLowerCase().includes(query)
         : true;
 
       // Apply status filter
       const matchesStatus =
-        statusFilter.length === 0 || statusFilter.includes(inspection.status);
+        statusFilter.length === 0 || statusFilter.includes(inspection.current_status);
 
       // Apply section filter
       const matchesSection =
-        sectionFilter.length === 0 || sectionFilter.includes(inspection.section);
+        sectionFilter.length === 0 || sectionFilter.includes(inspection.law);
 
       // Apply priority filter
       const matchesPriority =
@@ -661,9 +367,9 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
       list = [...list].sort((a, b) => {
         let aVal, bVal;
 
-        if (sortConfig.key === "establishment_name") {
-          aVal = a.establishment_name || a.establishment_detail?.name || "";
-          bVal = b.establishment_name || b.establishment_detail?.name || "";
+        if (sortConfig.key === "establishments_detail") {
+          aVal = a.establishments_detail?.map(est => est.name).join(' ') || "";
+          bVal = b.establishments_detail?.map(est => est.name).join(' ') || "";
         } else {
           aVal = a[sortConfig.key] || "";
           bVal = b[sortConfig.key] || "";
@@ -691,7 +397,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
   ]);
 
   // ✅ Pagination (using server-side pagination, so no need for paginatedInspections)
-
   const totalPages = Math.ceil(filteredInspections.length / pageSize);
 
   // ✅ Selection
@@ -714,7 +419,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
     setStatusFilter((prev) =>
       prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
     );
-
 
   const togglePriority = (priority) =>
     setPriorityFilter((prev) =>
@@ -768,6 +472,10 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, filteredCount);
 
+  const handleRowClick = (inspection) => {
+    navigate(`/inspections/${inspection.id}`);
+  };
+
   return (
     <div className="p-4 bg-white h-[calc(100vh-160px)]">
       {/* Top controls */}
@@ -794,7 +502,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
               </button>
             )}
           </div>
-
 
           {/* 🔽 Sort Dropdown */}
           <div className="relative sort-dropdown">
@@ -880,17 +587,17 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
             )}
           </div>
 
-           {/* 🎚 Filters dropdown */}
-           <div className="relative filter-dropdown">
-             <button
-               onClick={() => setFiltersOpen((prev) => !prev)}
-               className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
-             >
-               <ArrowUpDown size={14} />
-               Filters
-               <ChevronDown size={14} />
-               {activeFilterCount > 0 && ` (${activeFilterCount})`}
-             </button>
+          {/* 🎚 Filters dropdown */}
+          <div className="relative filter-dropdown">
+            <button
+              onClick={() => setFiltersOpen((prev) => !prev)}
+              className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
+            >
+              <ArrowUpDown size={14} />
+              Filters
+              <ChevronDown size={14} />
+              {activeFilterCount > 0 && ` (${activeFilterCount})`}
+            </button>
 
             {filtersOpen && (
               <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded shadow">
@@ -919,15 +626,22 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                       Status
                     </div>
                     {[
-                      "DIVISION_CREATED",
-                      "SECTION_REVIEW",
-                      "SECTION_INSPECTING",
-                      "UNIT_REVIEW",
-                      "UNIT_INSPECTING",
-                      "MONITORING_ASSIGN",
-                      "MONITORING_INSPECTION",
-                      "COMPLETED",
-                      "LEGAL_REVIEW"
+                      "CREATED",
+                      "SECTION_ASSIGNED",
+                      "SECTION_IN_PROGRESS",
+                      "SECTION_COMPLETED",
+                      "UNIT_ASSIGNED",
+                      "UNIT_IN_PROGRESS",
+                      "UNIT_COMPLETED",
+                      "MONITORING_ASSIGNED",
+                      "MONITORING_IN_PROGRESS",
+                      "MONITORING_COMPLETED_COMPLIANT",
+                      "MONITORING_COMPLETED_NON_COMPLIANT",
+                      "LEGAL_REVIEW",
+                      "NOV_SENT",
+                      "NOO_SENT",
+                      "CLOSED_COMPLIANT",
+                      "CLOSED_NON_COMPLIANT"
                     ].map((status) => (
                       <button
                         key={status}
@@ -937,7 +651,7 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                         }`}
                       >
                         <div className="flex-1 text-left">
-                          <div className="font-medium">{getStatusDisplay(status).label}</div>
+                          <div className="font-medium">{status.replace(/_/g, ' ')}</div>
                         </div>
                         {statusFilter.includes(status) && (
                           <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
@@ -945,7 +659,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                       </button>
                     ))}
                   </div>
-
 
                   {/* Priority Section */}
                   <div className="mb-2">
@@ -961,7 +674,7 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                         }`}
                       >
                         <div className="flex-1 text-left">
-                          <div className="font-medium">{getPriorityDisplay(priority).label}</div>
+                          <div className="font-medium">{priority}</div>
                         </div>
                         {priorityFilter.includes(priority) && (
                           <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
@@ -989,24 +702,28 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
           <ExportDropdown
             title="Inspections Export Report"
             fileName="inspections_export"
-            columns={["Code", "Establishment", "Section", "Status", "Priority", "Assigned To", "Created Date"]}
+            columns={["Code", "Establishments", "Law", "Status", "Assigned To", "Created By", "Created Date"]}
             rows={selectedInspections.length > 0 ? 
               selectedInspections.map(inspection => [
                 inspection.code,
-                inspection.establishment_name || inspection.establishment_detail?.name,
-                getSectionDisplay(inspection.section),
-                getStatusDisplay(inspection.status).label,
-                getPriorityDisplay(inspection.priority).label,
-                inspection.current_assignee_name || inspection.assigned_to,
+                inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                  ? inspection.establishments_detail.map(est => est.name).join(', ')
+                  : 'No establishments',
+                inspection.law,
+                inspection.simplified_status || inspection.current_status,
+                inspection.assigned_to_name || 'Unassigned',
+                inspection.created_by_name || 'Unknown',
                 new Date(inspection.created_at).toLocaleDateString()
               ]) : 
               inspections.map(inspection => [
                 inspection.code,
-                inspection.establishment_name || inspection.establishment_detail?.name,
-                getSectionDisplay(inspection.section),
-                getStatusDisplay(inspection.status).label,
-                getPriorityDisplay(inspection.priority).label,
-                inspection.current_assignee_name || inspection.assigned_to,
+                inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                  ? inspection.establishments_detail.map(est => est.name).join(', ')
+                  : 'No establishments',
+                inspection.law,
+                inspection.simplified_status || inspection.current_status,
+                inspection.assigned_to_name || 'Unassigned',
+                inspection.created_by_name || 'Unknown',
                 new Date(inspection.created_at).toLocaleDateString()
               ])
             }
@@ -1017,24 +734,28 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
           <PrintPDF
             title="Inspections Report"
             fileName="inspections_report"
-            columns={["Code", "Establishment", "Section", "Status", "Priority", "Assigned To", "Created Date"]}
+            columns={["Code", "Establishments", "Law", "Status", "Assigned To", "Created By", "Created Date"]}
             rows={selectedInspections.length > 0 ? 
               selectedInspections.map(inspection => [
                 inspection.code,
-                inspection.establishment_name || inspection.establishment_detail?.name,
-                getSectionDisplay(inspection.section),
-                getStatusDisplay(inspection.status).label,
-                getPriorityDisplay(inspection.priority).label,
-                inspection.current_assignee_name || inspection.assigned_to,
+                inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                  ? inspection.establishments_detail.map(est => est.name).join(', ')
+                  : 'No establishments',
+                inspection.law,
+                inspection.simplified_status || inspection.current_status,
+                inspection.assigned_to_name || 'Unassigned',
+                inspection.created_by_name || 'Unknown',
                 new Date(inspection.created_at).toLocaleDateString()
               ]) : 
               inspections.map(inspection => [
                 inspection.code,
-                inspection.establishment_name || inspection.establishment_detail?.name,
-                getSectionDisplay(inspection.section),
-                getStatusDisplay(inspection.status).label,
-                getPriorityDisplay(inspection.priority).label,
-                inspection.current_assignee_name || inspection.assigned_to,
+                inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                  ? inspection.establishments_detail.map(est => est.name).join(', ')
+                  : 'No establishments',
+                inspection.law,
+                inspection.simplified_status || inspection.current_status,
+                inspection.assigned_to_name || 'Unassigned',
+                inspection.created_by_name || 'Unknown',
                 new Date(inspection.created_at).toLocaleDateString()
               ])
             }
@@ -1065,7 +786,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                     ? 'border-sky-500 text-sky-600 bg-sky-50'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
                 }`}
-                title={userLevel === 'Division Chief' ? (tab.id === 'all' ? 'Show all inspections' : `Filter by ${tab.label}`) : undefined}
               >
                 {tab.label}
                 {tab.count > 0 && (
@@ -1079,213 +799,192 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
         </div>
       </div>
 
-      {/* Table Content */}
-      <>
-          {/* 📊 Search results info */}
-      {(hasActiveFilters || filteredCount !== totalInspections || (userLevel === 'Division Chief' && activeTab !== 'all')) && (
-        <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
-          <div>
-            {userLevel === 'Division Chief' && activeTab !== 'all' ? (
-              <span>
-                Showing {filteredCount} inspection(s) for <span className="font-medium text-sky-600">{getSectionDisplay(activeTab)}</span>
-              </span>
-            ) : filteredCount === totalInspections ? (
-              `Showing all ${totalInspections} inspection(s)`
+      {/* Table Content - Migrated from InspectionTable */}
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="w-6 p-1 text-center border-b border-gray-300">
+                <input
+                  type="checkbox"
+                  checked={
+                    selectedInspections.length > 0 &&
+                    selectedInspections.length === inspections.length
+                  }
+                  onChange={toggleSelectAll}
+                />
+              </th>
+              {[
+                { key: "code", label: "Code", sortable: true },
+                { key: "establishments_detail", label: "Establishments", sortable: false },
+                { key: "law", label: "Law", sortable: false },
+                { key: "current_status", label: "Status", sortable: true },
+                { key: "assigned_to_name", label: "Assigned To", sortable: false },
+                { key: "created_by_name", label: "Created By", sortable: false },
+                { key: "created_at", label: "Created", sortable: true },
+              ].map((col) => (
+                <th
+                  key={col.key}
+                  className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                    col.sortable ? "cursor-pointer" : ""
+                  }`}
+                  onClick={col.sortable ? () => handleSort(col.key) : undefined}
+                >
+                  <div className="flex items-center gap-1">
+                    {col.label} {col.sortable && getSortIcon(col.key)}
+                  </div>
+                </th>
+              ))}
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {loading ? (
+              <tr>
+                <td
+                  colSpan="8"
+                  className="px-6 py-8 text-center border-b border-gray-300"
+                >
+                  <div
+                    className="flex flex-col items-center justify-center p-4"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <div className="w-8 h-8 mb-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
+                    <p className="text-sm text-gray-600">Loading inspections...</p>
+                  </div>
+                </td>
+              </tr>
+            ) : inspections.length === 0 ? (
+              <tr>
+                <td
+                  colSpan="8"
+                  className="px-6 py-4 text-center text-gray-500 border-b border-gray-300"
+                >
+                  {hasActiveFilters ? (
+                    <div>
+                      No inspections found matching your criteria.
+                      <br />
+                      <button
+                        onClick={clearAllFilters}
+                        className="mt-2 underline text-sky-600 hover:text-sky-700"
+                      >
+                        Clear all filters
+                      </button>
+                    </div>
+                  ) : (
+                    "No inspections found."
+                  )}
+                </td>
+              </tr>
             ) : (
-              `Showing ${filteredCount} of ${totalInspections} inspection(s)`
+              inspections.map((inspection) => (
+                <tr
+                  key={inspection.id}
+                  onClick={() => handleRowClick(inspection)}
+                  className="hover:bg-gray-50 cursor-pointer"
+                >
+                  <td className="text-center border-b border-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={selectedInspections.includes(inspection.id)}
+                      onChange={() => toggleSelect(inspection.id)}
+                    />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <div className="flex items-center">
+                      <FileText className="h-4 w-4 text-gray-400 mr-2" />
+                      {inspection.code}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    <div className="flex items-center">
+                      <Building className="h-4 w-4 text-gray-400 mr-2" />
+                      <div>
+                        {inspection.establishments_detail && inspection.establishments_detail.length > 0 ? (
+                          inspection.establishments_detail.map((est, idx) => (
+                            <div key={idx} className="mb-1">
+                              <div className="font-medium">{est.name}</div>
+                              <div className="text-xs text-gray-500">{est.nature_of_business}</div>
+                              <div className="text-xs text-gray-400">{est.city}, {est.province}</div>
+                            </div>
+                          ))
+                        ) : (
+                          <span className="text-gray-400">No establishments</span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {inspection.law}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <StatusBadge 
+                      status={inspection.current_status} 
+                      simplifiedStatus={inspection.simplified_status} 
+                    />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {inspection.assigned_to_name ? (
+                      <div>
+                        <div className="font-medium">{inspection.assigned_to_name}</div>
+                        {inspection.assigned_to_level && (
+                          <div className="text-xs text-gray-500">{inspection.assigned_to_level}</div>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">Unassigned</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {inspection.created_by_name ? (
+                      <div>
+                        <div className="font-medium">{inspection.created_by_name}</div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">Unknown</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <div className="flex items-center">
+                      <Calendar className="h-4 w-4 text-gray-400 mr-2" />
+                      {formatFullDate(inspection.created_at)}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                    <ActionButtons 
+                      inspection={inspection}
+                      onActionClick={handleActionClick}
+                      userLevel={userLevel}
+                      activeTab={activeTab}
+                    />
+                  </td>
+                </tr>
+              ))
             )}
-          </div>
-          <div className="flex gap-2">
-            {userLevel === 'Division Chief' && activeTab !== 'all' && (
-              <button
-                onClick={() => setActiveTab('all')}
-                className="underline text-sky-600 hover:text-sky-700"
-              >
-                Show All Sections
-              </button>
-            )}
-            {hasActiveFilters && (
-              <button
-                onClick={clearAllFilters}
-                className="underline text-sky-600 hover:text-sky-700"
-              >
-                Clear all filters
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+          </tbody>
+        </table>
+      </div>
 
-       {/* Table */}
-       <table className="w-full border border-gray-300 rounded-lg">
-         <thead>
-           <tr className="text-sm text-left text-white bg-sky-700">
-             <th className="w-6 p-1 text-center border-b border-gray-300">
-               <input
-                 type="checkbox"
-                 checked={
-                   selectedInspections.length > 0 &&
-                   selectedInspections.length === inspections.length
-                 }
-                 onChange={toggleSelectAll}
-               />
-             </th>
-             {[
-               { key: "code", label: "Inspection Code", sortable: true },
-               { key: "establishment_name", label: "Establishment", sortable: true },
-               { key: "section", label: "Section", sortable: false },
-               { key: "status", label: "Status", sortable: true },
-               { key: "priority", label: "Priority", sortable: true },
-               { key: "assigned_to", label: "Assigned To", sortable: false },
-               { key: "created_at", label: "Created Date", sortable: true },
-             ].map((col) => (
-               <th
-                 key={col.key}
-                 className={`p-1 border-b border-gray-300 ${
-                   col.sortable ? "cursor-pointer" : ""
-                 }`}
-                 onClick={col.sortable ? () => handleSort(col.key) : undefined}
-               >
-                 <div className="flex items-center gap-1">
-                   {col.label} {col.sortable && getSortIcon(col.key)}
-                 </div>
-               </th>
-             ))}
-
-             <th className="p-1 text-center border-b border-gray-300 w-35">
-               Actions
-             </th>
-           </tr>
-         </thead>
-         <tbody>
-           {loading ? (
-             <tr>
-               <td
-                 colSpan="9"
-                 className="px-2 py-8 text-center border-b border-gray-300"
-               >
-                 <div
-                   className="flex flex-col items-center justify-center p-4"
-                   role="status"
-                   aria-live="polite"
-                 >
-                   <div className="w-8 h-8 mb-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
-                   <p className="text-sm text-gray-600">Loading inspections...</p>
-                 </div>
-               </td>
-             </tr>
-           ) : inspections.length === 0 ? (
-             <tr>
-               <td
-                 colSpan="9"
-                 className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
-               >
-                 {hasActiveFilters ? (
-                   <div>
-                     No inspections found matching your criteria.
-                     <br />
-                     <button
-                       onClick={clearAllFilters}
-                       className="mt-2 underline text-sky-600 hover:text-sky-700"
-                     >
-                       Clear all filters
-                     </button>
-                   </div>
-                 ) : (
-                   "No inspections found."
-                 )}
-               </td>
-             </tr>
-           ) : (
-             inspections.map((inspection) => (
-               <tr
-                 key={inspection.id}
-                 className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
-               >
-                 <td className="text-center border-b border-gray-300">
-                   <input
-                     type="checkbox"
-                     checked={selectedInspections.includes(inspection.id)}
-                     onChange={() => toggleSelect(inspection.id)}
-                   />
-                 </td>
-                 <td className="px-2 font-semibold border-b border-gray-300">
-                   <div className="flex items-center">
-                     <FileText className="h-4 w-4 text-gray-400 mr-2" />
-                     {inspection.code}
-                   </div>
-                 </td>
-                 <td className="px-2 border-b border-gray-300">
-                   <div className="flex items-center">
-                     <Building className="h-4 w-4 text-gray-400 mr-2" />
-                     <div>
-                       <div className="font-medium">{inspection.establishment_name || inspection.establishment_detail?.name}</div>
-                       <div className="text-xs text-gray-500">
-                         {inspection.establishment_detail?.city}, {inspection.establishment_detail?.province}
-                       </div>
-                     </div>
-                   </div>
-                 </td>
-                 <td className="px-2 border-b border-gray-300">
-                   {getSectionDisplay(inspection.section)}
-                 </td>
-                 <td className="px-2 text-center border-b border-gray-300">
-                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusDisplay(inspection.status).color}`}>
-                     {getStatusDisplay(inspection.status).label}
-                   </span>
-                 </td>
-                 <td className="px-2 text-center border-b border-gray-300">
-                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityDisplay(inspection.priority).color}`}>
-                     {getPriorityDisplay(inspection.priority).label}
-                   </span>
-                 </td>
-                 <td className="px-2 border-b border-gray-300">
-                   <div className="flex items-center">
-                     <Users className="h-4 w-4 text-gray-400 mr-2" />
-                     {inspection.current_assignee_name || inspection.assigned_to || 'Unassigned'}
-                   </div>
-                 </td>
-                 <td className="px-2 border-b border-gray-300">
-                   <div className="flex items-center">
-                     <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                     {formatFullDate(inspection.created_at)}
-                   </div>
-                 </td>
-                 <td className="p-1 text-center border-b border-gray-300">
-                      <ActionButtons
-                        inspection={inspection}
-                        onView={onView}
-                        onWorkflow={onWorkflow}
-                        onCompliance={onCompliance}
-                        onLegalUnit={onLegalUnit}
-                        onDelete={(inspection) => setDeleteConfirmation({ open: true, inspection })}
-                        userLevel={userLevel}
-                        activeTab={activeTab}
-                      />
-                 </td>
-               </tr>
-             ))
-           )}
-         </tbody>
-      </table>
-
-       {/* Pagination Controls */}
-       <PaginationControls
-         currentPage={currentPage}
-         totalPages={totalPages}
-         pageSize={pageSize}
-         totalItems={totalInspections}
-         filteredItems={filteredCount}
-         hasActiveFilters={hasActiveFilters}
-         onPageChange={goToPage}
-         onPageSizeChange={(newSize) => {
-           setPageSize(newSize);
-           setCurrentPage(1);
-         }}
-         startItem={startItem}
-         endItem={endItem}
-         storageKey="inspections_list"
-       />
+      {/* Pagination Controls */}
+      <PaginationControls
+        currentPage={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        totalItems={totalInspections}
+        filteredItems={filteredCount}
+        hasActiveFilters={hasActiveFilters}
+        onPageChange={goToPage}
+        onPageSizeChange={(newSize) => {
+          setPageSize(newSize);
+          setCurrentPage(1);
+        }}
+        startItem={startItem}
+        endItem={endItem}
+        storageKey="inspections_list"
+      />
 
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
@@ -1294,7 +993,7 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
         message={`Are you sure you want to delete inspection ${deleteConfirmation.inspection?.code || deleteConfirmation.inspection?.id}? This action cannot be undone.${
           userLevel === 'Admin' 
             ? ' As an Admin, you can delete any inspection.' 
-            : ' Only inspections in "Division Created" status can be deleted.'
+            : ' Only inspections in "Created" status can be deleted.'
         }`}
         confirmText="Delete"
         cancelText="Cancel"
@@ -1303,259 +1002,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
         onCancel={() => setDeleteConfirmation({ open: false, inspection: null })}
         onConfirm={() => handleDeleteInspection(deleteConfirmation.inspection)}
       />
-
-      </>
-
-    </div>
-  );
-}
-
-/* Action Buttons Component - Following Workflow Diagram */
-function ActionButtons({ inspection, onView, onWorkflow, onCompliance, onLegalUnit, onDelete, userLevel, activeTab }) {
-  const getAvailableActions = () => {
-    const actions = [];
-
-    // Review button - available for all user levels
-    actions.push({
-      icon: Eye,
-      label: 'View',
-      action: () => onView(inspection),
-      color: 'bg-sky-600 hover:bg-sky-700'
-    });
-
-    // Section Chief specific actions for Created Inspections tab
-    if (userLevel === 'Section Chief' && activeTab === 'created_inspections' && ['DIVISION_CREATED', 'SECTION_ASSIGNED'].includes(inspection.status)) {
-      // Inspect button - moves to SECTION_IN_PROGRESS status and moves to My Inspections tab
-      actions.push({
-        icon: Play,
-        label: 'Inspect',
-        action: () => onWorkflow(inspection, 'inspect'),
-        color: 'bg-sky-600 hover:bg-sky-700'
-      });
-      
-      // Forward button - check if Unit Head exists for this section
-      const hasUnitHead = ['PD-1586', 'RA-8749', 'RA-9275'].includes(inspection.section);
-      if (hasUnitHead) {
-        actions.push({
-          icon: ArrowRight,
-          label: 'Forward',
-          action: () => onWorkflow(inspection, 'forward_to_unit'),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-      } else {
-        actions.push({
-          icon: ArrowRight,
-          label: 'Forward',
-          action: () => onWorkflow(inspection, 'forward_to_monitoring'),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-      }
-    }
-
-    // Section Chief specific actions for My Inspections tab
-    if (userLevel === 'Section Chief' && activeTab === 'my_inspections' && inspection.status === 'SECTION_IN_PROGRESS') {
-      // Complete Inspection button
-      actions.push({
-        icon: CheckCircle,
-        label: 'Complete',
-        action: () => onWorkflow(inspection, 'complete_inspection'),
-        color: 'bg-sky-600 hover:bg-sky-700'
-      });
-    }
-
-    // Section Chief specific actions for Review List tab
-    if (userLevel === 'Section Chief' && activeTab === 'review_list' && inspection.status === 'SECTION_REVIEWED') {
-      // Review button - forward to Division
-        actions.push({
-          icon: ArrowRight,
-        label: 'Review',
-        action: () => onWorkflow(inspection, 'review'),
-        color: 'bg-sky-600 hover:bg-sky-700'
-      });
-    }
-
-    // Unit Head specific actions for Received Inspections tab
-    if (userLevel === 'Unit Head' && activeTab === 'received_inspections' && inspection.status === 'UNIT_ASSIGNED') {
-      // Inspect button - moves to UNIT_IN_PROGRESS status and moves to My Inspections tab
-      actions.push({
-        icon: Play,
-        label: 'Inspect',
-        action: () => onWorkflow(inspection, 'inspect'),
-        color: 'bg-sky-600 hover:bg-sky-700'
-      });
-      
-      // Forward button - send directly to Monitoring
-        actions.push({
-          icon: ArrowRight,
-        label: 'Forward',
-          action: () => onWorkflow(inspection, 'forward_to_monitoring'),
-        color: 'bg-sky-600 hover:bg-sky-700'
-      });
-    }
-
-    // Unit Head specific actions for My Inspections tab
-    if (userLevel === 'Unit Head' && activeTab === 'my_inspections' && inspection.status === 'UNIT_IN_PROGRESS') {
-      // Complete Inspection button
-      actions.push({
-        icon: CheckCircle,
-        label: 'Complete',
-        action: () => onWorkflow(inspection, 'complete_inspection'),
-        color: 'bg-sky-600 hover:bg-sky-700'
-      });
-    }
-
-    // Unit Head specific actions for Review List tab
-    if (userLevel === 'Unit Head' && activeTab === 'review_list' && inspection.status === 'UNIT_REVIEWED') {
-      // Review button - forward to Section
-      actions.push({
-        icon: ArrowRight,
-        label: 'Review',
-        action: () => onWorkflow(inspection, 'review'),
-        color: 'bg-sky-600 hover:bg-sky-700'
-      });
-    }
-
-    // Monitoring Personnel specific actions
-    if (userLevel === 'Monitoring Personnel' && activeTab === 'assigned_inspections') {
-      if (inspection.status === 'MONITORING_ASSIGN') {
-        // Start Inspection button
-        actions.push({
-          icon: Play,
-          label: 'Start Inspection',
-          action: () => onWorkflow(inspection, 'start_inspection'),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-      } else if (inspection.status === 'MONITORING_IN_PROGRESS') {
-        // Complete Compliant button
-        actions.push({
-          icon: CheckCircle,
-          label: 'Complete',
-          action: () => onWorkflow(inspection, 'complete_compliant'),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-        
-        // Complete Non-Compliant button
-        actions.push({
-          icon: XCircle,
-          label: 'Complete',
-          action: () => onWorkflow(inspection, 'complete_non_compliant'),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-        
-        // Update Compliance button
-        actions.push({
-          icon: FileText,
-          label: 'Update',
-          action: () => onCompliance && onCompliance(inspection),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-      }
-    }
-
-    // Legal Unit specific actions
-    if (userLevel === 'Legal Unit' && activeTab === 'legal_review') {
-      if (inspection.status === 'LEGAL_REVIEW') {
-        // Send Notice of Violation button
-        actions.push({
-          icon: FileText,
-          label: 'Send NOV',
-          action: () => onLegalUnit(inspection),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-        
-        // Send Notice of Order button
-        actions.push({
-          icon: FileText,
-          label: 'Send NOO',
-          action: () => onLegalUnit(inspection),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-        
-        // Close Case button
-        actions.push({
-          icon: CheckCircle,
-          label: 'Close',
-          action: () => onLegalUnit(inspection),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-      } else if (inspection.status === 'NOV_SENT') {
-        // Send Notice of Order button
-        actions.push({
-          icon: FileText,
-          label: 'Send NOO',
-          action: () => onLegalUnit(inspection),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-        
-        // Close Case button
-        actions.push({
-          icon: CheckCircle,
-          label: 'Close',
-          action: () => onLegalUnit(inspection),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-      } else if (inspection.status === 'NOO_SENT') {
-        // Close Case button
-        actions.push({
-          icon: CheckCircle,
-          label: 'Close',
-          action: () => onLegalUnit(inspection),
-          color: 'bg-sky-600 hover:bg-sky-700'
-        });
-      }
-    }
-
-    // Compliance tracking actions for Monitoring Personnel
-    if (userLevel === 'Monitoring Personnel' && activeTab === 'assigned_inspections' && inspection.status === 'MONITORING_INSPECTION') {
-      // Update Compliance button
-      actions.push({
-        icon: FileText,
-        label: 'Update Compliance',
-        action: () => onCompliance && onCompliance(inspection),
-        color: 'bg-blue-600 hover:bg-blue-700'
-      });
-    }
-
-    // Delete button - available for Division Chief and Admin
-    // Division Chief: only for DIVISION_CREATED status
-    // Admin: can delete any inspection
-    if (userLevel === 'Division Chief' && inspection.status === 'DIVISION_CREATED') {
-      actions.push({
-        icon: Trash2,
-        label: 'Delete',
-        action: () => onDelete(inspection),
-        color: 'bg-red-600 hover:bg-red-700'
-      });
-    } else if (userLevel === 'Admin') {
-      actions.push({
-        icon: Trash2,
-        label: 'Delete',
-        action: () => onDelete(inspection),
-        color: 'bg-red-600 hover:bg-red-700'
-      });
-    }
-
-    return actions;
-  };
-
-  const availableActions = getAvailableActions();
-
-  return (
-    <div className="flex justify-center gap-1">
-      {availableActions.map((action, index) => {
-        const IconComponent = action.icon;
-        return (
-          <button
-            key={index}
-            onClick={action.action}
-            className={`flex items-center gap-1 px-2 py-1 text-xs text-white transition-colors rounded ${action.color}`}
-            title={action.label}
-          >
-            <IconComponent size={12} />
-            <span>{action.label}</span>
-          </button>
-        );
-      })}
     </div>
   );
 }

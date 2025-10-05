@@ -23,8 +23,14 @@ export default function ComplianceTracking({ inspection, onComplianceDecision })
   const [showComplianceForm, setShowComplianceForm] = useState(false);
 
   useEffect(() => {
-    if (inspection.compliance_data) {
-      setComplianceData(inspection.compliance_data);
+    if (inspection.form?.compliance_decision) {
+      setComplianceData(prev => ({
+        ...prev,
+        is_compliant: inspection.form.compliance_decision === 'COMPLIANT',
+        violations: inspection.form.violations_found || '',
+        compliance_plan: inspection.form.compliance_plan || '',
+        compliance_date: inspection.form.compliance_deadline || ''
+      }));
     }
   }, [inspection]);
 
@@ -38,13 +44,11 @@ export default function ComplianceTracking({ inspection, onComplianceDecision })
 
   const handleSubmitCompliance = () => {
     const decisionData = {
-      inspection_id: inspection.id,
-      is_compliant: complianceData.is_compliant,
-      violations: complianceData.violations,
+      compliance_decision: complianceData.is_compliant ? 'COMPLIANT' : 'NON_COMPLIANT',
+      violations_found: complianceData.violations,
       compliance_plan: complianceData.compliance_plan,
-      compliance_date: complianceData.compliance_date,
-      penalties: complianceData.penalties,
-      legal_actions: complianceData.legal_actions
+      compliance_deadline: complianceData.compliance_date,
+      findings_summary: complianceData.findings_summary || ''
     };
 
     if (onComplianceDecision) {
@@ -270,7 +274,7 @@ export default function ComplianceTracking({ inspection, onComplianceDecision })
       )}
 
       {/* Legal Actions (for Legal Unit) */}
-      {inspection.status === 'LEGAL_REVIEW' && (
+      {inspection.current_status === 'LEGAL_REVIEW' && (
         <div className="bg-white rounded-lg shadow border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Legal Actions</h3>
           

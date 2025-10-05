@@ -26,23 +26,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
     serializer_class = InspectionSerializer
     permission_classes = [permissions.IsAuthenticated]
     
-    def get_serializer_class(self):
-        """Return appropriate serializer based on action"""
-        if self.action == 'create':
-            return InspectionCreateSerializer
-        return InspectionSerializer
-    
-    def create(self, request, *args, **kwargs):
-        """Create inspection using InspectionCreateSerializer"""
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        inspection = serializer.save()
-        
-        # Return the created inspection using the main serializer
-        response_serializer = InspectionSerializer(inspection, context={'request': request})
-        headers = self.get_success_headers(response_serializer.data)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-    
     def get_queryset(self):
         """Filter inspections based on user role and tab"""
         user = self.request.user
@@ -224,26 +207,14 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Determine the correct status based on user level
-        if user.userlevel == 'Section Chief' and inspection.current_status == 'CREATED':
-            new_status = 'SECTION_ASSIGNED'
-        elif user.userlevel == 'Unit Head' and inspection.current_status == 'SECTION_COMPLETED':
-            new_status = 'UNIT_ASSIGNED'
-        else:
-            # If already in correct status, just assign
-            new_status = inspection.current_status
-        
-        # Assign user and update status if needed
-        prev_status = inspection.current_status
+        # Assign
         inspection.assigned_to = user
-        if new_status != prev_status:
-            inspection.current_status = new_status
         inspection.save()
         
         # Log history
         InspectionHistory.objects.create(
             inspection=inspection,
-            previous_status=prev_status,
+            previous_status=inspection.current_status,
             new_status=inspection.current_status,
             changed_by=user,
             remarks='Assigned to self'
@@ -721,3 +692,4 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
+

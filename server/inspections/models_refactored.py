@@ -53,7 +53,7 @@ class Inspection(models.Model):
     # Core fields
     code = models.CharField(max_length=30, unique=True, null=True, blank=True)
     establishments = models.ManyToManyField(Establishment, related_name='inspections_new')
-    law = models.CharField(max_length=50, help_text="Law code (e.g., PD-1586, RA-6969, RA-8749, RA-9275, RA-9003)", default='PD-1586')
+    law = models.CharField(max_length=50, help_text="Law code (e.g., PD-1586, RA-6969, RA-8749, RA-9275, RA-9003)")
     district = models.CharField(max_length=100, null=True, blank=True)
     
     # Assignment fields
@@ -79,7 +79,7 @@ class Inspection(models.Model):
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    
     class Meta:
         ordering = ['-created_at']
         indexes = [
@@ -91,7 +91,7 @@ class Inspection(models.Model):
     
     def __str__(self):
         return f"{self.code} - {self.get_simplified_status()}"
-
+    
     def save(self, *args, **kwargs):
         """Generate unique inspection code if not set"""
         if not self.code:
@@ -411,3 +411,4 @@ class InspectionHistory(models.Model):
     
     def __str__(self):
         return f"{self.inspection.code}: {self.previous_status} → {self.new_status}"
+

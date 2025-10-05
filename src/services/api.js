@@ -241,24 +241,15 @@ export const searchEstablishments = async (query, page = 1, pageSize = 10) => {
 };
 
 // -------------------------------------------------
-// Inspections
+// Inspections - Updated for new backend
 // -------------------------------------------------
 export const getInspections = async (params = {}) => {
   const res = await api.get("inspections/", { params });
   return res.data;
 };
 
-export const searchInspections = async (query, page = 1, pageSize = 10) => {
-  const res = await api.get("inspections/search/", {
-    params: { q: query, page, page_size: pageSize },
-  });
-  return res.data;
-};
-
-export const getInspectionSearchSuggestions = async (query) => {
-  const res = await api.get("inspections/search_suggestions/", {
-    params: { q: query },
-  });
+export const getInspection = async (id) => {
+  const res = await api.get(`inspections/${id}/`);
   return res.data;
 };
 
@@ -273,13 +264,18 @@ export const createInspection = async (inspectionData) => {
     const enhancedError = new Error(
       error.response?.data?.detail ||
         error.response?.data?.message ||
-        error.response?.data?.establishment?.[0] ||
-        error.response?.data?.section?.[0] ||
+        error.response?.data?.establishments?.[0] ||
+        error.response?.data?.law?.[0] ||
         "Failed to create inspection. Please try again."
     );
     enhancedError.response = error.response;
     throw enhancedError;
   }
+};
+
+export const updateInspection = async (id, inspectionData) => {
+  const res = await api.patch(`inspections/${id}/`, inspectionData);
+  return res.data;
 };
 
 export const deleteInspection = async (id) => {
@@ -298,216 +294,73 @@ export const deleteInspection = async (id) => {
   }
 };
 
-export const assignInspection = async (id, payload) => {
-  const res = await api.post(`inspections/${id}/assign/`, payload);
+// New workflow action functions
+export const assignToMe = async (id) => {
+  const res = await api.post(`inspections/${id}/assign_to_me/`);
   return res.data;
 };
 
-export const advanceInspection = async (id) => {
-  const res = await api.post(`inspections/${id}/advance/`);
+export const startInspection = async (id) => {
+  const res = await api.post(`inspections/${id}/start/`);
   return res.data;
 };
 
-export const getDistricts = async (province) => {
-  const res = await api.get("inspections/districts/", { params: { province } });
+export const completeInspection = async (id, data) => {
+  const res = await api.post(`inspections/${id}/complete/`, data);
   return res.data;
 };
 
-export const getAssignableUsers = async (district, role) => {
-  const res = await api.get("inspections/assignable_users/", {
-    params: { district, role },
+export const forwardInspection = async (id, data) => {
+  const res = await api.post(`inspections/${id}/forward/`, data);
+  return res.data;
+};
+
+export const reviewInspection = async (id, data) => {
+  const res = await api.post(`inspections/${id}/review/`, data);
+  return res.data;
+};
+
+export const forwardToLegal = async (id, data) => {
+  const res = await api.post(`inspections/${id}/forward_to_legal/`, data);
+  return res.data;
+};
+
+export const sendNOV = async (id, data) => {
+  const res = await api.post(`inspections/${id}/send_nov/`, data);
+  return res.data;
+};
+
+export const sendNOO = async (id, data) => {
+  const res = await api.post(`inspections/${id}/send_noo/`, data);
+  return res.data;
+};
+
+export const getInspectionHistory = async (id) => {
+  const res = await api.get(`inspections/${id}/history/`);
+  return res.data;
+};
+
+export const getInspectionDocuments = async (id) => {
+  const res = await api.get(`inspections/${id}/documents/`);
+  return res.data;
+};
+
+export const uploadInspectionDocument = async (id, formData) => {
+  const res = await api.post(`inspections/${id}/documents/`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
   });
   return res.data;
 };
 
-export const makeInspectionDecision = async (id, decisionData) => {
-  const res = await api.post(`inspections/${id}/make_decision/`, decisionData);
+// Get available actions for an inspection
+export const getAvailableActions = async (id) => {
+  const res = await api.get(`inspections/${id}/available_actions/`);
   return res.data;
 };
 
-export const getInspectionWorkflowHistory = async (id) => {
-  const res = await api.get(`inspections/${id}/workflow_history/`);
-  return res.data;
-};
-
-export const getAvailablePersonnel = async (filters = {}) => {
-  const params = new URLSearchParams();
-  if (filters.section) params.append('section', filters.section);
-  if (filters.district) params.append('district', filters.district);
-  if (filters.userlevel) params.append('userlevel', filters.userlevel);
-  
-  const res = await api.get(`inspections/available_personnel/?${params.toString()}`);
-  return res.data;
-};
-
-// Workflow action functions
-export const makeWorkflowDecision = async (id, action, comments = '') => {
-  try {
-    const res = await api.post(`inspections/${id}/make_decision/`, { 
-      action, 
-      comments 
-    });
-    return res.data;
-  } catch (error) {
-    console.error("Workflow decision error:", error.response?.data || error);
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to perform workflow decision. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
-export const sectionReview = async (id, comments = '') => {
-  try {
-    const res = await api.post(`inspections/${id}/section_review/`, { comments });
-    return res.data;
-  } catch (error) {
-    console.error("Section review error:", error.response?.data || error);
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to perform section review. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
-export const forwardToMonitoring = async (id, comments = '') => {
-  try {
-    const res = await api.post(`inspections/${id}/forward_to_monitoring/`, { comments });
-    return res.data;
-  } catch (error) {
-    console.error("Forward to monitoring error:", error.response?.data || error);
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to forward to monitoring. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
-export const unitReview = async (id, comments = '') => {
-  try {
-    const res = await api.post(`inspections/${id}/unit_review/`, { comments });
-    return res.data;
-  } catch (error) {
-    console.error("Unit review error:", error.response?.data || error);
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to perform unit review. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
-export const monitoringInspection = async (id, comments = '') => {
-  try {
-    const res = await api.post(`inspections/${id}/monitoring_inspection/`, { comments });
-    return res.data;
-  } catch (error) {
-    console.error("Monitoring inspection error:", error.response?.data || error);
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to perform monitoring inspection. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
-// Return path handling
-export const advanceReturnPath = async (id) => {
-  try {
-    const res = await api.post(`inspections/${id}/advance_return_path/`);
-    return res.data;
-  } catch (error) {
-    console.error("Advance return path error:", error.response?.data || error);
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to advance return path. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
-// Legal Unit actions
-export const sendNoticeOfViolation = async (id, novData) => {
-  try {
-    const res = await api.post(`inspections/${id}/send_notice_of_violation/`, novData);
-    return res.data;
-  } catch (error) {
-    console.error("Send NOV error:", error.response?.data || error);
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to send Notice of Violation. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
-export const sendNoticeOfOrder = async (id, nooData) => {
-  try {
-    const res = await api.post(`inspections/${id}/send_notice_of_order/`, nooData);
-    return res.data;
-  } catch (error) {
-    console.error("Send NOO error:", error.response?.data || error);
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to send Notice of Order. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
-export const closeCase = async (id, closureData) => {
-  try {
-    const res = await api.post(`inspections/${id}/close_case/`, closureData);
-    return res.data;
-  } catch (error) {
-    console.error("Close case error:", error.response?.data || error);
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to close case. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
-// Compliance tracking
-export const updateComplianceStatus = async (id, complianceData) => {
-  try {
-    const res = await api.post(`inspections/${id}/update_compliance/`, complianceData);
-    return res.data;
-  } catch (error) {
-    console.error("Update compliance error:", error.response?.data || error);
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to update compliance status. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
-// Tab counts for role-based dashboards
+// Get tab counts for role-based dashboards
 export const getTabCounts = async () => {
   try {
     const res = await api.get('inspections/tab_counts/');

@@ -10,25 +10,28 @@ from django.utils.html import strip_tags
 logger = logging.getLogger(__name__)
 
 
-def send_law_assignment_notification(section_chief, inspection, law_code, law_name):
+def send_inspection_assignment_notification(user, inspection):
     """
-    Send email notification to section chief when laws are assigned to them
+    Send email notification when inspection is assigned to a user
     """
     try:
-        subject = f"New Law Assignment: {law_code} - {inspection.establishment.name}"
+        # Get establishment names
+        establishment_names = [est.name for est in inspection.establishments.all()]
+        establishment_list = ", ".join(establishment_names) if establishment_names else "No establishments"
+        
+        subject = f"New Inspection Assignment: {inspection.code} - {establishment_list}"
         
         # Prepare email context
         context = {
-            'section_chief': section_chief,
+            'user': user,
             'inspection': inspection,
-            'law_code': law_code,
-            'law_name': law_name,
-            'establishment': inspection.establishment,
+            'establishment_list': establishment_list,
+            'law': inspection.law,
             'site_url': getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
         }
         
         # Render email content
-        html_message = render_to_string('emails/law_assignment_notification.html', context)
+        html_message = render_to_string('emails/inspection_assignment_notification.html', context)
         plain_message = strip_tags(html_message)
         
         # Send email
@@ -36,36 +39,42 @@ def send_law_assignment_notification(section_chief, inspection, law_code, law_na
             subject=subject,
             message=plain_message,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[section_chief.email],
+            recipient_list=[user.email],
             html_message=html_message,
             fail_silently=False
         )
         
-        logger.info(f"Law assignment notification sent to {section_chief.email}")
+        logger.info(f"Inspection assignment notification sent to {user.email}")
         
     except Exception as e:
-        logger.error(f"Failed to send law assignment notification to {section_chief.email}: {str(e)}")
+        logger.error(f"Failed to send inspection assignment notification to {user.email}: {str(e)}")
         raise
 
 
-def send_multiple_law_assignment_summary(section_chief, inspection, assigned_laws):
+def send_inspection_status_change_notification(user, inspection, old_status, new_status):
     """
-    Send email notification to section chief when multiple laws are assigned to them
+    Send email notification when inspection status changes
     """
     try:
-        subject = f"Multiple Law Assignments: {inspection.establishment.name} ({len(assigned_laws)} laws)"
+        # Get establishment names
+        establishment_names = [est.name for est in inspection.establishments.all()]
+        establishment_list = ", ".join(establishment_names) if establishment_names else "No establishments"
+        
+        subject = f"Inspection Status Update: {inspection.code} - {new_status}"
         
         # Prepare email context
         context = {
-            'section_chief': section_chief,
+            'user': user,
             'inspection': inspection,
-            'assigned_laws': assigned_laws,
-            'establishment': inspection.establishment,
+            'establishment_list': establishment_list,
+            'old_status': old_status,
+            'new_status': new_status,
+            'law': inspection.law,
             'site_url': getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
         }
         
         # Render email content
-        html_message = render_to_string('emails/multiple_law_assignment_notification.html', context)
+        html_message = render_to_string('emails/inspection_status_change_notification.html', context)
         plain_message = strip_tags(html_message)
         
         # Send email
@@ -73,14 +82,14 @@ def send_multiple_law_assignment_summary(section_chief, inspection, assigned_law
             subject=subject,
             message=plain_message,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[section_chief.email],
+            recipient_list=[user.email],
             html_message=html_message,
             fail_silently=False
         )
         
-        logger.info(f"Multiple law assignment notification sent to {section_chief.email} for {len(assigned_laws)} laws")
+        logger.info(f"Inspection status change notification sent to {user.email}")
         
     except Exception as e:
-        logger.error(f"Failed to send multiple law assignment notification to {section_chief.email}: {str(e)}")
+        logger.error(f"Failed to send inspection status change notification to {user.email}: {str(e)}")
         raise
 

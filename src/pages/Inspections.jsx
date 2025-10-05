@@ -8,20 +8,23 @@ import ViewInspection from "../components/inspections/ViewInspection";
 import { 
   getProfile, 
   getEstablishments, 
-  createInspection, 
-  makeWorkflowDecision, 
-  sectionReview, 
-  forwardToMonitoring, 
-  unitReview, 
-  monitoringInspection,
-  sendNoticeOfViolation,
-  sendNoticeOfOrder,
-  closeCase,
-  updateComplianceStatus,
-  advanceReturnPath
+  createInspection,
+  assignToMe,
+  startInspection,
+  completeInspection,
+  forwardInspection,
+  reviewInspection,
+  forwardToLegal,
+  sendNOV,
+  sendNOO
 } from "../services/api";
 import ComplianceModal from "../components/inspections/ComplianceModal";
 import LegalUnitModal from "../components/inspections/LegalUnitModal";
+import ForwardModal from "../components/inspections/ForwardModal";
+import CompleteModal from "../components/inspections/CompleteModal";
+import ReviewModal from "../components/inspections/ReviewModal";
+import NOVModal from "../components/inspections/NOVModal";
+import NOOModal from "../components/inspections/NOOModal";
 
 export default function Inspections() {
   const [showAdd, setShowAdd] = useState(false);
@@ -29,6 +32,11 @@ export default function Inspections() {
   const [workflowInspection, setWorkflowInspection] = useState(null);
   const [complianceModal, setComplianceModal] = useState({ open: false, inspection: null });
   const [legalUnitModal, setLegalUnitModal] = useState({ open: false, inspection: null });
+  const [forwardModal, setForwardModal] = useState({ open: false, inspection: null });
+  const [completeModal, setCompleteModal] = useState({ open: false, inspection: null });
+  const [reviewModal, setReviewModal] = useState({ open: false, inspection: null });
+  const [novModal, setNovModal] = useState({ open: false, inspection: null });
+  const [nooModal, setNooModal] = useState({ open: false, inspection: null });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [userLevel, setUserLevel] = useState("public");
   const [loading, setLoading] = useState(true);
@@ -41,94 +49,42 @@ export default function Inspections() {
 
   const handleWorkflowAction = async (inspection, actionType = 'inspect') => {
     try {
+      // Handle modal-based actions
+      if (actionType === 'forward') {
+        setForwardModal({ open: true, inspection });
+        return;
+      } else if (actionType === 'review') {
+        setReviewModal({ open: true, inspection });
+        return;
+      } else if (actionType === 'send_nov') {
+        setNovModal({ open: true, inspection });
+        return;
+      } else if (actionType === 'send_noo') {
+        setNooModal({ open: true, inspection });
+        return;
+      }
+
       let result;
       let actionMessage = '';
       
       // Call the appropriate backend API based on current status and action
-      if (['DIVISION_CREATED', 'SECTION_ASSIGNED'].includes(inspection.status) && actionType === 'inspect') {
-        // Section Chief clicking "Inspect" button - moves to SECTION_IN_PROGRESS
-        result = await makeWorkflowDecision(inspection.id, 'INSPECT', 'Section Chief started inspection');
-        actionMessage = `Inspection ${inspection.code} has been moved to "My Inspections" tab with SECTION_IN_PROGRESS status.`;
-      } else if (['DIVISION_CREATED', 'SECTION_ASSIGNED'].includes(inspection.status) && actionType === 'forward_to_unit') {
-        // Section Chief clicking "Forward to Unit Head" button
-        result = await makeWorkflowDecision(inspection.id, 'FORWARD_TO_UNIT', 'Forwarded to Unit Head by Section Chief');
-        actionMessage = `Inspection ${inspection.code} has been forwarded to Unit Head.`;
-      } else if (['DIVISION_CREATED', 'SECTION_ASSIGNED'].includes(inspection.status) && actionType === 'forward_to_monitoring') {
-        // Section Chief clicking "Forward to Monitoring" button
-        result = await makeWorkflowDecision(inspection.id, 'FORWARD_TO_MONITORING', 'Forwarded to Monitoring by Section Chief');
-        actionMessage = `Inspection ${inspection.code} has been forwarded to Monitoring Personnel.`;
-      } else if (inspection.status === 'SECTION_IN_PROGRESS' && actionType === 'complete_inspection') {
-        // Section Chief clicking "Complete Inspection" button
-        result = await makeWorkflowDecision(inspection.id, 'COMPLETE_INSPECTION', 'Section Chief completed inspection');
+      if (actionType === 'assign_to_me') {
+        result = await assignToMe(inspection.id);
+        actionMessage = `Inspection ${inspection.code} has been assigned to you.`;
+      } else if (actionType === 'start') {
+        result = await startInspection(inspection.id);
+        actionMessage = `Inspection ${inspection.code} has been started.`;
+      } else if (actionType === 'complete') {
+        // For monitoring personnel, show complete modal
+        if (userLevel === 'Monitoring Personnel') {
+          setCompleteModal({ open: true, inspection });
+          return;
+        }
+        result = await completeInspection(inspection.id, { remarks: 'Inspection completed' });
         actionMessage = `Inspection ${inspection.code} has been completed.`;
-      } else if (inspection.status === 'SECTION_REVIEWED' && actionType === 'review') {
-        // Section Chief clicking "Review" button - forward to Division
-        result = await makeWorkflowDecision(inspection.id, 'REVIEW', 'Section Chief reviewed and forwarded to Division');
-        actionMessage = `Inspection ${inspection.code} has been forwarded to Division Chief.`;
-      } else if (inspection.status === 'UNIT_ASSIGNED' && actionType === 'inspect') {
-        // Unit Head clicking "Inspect" button - moves to UNIT_IN_PROGRESS
-        result = await makeWorkflowDecision(inspection.id, 'INSPECT', 'Unit Head started inspection');
-        actionMessage = `Inspection ${inspection.code} has been moved to "My Inspections" tab with UNIT_IN_PROGRESS status.`;
-      } else if (inspection.status === 'UNIT_ASSIGNED' && actionType === 'forward_to_monitoring') {
-        // Unit Head clicking "Forward to Monitoring" button
-        result = await makeWorkflowDecision(inspection.id, 'FORWARD_TO_MONITORING', 'Forwarded to Monitoring by Unit Head');
-        actionMessage = `Inspection ${inspection.code} has been forwarded to Monitoring Personnel.`;
-      } else if (inspection.status === 'UNIT_IN_PROGRESS' && actionType === 'complete_inspection') {
-        // Unit Head clicking "Complete Inspection" button
-        result = await makeWorkflowDecision(inspection.id, 'COMPLETE_INSPECTION', 'Unit Head completed inspection');
-        actionMessage = `Inspection ${inspection.code} has been completed.`;
-      } else if (inspection.status === 'UNIT_REVIEWED' && actionType === 'review') {
-        // Unit Head clicking "Review" button - forward to Section
-        result = await makeWorkflowDecision(inspection.id, 'REVIEW', 'Unit Head reviewed and forwarded to Section');
-        actionMessage = `Inspection ${inspection.code} has been forwarded to Section Chief.`;
-      } else if (inspection.status === 'MONITORING_ASSIGN' && actionType === 'start_inspection') {
-        // Monitoring Personnel clicking "Start Inspection" button
-        result = await makeWorkflowDecision(inspection.id, 'START_INSPECTION', 'Monitoring Personnel started inspection');
-        actionMessage = `Inspection ${inspection.code} has been started by Monitoring Personnel.`;
-      } else if (inspection.status === 'MONITORING_IN_PROGRESS' && actionType === 'complete_compliant') {
-        // Monitoring Personnel clicking "Complete - Compliant" button
-        result = await makeWorkflowDecision(inspection.id, 'COMPLETE_COMPLIANT', 'Monitoring Personnel completed inspection - compliant');
-        actionMessage = `Inspection ${inspection.code} has been completed as compliant. Return path initiated.`;
-      } else if (inspection.status === 'MONITORING_IN_PROGRESS' && actionType === 'complete_non_compliant') {
-        // Monitoring Personnel clicking "Complete - Non-Compliant" button
-        result = await makeWorkflowDecision(inspection.id, 'COMPLETE_NON_COMPLIANT', 'Monitoring Personnel completed inspection - non-compliant');
-        actionMessage = `Inspection ${inspection.code} has been completed as non-compliant. Return path initiated.`;
-      } else if (inspection.status === 'DIVISION_REVIEWED' && actionType === 'review') {
-        // Division Chief clicking "Review" button
-        result = await makeWorkflowDecision(inspection.id, 'REVIEW', 'Division Chief reviewed inspection');
-        actionMessage = `Inspection ${inspection.code} has been reviewed by Division Chief.`;
-      } else if (inspection.status === 'LEGAL_REVIEW' && actionType === 'send_nov') {
-        // Legal Unit clicking "Send NOV" button
-        result = await makeWorkflowDecision(inspection.id, 'SEND_NOV', 'Notice of Violation sent to establishment');
-        actionMessage = `Notice of Violation has been sent for inspection ${inspection.code}.`;
-      } else if (inspection.status === 'LEGAL_REVIEW' && actionType === 'send_noo') {
-        // Legal Unit clicking "Send NOO" button
-        result = await makeWorkflowDecision(inspection.id, 'SEND_NOO', 'Notice of Order sent to establishment');
-        actionMessage = `Notice of Order has been sent for inspection ${inspection.code}.`;
-      } else if (inspection.status === 'LEGAL_REVIEW' && actionType === 'close_case') {
-        // Legal Unit clicking "Close Case" button
-        result = await makeWorkflowDecision(inspection.id, 'CLOSE_CASE', 'Case closed by Legal Unit');
-        actionMessage = `Case has been closed for inspection ${inspection.code}.`;
-      } else if (inspection.status === 'NOV_SENT' && actionType === 'send_noo') {
-        // Legal Unit clicking "Send NOO" button after NOV
-        result = await makeWorkflowDecision(inspection.id, 'SEND_NOO', 'Notice of Order sent to establishment');
-        actionMessage = `Notice of Order has been sent for inspection ${inspection.code}.`;
-      } else if (inspection.status === 'NOV_SENT' && actionType === 'close_case') {
-        // Legal Unit clicking "Close Case" button after NOV
-        result = await makeWorkflowDecision(inspection.id, 'CLOSE_CASE', 'Case closed by Legal Unit');
-        actionMessage = `Case has been closed for inspection ${inspection.code}.`;
-      } else if (inspection.status === 'NOO_SENT' && actionType === 'close_case') {
-        // Legal Unit clicking "Close Case" button after NOO
-        result = await makeWorkflowDecision(inspection.id, 'CLOSE_CASE', 'Case closed by Legal Unit');
-        actionMessage = `Case has been closed for inspection ${inspection.code}.`;
-      } else if (actionType === 'update_compliance') {
-        // Update compliance status
-        result = await updateComplianceStatus(inspection.id, inspection.complianceData);
-        actionMessage = `Compliance status updated for inspection ${inspection.code}.`;
-      } else if (actionType === 'advance_return_path') {
-        // Advance return path
-        result = await advanceReturnPath(inspection.id);
-        actionMessage = `Return path advanced for inspection ${inspection.code}.`;
+      } else if (actionType === 'forward_to_legal') {
+        result = await forwardToLegal(inspection.id, { remarks: 'Forwarded to Legal Unit' });
+        actionMessage = `Inspection ${inspection.code} has been forwarded to Legal Unit.`;
       } else {
         // Fallback for other actions
         actionMessage = `Workflow action for inspection: ${inspection.code}\nStatus: ${inspection.status}`;
@@ -151,7 +107,8 @@ export default function Inspections() {
   // Handle compliance modal
   const handleComplianceSubmit = async (complianceData) => {
     try {
-      await updateComplianceStatus(complianceModal.inspection.id, complianceData);
+      // Use the new completeInspection function for compliance decisions
+      await completeInspection(complianceModal.inspection.id, complianceData);
       setComplianceModal({ open: false, inspection: null });
       refreshInspections();
       alert('Compliance status updated successfully!');
@@ -164,16 +121,12 @@ export default function Inspections() {
   // Handle Legal Unit modal
   const handleLegalUnitSubmit = async (actionType, formData) => {
     try {
-      let result;
       switch (actionType) {
         case 'send_nov':
-          result = await sendNoticeOfViolation(legalUnitModal.inspection.id, formData);
+          await sendNOV(legalUnitModal.inspection.id, formData);
           break;
         case 'send_noo':
-          result = await sendNoticeOfOrder(legalUnitModal.inspection.id, formData);
-          break;
-        case 'close_case':
-          result = await closeCase(legalUnitModal.inspection.id, formData);
+          await sendNOO(legalUnitModal.inspection.id, formData);
           break;
         default:
           throw new Error('Invalid action type');
@@ -185,6 +138,71 @@ export default function Inspections() {
     } catch (error) {
       console.error('Error performing Legal Unit action:', error);
       alert(`Error performing action: ${error.message}`);
+    }
+  };
+
+  // Handle Forward modal
+  const handleForwardSubmit = async (inspectionId, formData) => {
+    try {
+      await forwardInspection(inspectionId, formData);
+      setForwardModal({ open: false, inspection: null });
+      refreshInspections();
+      alert('Inspection forwarded successfully!');
+    } catch (error) {
+      console.error('Error forwarding inspection:', error);
+      alert(`Error forwarding inspection: ${error.message}`);
+    }
+  };
+
+  // Handle Complete modal
+  const handleCompleteSubmit = async (inspectionId, formData) => {
+    try {
+      await completeInspection(inspectionId, formData);
+      setCompleteModal({ open: false, inspection: null });
+      refreshInspections();
+      alert('Inspection completed successfully!');
+    } catch (error) {
+      console.error('Error completing inspection:', error);
+      alert(`Error completing inspection: ${error.message}`);
+    }
+  };
+
+  // Handle Review modal
+  const handleReviewSubmit = async (inspectionId, formData) => {
+    try {
+      await reviewInspection(inspectionId, formData);
+      setReviewModal({ open: false, inspection: null });
+      refreshInspections();
+      alert('Review submitted successfully!');
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      alert(`Error submitting review: ${error.message}`);
+    }
+  };
+
+  // Handle NOV modal
+  const handleNOVSubmit = async (inspectionId, formData) => {
+    try {
+      await sendNOV(inspectionId, formData);
+      setNovModal({ open: false, inspection: null });
+      refreshInspections();
+      alert('Notice of Violation sent successfully!');
+    } catch (error) {
+      console.error('Error sending NOV:', error);
+      alert(`Error sending NOV: ${error.message}`);
+    }
+  };
+
+  // Handle NOO modal
+  const handleNOOSubmit = async (inspectionId, formData) => {
+    try {
+      await sendNOO(inspectionId, formData);
+      setNooModal({ open: false, inspection: null });
+      refreshInspections();
+      alert('Notice of Order sent successfully!');
+    } catch (error) {
+      console.error('Error sending NOO:', error);
+      alert(`Error sending NOO: ${error.message}`);
     }
   };
 
@@ -328,10 +346,10 @@ export default function Inspections() {
             // Create inspection for each selected establishment
             const inspectionPromises = formData.establishment_ids.map(establishmentId => {
               const inspectionData = {
-                establishment: establishmentId,
-                section: formData.law_code,
-                inspection_list: `Inspection for ${selectedLaw?.name || formData.law_code}`,
-                applicable_laws: formData.law_code,
+                establishments: [establishmentId],
+                law: formData.law_code,
+                scheduled_at: formData.scheduled_at || null,
+                inspection_notes: `Inspection for ${selectedLaw?.name || formData.law_code}`,
                 // The backend will handle auto-assignment based on the workflow rules
               };
               return createInspection(inspectionData);
@@ -491,6 +509,49 @@ export default function Inspections() {
             inspection={legalUnitModal.inspection}
             onClose={() => setLegalUnitModal({ open: false, inspection: null })}
             onSubmit={handleLegalUnitSubmit}
+          />
+
+          {/* Forward Modal */}
+          <ForwardModal
+            open={forwardModal.open}
+            inspection={forwardModal.inspection}
+            onClose={() => setForwardModal({ open: false, inspection: null })}
+            onSubmit={handleForwardSubmit}
+            userLevel={userLevel}
+          />
+
+          {/* Complete Modal */}
+          <CompleteModal
+            open={completeModal.open}
+            inspection={completeModal.inspection}
+            onClose={() => setCompleteModal({ open: false, inspection: null })}
+            onSubmit={handleCompleteSubmit}
+            userLevel={userLevel}
+          />
+
+          {/* Review Modal */}
+          <ReviewModal
+            open={reviewModal.open}
+            inspection={reviewModal.inspection}
+            onClose={() => setReviewModal({ open: false, inspection: null })}
+            onSubmit={handleReviewSubmit}
+            userLevel={userLevel}
+          />
+
+          {/* NOV Modal */}
+          <NOVModal
+            open={novModal.open}
+            inspection={novModal.inspection}
+            onClose={() => setNovModal({ open: false, inspection: null })}
+            onSubmit={handleNOVSubmit}
+          />
+
+          {/* NOO Modal */}
+          <NOOModal
+            open={nooModal.open}
+            inspection={nooModal.inspection}
+            onClose={() => setNooModal({ open: false, inspection: null })}
+            onSubmit={handleNOOSubmit}
           />
 
                 </div>
