@@ -328,12 +328,72 @@ export const inspectInspection = async (id, data = {}) => {
 export const startInspection = async (id, data = {}) => {
   try {
     const res = await api.post(`inspections/${id}/start/`, data);
-  return res.data;
+    return res.data;
   } catch (error) {
     const enhancedError = new Error(
       error.response?.data?.detail ||
         error.response?.data?.error ||
         "Failed to start inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const continueInspection = async (id, data = {}) => {
+  try {
+    const res = await api.post(`inspections/${id}/continue/`, data);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to continue inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const saveInspectionDraft = async (id, formData) => {
+  try {
+    const res = await api.post(`inspections/${id}/save_draft/`, formData);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to save draft. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const autoSaveInspection = async (id, formData) => {
+  try {
+    const res = await api.post(`inspections/${id}/auto_save/`, formData);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to auto-save. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const checkInspectionFormData = async (id) => {
+  try {
+    const res = await api.get(`inspections/${id}/check_form_data/`);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to check form data. Please try again."
     );
     enhancedError.response = error.response;
     throw enhancedError;

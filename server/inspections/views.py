@@ -77,10 +77,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
         elif user.userlevel == 'Unit Head':
             queryset = self._filter_unit_head(queryset, user, tab)
         elif user.userlevel == 'Monitoring Personnel':
-            queryset = queryset.filter(
-                assigned_to=user,
-                current_status__in=['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS']
-            )
+            queryset = self._filter_monitoring_personnel(queryset, user, tab)
         elif user.userlevel == 'Legal Unit':
             queryset = queryset.filter(
                 current_status__in=['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
@@ -157,14 +154,14 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 current_status__in=['UNIT_IN_PROGRESS', 'UNIT_COMPLETED']
             )
         elif tab == 'forwarded':
-            # Special case: If user is in combined EIA section, also show PD-1586, RA-8749, RA-9275 inspections
+            # Show inspections that this Unit Head has forwarded to Monitoring Personnel
+            # Use law filter but don't restrict by district since Monitoring Personnel might be in different district
             law_filter = Q(law=user.section)
             if user.section == 'PD-1586,RA-8749,RA-9275':
                 law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
             
             return queryset.filter(
                 law_filter,
-                district=user.district,
                 current_status__in=[
                     'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
                     'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
@@ -182,7 +179,34 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
             
             return queryset.filter(
-                Q(assigned_to=user) | Q(law_filter, district=user.district)
+                Q(assigned_to=user) | law_filter
+            )
+    
+    def _filter_monitoring_personnel(self, queryset, user, tab):
+        """Filter for Monitoring Personnel based on tab"""
+        if tab == 'assigned':
+            # Show inspections assigned to this Monitoring Personnel but not yet started
+            return queryset.filter(
+                assigned_to=user,
+                current_status='MONITORING_ASSIGNED'
+            )
+        elif tab == 'in_progress':
+            # Show inspections that this Monitoring Personnel has started (in progress or with draft)
+            return queryset.filter(
+                assigned_to=user,
+                current_status='MONITORING_IN_PROGRESS'
+            )
+        elif tab == 'completed':
+            # Show inspections that this Monitoring Personnel has completed
+            return queryset.filter(
+                assigned_to=user,
+                current_status__in=['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']
+            )
+        else:
+            # Default: show all assigned inspections
+            return queryset.filter(
+                assigned_to=user,
+                current_status__in=['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS', 'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']
             )
     
     def get_serializer_class(self):
@@ -398,6 +422,280 @@ class InspectionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     @action(detail=True, methods=['post'])
+    def continue_inspection(self, request, pk=None):
+        """Continue inspection (Monitoring Personnel only)"""
+        inspection = self.get_object()
+        user = request.user
+        
+        # Check if user can act
+        if inspection.assigned_to != user:
+            return Response(
+                {'error': 'You are not assigned to this inspection'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Only allow for MONITORING_IN_PROGRESS status
+        if inspection.current_status != 'MONITORING_IN_PROGRESS':
+            return Response(
+                {'error': f'Cannot continue from status {inspection.current_status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Log history
+        remarks = request.data.get('remarks', 'Continued inspection')
+        InspectionHistory.objects.create(
+            inspection=inspection,
+            previous_status=inspection.current_status,
+            new_status=inspection.current_status,
+            changed_by=user,
+            remarks=remarks
+        )
+        
+        serializer = self.get_serializer(inspection)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def save_draft(self, request, pk=None):
+        """Save inspection form as draft"""
+        inspection = self.get_object()
+        user = request.user
+        
+        # Check if user can act
+        if inspection.assigned_to != user:
+            return Response(
+                {'error': 'You are not assigned to this inspection'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get or create inspection form
+        form, created = InspectionForm.objects.get_or_create(
+            inspection=inspection
+        )
+        
+        # Update form with draft data
+        form_data = request.data.get('form_data', {})
+        
+        # Store all form data in the checklist JSON field
+        form.checklist = {
+            'general': form_data.get('general', {}),
+            'purpose': form_data.get('purpose', {}),
+            'permits': form_data.get('permits', []),
+            'complianceItems': form_data.get('complianceItems', []),
+            'systems': form_data.get('systems', []),
+            'recommendationState': form_data.get('recommendationState', {}),
+            'is_draft': True,
+            'last_saved': timezone.now().isoformat(),
+            'saved_by': user.id
+        }
+        
+        # Update scheduled_at if provided
+        if 'general' in form_data and form_data['general'].get('inspectionDateTime'):
+            try:
+                form.scheduled_at = form_data['general']['inspectionDateTime']
+            except:
+                pass
+        
+        # Update inspection notes if provided
+        if 'general' in form_data and form_data['general'].get('inspectionNotes'):
+            form.inspection_notes = form_data['general']['inspectionNotes']
+        
+        form.save()
+        
+        # Log history
+        InspectionHistory.objects.create(
+            inspection=inspection,
+            previous_status=inspection.current_status,
+            new_status=inspection.current_status,
+            changed_by=user,
+            remarks='Saved inspection form as draft'
+        )
+        
+        serializer = self.get_serializer(inspection)
+        return Response({
+            'message': 'Draft saved successfully',
+            'inspection': serializer.data
+        })
+    
+    @action(detail=True, methods=['post'])
+    def auto_save(self, request, pk=None):
+        """Auto-save inspection form (optimized for frequent saves)"""
+        inspection = self.get_object()
+        user = request.user
+        
+        # Check if user can act
+        if inspection.assigned_to != user:
+            return Response(
+                {'error': 'You are not assigned to this inspection'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get or create inspection form
+        form, created = InspectionForm.objects.get_or_create(
+            inspection=inspection
+        )
+        
+        # Get form data
+        form_data = request.data
+        
+        # Validate form data structure
+        required_sections = ['general', 'purpose', 'permits', 'complianceItems', 'systems', 'recommendationState']
+        for section in required_sections:
+            if section not in form_data:
+                return Response(
+                    {'error': f'Missing required section: {section}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Store all form data in the checklist JSON field
+        form.checklist = {
+            'general': form_data.get('general', {}),
+            'purpose': form_data.get('purpose', {}),
+            'permits': form_data.get('permits', []),
+            'complianceItems': form_data.get('complianceItems', []),
+            'systems': form_data.get('systems', []),
+            'recommendationState': form_data.get('recommendationState', {}),
+            'lawFilter': form_data.get('lawFilter', []),
+            'is_draft': True,
+            'last_saved': timezone.now().isoformat(),
+            'saved_by': user.id,
+            'auto_save': True  # Mark as auto-save
+        }
+        
+        # Update scheduled_at if provided
+        if 'general' in form_data and form_data['general'].get('inspection_date_time'):
+            try:
+                form.scheduled_at = form_data['general']['inspection_date_time']
+            except:
+                pass
+        
+        # Update inspection notes if provided
+        if 'general' in form_data and form_data['general'].get('inspection_notes'):
+            form.inspection_notes = form_data['general']['inspection_notes']
+        
+        form.save()
+        
+        # Only log history for significant changes (not every auto-save)
+        # This reduces database writes for frequent auto-saves
+        last_history = InspectionHistory.objects.filter(
+            inspection=inspection
+        ).order_by('-created_at').first()
+        
+        # Only create history entry if it's been more than 5 minutes since last save
+        should_log = True
+        if last_history and last_history.remarks == 'Auto-saved inspection form':
+            time_diff = timezone.now() - last_history.created_at
+            if time_diff.total_seconds() < 300:  # 5 minutes
+                should_log = False
+        
+        if should_log:
+            InspectionHistory.objects.create(
+                inspection=inspection,
+                previous_status=inspection.current_status,
+                new_status=inspection.current_status,
+                changed_by=user,
+                remarks='Auto-saved inspection form'
+            )
+        
+        return Response({
+            'message': 'Auto-save successful',
+            'last_saved': form.checklist.get('last_saved'),
+            'is_draft': True
+        }, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['get'])
+    def check_form_data(self, request, pk=None):
+        """Check if inspection form has any data"""
+        inspection = self.get_object()
+        user = request.user
+        
+        # Check if user can access this inspection
+        if inspection.assigned_to != user and inspection.created_by != user:
+            return Response(
+                {'error': 'You are not authorized to access this inspection'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            form = InspectionForm.objects.get(inspection=inspection)
+            checklist = form.checklist or {}
+            
+            # Check if any form section has meaningful data
+            has_data = False
+            
+            # Check general information
+            general = checklist.get('general', {})
+            if general:
+                # Check for any non-empty fields
+                for key, value in general.items():
+                    if value and str(value).strip():
+                        has_data = True
+                        break
+            
+            # Check purpose
+            purpose = checklist.get('purpose', {})
+            if purpose:
+                for key, value in purpose.items():
+                    if value and str(value).strip():
+                        has_data = True
+                        break
+            
+            # Check permits
+            permits = checklist.get('permits', [])
+            if permits:
+                for permit in permits:
+                    for key, value in permit.items():
+                        if value and str(value).strip():
+                            has_data = True
+                            break
+                    if has_data:
+                        break
+            
+            # Check compliance items
+            compliance_items = checklist.get('complianceItems', [])
+            if compliance_items:
+                for item in compliance_items:
+                    for key, value in item.items():
+                        if value and str(value).strip():
+                            has_data = True
+                            break
+                    if has_data:
+                        break
+            
+            # Check systems
+            systems = checklist.get('systems', [])
+            if systems:
+                for system in systems:
+                    for key, value in system.items():
+                        if value and str(value).strip():
+                            has_data = True
+                            break
+                    if has_data:
+                        break
+            
+            # Check recommendations
+            recommendations = checklist.get('recommendationState', {})
+            if recommendations:
+                for key, value in recommendations.items():
+                    if value and str(value).strip():
+                        has_data = True
+                        break
+            
+            return Response({
+                'has_form_data': has_data,
+                'is_draft': checklist.get('is_draft', False),
+                'last_saved': checklist.get('last_saved'),
+                'form_exists': True
+            })
+            
+        except InspectionForm.DoesNotExist:
+            return Response({
+                'has_form_data': False,
+                'is_draft': False,
+                'last_saved': None,
+                'form_exists': False
+            })
+    
+    @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         """Complete inspection"""
         inspection = self.get_object()
@@ -410,6 +708,40 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
+        # Handle form data for Monitoring Personnel
+        form_data = request.data.get('form_data', {})
+        if form_data and inspection.current_status == 'MONITORING_IN_PROGRESS':
+            # Save form data as part of completion
+            form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+            
+            # Store all form data in the checklist JSON field
+            form.checklist = {
+                'general': form_data.get('general', {}),
+                'purpose': form_data.get('purpose', {}),
+                'permits': form_data.get('permits', []),
+                'complianceItems': form_data.get('complianceItems', []),
+                'systems': form_data.get('systems', []),
+                'recommendationState': form_data.get('recommendationState', {}),
+                'is_draft': False,
+                'completed_at': timezone.now().isoformat(),
+                'completed_by': user.id
+            }
+            
+            # Update scheduled_at if provided
+            if 'general' in form_data and form_data['general'].get('inspection_date_time'):
+                try:
+                    from datetime import datetime
+                    form.scheduled_at = datetime.fromisoformat(form_data['general']['inspection_date_time'].replace('Z', '+00:00'))
+                except:
+                    pass
+            
+            # Update inspection notes if provided
+            if 'general' in form_data and form_data['general'].get('inspection_notes'):
+                form.inspection_notes = form_data['general']['inspection_notes']
+            
+            form.save()
+
+        # Validate other data using serializer
         serializer = InspectionActionSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -432,6 +764,14 @@ class InspectionViewSet(viewsets.ModelViewSet):
             
             if compliance == 'COMPLIANT':
                 next_status = 'MONITORING_COMPLETED_COMPLIANT'
+            elif compliance == 'PARTIALLY_COMPLIANT':
+                next_status = 'MONITORING_COMPLETED_NON_COMPLIANT'  # Treat partially compliant as non-compliant for workflow
+                # Validate violations for partially compliant
+                if not data.get('violations_found'):
+                    return Response(
+                        {'error': 'Violations required for partially compliant decision'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
             else:
                 next_status = 'MONITORING_COMPLETED_NON_COMPLIANT'
                 # Validate violations
@@ -638,13 +978,71 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 section=inspection.law,  # Use the specific law, not combined section
                 is_active=True
             ).first()
+        elif next_status == 'MONITORING_ASSIGNED':
+            # Special case: For Monitoring Personnel, use specific law and prefer same district
+            monitoring_query = User.objects.filter(
+                userlevel='Monitoring Personnel',
+                section=inspection.law,  # Use the specific law
+                is_active=True
+            )
+            
+            # Prefer same district if available
+            if inspection.district:
+                next_assignee = monitoring_query.filter(district=inspection.district).first()
+                if not next_assignee:
+                    # Fallback: No Monitoring Personnel found, return to Section Chief for inspection
+                    # Change status to SECTION_IN_PROGRESS and assign back to current user (Section Chief)
+                    inspection.current_status = 'SECTION_IN_PROGRESS'
+                    inspection.assigned_to = user
+                    inspection.save()
+                    
+                    # Log history
+                    InspectionHistory.objects.create(
+                        inspection=inspection,
+                        previous_status=prev_status,
+                        new_status='SECTION_IN_PROGRESS',
+                        changed_by=user,
+                        remarks=f'No Monitoring Personnel found for law {inspection.law} in district {inspection.district}. Returned to Section Chief for inspection.'
+                    )
+                    
+                    serializer = self.get_serializer(inspection)
+                    return Response({
+                        'message': f'No Monitoring Personnel found for law {inspection.law} in district {inspection.district}. Inspection returned to Section Chief for inspection.',
+                        'inspection': serializer.data
+                    })
+            else:
+                next_assignee = monitoring_query.first()
+                if not next_assignee:
+                    # Fallback: No Monitoring Personnel found, return to Section Chief for inspection
+                    inspection.current_status = 'SECTION_IN_PROGRESS'
+                    inspection.assigned_to = user
+                    inspection.save()
+                    
+                    # Log history
+                    InspectionHistory.objects.create(
+                        inspection=inspection,
+                        previous_status=prev_status,
+                        new_status='SECTION_IN_PROGRESS',
+                        changed_by=user,
+                        remarks=f'No Monitoring Personnel found for law {inspection.law}. Returned to Section Chief for inspection.'
+                    )
+                    
+                    serializer = self.get_serializer(inspection)
+                    return Response({
+                        'message': f'No Monitoring Personnel found for law {inspection.law}. Inspection returned to Section Chief for inspection.',
+                        'inspection': serializer.data
+                    })
         else:
             # Use normal assignment logic
             next_assignee = inspection.get_next_assignee(next_status)
         
         if not next_assignee:
+            # This should not happen for MONITORING_ASSIGNED as we handle it above
+            # Only for other statuses
+            error_msg = f'No personnel found for {next_status}'
+            
             return Response(
-                {'error': f'No personnel found for {next_status}'},
+                {'error': error_msg},
                 status=status.HTTP_404_NOT_FOUND
             )
         

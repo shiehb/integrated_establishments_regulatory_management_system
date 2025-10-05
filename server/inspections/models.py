@@ -155,6 +155,7 @@ class Inspection(models.Model):
             'SECTION_ASSIGNED': {
                 'SECTION_IN_PROGRESS': ['Section Chief'],
                 'UNIT_ASSIGNED': ['Section Chief'],  # Can forward directly
+                'MONITORING_ASSIGNED': ['Section Chief'],  # Can forward directly if no unit head
             },
             'SECTION_IN_PROGRESS': {
                 'SECTION_COMPLETED': ['Section Chief'],
@@ -284,11 +285,17 @@ class Inspection(models.Model):
         
         # For non-division/legal roles, filter by law
         if required_level not in ['Division Chief', 'Legal Unit']:
-            # Special case: PD-1586, RA-8749, RA-9275 should use combined section
-            target_section = self.law
-            if self.law in ['PD-1586', 'RA-8749', 'RA-9275']:
-                target_section = 'PD-1586,RA-8749,RA-9275'  # EIA, Air & Water Combined
-            query = query.filter(section=target_section)
+            # Special case: For Section Chief and Unit Head, use combined section for PD-1586, RA-8749, RA-9275
+            # But for Monitoring Personnel, always use the specific law
+            if required_level == 'Monitoring Personnel':
+                # Monitoring Personnel should be assigned by specific law
+                query = query.filter(section=self.law)
+            else:
+                # Section Chief and Unit Head use combined section logic
+                target_section = self.law
+                if self.law in ['PD-1586', 'RA-8749', 'RA-9275']:
+                    target_section = 'PD-1586,RA-8749,RA-9275'  # EIA, Air & Water Combined
+                query = query.filter(section=target_section)
         
         # For all roles except division/legal, prefer same district
         if self.district and required_level not in ['Division Chief', 'Legal Unit']:

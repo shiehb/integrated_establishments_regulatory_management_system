@@ -122,6 +122,7 @@ class InspectionSerializer(serializers.ModelSerializer):
             'id': est.id,
             'name': est.name,
             'nature_of_business': est.nature_of_business,
+            'year_established': est.year_established,
             'province': est.province,
             'city': est.city,
             'barangay': est.barangay,
@@ -184,7 +185,7 @@ class InspectionSerializer(serializers.ModelSerializer):
             # Actions available to unassigned users (can assign to themselves)
             ('SECTION_ASSIGNED', 'Section Chief'): ['assign_to_me', 'forward'],
             ('UNIT_ASSIGNED', 'Unit Head'): ['assign_to_me', 'forward'],
-            ('MONITORING_ASSIGNED', 'Monitoring Personnel'): ['assign_to_me', 'start'],
+            ('MONITORING_ASSIGNED', 'Monitoring Personnel'): ['start'],
             
             # Actions available to assigned users
             ('SECTION_IN_PROGRESS', 'Section Chief'): ['start', 'complete'],
@@ -193,7 +194,9 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('UNIT_IN_PROGRESS', 'Unit Head'): ['start', 'complete'],
             ('UNIT_COMPLETED', 'Unit Head'): [],  # Auto-forwards to Section Chief
             
-            ('MONITORING_IN_PROGRESS', 'Monitoring Personnel'): ['complete'],
+            ('MONITORING_IN_PROGRESS', 'Monitoring Personnel'): ['continue', 'complete'],
+            ('MONITORING_COMPLETED_COMPLIANT', 'Monitoring Personnel'): ['review'],
+            ('MONITORING_COMPLETED_NON_COMPLIANT', 'Monitoring Personnel'): ['review'],
             
             ('UNIT_REVIEWED', 'Unit Head'): ['review'],
             ('SECTION_REVIEWED', 'Section Chief'): ['review'],
@@ -338,11 +341,14 @@ class InspectionActionSerializer(serializers.Serializer):
     
     # For complete action (monitoring)
     compliance_decision = serializers.ChoiceField(
-        choices=['COMPLIANT', 'NON_COMPLIANT'],
+        choices=['COMPLIANT', 'NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
         required=False
     )
     violations_found = serializers.CharField(required=False, allow_blank=True)
     findings_summary = serializers.CharField(required=False, allow_blank=True)
+    
+    # For form data
+    form_data = serializers.JSONField(required=False)
 
 
 class NOVSerializer(serializers.Serializer):

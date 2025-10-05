@@ -208,10 +208,10 @@ class SearchFilterOptionsView(APIView):
             .values_list("city", flat=True)
             .distinct()
         )
-        # Sectors: use inspections sections and establishment nature_of_business samples
+        # Sectors: use inspections laws and establishment nature_of_business samples
         sections = (
-            Inspection.objects.order_by("section")
-            .values_list("section", flat=True)
+            Inspection.objects.order_by("law")
+            .values_list("law", flat=True)
             .distinct()
         )
         nature_samples = (

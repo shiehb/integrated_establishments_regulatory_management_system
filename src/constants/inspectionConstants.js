@@ -78,6 +78,11 @@ export const actionButtonConfig = {
     color: 'green',
     icon: Play
   },
+  continue: {
+    label: 'Resume Inspection',
+    color: 'sky',
+    icon: Play
+  },
   complete: {
     label: 'Complete',
     color: 'green',

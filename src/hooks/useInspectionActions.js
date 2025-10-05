@@ -4,6 +4,7 @@ import {
   assignToMe,
   inspectInspection,
   startInspection,
+  continueInspection,
   completeInspection,
   forwardInspection,
   reviewInspection,
@@ -32,6 +33,9 @@ export const useInspectionActions = (refreshInspections) => {
           break;
         case 'start':
           result = await startInspection(inspectionId, data);
+          break;
+        case 'continue':
+          result = await continueInspection(inspectionId, data);
           break;
         case 'complete':
           result = await completeInspection(inspectionId, data);

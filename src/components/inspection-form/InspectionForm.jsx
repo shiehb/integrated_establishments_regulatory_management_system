@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
+import { saveInspectionDraft, completeInspection } from "../../services/api";
+import { useAutoSave } from "../../hooks/useAutoSave";
+import { validateInspectionForm } from "../../utils/formValidation";
 
 // Import all section components
 import InternalHeader from "./InternalHeader";
@@ -17,7 +20,9 @@ import Recommendations from "./Recommendations";
    ---------------------------*/
 export default function InspectionForm({ inspectionData }) {
   const navigate = useNavigate();
-  const storageKey = `inspection-form-${inspectionData?.id || "draft"}`;
+  const { id } = useParams();
+  const inspectionId = id || inspectionData?.id;
+  const storageKey = `inspection-form-${inspectionId || "draft"}`;
 
   // Load saved draft
   const loadSavedData = () => {
@@ -35,29 +40,33 @@ export default function InspectionForm({ inspectionData }) {
   // State
   const [general, setGeneral] = useState(
     savedData?.general || {
-      establishmentName: "",
+      establishment_name: "",
       address: "",
       coordinates: "",
-      natureOfBusiness: "",
-      yearEstablished: "",
-      inspectionDateTime: "",
-      environmentalLaws: [],
-      operatingHours: "",
-      operatingDaysPerWeek: "",
-      operatingDaysPerYear: "",
-      phoneFaxNo: "",
-      emailAddress: "",
+      nature_of_business: "",
+      year_established: "",
+      inspection_date_time: "",
+      environmental_laws: [],
+      operating_hours: "",
+      operating_days_per_week: "",
+      operating_days_per_year: "",
+      phone_fax_no: "",
+      email_address: "",
     }
   );
 
   const [purpose, setPurpose] = useState(
     savedData?.purpose || {
-      purposes: [],
-      accuracyDetails: [],
-      commitmentStatusDetails: [],
-      otherPurpose: "",
-      accuracyOtherDetail: "",
-      commitmentOtherDetail: "",
+      verify_accuracy: false,
+      verify_accuracy_details: [],
+      verify_accuracy_others: "",
+      determine_compliance: false,
+      investigate_complaints: false,
+      check_commitment_status: false,
+      commitment_status_details: [],
+      commitment_status_others: "",
+      other_purpose: false,
+      other_purpose_specify: "",
     }
   );
 
@@ -82,8 +91,63 @@ export default function InspectionForm({ inspectionData }) {
   );
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [errors, setErrors] = useState({});
+  const [currentUser, setCurrentUser] = useState(null);
+  const [inspectionStatus, setInspectionStatus] = useState(null);
+  const [fullInspectionData, setFullInspectionData] = useState(null);
 
-  // Auto-save
+  // Form data object for auto-save
+  const formData = {
+    general,
+    purpose,
+    permits,
+    complianceItems,
+    systems,
+    recommendationState,
+    lawFilter,
+  };
+
+  // Auto-save configuration
+  const autoSaveOptions = {
+    interval: 30000, // 30 seconds
+    enabled: !!inspectionId && isOnline,
+    validateBeforeSave: (data) => {
+      const validation = validateInspectionForm(data);
+      // Allow saving even with validation errors (draft mode)
+      // But log warnings for debugging
+      if (!validation.isValid) {
+        console.warn('⚠️ Form validation warnings (saving as draft):', validation.errors);
+      }
+      return true; // Always allow saving in draft mode
+    },
+    onSaveSuccess: (response) => {
+      console.log('✅ Auto-save successful:', response);
+      // Update last save time in localStorage as well
+      try {
+        const currentData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        currentData.lastSaved = new Date().toISOString();
+        localStorage.setItem(storageKey, JSON.stringify(currentData));
+      } catch (e) {
+        console.error('Error updating localStorage after auto-save:', e);
+      }
+    },
+    onSaveError: (error) => {
+      console.error('❌ Auto-save failed:', error);
+      // Could show a toast notification here
+    },
+  };
+
+  // Initialize auto-save
+  const {
+    isSaving: isAutoSaving,
+    lastSaveTime: autoSaveLastTime,
+    saveError: autoSaveError,
+    isOnline: autoSaveIsOnline,
+    saveNow: saveNow,
+    resetLastSavedData,
+    hasDataChanged,
+  } = useAutoSave(formData, inspectionId, autoSaveOptions);
+
+  // Local storage auto-save (backup)
   useEffect(() => {
     const saveData = {
       general,
@@ -93,13 +157,13 @@ export default function InspectionForm({ inspectionData }) {
       systems,
       recommendationState,
       lawFilter,
-      lastSaved: new Date().toISOString(),
+      lastSaved: autoSaveLastTime || new Date().toISOString(),
     };
     try {
       localStorage.setItem(storageKey, JSON.stringify(saveData));
-      setLastSaveTime(new Date().toISOString());
+      setLastSaveTime(autoSaveLastTime || new Date().toISOString());
     } catch (e) {
-      console.error("auto-save error", e);
+      console.error("localStorage auto-save error", e);
     }
   }, [
     general,
@@ -110,6 +174,7 @@ export default function InspectionForm({ inspectionData }) {
     recommendationState,
     lawFilter,
     storageKey,
+    autoSaveLastTime,
   ]);
 
   // Online/offline
@@ -124,12 +189,110 @@ export default function InspectionForm({ inspectionData }) {
     };
   }, []);
 
-  // Prefill law filter from inspectionData
+  // Prefill law filter from fullInspectionData
   useEffect(() => {
-    if (inspectionData?.section) {
-      setLawFilter([inspectionData.section]);
+    if (fullInspectionData?.law) {
+      console.log("🔧 Setting law filter from inspection data:", fullInspectionData.law);
+      setLawFilter([fullInspectionData.law]);
     }
-  }, [inspectionData]);
+  }, [fullInspectionData]);
+
+  // Load draft from backend when component mounts
+  useEffect(() => {
+    const loadDraftFromBackend = async () => {
+      if (!inspectionId) return;
+      
+      try {
+        console.log("🔍 Fetching inspection data for ID:", inspectionId);
+        const token = localStorage.getItem('access');
+        console.log("🔑 Token available:", !!token);
+        
+        // Try to fetch inspection data to get the form
+        const response = await fetch(`http://127.0.0.1:8000/api/inspections/${inspectionId}/`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        console.log("📡 API Response status:", response.status);
+        
+        if (response.ok) {
+          const contentType = response.headers.get('content-type');
+          console.log("📄 Response content-type:", contentType);
+          
+          if (contentType && contentType.includes('application/json')) {
+            const inspectionData = await response.json();
+          
+          // Store full inspection data for autofill
+          setFullInspectionData(inspectionData);
+          
+          // Store inspection status for completion logic
+          setInspectionStatus(inspectionData.current_status);
+          
+          if (inspectionData.form?.checklist?.is_draft) {
+            const draftData = inspectionData.form.checklist;
+            
+            // Load draft data into form state
+            if (draftData.general) setGeneral(draftData.general);
+            if (draftData.purpose) setPurpose(draftData.purpose);
+            if (draftData.permits) setPermits(draftData.permits);
+            if (draftData.complianceItems) setComplianceItems(draftData.complianceItems);
+            if (draftData.systems) setSystems(draftData.systems);
+            if (draftData.recommendationState) setRecommendationState(draftData.recommendationState);
+            
+            console.log("📝 Loaded draft from backend:", draftData);
+          }
+          
+            console.log("📋 Loaded inspection data:", inspectionData);
+          } else {
+            const htmlResponse = await response.text();
+            console.error("❌ Received HTML instead of JSON. Response:", htmlResponse.substring(0, 200) + "...");
+            console.error("This usually means the API endpoint is not found or authentication failed.");
+          }
+        } else {
+          console.error("❌ API request failed with status:", response.status);
+          const errorText = await response.text();
+          console.error("Error response:", errorText.substring(0, 200) + "...");
+        }
+      } catch (error) {
+        console.error("Failed to load draft from backend:", error);
+      }
+    };
+
+    loadDraftFromBackend();
+  }, [inspectionId]);
+
+  // Load current user
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const token = localStorage.getItem('access');
+        const response = await fetch('http://127.0.0.1:8000/api/auth/me/', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (response.ok) {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const userData = await response.json();
+            setCurrentUser(userData);
+          } else {
+            console.error("❌ Received HTML instead of JSON for user profile");
+          }
+        } else {
+          console.error("❌ Failed to load user profile, status:", response.status);
+        }
+      } catch (error) {
+        console.error("Failed to load current user:", error);
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
 
   /* ======================
      Validation
@@ -138,8 +301,8 @@ export default function InspectionForm({ inspectionData }) {
     const errs = {};
 
     // General Info
-    if (!general.establishmentName)
-      errs.establishmentName = "Establishment name is required.";
+    if (!general.establishment_name)
+      errs.establishment_name = "Establishment name is required.";
     if (!general.address) errs.address = "Address is required.";
 
     // Coordinates (now required)
@@ -157,64 +320,64 @@ export default function InspectionForm({ inspectionData }) {
     }
 
     // Nature of Business (now required)
-    if (!general.natureOfBusiness) {
-      errs.natureOfBusiness = "Nature of Business is required.";
+    if (!general.nature_of_business) {
+      errs.nature_of_business = "Nature of Business is required.";
     }
 
-    if (general.yearEstablished) {
-      if (!/^\d{4}$/.test(general.yearEstablished)) {
-        errs.yearEstablished = "Enter a 4-digit year.";
-      } else if (Number(general.yearEstablished) > new Date().getFullYear()) {
-        errs.yearEstablished = "Year cannot be in the future.";
+    if (general.year_established) {
+      if (!/^\d{4}$/.test(general.year_established)) {
+        errs.year_established = "Enter a 4-digit year.";
+      } else if (Number(general.year_established) > new Date().getFullYear()) {
+        errs.year_established = "Year cannot be in the future.";
       }
     } else {
-      errs.yearEstablished = "Year established is required.";
+      errs.year_established = "Year established is required.";
     }
 
     // Operating Hours (required and must be 1–24)
-    if (!general.operatingHours) {
-      errs.operatingHours = "Operating Hours is required.";
-      } else if (general.operatingHours < 1 || general.operatingHours > 24) {
-      errs.operatingHours = "Operating Hours must be between 1 and 24.";
+    if (!general.operating_hours) {
+      errs.operating_hours = "Operating Hours is required.";
+      } else if (general.operating_hours < 1 || general.operating_hours > 24) {
+      errs.operating_hours = "Operating Hours must be between 1 and 24.";
     }
 
     // Operating Days/Week (now required and must be 1–7)
-    if (!general.operatingDaysPerWeek) {
-      errs.operatingDaysPerWeek = "Operating Days/Week is required.";
-    } else if (general.operatingDaysPerWeek < 1 || general.operatingDaysPerWeek > 7) {
-      errs.operatingDaysPerWeek = "Operating Days/Week must be between 1 and 7.";
+    if (!general.operating_days_per_week) {
+      errs.operating_days_per_week = "Operating Days/Week is required.";
+    } else if (general.operating_days_per_week < 1 || general.operating_days_per_week > 7) {
+      errs.operating_days_per_week = "Operating Days/Week must be between 1 and 7.";
     }
 
     // Operating Days/Year (now required and must be 1–365)
-    if (!general.operatingDaysPerYear) {
-      errs.operatingDaysPerYear = "Operating Days/Year is required.";
-    } else if (general.operatingDaysPerYear < 1 || general.operatingDaysPerYear > 365) {
-      errs.operatingDaysPerYear = "Operating Days/Year must be between 1 and 365.";
+    if (!general.operating_days_per_year) {
+      errs.operating_days_per_year = "Operating Days/Year is required.";
+    } else if (general.operating_days_per_year < 1 || general.operating_days_per_year > 365) {
+      errs.operating_days_per_year = "Operating Days/Year must be between 1 and 365.";
     }
 
     // Phone/Fax No. (now required)
-    if (!general.phoneFaxNo) {
-      errs.phoneFaxNo = "Phone/Fax No. is required.";
+    if (!general.phone_fax_no) {
+      errs.phone_fax_no = "Phone/Fax No. is required.";
     }
 
     // Email Address (now required)
-    if (!general.emailAddress) {
-      errs.emailAddress = "Email Address is required.";
+    if (!general.email_address) {
+      errs.email_address = "Email Address is required.";
     } else {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(general.emailAddress))
-        errs.emailAddress = "Enter a valid email.";
+      if (!emailRegex.test(general.email_address))
+        errs.email_address = "Enter a valid email.";
     }
 
-    if (general.inspectionDateTime) {
-      const inspDate = new Date(general.inspectionDateTime);
+    if (general.inspection_date_time) {
+      const inspDate = new Date(general.inspection_date_time);
       if (isNaN(inspDate.getTime())) {
-        errs.inspectionDateTime = "Invalid inspection date/time.";
+        errs.inspection_date_time = "Invalid inspection date/time.";
       } else if (inspDate < new Date()) {
-        errs.inspectionDateTime = "Inspection date/time cannot be in the past.";
+        errs.inspection_date_time = "Inspection date/time cannot be in the past.";
       }
     } else {
-      errs.inspectionDateTime = "Inspection date/time is required.";
+      errs.inspection_date_time = "Inspection date/time is required.";
     }
 
     // Compliance
@@ -284,6 +447,124 @@ export default function InspectionForm({ inspectionData }) {
     navigate("/inspections");
   };
 
+  const handleDraft = async () => {
+    if (!inspectionId) {
+      alert("No inspection ID found. Cannot save draft.");
+      return;
+    }
+
+    // Save as draft without validation
+    const formData = {
+      general,
+      purpose,
+      permits,
+      complianceItems,
+      systems,
+      recommendationState,
+    };
+
+    try {
+      console.log("📝 Saving as draft:", formData);
+      
+      // Save draft to backend
+      await saveInspectionDraft(inspectionId, { form_data: formData });
+      
+      // Clear localStorage draft since it's saved to backend
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (e) {
+        console.error("clear draft error", e);
+      }
+      
+      // Show success message
+      alert("Draft saved successfully!");
+      
+      // Navigate back to inspections list
+      navigate("/inspections");
+    } catch (error) {
+      console.error("Failed to save draft:", error);
+      alert(`Failed to save draft: ${error.message}`);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!validateForm()) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      alert("Please fix errors before completing the inspection.");
+      return;
+    }
+
+    if (!inspectionId) {
+      alert("No inspection ID found. Cannot complete inspection.");
+      return;
+    }
+
+    // Show compliance decision dialog
+    const compliance = prompt("Please enter compliance decision (COMPLIANT/NON_COMPLIANT/PARTIALLY_COMPLIANT):");
+    if (!compliance) {
+      alert("Compliance decision is required to complete the inspection.");
+      return;
+    }
+
+    if (!['COMPLIANT', 'NON_COMPLIANT', 'PARTIALLY_COMPLIANT'].includes(compliance.toUpperCase())) {
+      alert("Invalid compliance decision. Please enter COMPLIANT, NON_COMPLIANT, or PARTIALLY_COMPLIANT.");
+      return;
+    }
+
+    let violations = "";
+    if (compliance.toUpperCase() === 'NON_COMPLIANT') {
+      violations = prompt("Please describe the violations found:");
+      if (!violations) {
+        alert("Violations description is required for non-compliant inspections.");
+        return;
+      }
+    }
+
+    const findingsSummary = prompt("Please provide a summary of findings and observations:");
+    if (!findingsSummary) {
+      alert("Findings summary is required to complete the inspection.");
+      return;
+    }
+
+    const formData = {
+      general,
+      purpose,
+      permits,
+      complianceItems,
+      systems,
+      recommendationState,
+    };
+
+    try {
+      console.log("✅ Completing inspection with data:", formData);
+      
+      // Complete the inspection
+      await completeInspection(inspectionId, {
+        form_data: formData,
+        compliance_decision: compliance.toUpperCase(),
+        violations_found: violations,
+        findings_summary: findingsSummary,
+        remarks: 'Inspection completed via form'
+      });
+      
+      // Clear localStorage draft since it's completed
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (e) {
+        console.error("clear draft error", e);
+      }
+      
+      // Show success message
+      alert("Inspection completed successfully!");
+      
+      // Navigate back to inspections list
+      navigate("/inspections");
+    } catch (error) {
+      console.error("Failed to complete inspection:", error);
+      alert(`Failed to complete inspection: ${error.message}`);
+    }
+  };
+
   const handleClose = () => {
     const keep = confirm("Keep your draft?");
     if (!keep) localStorage.removeItem(storageKey);
@@ -300,9 +581,15 @@ export default function InspectionForm({ inspectionData }) {
         <div className="w-full bg-white">
           <InternalHeader
             onSave={handleSave}
+            onDraft={handleDraft}
             onClose={handleClose}
-            lastSaveTime={lastSaveTime}
-            isOnline={isOnline}
+            onComplete={handleComplete}
+            lastSaveTime={autoSaveLastTime || lastSaveTime}
+            isOnline={autoSaveIsOnline}
+            isSaving={isAutoSaving}
+            saveError={autoSaveError}
+            hasDataChanged={hasDataChanged}
+            showCompleteButton={currentUser?.userlevel === 'Monitoring Personnel' && inspectionStatus === 'MONITORING_IN_PROGRESS'}
           />
 
           <div className="p-4">
@@ -310,7 +597,7 @@ export default function InspectionForm({ inspectionData }) {
           data={general}
           setData={setGeneral}
           onLawFilterChange={setLawFilter}
-          inspectionData={inspectionData}
+          inspectionData={fullInspectionData}
           errors={errors}
         />
         <PurposeOfInspection

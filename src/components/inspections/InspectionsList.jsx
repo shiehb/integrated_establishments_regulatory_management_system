@@ -18,7 +18,8 @@ import {
 import {
   getProfile, 
   getInspections, 
-  deleteInspection
+  deleteInspection,
+  checkInspectionFormData
 } from "../../services/api";
 import StatusBadge from "./StatusBadge";
 import InspectionTabs from "./InspectionTabs";
@@ -216,7 +217,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   });
 
   // Handle action clicks with simple confirmation
-  const handleActionClick = useCallback((action, inspectionId) => {
+  const handleActionClick = useCallback(async (action, inspectionId) => {
     console.log('handleActionClick called with:', { inspectionId, action });
     const inspection = inspections.find(i => i.id === inspectionId);
     if (!inspection) {
@@ -226,9 +227,41 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
     console.log('Found inspection:', inspection.code, 'for action:', action);
     
-    // For start action, open the inspection form page
+    // For start action, check if form has data and change status accordingly
     if (action === 'start') {
-      // Navigate to inspection form page
+      try {
+        // Check if the form has any data
+        const formDataCheck = await checkInspectionFormData(inspectionId);
+        console.log('Form data check result:', formDataCheck);
+        
+        if (formDataCheck.has_form_data) {
+          // If form has data, change status to MONITORING_IN_PROGRESS first
+          console.log('Form has data, changing status to MONITORING_IN_PROGRESS');
+          await handleAction('start', inspectionId);
+          
+          // Show success message
+          notifications.success(
+            `Inspection ${inspection.code} status updated to In Progress`, 
+            { title: 'Status Updated' }
+          );
+        }
+        
+        // Navigate to inspection form page
+        window.location.href = `/inspections/${inspectionId}/form`;
+        return;
+      } catch (error) {
+        console.error('Error checking form data or starting inspection:', error);
+        notifications.error(
+          `Error starting inspection: ${error.message}`, 
+          { title: 'Error' }
+        );
+        return;
+      }
+    }
+    
+    // For continue action, open the inspection form page (resume inspection)
+    if (action === 'continue') {
+      // Navigate to inspection form page to resume
       window.location.href = `/inspections/${inspectionId}/form`;
       return;
     }
@@ -259,7 +292,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       inspection, 
       action 
     });
-  }, [inspections]);
+  }, [inspections, handleAction, notifications]);
 
 
   // Execute confirmed action
@@ -838,12 +871,15 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             className="flex items-center px-3 py-1 text-sm"
           />
 
-          <button
-            onClick={onAdd}
-            className="flex items-center px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-          >
-            <Plus size={16} /> Add Inspection
-          </button>
+          {/* Only show Add Inspection button for Division Chief */}
+          {userLevel === 'Division Chief' && (
+            <button
+              onClick={onAdd}
+              className="flex items-center px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
+            >
+              <Plus size={16} /> Add Inspection
+            </button>
+          )}
         </div>
       </div>
 

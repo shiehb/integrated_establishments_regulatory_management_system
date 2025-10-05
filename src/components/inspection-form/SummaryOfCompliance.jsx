@@ -104,7 +104,7 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
                 <thead>
                   <tr>
                     <th className="p-2 border border-black w-50">
-                      Applicable Laws and Citations
+                      {lawId === "PD-1586" ? "Condition No." : "Applicable Laws and Citations"}
                     </th>
                     <th className="p-2 border border-black">
                       Compliance Requirement
@@ -114,23 +114,82 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
                   </tr>
                 </thead>
                 <tbody>
-                  {lawItems.map((li) => {
+                  {lawItems.map((li, index) => {
                     const globalIndex = items.findIndex(
                       (i) => i.conditionId === li.conditionId
                     );
                     if (globalIndex === -1) return null;
                     const item = items[globalIndex];
 
+                    // Calculate rowSpan for merging duplicate lawCitation cells
+                    const currentCitation = li.lawCitation || "";
+                    const nextCitation = index < lawItems.length - 1 ? lawItems[index + 1].lawCitation || "" : "";
+                    const prevCitation = index > 0 ? lawItems[index - 1].lawCitation || "" : "";
+                    
+                    // Count consecutive duplicates starting from current index
+                    let rowSpan = 1;
+                    for (let i = index + 1; i < lawItems.length; i++) {
+                      if (lawItems[i].lawCitation === currentCitation) {
+                        rowSpan++;
+                      } else {
+                        break;
+                      }
+                    }
+                    
+                    // Only show the cell if it's the first occurrence of this citation
+                    const shouldShowCitation = index === 0 || prevCitation !== currentCitation;
+
                     return (
-                      <tr key={li.conditionId}>
-                        {/* Citation */}
-                        <td className="p-2 border border-black">
-                          {li.lawCitation || ""}
-                        </td>
+                      <tr key={`${li.lawId}-${globalIndex}`}>
+                        {/* First column - Condition No. for PD-1586, Citation for others */}
+                        {lawId === "PD-1586" ? (
+                          <td className="p-2 border border-black">
+                            <input
+                              type="text"
+                              value={item.conditionNumber || ""}
+                              onChange={(e) =>
+                                updateItem(
+                                  globalIndex,
+                                  "conditionNumber",
+                                  e.target.value,
+                                  formatInput.upper
+                                )
+                              }
+                              placeholder="Enter condition number"
+                              className="w-full px-2 py-1 text-black bg-white border border-black"
+                            />
+                          </td>
+                        ) : (
+                          /* Citation - with rowSpan for merging */
+                          shouldShowCitation && (
+                            <td 
+                              className="p-2 border border-black align-top" 
+                              rowSpan={rowSpan}
+                            >
+                              {currentCitation}
+                            </td>
+                          )
+                        )}
 
                         {/* Requirement */}
                         <td className="p-2 border border-black">
-                          {li.complianceRequirement}
+                          {lawId === "PD-1586" ? (
+                            <textarea
+                              value={item.complianceRequirement || ""}
+                              onChange={(e) =>
+                                updateItem(
+                                  globalIndex,
+                                  "complianceRequirement",
+                                  e.target.value,
+                                  formatInput.upper
+                                )
+                              }
+                              placeholder="Enter compliance requirement"
+                              className="w-full px-2 py-1 text-black bg-white border border-black min-h-[60px] uppercase"
+                            />
+                          ) : (
+                            li.complianceRequirement
+                          )}
                         </td>
 
                         {/* Compliant radio */}
