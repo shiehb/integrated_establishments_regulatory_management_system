@@ -15,19 +15,10 @@ import {
   Calendar,
   Building
 } from "lucide-react";
-import { 
+import {
   getProfile, 
   getInspections, 
-  deleteInspection,
-  assignToMe,
-  startInspection,
-  completeInspection,
-  forwardInspection,
-  reviewInspection,
-  forwardToLegal,
-  sendNOV,
-  sendNOO,
-  closeInspection
+  deleteInspection
 } from "../../services/api";
 import StatusBadge from "./StatusBadge";
 import InspectionTabs from "./InspectionTabs";
@@ -39,6 +30,8 @@ import DateRangeDropdown from "../DateRangeDropdown";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
+import { useInspectionActions } from "../../hooks/useInspectionActions";
+import ForwardModal from "./ForwardModal";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -57,13 +50,15 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
-export default function InspectionsList({ onAdd, onView, onWorkflow, onCompliance, onLegalUnit, refreshTrigger, userLevel = 'Division Chief' }) {
+export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Division Chief' }) {
   const navigate = useNavigate();
   const notifications = useNotifications();
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [totalCount, setTotalCount] = useState(0);
+  const [tabCounts, setTabCounts] = useState({});
+
 
   // 🔍 Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,15 +93,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
   // ✅ Bulk select
   const [selectedInspections, setSelectedInspections] = useState([]);
 
-  // Get role-based tabs using the new constants
-  const getRoleBasedTabs = () => {
-    const availableTabs = roleTabs[userLevel] || ['all'];
-    return availableTabs.map(tab => ({
-      id: tab,
-      label: tabDisplayNames[tab] || tab,
-      count: 0
-    }));
-  };
 
   const fetchAllInspections = useCallback(async () => {
     setLoading(true);
@@ -151,10 +137,32 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
 
       if (response.results) {
         // Server-side paginated response
+        console.log('Setting inspections with results:', response.results);
+        // Debug each inspection
+        response.results.forEach(inspection => {
+          console.log(`Inspection ${inspection.code}:`, {
+            status: inspection.current_status,
+            assigned_to: inspection.assigned_to,
+            assigned_to_name: inspection.assigned_to_name,
+            available_actions: inspection.available_actions,
+            can_user_act: inspection.can_user_act
+          });
+        });
         setInspections(response.results);
         setTotalCount(response.count || 0);
       } else {
         // Fallback for non-paginated response
+        console.log('Setting inspections with direct response:', response);
+        // Debug each inspection
+        response.forEach(inspection => {
+          console.log(`Inspection ${inspection.code}:`, {
+            status: inspection.current_status,
+            assigned_to: inspection.assigned_to,
+            assigned_to_name: inspection.assigned_to_name,
+            available_actions: inspection.available_actions,
+            can_user_act: inspection.can_user_act
+          });
+        });
         setInspections(response);
         setTotalCount(response.length);
       }
@@ -167,6 +175,40 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
     }
   }, [currentPage, pageSize, debouncedSearchQuery, statusFilter, sectionFilter, priorityFilter, activeTab, userLevel, currentUser]);
 
+  // Calculate tab counts for all tabs
+  const calculateTabCounts = useCallback(async () => {
+    if (!currentUser) return;
+
+    try {
+      const availableTabs = roleTabs[userLevel] || [];
+      const counts = {};
+
+      // Fetch count for each tab
+      for (const tab of availableTabs) {
+        try {
+          const params = {
+            page: 1,
+            page_size: 1, // Just get count
+            tab: tab,
+          };
+
+          const response = await getInspections(params);
+          counts[tab] = response.count || 0;
+        } catch (error) {
+          console.error(`Error fetching count for tab ${tab}:`, error);
+          counts[tab] = 0;
+        }
+      }
+
+      setTabCounts(counts);
+    } catch (error) {
+      console.error('Error calculating tab counts:', error);
+    }
+  }, [currentUser, userLevel]);
+
+  // Use the inspection actions hook
+  const { handleAction, isActionLoading } = useInspectionActions(fetchAllInspections);
+
   // Action confirmation states
   const [actionConfirmation, setActionConfirmation] = useState({ 
     open: false, 
@@ -175,14 +217,44 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
   });
 
   // Handle action clicks with simple confirmation
-  const handleActionClick = useCallback((inspectionId, action) => {
+  const handleActionClick = useCallback((action, inspectionId) => {
+    console.log('handleActionClick called with:', { inspectionId, action });
     const inspection = inspections.find(i => i.id === inspectionId);
     if (!inspection) {
       console.error('Inspection not found:', inspectionId);
       return;
     }
 
-    // Show simple confirmation for all actions
+    console.log('Found inspection:', inspection.code, 'for action:', action);
+    
+    // For start action, open the inspection form page
+    if (action === 'start') {
+      // Navigate to inspection form page
+      window.location.href = `/inspections/${inspectionId}/form`;
+      return;
+    }
+    
+    // For inspect action, just execute the action (moves to My Inspections)
+    if (action === 'inspect') {
+      setActionConfirmation({ 
+        open: true, 
+        inspection, 
+        action 
+      });
+      return;
+    }
+    
+    // For forward action, show the ForwardModal
+    if (action === 'forward') {
+      setActionConfirmation({ 
+        open: true, 
+        inspection, 
+        action 
+      });
+      return;
+    }
+    
+    // For other actions, show simple confirmation
     setActionConfirmation({ 
       open: true, 
       inspection, 
@@ -197,74 +269,12 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
     if (!inspection || !action) return;
 
     try {
-      let result;
-      let successMessage = '';
-
-      switch (action) {
-        case 'assign_to_me':
-          result = await assignToMe(inspection.id);
-          successMessage = `Inspection ${inspection.code} has been assigned to you.`;
-          break;
-        case 'start':
-          result = await startInspection(inspection.id);
-          successMessage = `Inspection ${inspection.code} has been started.`;
-          break;
-        case 'complete':
-          result = await completeInspection(inspection.id, { 
-            remarks: 'Inspection completed',
-            compliance_decision: 'COMPLIANT' // Default to compliant, can be changed later
-          });
-          successMessage = `Inspection ${inspection.code} has been completed.`;
-          break;
-        case 'forward':
-          result = await forwardInspection(inspection.id, { remarks: 'Inspection forwarded' });
-          successMessage = `Inspection ${inspection.code} has been forwarded.`;
-          break;
-        case 'review':
-          result = await reviewInspection(inspection.id, { remarks: 'Inspection reviewed' });
-          successMessage = `Inspection ${inspection.code} has been reviewed.`;
-          break;
-        case 'send_nov':
-          result = await sendNOV(inspection.id, {
-            violations: 'Violations found during inspection',
-            compliance_instructions: 'Please address the violations',
-            compliance_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
-            remarks: 'Notice of Violation sent'
-          });
-          successMessage = `Notice of Violation sent for inspection ${inspection.code}.`;
-          break;
-        case 'send_noo':
-          result = await sendNOO(inspection.id, {
-            penalty_fees: 'Penalty fees apply',
-            violation_breakdown: 'Detailed violation breakdown',
-            payment_deadline: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 15 days from now
-            remarks: 'Notice of Order sent'
-          });
-          successMessage = `Notice of Order sent for inspection ${inspection.code}.`;
-          break;
-        case 'forward_to_legal':
-          result = await forwardToLegal(inspection.id, { remarks: 'Forwarded to Legal Unit' });
-          successMessage = `Inspection ${inspection.code} has been forwarded to Legal Unit.`;
-          break;
-        case 'close':
-          result = await closeInspection(inspection.id, { remarks: 'Inspection closed' });
-          successMessage = `Inspection ${inspection.code} has been closed.`;
-          break;
-        default:
-          throw new Error(`Unknown action: ${action}`);
-      }
-
-      notifications.success(successMessage, { title: 'Success' });
+      await handleAction(action, inspection.id);
       setActionConfirmation({ open: false, inspection: null, action: null });
-      fetchAllInspections();
-    } catch (error) {
-      console.error('Action error:', error);
-      notifications.error(
-        error.response?.data?.detail || error.message || 'Action failed. Please try again.',
-        { title: 'Error' }
-      );
+    } catch {
+      // Error is already handled in the hook
     }
-  }, [actionConfirmation, notifications, fetchAllInspections]);
+  }, [actionConfirmation, handleAction]);
 
   // Delete inspection function
   const handleDeleteInspection = useCallback(async (inspection) => {
@@ -284,10 +294,17 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
     const fetchUserProfile = async () => {
       try {
         const profile = await getProfile();
+        console.log('User profile fetched:', profile);
+        console.log('User level:', profile.userlevel);
         setCurrentUser(profile);
         
         // Set default tab based on user level
-        const tabs = getRoleBasedTabs();
+        const availableTabs = roleTabs[userLevel] || ['all'];
+        const tabs = availableTabs.map(tab => ({
+          id: tab,
+          label: tabDisplayNames[tab] || tab,
+          count: 0
+        }));
         if (tabs.length > 0 && !activeTab) {
           setActiveTab(tabs[0].id);
         }
@@ -296,7 +313,14 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
       }
     };
     fetchUserProfile();
-  }, [userLevel]);
+  }, [userLevel, activeTab]);
+
+  // Calculate tab counts when user changes
+  useEffect(() => {
+    if (currentUser) {
+      calculateTabCounts();
+    }
+  }, [currentUser, calculateTabCounts]);
 
   useEffect(() => {
     fetchAllInspections();
@@ -533,7 +557,9 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
     <div className="p-4 bg-white h-[calc(100vh-160px)]">
       {/* Top controls */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h1 className="text-2xl font-bold text-sky-600">Inspections Management</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-sky-600">Inspections Management</h1>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {/* 🔍 Local Search Bar */}
@@ -755,7 +781,7 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
           <ExportDropdown
             title="Inspections Export Report"
             fileName="inspections_export"
-            columns={["Code", "Establishments", "Law", "Status", "Assigned To", "Created By", "Created Date"]}
+            columns={["Code", "Establishments", "Law", "Status", "Assigned To", "Created Date"]}
             rows={selectedInspections.length > 0 ? 
               selectedInspections.map(inspection => [
                 inspection.code,
@@ -765,7 +791,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                 inspection.law,
                 inspection.simplified_status || inspection.current_status,
                 inspection.assigned_to_name || 'Unassigned',
-                inspection.created_by_name || 'Unknown',
                 new Date(inspection.created_at).toLocaleDateString()
               ]) : 
               inspections.map(inspection => [
@@ -776,7 +801,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                 inspection.law,
                 inspection.simplified_status || inspection.current_status,
                 inspection.assigned_to_name || 'Unassigned',
-                inspection.created_by_name || 'Unknown',
                 new Date(inspection.created_at).toLocaleDateString()
               ])
             }
@@ -787,7 +811,7 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
           <PrintPDF
             title="Inspections Report"
             fileName="inspections_report"
-            columns={["Code", "Establishments", "Law", "Status", "Assigned To", "Created By", "Created Date"]}
+            columns={["Code", "Establishments", "Law", "Status", "Assigned To", "Created Date"]}
             rows={selectedInspections.length > 0 ? 
               selectedInspections.map(inspection => [
                 inspection.code,
@@ -797,7 +821,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                 inspection.law,
                 inspection.simplified_status || inspection.current_status,
                 inspection.assigned_to_name || 'Unassigned',
-                inspection.created_by_name || 'Unknown',
                 new Date(inspection.created_at).toLocaleDateString()
               ]) : 
               inspections.map(inspection => [
@@ -808,7 +831,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                 inspection.law,
                 inspection.simplified_status || inspection.current_status,
                 inspection.assigned_to_name || 'Unassigned',
-                inspection.created_by_name || 'Unknown',
                 new Date(inspection.created_at).toLocaleDateString()
               ])
             }
@@ -831,14 +853,14 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
         userLevel={userLevel}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        tabCounts={tabCounts}
       />
 
-      {/* Table Content - Migrated from InspectionTable */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="w-6 p-1 text-center border-b border-gray-300">
+      {/* Table */}
+      <table className="w-full border border-gray-300 rounded-lg">
+        <thead>
+          <tr className="text-sm text-left text-white bg-sky-700">
+            <th className="w-6 p-1 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
                   checked={
@@ -854,32 +876,32 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                 { key: "law", label: "Law", sortable: false },
                 { key: "current_status", label: "Status", sortable: true },
                 { key: "assigned_to_name", label: "Assigned To", sortable: false },
-                { key: "created_by_name", label: "Created By", sortable: false },
                 { key: "created_at", label: "Created", sortable: true },
               ].map((col) => (
                 <th
                   key={col.key}
-                  className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                  className={`p-1 border-b border-gray-300 ${
                     col.sortable ? "cursor-pointer" : ""
                   }`}
                   onClick={col.sortable ? () => handleSort(col.key) : undefined}
                 >
                   <div className="flex items-center gap-1">
-                    {col.label} {col.sortable && getSortIcon(col.key)}
+                    <span className="font-medium">{col.label}</span>
+                    {col.sortable && getSortIcon(col.key)}
                   </div>
                 </th>
               ))}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="p-1 text-center border-b border-gray-300 w-35 font-medium">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody>
             {loading ? (
               <tr>
                 <td
-                  colSpan="8"
-                  className="px-6 py-8 text-center border-b border-gray-300"
+                  colSpan="7"
+                  className="px-2 py-8 text-center border-b border-gray-300"
                 >
                   <div
                     className="flex flex-col items-center justify-center p-4"
@@ -894,8 +916,8 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
             ) : inspections.length === 0 ? (
               <tr>
                 <td
-                  colSpan="8"
-                  className="px-6 py-4 text-center text-gray-500 border-b border-gray-300"
+                  colSpan="7"
+                  className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
                 >
                   {hasActiveFilters ? (
                     <div>
@@ -918,7 +940,7 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                 <tr
                   key={inspection.id}
                   onClick={() => handleRowClick(inspection)}
-                  className="hover:bg-gray-50 cursor-pointer"
+                  className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50 cursor-pointer"
                 >
                   <td className="text-center border-b border-gray-300">
                     <input
@@ -927,70 +949,62 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
                       onChange={() => toggleSelect(inspection.id)}
                     />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-2 font-semibold border-b border-gray-300">
                     <div className="flex items-center">
                       <FileText className="h-4 w-4 text-gray-400 mr-2" />
                       {inspection.code}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-sm text-gray-900">
+                  <td className="px-2 border-b border-gray-300">
                     <div className="flex items-center">
                       <Building className="h-4 w-4 text-gray-400 mr-2" />
                       <div>
                         {inspection.establishments_detail && inspection.establishments_detail.length > 0 ? (
                           inspection.establishments_detail.map((est, idx) => (
                             <div key={idx} className="mb-1">
-                              <div className="font-medium">{est.name}</div>
+                              <div className="text-sm font-medium text-gray-900">{est.name}</div>
                               <div className="text-xs text-gray-500">{est.nature_of_business}</div>
                               <div className="text-xs text-gray-400">{est.city}, {est.province}</div>
                             </div>
                           ))
                         ) : (
-                          <span className="text-gray-400">No establishments</span>
+                          <span className="text-sm text-gray-400">No establishments</span>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {inspection.law}
+                  <td className="px-2 border-b border-gray-300">
+                    <div className="text-sm text-gray-600">{inspection.law}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-2 border-b border-gray-300">
                     <StatusBadge 
                       status={inspection.current_status} 
                     />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-2 border-b border-gray-300">
                     {inspection.assigned_to_name ? (
                       <div>
-                        <div className="font-medium">{inspection.assigned_to_name}</div>
+                        <div className="text-sm font-medium text-gray-900">{inspection.assigned_to_name}</div>
                         {inspection.assigned_to_level && (
                           <div className="text-xs text-gray-500">{inspection.assigned_to_level}</div>
                         )}
                       </div>
                     ) : (
-                      <span className="text-gray-400">Unassigned</span>
+                      <span className="text-sm text-gray-400">Unassigned</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {inspection.created_by_name ? (
-                      <div>
-                        <div className="font-medium">{inspection.created_by_name}</div>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">Unknown</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-2 border-b border-gray-300">
                     <div className="flex items-center">
                       <Calendar className="h-4 w-4 text-gray-400 mr-2" />
-                      {formatFullDate(inspection.created_at)}
+                      <div className="text-sm text-gray-600">{formatFullDate(inspection.created_at)}</div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                  <td className="p-1 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
                     <InspectionActions 
                       inspection={inspection}
                       availableActions={inspection.available_actions || []}
                       onAction={handleActionClick}
+                      loading={isActionLoading(inspection.id)}
                     />
                   </td>
                 </tr>
@@ -998,7 +1012,6 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
             )}
           </tbody>
         </table>
-      </div>
 
       {/* Pagination Controls */}
       <PaginationControls
@@ -1037,7 +1050,7 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
 
       {/* Action Confirmation Dialog */}
       <ConfirmationDialog
-        open={actionConfirmation.open}
+        open={actionConfirmation.open && actionConfirmation.action !== 'forward'}
         title="Confirm Workflow Action"
         message={
           <div>
@@ -1068,6 +1081,15 @@ export default function InspectionsList({ onAdd, onView, onWorkflow, onComplianc
         size="lg"
         onCancel={() => setActionConfirmation({ open: false, inspection: null, action: null })}
         onConfirm={executeAction}
+      />
+
+      {/* Forward Modal */}
+      <ForwardModal
+        open={actionConfirmation.open && actionConfirmation.action === 'forward'}
+        inspection={actionConfirmation.inspection}
+        userLevel={userLevel}
+        onClose={() => setActionConfirmation({ open: false, inspection: null, action: null })}
+        onSubmit={handleAction}
       />
     </div>
   );

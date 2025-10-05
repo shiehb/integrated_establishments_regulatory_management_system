@@ -4,7 +4,8 @@ import { actionButtonConfig, getActionButtonColorClass } from '../../constants/i
 const InspectionActions = ({ 
   inspection, 
   availableActions, 
-  onAction
+  onAction,
+  loading = false
 }) => {
   if (!availableActions || availableActions.length === 0) {
     return (
@@ -14,8 +15,8 @@ const InspectionActions = ({
     );
   }
 
-  const handleAction = (action) => {
-    // All actions now use simple confirmation
+  const handleActionClick = (action) => {
+    console.log('Action clicked:', action, 'for inspection:', inspection.id);
     onAction(action, inspection.id);
   };
 
@@ -23,17 +24,29 @@ const InspectionActions = ({
     <div className="flex flex-wrap gap-2">
       {availableActions.map((action) => {
         const config = actionButtonConfig[action];
-        if (!config) return null;
+        if (!config) {
+          console.warn(`No config found for action: ${action}`);
+          return null;
+        }
+
+        const IconComponent = config.icon;
+        const isDisabled = loading;
 
         return (
           <button
             key={action}
-            onClick={() => handleAction(action)}
-            className={`px-3 py-1 text-white rounded-md text-sm font-medium transition-colors ${getActionButtonColorClass(action)}`}
+            onClick={() => handleActionClick(action)}
+            disabled={isDisabled}
+            className={`px-3 py-2 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+              getActionButtonColorClass(action)
+            } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
             title={config.label}
           >
-            <span className="mr-1">{config.icon}</span>
-            {config.label}
+            <IconComponent className="h-4 w-4" />
+            <span>{config.label}</span>
+            {loading && (
+              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            )}
           </button>
         );
       })}

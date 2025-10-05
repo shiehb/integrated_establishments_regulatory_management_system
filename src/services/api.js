@@ -294,50 +294,155 @@ export const deleteInspection = async (id) => {
   }
 };
 
-// New workflow action functions
+// Workflow Action Functions
 export const assignToMe = async (id) => {
-  const res = await api.post(`inspections/${id}/assign_to_me/`);
-  return res.data;
+  try {
+    const res = await api.post(`inspections/${id}/assign_to_me/`);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to assign inspection to yourself. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-export const startInspection = async (id) => {
-  const res = await api.post(`inspections/${id}/start/`);
-  return res.data;
+export const inspectInspection = async (id, data = {}) => {
+  try {
+    const res = await api.post(`inspections/${id}/inspect/`, data);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to move inspection to My Inspections. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-export const completeInspection = async (id, data) => {
+export const startInspection = async (id, data = {}) => {
+  try {
+    const res = await api.post(`inspections/${id}/start/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to start inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const completeInspection = async (id, data = {}) => {
+  try {
   const res = await api.post(`inspections/${id}/complete/`, data);
   return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to complete inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-export const forwardInspection = async (id, data) => {
+export const forwardInspection = async (id, data = {}) => {
+  try {
   const res = await api.post(`inspections/${id}/forward/`, data);
   return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to forward inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-export const reviewInspection = async (id, data) => {
+export const reviewInspection = async (id, data = {}) => {
+  try {
   const res = await api.post(`inspections/${id}/review/`, data);
   return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to review inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-export const forwardToLegal = async (id, data) => {
+export const forwardToLegal = async (id, data = {}) => {
+  try {
   const res = await api.post(`inspections/${id}/forward_to_legal/`, data);
   return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to forward to legal unit. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-export const sendNOV = async (id, data) => {
+export const sendNOV = async (id, data = {}) => {
+  try {
   const res = await api.post(`inspections/${id}/send_nov/`, data);
   return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to send Notice of Violation. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-export const sendNOO = async (id, data) => {
+export const sendNOO = async (id, data = {}) => {
+  try {
   const res = await api.post(`inspections/${id}/send_noo/`, data);
   return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to send Notice of Order. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
-export const closeInspection = async (id, data) => {
+export const closeInspection = async (id, data = {}) => {
+  try {
   const res = await api.post(`inspections/${id}/close/`, data);
   return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to close inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
 export const getInspectionHistory = async (id) => {

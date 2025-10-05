@@ -1,3 +1,16 @@
+// Import Lucide icons
+import { 
+  User, 
+  Play, 
+  CheckCircle, 
+  ArrowRight, 
+  Eye, 
+  Scale, 
+  FileText, 
+  FileCheck, 
+  Lock 
+} from 'lucide-react';
+
 // Inspection workflow constants and mappings
 
 // Status display mapping with TailwindCSS colors
@@ -25,7 +38,7 @@ export const statusDisplayMap = {
 
 // Role-based tabs configuration
 export const roleTabs = {
-  'Division Chief': ['created', 'tracking'],
+  'Division Chief': ['all_inspections', 'review'],
   'Section Chief': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
   'Unit Head': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
   'Monitoring Personnel': ['assigned', 'in_progress', 'completed'],
@@ -34,12 +47,11 @@ export const roleTabs = {
 
 // Tab display names
 export const tabDisplayNames = {
-  created: 'Created Inspections',
-  tracking: 'Tracking',
+  all_inspections: 'All Inspections',
+  review: 'Review',
   received: 'Received',
   my_inspections: 'My Inspections',
   forwarded: 'Forwarded',
-  review: 'For Review',
   compliance: 'Compliance',
   assigned: 'Assigned',
   in_progress: 'In Progress',
@@ -49,52 +61,57 @@ export const tabDisplayNames = {
   noo_sent: 'NOO Sent'
 };
 
-// Action button configurations
+// Action button configurations with Lucide icons
 export const actionButtonConfig = {
   assign_to_me: {
     label: 'Assign to Me',
     color: 'blue',
-    icon: '👤'
+    icon: User
+  },
+  inspect: {
+    label: 'Inspect',
+    color: 'indigo',
+    icon: Eye
   },
   start: {
     label: 'Start Inspection',
     color: 'green',
-    icon: '▶️'
+    icon: Play
   },
   complete: {
     label: 'Complete',
     color: 'emerald',
-    icon: '✅'
+    icon: CheckCircle
   },
   forward: {
     label: 'Forward',
     color: 'blue',
-    icon: '➡️'
+    icon: ArrowRight
   },
   review: {
     label: 'Review',
     color: 'purple',
-    icon: '👁️'
+    icon: Eye
   },
   forward_to_legal: {
     label: 'Forward to Legal',
     color: 'orange',
-    icon: '⚖️'
+    icon: Scale
   },
   send_nov: {
     label: 'Send NOV',
     color: 'red',
-    icon: '📋'
+    icon: FileText
   },
   send_noo: {
     label: 'Send NOO',
     color: 'pink',
-    icon: '📄'
+    icon: FileCheck
   },
   close: {
     label: 'Close',
     color: 'gray',
-    icon: '🔒'
+    icon: Lock
   }
 };
 

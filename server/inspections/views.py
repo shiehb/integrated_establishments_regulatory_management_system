@@ -58,12 +58,20 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if user.userlevel == 'Admin':
             pass  # Admin sees all
         elif user.userlevel == 'Division Chief':
-            if tab == 'tracking':
+            if tab == 'all_inspections':
                 queryset = queryset.filter(
                     Q(created_by=user) | Q(current_status='DIVISION_REVIEWED')
                 )
+            elif tab == 'review':
+                queryset = queryset.filter(
+                    current_status='DIVISION_REVIEWED',
+                    assigned_to=user
+                )
             else:
-                queryset = queryset.filter(created_by=user)
+                # Default to all inspections
+                queryset = queryset.filter(
+                    Q(created_by=user) | Q(current_status='DIVISION_REVIEWED')
+                )
         elif user.userlevel == 'Section Chief':
             queryset = self._filter_section_chief(queryset, user, tab)
         elif user.userlevel == 'Unit Head':
@@ -93,11 +101,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
     def _filter_section_chief(self, queryset, user, tab):
         """Filter for Section Chief based on tab"""
         if tab == 'received':
+            # Show inspections assigned to this Section Chief but not yet started
             return queryset.filter(
                 assigned_to=user,
                 current_status='SECTION_ASSIGNED'
             )
         elif tab == 'my_inspections':
+            # Show inspections that this Section Chief has started or is working on
             return queryset.filter(
                 assigned_to=user,
                 current_status__in=['SECTION_IN_PROGRESS', 'SECTION_COMPLETED']
@@ -125,11 +135,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
     def _filter_unit_head(self, queryset, user, tab):
         """Filter for Unit Head based on tab"""
         if tab == 'received':
+            # Show inspections assigned to this Unit Head but not yet started
             return queryset.filter(
                 assigned_to=user,
                 current_status='UNIT_ASSIGNED'
             )
         elif tab == 'my_inspections':
+            # Show inspections that this Unit Head has started or is working on
             return queryset.filter(
                 assigned_to=user,
                 current_status__in=['UNIT_IN_PROGRESS', 'UNIT_COMPLETED']
@@ -224,11 +236,23 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Determine the correct status based on user level
-        if user.userlevel == 'Section Chief' and inspection.current_status == 'CREATED':
-            new_status = 'SECTION_ASSIGNED'
-        elif user.userlevel == 'Unit Head' and inspection.current_status == 'SECTION_COMPLETED':
-            new_status = 'UNIT_ASSIGNED'
+        # Determine the correct status based on user level and current status
+        if user.userlevel == 'Section Chief':
+            if inspection.current_status == 'CREATED':
+                new_status = 'SECTION_ASSIGNED'
+            elif inspection.current_status == 'SECTION_ASSIGNED':
+                # When Section Chief assigns to themselves, move to in progress
+                new_status = 'SECTION_IN_PROGRESS'
+            else:
+                new_status = inspection.current_status
+        elif user.userlevel == 'Unit Head':
+            if inspection.current_status == 'SECTION_COMPLETED':
+                new_status = 'UNIT_ASSIGNED'
+            elif inspection.current_status == 'UNIT_ASSIGNED':
+                # When Unit Head assigns to themselves, move to in progress
+                new_status = 'UNIT_IN_PROGRESS'
+            else:
+                new_status = inspection.current_status
         else:
             # If already in correct status, just assign
             new_status = inspection.current_status
@@ -253,8 +277,8 @@ class InspectionViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     @action(detail=True, methods=['post'])
-    def start(self, request, pk=None):
-        """Start inspection (Section/Unit/Monitoring)"""
+    def inspect(self, request, pk=None):
+        """Move inspection to My Inspections (Section/Unit only)"""
         inspection = self.get_object()
         user = request.user
         
@@ -264,6 +288,52 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 {'error': 'You are not assigned to this inspection'},
                 status=status.HTTP_403_FORBIDDEN
             )
+        
+        # Check if inspection is in correct status
+        if inspection.current_status not in ['SECTION_ASSIGNED', 'UNIT_ASSIGNED']:
+            return Response(
+                {'error': f'Cannot inspect from status {inspection.current_status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Move to IN_PROGRESS status (this moves it to My Inspections tab)
+        prev_status = inspection.current_status
+        if inspection.current_status == 'SECTION_ASSIGNED':
+            inspection.current_status = 'SECTION_IN_PROGRESS'
+        elif inspection.current_status == 'UNIT_ASSIGNED':
+            inspection.current_status = 'UNIT_IN_PROGRESS'
+        
+        inspection.save()
+        
+        # Log history
+        remarks = request.data.get('remarks', 'Moved to My Inspections')
+        InspectionHistory.objects.create(
+            inspection=inspection,
+            previous_status=prev_status,
+            new_status=inspection.current_status,
+            changed_by=user,
+            remarks=remarks
+        )
+        
+        serializer = self.get_serializer(inspection)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def start(self, request, pk=None):
+        """Start inspection (Section/Unit/Monitoring)"""
+        inspection = self.get_object()
+        user = request.user
+        
+        # If user is not assigned, assign them first
+        if inspection.assigned_to != user:
+            # Check if user can be assigned (not already assigned to someone else)
+            if inspection.assigned_to and inspection.assigned_to != user:
+                return Response(
+                    {'error': f'Already assigned to {inspection.assigned_to}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Assign the user
+            inspection.assigned_to = user
         
         # Determine next status
         status_map = {
@@ -292,12 +362,16 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.save()
         
         # Log history
+        remarks = request.data.get('remarks', 'Started inspection')
+        if inspection.assigned_to == user and prev_status != inspection.current_status:
+            remarks = f'Assigned to self and {remarks.lower()}'
+        
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
             new_status=next_status,
             changed_by=user,
-            remarks=request.data.get('remarks', 'Started inspection')
+            remarks=remarks
         )
         
         serializer = self.get_serializer(inspection)
@@ -380,9 +454,15 @@ class InspectionViewSet(viewsets.ModelViewSet):
             remarks=data.get('remarks', 'Completed inspection')
         )
         
-        # Auto-transition monitoring completed to review
+        # Auto-transition completed inspections to review
         if next_status in ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']:
             self._auto_forward_to_review(inspection, user)
+        elif next_status == 'SECTION_COMPLETED':
+            # Section completed - forward to Division Chief for review
+            self._auto_forward_to_division_review(inspection, user)
+        elif next_status == 'UNIT_COMPLETED':
+            # Unit completed - forward to Section Chief for review
+            self._auto_forward_to_section_review(inspection, user)
         
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
@@ -408,17 +488,75 @@ class InspectionViewSet(viewsets.ModelViewSet):
             remarks='Auto-forwarded to Unit Head for review'
         )
     
+    def _auto_forward_to_division_review(self, inspection, user):
+        """Auto-forward section completed to Division Chief review"""
+        prev_status = inspection.current_status
+        inspection.current_status = 'DIVISION_REVIEWED'
+        
+        # Find Division Chief (creator of the inspection)
+        if inspection.created_by:
+            inspection.assigned_to = inspection.created_by
+        else:
+            # Fallback: find any Division Chief
+            from users.models import User
+            division_chief = User.objects.filter(userlevel='Division Chief').first()
+            if division_chief:
+                inspection.assigned_to = division_chief
+        
+        inspection.save()
+        
+        # Log history
+        InspectionHistory.objects.create(
+            inspection=inspection,
+            previous_status=prev_status,
+            new_status='DIVISION_REVIEWED',
+            changed_by=user,
+            remarks='Auto-forwarded to Division Chief for review'
+        )
+    
+    def _auto_forward_to_section_review(self, inspection, user):
+        """Auto-forward unit completed to Section Chief review"""
+        prev_status = inspection.current_status
+        inspection.current_status = 'SECTION_REVIEWED'
+        
+        # Find Section Chief (original assignee or based on law)
+        from users.models import User
+        section_chief = User.objects.filter(
+            userlevel='Section Chief',
+            section=inspection.law  # Assuming law maps to section
+        ).first()
+        
+        if section_chief:
+            inspection.assigned_to = section_chief
+        else:
+            # Fallback: find any Section Chief
+            section_chief = User.objects.filter(userlevel='Section Chief').first()
+            if section_chief:
+                inspection.assigned_to = section_chief
+        
+        inspection.save()
+        
+        # Log history
+        InspectionHistory.objects.create(
+            inspection=inspection,
+            previous_status=prev_status,
+            new_status='SECTION_REVIEWED',
+            changed_by=user,
+            remarks='Auto-forwarded to Section Chief for review'
+        )
+    
     @action(detail=True, methods=['post'])
     def forward(self, request, pk=None):
         """Forward inspection to next level"""
         inspection = self.get_object()
         user = request.user
         
-        # Check if user can act
-        if inspection.assigned_to != user:
+        # Check if user can act (allow forwarding even if not assigned)
+        # This allows Section Chief to forward from "Received" tab without claiming first
+        if inspection.assigned_to and inspection.assigned_to != user:
             return Response(
-                {'error': 'You are not assigned to this inspection'},
-                status=status.HTTP_403_FORBIDDEN
+                {'error': f'Already assigned to {inspection.assigned_to}'},
+                status=status.HTTP_400_BAD_REQUEST
             )
         
         # Determine next status
@@ -440,6 +578,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 next_status = 'UNIT_ASSIGNED'
             else:
                 next_status = 'MONITORING_ASSIGNED'
+        # Unit Head can forward directly to Monitoring Personnel
+        elif inspection.current_status == 'UNIT_ASSIGNED':
+            next_status = 'MONITORING_ASSIGNED'
         else:
             next_status = status_map.get(inspection.current_status)
         
