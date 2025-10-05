@@ -71,7 +71,7 @@ const SystemConfiguration = () => {
 
   useEffect(() => {
     fetchConfiguration();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Add beforeunload event listener for page navigation
   useEffect(() => {
@@ -265,48 +265,42 @@ const SystemConfiguration = () => {
     <>
       <Header userLevel={userLevel} />
       <LayoutWithSidebar userLevel={userLevel}>
-        <div className="p-6 bg-gray-50 min-h-[calc(100vh-165px)]">
-          {/* Enhanced Header Section */}
-          <div className="mb-8">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-bold text-gray-900">
-                    System Configuration
-                  </h1>
-                  {hasUnsavedChanges && (
-                    <span className="inline-flex items-center px-3 py-1 text-sm font-medium rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                      <div className="w-2 h-2 mr-2 bg-amber-500 rounded-full animate-pulse"></div>
-                      Unsaved Changes
-                    </span>
-                  )}
-                </div>
-                <p className="text-lg text-gray-600">
-                  Manage email settings and access token configurations for your system
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                {hasUnsavedChanges && (
-                  <button
-                    onClick={handleCancel}
-                    disabled={saving}
-                    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-                  >
-                    <X className="mr-2" size={16} />
-                    Cancel
-                  </button>
-                )}
+        <div className="p-4 bg-white h-[calc(100vh-165px)] overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-sky-600">
+              System Configuration
+            </h1>
+            <div className="flex gap-3">
+              {hasUnsavedChanges && (
                 <button
-                  onClick={handleOpenConfirm}
-                  disabled={saving || !hasUnsavedChanges}
-                  className="inline-flex items-center justify-center px-6 py-2 text-sm font-medium text-white bg-sky-600 border border-transparent rounded-lg hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
+                  onClick={handleCancel}
+                  disabled={saving}
+                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
                 >
-                  <Save className="mr-2" size={16} />
-                  {saving ? "Saving..." : "Save Configuration"}
+                  <X className="mr-2" size={16} />
+                  Cancel
                 </button>
-              </div>
+              )}
+              <button
+                onClick={handleOpenConfirm}
+                disabled={saving || !hasUnsavedChanges}
+                className="inline-flex items-center justify-center px-6 py-2 text-sm font-medium text-white bg-sky-600 border border-transparent rounded-lg hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
+              >
+                <Save className="mr-2" size={16} />
+                {saving ? "Saving..." : "Save Configuration"}
+              </button>
             </div>
           </div>
+          
+          {/* Status indicator */}
+          {hasUnsavedChanges && (
+            <div className="mb-8">
+              <span className="inline-flex items-center px-3 py-1 text-sm font-medium rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                <div className="w-2 h-2 mr-2 bg-amber-500 rounded-full animate-pulse"></div>
+                Unsaved Changes
+              </span>
+            </div>
+          )}
 
 
           {/* Save Confirmation Dialog */}
@@ -335,32 +329,20 @@ const SystemConfiguration = () => {
           />
 
           {/* Main Configuration Grid */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             {/* Email Configuration Section */}
             <div className="xl:col-span-2">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-sky-50 to-blue-50 border-b border-gray-200">
-                  <div className="flex items-center">
-                    <div className="flex items-center justify-center w-10 h-10 bg-sky-100 rounded-lg">
-                      <Mail className="text-sky-600" size={20} />
-                    </div>
-                    <div className="ml-3">
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        Email Configuration
-                      </h2>
-                      <p className="text-sm text-gray-600">
-                        Configure SMTP settings and email preferences
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-6">
+              <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow">
+                <h2 className="mb-2 text-lg font-semibold text-sky-600">
+                  Email Configuration
+                </h2>
+                <div className="flex-1 space-y-6">
 
                   {/* Email Configuration Form */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {/* SMTP Host */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
+                    <div>
+                      <label className="block mb-1 text-sm font-medium text-gray-700">
                         SMTP Host
                       </label>
                       <input
@@ -369,14 +351,14 @@ const SystemConfiguration = () => {
                         onChange={(e) =>
                           handleInputChange("email_host", e.target.value)
                         }
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors duration-200"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                         placeholder="smtp.gmail.com"
                       />
                     </div>
 
                     {/* SMTP Port */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
+                    <div>
+                      <label className="block mb-1 text-sm font-medium text-gray-700">
                         SMTP Port
                       </label>
                       <input
@@ -385,15 +367,15 @@ const SystemConfiguration = () => {
                         onChange={(e) =>
                           handleInputChange("email_port", parseInt(e.target.value))
                         }
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors duration-200"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                         min="1"
                         max="65535"
                       />
                     </div>
 
                     {/* Email Username */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
+                    <div>
+                      <label className="block mb-1 text-sm font-medium text-gray-700">
                         Email Username
                       </label>
                       <input
@@ -402,14 +384,14 @@ const SystemConfiguration = () => {
                         onChange={(e) =>
                           handleInputChange("email_host_user", e.target.value)
                         }
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors duration-200"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                         placeholder="your-email@gmail.com"
                       />
                     </div>
 
                     {/* Email Password */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
+                    <div>
+                      <label className="block mb-1 text-sm font-medium text-gray-700">
                         Email Password
                       </label>
                       <div className="relative">
@@ -419,13 +401,13 @@ const SystemConfiguration = () => {
                           onChange={(e) =>
                             handleInputChange("email_host_password", e.target.value)
                           }
-                          className="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors duration-200"
+                          className="w-full p-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                           placeholder={emailPasswordMasked ? MASKED : "••••••••"}
                         />
                         <button
                           type="button"
                           onClick={() => setShowEmailPassword(!showEmailPassword)}
-                          className="absolute text-gray-400 transform -translate-y-1/2 right-3 top-1/2 hover:text-gray-600 transition-colors duration-200"
+                          className="absolute text-gray-400 transform -translate-y-1/2 right-3 top-1/2 hover:text-gray-600"
                         >
                           {showEmailPassword ? (
                             <EyeOff size={16} />
@@ -435,15 +417,15 @@ const SystemConfiguration = () => {
                         </button>
                       </div>
                       {emailPasswordMasked && (
-                        <p className="text-sm text-gray-500">
+                        <p className="mt-1 text-xs text-gray-500">
                           Password is masked — type a new password to change it.
                         </p>
                       )}
                     </div>
 
                     {/* Default From Email */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
+                    <div>
+                      <label className="block mb-1 text-sm font-medium text-gray-700">
                         Default From Email
                       </label>
                       <input
@@ -452,20 +434,20 @@ const SystemConfiguration = () => {
                         onChange={(e) =>
                           handleInputChange("default_from_email", e.target.value)
                         }
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors duration-200"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                         placeholder="noreply@ or user@domain.com"
                       />
-                      <p className="text-sm text-gray-500">
+                      <p className="mt-1 text-xs text-gray-500">
                         You can use "noreply@" (without domain) or a complete email address. If using "noreply@", the system will use your email host user domain.
                       </p>
                       {config.constructed_from_email && config.constructed_from_email !== config.default_from_email && (
-                        <p className="text-sm text-blue-600 font-medium">
+                        <p className="text-xs text-blue-600 font-medium">
                           Final email address: {config.constructed_from_email}
                         </p>
                       )}
                       {config.email_host_user && config.email_host_user.includes('gmail.com') && (
-                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                          <p className="text-sm text-yellow-800">
+                        <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-xs text-yellow-800">
                             <strong>Gmail Limitation:</strong> Gmail only allows sending emails from verified addresses. 
                             If you want to use "noreply@gmail.com", you need to add it as an alias in your Gmail account, 
                             or use a different email service that supports custom sender addresses.
@@ -476,7 +458,7 @@ const SystemConfiguration = () => {
 
                     {/* TLS Configuration */}
                     <div className="lg:col-span-2">
-                      <div className="flex items-start space-x-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                         <input
                           type="checkbox"
                           id="email_use_tls"
@@ -493,7 +475,7 @@ const SystemConfiguration = () => {
                           >
                             Use TLS (Transport Layer Security)
                           </label>
-                          <p className="mt-1 text-sm text-gray-600">
+                          <p className="mt-1 text-xs text-gray-600">
                             Encrypts email communication between your server and the mail provider.
                             <span className="block mt-1 font-medium text-green-600">
                               Recommended: Keep enabled in production for security.
@@ -502,15 +484,15 @@ const SystemConfiguration = () => {
                         </div>
                       </div>
                     </div>
-              </div>
+                  </div>
 
                   {/* Email Test Section */}
-                  <div className="lg:col-span-2 mt-6">
-                    <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
-                      <h3 className="mb-3 text-lg font-medium text-gray-900">
+                  <div>
+                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                      <h3 className="mb-2 text-sm font-medium text-gray-900">
                         Test Email Configuration
                       </h3>
-                      <p className="mb-4 text-sm text-gray-600">
+                      <p className="mb-3 text-xs text-gray-600">
                         Send a test email to verify your configuration is working correctly.
                       </p>
                       <div className="flex flex-col sm:flex-row gap-3">
@@ -518,13 +500,13 @@ const SystemConfiguration = () => {
                           type="email"
                           value={testEmail}
                           onChange={(e) => setTestEmail(e.target.value)}
-                          className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition-colors duration-200"
+                          className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                           placeholder="Enter email address to test"
                         />
                         <button
                           onClick={handleTestEmail}
                           disabled={testing}
-                          className="inline-flex items-center justify-center px-4 py-2.5 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
+                          className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <TestTube className="mr-2" size={16} />
                           {testing ? "Testing..." : "Test Email"}
@@ -538,29 +520,17 @@ const SystemConfiguration = () => {
 
             {/* Access Token Configuration Section */}
             <div className="xl:col-span-1">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-gray-200">
-                  <div className="flex items-center">
-                    <div className="flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg">
-                      <Clock className="text-purple-600" size={20} />
-                    </div>
-                    <div className="ml-3">
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        Access Token Configuration
-                      </h2>
-                      <p className="text-sm text-gray-600">
-                        Configure token lifetimes and security settings
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-6">
+              <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow">
+                <h2 className="mb-2 text-lg font-semibold text-sky-600">
+                  Access Token Configuration
+                </h2>
+                <div className="flex-1 space-y-6">
 
                   {/* Token Configuration Form */}
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     {/* Access Token Lifetime */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
+                    <div>
+                      <label className="block mb-1 text-sm font-medium text-gray-700">
                         Access Token Lifetime (minutes)
                       </label>
                       <input
@@ -572,18 +542,18 @@ const SystemConfiguration = () => {
                             parseInt(e.target.value)
                           )
                         }
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-200"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                         min="5"
                         max="1440"
                       />
-                      <p className="text-sm text-gray-500">
+                      <p className="mt-1 text-xs text-gray-500">
                         How long access tokens remain valid (5-1440 minutes)
                       </p>
                     </div>
 
                     {/* Refresh Token Lifetime */}
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
+                    <div>
+                      <label className="block mb-1 text-sm font-medium text-gray-700">
                         Refresh Token Lifetime (days)
                       </label>
                       <input
@@ -595,17 +565,17 @@ const SystemConfiguration = () => {
                             parseInt(e.target.value)
                           )
                         }
-                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors duration-200"
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                         min="1"
                         max="365"
                       />
-                      <p className="text-sm text-gray-500">
+                      <p className="mt-1 text-xs text-gray-500">
                         How long refresh tokens remain valid (1-365 days)
                       </p>
                     </div>
 
                     {/* Rotate Refresh Tokens */}
-                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
                       <div className="flex items-start space-x-3">
                         <input
                           type="checkbox"
@@ -617,7 +587,7 @@ const SystemConfiguration = () => {
                               e.target.checked
                             )
                           }
-                          className="w-4 h-4 mt-1 border-gray-300 rounded text-purple-600 focus:ring-purple-500"
+                          className="w-4 h-4 mt-1 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
                         />
                         <div className="flex-1">
                           <label
@@ -626,7 +596,7 @@ const SystemConfiguration = () => {
                           >
                             Rotate Refresh Tokens
                           </label>
-                          <p className="mt-1 text-sm text-gray-600">
+                          <p className="mt-1 text-xs text-gray-600">
                             When enabled, new refresh tokens are issued each time they're used, 
                             invalidating the old token. This enhances security by limiting token reuse.
                           </p>
@@ -635,7 +605,7 @@ const SystemConfiguration = () => {
                     </div>
 
                     {/* Blacklist After Rotation */}
-                    <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                    <div className="p-3 bg-red-50 rounded-lg border border-red-200">
                       <div className="flex items-start space-x-3">
                         <input
                           type="checkbox"
@@ -647,7 +617,7 @@ const SystemConfiguration = () => {
                               e.target.checked
                             )
                           }
-                          className="w-4 h-4 mt-1 border-gray-300 rounded text-purple-600 focus:ring-purple-500"
+                          className="w-4 h-4 mt-1 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
                         />
                         <div className="flex-1">
                           <label
@@ -656,7 +626,7 @@ const SystemConfiguration = () => {
                           >
                             Blacklist After Rotation
                           </label>
-                          <p className="mt-1 text-sm text-gray-600">
+                          <p className="mt-1 text-xs text-gray-600">
                             When enabled, old refresh tokens are blacklisted after rotation, 
                             preventing their reuse even if somehow obtained. Provides additional security layer.
                           </p>
@@ -668,6 +638,7 @@ const SystemConfiguration = () => {
               </div>
             </div>
           </div>
+
         </div>
       </LayoutWithSidebar>
       <Footer />

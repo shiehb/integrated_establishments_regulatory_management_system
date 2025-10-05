@@ -32,6 +32,9 @@ class SystemConfiguration(models.Model):
     rotate_refresh_tokens = models.BooleanField(default=True)
     blacklist_after_rotation = models.BooleanField(default=True)
     
+    # Backup Configuration
+    backup_custom_path = models.CharField(max_length=500, blank=True, null=True, help_text="Custom directory path for database backups")
+    
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

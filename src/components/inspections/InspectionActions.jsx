@@ -21,7 +21,7 @@ const InspectionActions = ({
   };
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex justify-center gap-1">
       {availableActions.map((action) => {
         const config = actionButtonConfig[action];
         if (!config) {
@@ -37,12 +37,12 @@ const InspectionActions = ({
             key={action}
             onClick={() => handleActionClick(action)}
             disabled={isDisabled}
-            className={`px-3 py-2 text-white rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+            className={`flex items-center gap-1 px-2 py-1 text-xs text-white transition-colors rounded ${
               getActionButtonColorClass(action)
             } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
             title={config.label}
           >
-            <IconComponent className="h-4 w-4" />
+            <IconComponent size={12} />
             <span>{config.label}</span>
             {loading && (
               <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>

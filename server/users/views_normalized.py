@@ -388,7 +388,7 @@ class UserViewSet(viewsets.ModelViewSet):
         # Check if user can assign districts
         if not request.user.can_assign_districts():
             return Response({
-                'detail': 'Only Admin or Section Chief can assign districts.'
+                'detail': 'Only Admin, Section Chief, or Unit Head can assign districts.'
             }, status=status.HTTP_403_FORBIDDEN)
         
         district_code = request.data.get('district')

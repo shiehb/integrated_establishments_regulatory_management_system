@@ -65,12 +65,12 @@ export const tabDisplayNames = {
 export const actionButtonConfig = {
   assign_to_me: {
     label: 'Assign to Me',
-    color: 'blue',
+    color: 'sky',
     icon: User
   },
   inspect: {
     label: 'Inspect',
-    color: 'indigo',
+    color: 'sky',
     icon: Eye
   },
   start: {
@@ -80,22 +80,22 @@ export const actionButtonConfig = {
   },
   complete: {
     label: 'Complete',
-    color: 'emerald',
+    color: 'green',
     icon: CheckCircle
   },
   forward: {
     label: 'Forward',
-    color: 'blue',
+    color: 'sky',
     icon: ArrowRight
   },
   review: {
     label: 'Review',
-    color: 'purple',
+    color: 'sky',
     icon: Eye
   },
   forward_to_legal: {
     label: 'Forward to Legal',
-    color: 'orange',
+    color: 'sky',
     icon: Scale
   },
   send_nov: {
@@ -105,12 +105,12 @@ export const actionButtonConfig = {
   },
   send_noo: {
     label: 'Send NOO',
-    color: 'pink',
+    color: 'red',
     icon: FileCheck
   },
   close: {
     label: 'Close',
-    color: 'gray',
+    color: 'red',
     icon: Lock
   }
 };
@@ -165,14 +165,9 @@ export const getActionButtonColorClass = (action) => {
   if (!config) return 'bg-gray-500 hover:bg-gray-600';
   
   const colorMap = {
-    blue: 'bg-blue-500 hover:bg-blue-600',
-    green: 'bg-green-500 hover:bg-green-600',
-    emerald: 'bg-emerald-500 hover:bg-emerald-600',
-    purple: 'bg-purple-500 hover:bg-purple-600',
-    orange: 'bg-orange-500 hover:bg-orange-600',
-    red: 'bg-red-500 hover:bg-red-600',
-    pink: 'bg-pink-500 hover:bg-pink-600',
-    gray: 'bg-gray-500 hover:bg-gray-600'
+    sky: 'bg-sky-600 hover:bg-sky-700',
+    green: 'bg-green-600 hover:bg-green-700',
+    red: 'bg-red-600 hover:bg-red-700'
   };
   
   return colorMap[config.color] || 'bg-gray-500 hover:bg-gray-600';

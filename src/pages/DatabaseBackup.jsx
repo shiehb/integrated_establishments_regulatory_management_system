@@ -25,8 +25,9 @@ import {
   ArrowDown,
   ChevronDown,
   Filter,
+  FolderOpen,
 } from "lucide-react";
-import {
+import api, {
   getProfile,
   createBackup,
   restoreBackupFromFile,
@@ -112,6 +113,27 @@ const DatabaseBackup = () => {
       }
     };
     fetchUserProfile();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load saved backup path from system configuration
+  useEffect(() => {
+    const loadBackupPath = async () => {
+      try {
+        const response = await api.get("system/config/");
+        const config = response.data;
+        if (config.backup_custom_path) {
+          setBackupPath(config.backup_custom_path);
+        }
+      } catch (error) {
+        console.error("Error loading backup path from config:", error);
+        // Fallback to localStorage if config fails
+        const savedPath = localStorage.getItem('backupCustomPath');
+        if (savedPath) {
+          setBackupPath(savedPath);
+        }
+      }
+    };
+    loadBackupPath();
   }, []);
 
   // load backups list
@@ -132,7 +154,7 @@ const DatabaseBackup = () => {
 
   useEffect(() => {
     loadBackups();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showMessage = (msg, type = "success") => {
     if (type === "success") {
@@ -157,10 +179,13 @@ const DatabaseBackup = () => {
     try {
       setProcessing(true);
       setProcessingAction("backup");
-      const response = await createBackup(backupFormat, backupPath);
+      
+      // Use the current backup path (which should be from system config)
+      const pathToUse = backupPath || "";
+      const response = await createBackup(backupFormat, pathToUse);
       showMessage(response.message || "Backup created successfully!");
-      // Reset form
-      setBackupPath("");
+      
+      // Don't reset the backup path since it's now stored in system config
       loadBackups();
     } catch (error) {
       console.error("Backup error:", error);
@@ -250,6 +275,63 @@ const DatabaseBackup = () => {
     setSelectedBackup(backup);
     setRestoreFile(null);
     setRestoreFileName("");
+  };
+
+  const handleFolderPicker = async () => {
+    try {
+      let selectedPath = '';
+      
+      // Check if the File System Access API is supported (Chrome/Edge)
+      if ('showDirectoryPicker' in window) {
+        const directoryHandle = await window.showDirectoryPicker();
+        selectedPath = directoryHandle.name;
+      } else {
+        // Fallback for browsers that don't support File System Access API
+        selectedPath = await new Promise((resolve) => {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.webkitdirectory = true;
+          input.directory = true;
+          input.multiple = false;
+          
+          input.onchange = (e) => {
+            const files = e.target.files;
+            if (files && files.length > 0) {
+              // Get the directory path from the first file
+              const filePath = files[0].webkitRelativePath;
+              const directoryPath = filePath.substring(0, filePath.lastIndexOf('/'));
+              resolve(directoryPath || 'Selected Directory');
+            } else {
+              resolve('');
+            }
+          };
+          
+          input.click();
+        });
+      }
+      
+      if (selectedPath) {
+        setBackupPath(selectedPath);
+        
+        // Save to system configuration
+        try {
+          await api.put("system/config/update/", {
+            backup_custom_path: selectedPath
+          });
+          showMessage(`Backup directory saved to system configuration: ${selectedPath}`, "info");
+        } catch (error) {
+          console.error('Error saving backup path to config:', error);
+          // Fallback to localStorage
+          localStorage.setItem('backupCustomPath', selectedPath);
+          showMessage(`Backup directory selected: ${selectedPath} (saved locally)`, "info");
+        }
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Error selecting directory:', error);
+        showMessage('Failed to select directory. Please try again or enter the path manually.', "error");
+      }
+    }
   };
 
   // Add this useEffect to handle clicks outside the dropdowns
@@ -504,6 +586,7 @@ const DatabaseBackup = () => {
 
           {/* Updated Layout: Backup/Restore side by side, Table at bottom */}
           <div className="flex flex-col gap-6">
+
             {/* Backup & Restore Section - Side by side */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Backup Section - Left side */}
@@ -558,24 +641,63 @@ const DatabaseBackup = () => {
                   {/* Backup Path Input */}
                   <div>
                     <label className="block mb-1 text-sm font-medium text-gray-700">
-                      Custom Save Path (Optional)
+                      Default Backup Directory Path <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      value={backupPath}
-                      onChange={(e) => setBackupPath(e.target.value)}
-                      placeholder="C:/custom/path/backup/"
-                      className="w-full px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={backupPath}
+                        onChange={async (e) => {
+                          const value = e.target.value;
+                          setBackupPath(value);
+                          
+                          // Save to system configuration when manually typed
+                          try {
+                            await api.put("system/config/update/", {
+                              backup_custom_path: value
+                            });
+                            showMessage(`Backup path saved: ${value}`, "info");
+                          } catch (error) {
+                            console.error('Error saving backup path to config:', error);
+                            // Fallback to localStorage
+                            localStorage.setItem('backupCustomPath', value);
+                            showMessage(`Backup path saved locally: ${value}`, "info");
+                          }
+                        }}
+                        placeholder="Click folder icon to select directory or enter path manually"
+                        className="flex-1 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={handleFolderPicker}
+                        className="flex items-center px-3 py-1 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                        title="Select backup directory"
+                      >
+                        <FolderOpen size={16} />
+                      </button>
+                    </div>
                     <p className="mt-1 text-xs text-gray-500">
-                      Leave empty to use default backup directory: backups/
+                      Set the default directory where database backups will be saved. This path will be used for all backup operations.
                     </p>
+                    {!backupPath && (
+                      <p className="mt-1 text-xs text-red-500">
+                        Please select a backup directory before creating backups.
+                      </p>
+                    )}
                   </div>
+
                 </div>
                 <div className="flex justify-end mt-4">
                   <button
-                    onClick={() => setConfirmOpen(true)}
-                    disabled={processing}
+                    onClick={() => {
+                      if (!backupPath.trim()) {
+                        showMessage("Please select a backup directory before creating a backup.", "error");
+                        return;
+                      }
+                      setConfirmOpen(true);
+                    }}
+                    disabled={processing || !backupPath.trim()}
                     className="flex items-center px-4 py-2 text-white transition-colors rounded-md bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {processing && processingAction === "backup" ? (
@@ -1202,7 +1324,15 @@ const DatabaseBackup = () => {
           <ConfirmationDialog
             open={confirmOpen}
             title="Confirm Backup Creation"
-            message={`Are you sure you want to create a ${backupFormat.toUpperCase()} backup? This may take a few moments.`}
+            message={
+              <div>
+                <p className="mb-2">Are you sure you want to create a {backupFormat.toUpperCase()} backup?</p>
+                <p className="mb-2 text-sm text-gray-600">
+                  <strong>Backup location:</strong> {backupPath || 'Default directory'}
+                </p>
+                <p className="text-sm text-gray-500">This may take a few moments.</p>
+              </div>
+            }
             loading={processing && processingAction === "backup"}
             onCancel={() => setConfirmOpen(false)}
             onConfirm={handleBackup}

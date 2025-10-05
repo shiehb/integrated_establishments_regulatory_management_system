@@ -19,6 +19,13 @@ const baseMenu = [
   { name: "Map", path: "/map", icon: MapPin },
   { name: "Establishments", path: "/establishments", icon: Building },
   { name: "Inspections", path: "/inspections", icon: InspectIcon },
+   // ✅ Admin, Section Chief, or Unit Head
+  {
+    name: "District Management",
+    path: "/district-management",
+    icon: MapIcon,
+    adminOrSectionChiefOrUnitHead: true,
+  },
   {
     name: "Billing Records",
     path: "/billing",
@@ -37,12 +44,7 @@ const baseMenu = [
     icon: Database,
     adminOnly: true,
   }, // ✅ Only Admin
-  {
-    name: "District Management",
-    path: "/district-management",
-    icon: MapIcon,
-    adminOrSectionChief: true,
-  }, // ✅ Admin or Section Chief
+
 ];
 
 export default function Sidebar({ userLevel = "public" }) {
@@ -83,8 +85,8 @@ export default function Sidebar({ userLevel = "public" }) {
             if (item.adminOnly && userLevel !== "Admin") return null;
             // ✅ Hide Billing Records unless Legal Unit
             if (item.legalOnly && userLevel !== "Legal Unit") return null;
-            // ✅ Hide District Management unless Admin or Section Chief
-            if (item.adminOrSectionChief && userLevel !== "Admin" && userLevel !== "Section Chief") return null;
+            // ✅ Hide District Management unless Admin, Section Chief, or Unit Head
+            if (item.adminOrSectionChiefOrUnitHead && userLevel !== "Admin" && userLevel !== "Section Chief" && userLevel !== "Unit Head") return null;
 
             const IconComponent = item.icon;
             return (

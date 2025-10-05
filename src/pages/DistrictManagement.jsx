@@ -39,7 +39,7 @@ const useDebounce = (value, delay) => {
 };
 
 // Section options - moved outside component to avoid dependency issues
-const sections = [
+const allSections = [
   { value: "PD-1586", label: "PD-1586", fullLabel: "Environmental Impact Assessment" },
   { value: "RA-6969", label: "RA-6969", fullLabel: "Toxic Chemicals & Hazardous Wastes" },
   { value: "RA-8749", label: "RA-8749", fullLabel: "Clean Air Act" },
@@ -60,6 +60,9 @@ export default function DistrictManagement() {
   // User profile
   const [userProfile, setUserProfile] = useState(null);
   const [loadingUser, setLoadingUser] = useState(true);
+  
+  // Available sections based on user's section
+  const [availableSections, setAvailableSections] = useState(allSections);
   
   // Data
   const [users, setUsers] = useState([]);
@@ -106,6 +109,35 @@ export default function DistrictManagement() {
       try {
         const profile = await getProfile();
         setUserProfile(profile);
+        
+        // Determine available sections based on user's section
+        if (profile?.section) {
+          // Check if user has a combined section
+          if (profile.section.includes(',')) {
+            // Combined section - extract individual laws
+            const combinedLaws = profile.section.split(',').map(law => law.trim());
+            const availableLaws = allSections.filter(section => 
+              combinedLaws.includes(section.value)
+            );
+            setAvailableSections(availableLaws);
+            // Set the first law as default selection
+            if (availableLaws.length > 0) {
+              setSelectedSection(availableLaws[0].value);
+              setShowAllLaws(false);
+            }
+          } else {
+            // Single section - show only that section
+            const userSection = allSections.find(s => s.value === profile.section);
+            if (userSection) {
+              setAvailableSections([userSection]);
+              setSelectedSection(profile.section);
+              setShowAllLaws(false);
+            }
+          }
+        } else {
+          // If user has no section (Admin), show all sections
+          setAvailableSections(allSections);
+        }
       } catch (error) {
         notifications.error(
           error.message || "Failed to fetch user profile",
@@ -125,13 +157,12 @@ export default function DistrictManagement() {
     try {
       const filters = {
         userlevel: "Monitoring Personnel",
-        ...(showAllLaws ? {} : { section: selectedSection }),
         ...(selectedDistrict && { district: selectedDistrict })
       };
       
       const response = await getDistrictUsers(filters);
       setUsers(response.results || []);
-      setFilteredUsers(response.results || []);
+      // Don't set filteredUsers here - let the useEffect handle filtering
     } catch (error) {
       notifications.error(
         error.message || "Failed to fetch users",
@@ -140,7 +171,7 @@ export default function DistrictManagement() {
     } finally {
       setLoading(false);
     }
-  }, [selectedSection, selectedDistrict, showAllLaws]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedDistrict]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetchUsers();
@@ -148,10 +179,16 @@ export default function DistrictManagement() {
 
   // Apply search filter
   useEffect(() => {
-    if (!debouncedSearchQuery) {
-      setFilteredUsers(users);
-    } else {
-      const filtered = users.filter(user => {
+    let filtered = users;
+    
+    // Apply law-based filtering first
+    if (!showAllLaws && selectedSection) {
+      filtered = filtered.filter(user => user.section === selectedSection);
+    }
+    
+    // Then apply search filter
+    if (debouncedSearchQuery) {
+      filtered = filtered.filter(user => {
         const fullName = `${user.first_name || ''} ${user.middle_name || ''} ${user.last_name || ''}`.toLowerCase();
         const email = (user.email || '').toLowerCase();
         const district = (user.district || '').toLowerCase();
@@ -161,9 +198,10 @@ export default function DistrictManagement() {
         
         return fullName.includes(query) || email.includes(query) || district.includes(query) || section.includes(query) || sectionLabel.includes(query);
       });
-      setFilteredUsers(filtered);
     }
-  }, [users, debouncedSearchQuery]);
+    
+    setFilteredUsers(filtered);
+  }, [users, debouncedSearchQuery, showAllLaws, selectedSection]);
 
   const handleAssignDistrict = (user) => {
     setSelectedUser(user);
@@ -247,8 +285,27 @@ export default function DistrictManagement() {
   
   // Get section display name for a user
   const getSectionDisplayName = (sectionValue) => {
-    const section = sections.find(s => s.value === sectionValue);
+    const section = allSections.find(s => s.value === sectionValue);
     return section ? section.fullLabel : sectionValue;
+  };
+
+  // Get user's section display name (handles combined sections)
+  const getUserSectionDisplayName = () => {
+    if (!userProfile?.section) return "All Sections";
+    
+    if (userProfile.section.includes(',')) {
+      // Combined section - show the combined name
+      const combinedLaws = userProfile.section.split(',').map(law => law.trim());
+      const lawNames = combinedLaws.map(law => {
+        const section = allSections.find(s => s.value === law);
+        return section ? section.label : law;
+      });
+      return `${lawNames.join(', ')} (Combined)`;
+    } else {
+      // Single section
+      const section = allSections.find(s => s.value === userProfile.section);
+      return section ? section.label : userProfile.section;
+    }
   };
   
   // Sorting functionality
@@ -322,9 +379,9 @@ export default function DistrictManagement() {
     );
   }
 
-  // Check if user has access to District Management (Admin or Section Chief only)
+  // Check if user has access to District Management (Admin, Section Chief, or Unit Head)
   const userLevel = userProfile?.userlevel?.trim();
-  const hasAccess = userLevel === "Admin" || userLevel === "Section Chief";
+  const hasAccess = userLevel === "Admin" || userLevel === "Section Chief" || userLevel === "Unit Head";
 
   if (!hasAccess) {
     return (
@@ -341,7 +398,7 @@ export default function DistrictManagement() {
                   Access Denied
                 </h2>
                 <p className="mb-4 text-gray-600">
-                  District Management is only available to Admins and Section Chiefs.
+                  District Management is only available to Admins, Section Chiefs, and Unit Heads.
                 </p>
                 <p className="text-sm text-gray-500">
                   Your current role: <span className="font-medium text-gray-700">{userLevel || "Unknown"}</span>
@@ -355,7 +412,7 @@ export default function DistrictManagement() {
     );
   }
 
-  const currentSection = sections.find(s => s.value === selectedSection);
+  const currentSection = availableSections.find(s => s.value === selectedSection);
 
   return (
     <>
@@ -415,7 +472,7 @@ export default function DistrictManagement() {
                         {[
                           { key: "name", label: "Full Name" },
                           { key: "email", label: "Email" },
-                          ...(showAllLaws ? [{ key: "section", label: "Law" }] : []),
+                          ...(showAllLaws && availableSections.length > 1 ? [{ key: "section", label: "Law" }] : []),
                           { key: "district", label: "District" },
                           { key: "is_active", label: "Status" },
                         ].map((field) => (
@@ -523,23 +580,25 @@ export default function DistrictManagement() {
           <div className="mb-4">
             <div className="border-b border-gray-200">
               <nav className="flex space-x-8">
-                {/* All Laws Tab */}
-                <button
-                  onClick={() => {
-                    setShowAllLaws(true);
-                    setSelectedSection("");
-                  }}
-                  className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
-                    showAllLaws
-                      ? 'border-sky-500 text-sky-600 bg-sky-50'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  All Laws
-                </button>
+                {/* All Laws Tab - only show if user has access to multiple sections */}
+                {availableSections.length > 1 && (
+                  <button
+                    onClick={() => {
+                      setShowAllLaws(true);
+                      setSelectedSection("");
+                    }}
+                    className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                      showAllLaws
+                        ? 'border-sky-500 text-sky-600 bg-sky-50'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {userProfile?.section?.includes(',') ? 'All My Laws' : 'All Laws'}
+                  </button>
+                )}
                 
                 {/* Individual Law Tabs */}
-                {sections.map((section) => (
+                {availableSections.map((section) => (
                   <button
                     key={section.value}
                     onClick={() => {
@@ -560,12 +619,14 @@ export default function DistrictManagement() {
           </div>
 
           {/* 📊 Search results info */}
-          {(hasActiveFilters || filteredUsers.length !== users.length || (showAllLaws === false && selectedSection)) && (
+          {(hasActiveFilters || filteredUsers.length !== users.length || (!showAllLaws && selectedSection)) && (
             <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
               <div>
-                {showAllLaws === false && selectedSection ? (
+                {!showAllLaws && selectedSection ? (
                   <span>
                     Showing {filteredUsers.length} monitoring personnel for <span className="font-medium text-sky-600">{currentSection?.label}</span>
+                    {userProfile?.section?.includes(',') && ` (from ${getUserSectionDisplayName()})`}
+                    {debouncedSearchQuery && ` (filtered by search)`}
                   </span>
                 ) : filteredUsers.length === users.length ? (
                   `Showing all ${users.length} monitoring personnel`
@@ -574,7 +635,7 @@ export default function DistrictManagement() {
                 )}
               </div>
               <div className="flex gap-2">
-                {showAllLaws === false && selectedSection && (
+                {!showAllLaws && selectedSection && availableSections.length > 1 && (
                   <button
                     onClick={() => setShowAllLaws(true)}
                     className="underline text-sky-600 hover:text-sky-700"
@@ -607,7 +668,7 @@ export default function DistrictManagement() {
                   </button>
                 </th>
                 <th className="p-1 border-b border-gray-300 font-medium">Email</th>
-                {showAllLaws && (
+                {showAllLaws && availableSections.length > 1 && (
                   <th className="p-1 border-b border-gray-300">
                     <button
                       onClick={() => handleSort('section')}
@@ -640,7 +701,7 @@ export default function DistrictManagement() {
               {loading ? (
                 <tr>
                   <td
-                    colSpan={showAllLaws ? "6" : "5"}
+                    colSpan={showAllLaws && availableSections.length > 1 ? "6" : "5"}
                     className="px-2 py-8 text-center border-b border-gray-300"
                   >
                     <div
@@ -656,7 +717,7 @@ export default function DistrictManagement() {
               ) : paginatedUsers.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={showAllLaws ? "6" : "5"}
+                    colSpan={showAllLaws && availableSections.length > 1 ? "6" : "5"}
                     className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
                   >
                     {hasActiveFilters ? (
@@ -690,7 +751,7 @@ export default function DistrictManagement() {
                     <td className="px-2 border-b border-gray-300">
                       <div className="text-sm text-gray-600">{user.email}</div>
                     </td>
-                    {showAllLaws && (
+                    {showAllLaws && availableSections.length > 1 && (
                       <td className="px-2 border-b border-gray-300">
                         <div className="flex flex-col">
                           <span className="text-sm font-medium text-gray-900">{user.section}</span>

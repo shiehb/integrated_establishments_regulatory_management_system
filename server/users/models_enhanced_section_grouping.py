@@ -338,7 +338,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     def can_assign_districts(self):
         """Check if user can assign districts"""
-        return self.userlevel.code in ['Admin', 'Section Chief']
+        return self.userlevel.code in ['Admin', 'Section Chief', 'Unit Head']
     
     def get_available_sections(self):
         """Get sections available for this user level"""
