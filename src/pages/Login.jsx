@@ -29,9 +29,9 @@ export default function Login() {
         }
       );
       // Clear the state to prevent showing the message again
-      navigate(location.pathname, { replace: true });
+      window.history.replaceState({}, document.title, location.pathname);
     }
-  }, [location.state, navigate, location.pathname, notifications]);
+  }, [location.state, location.pathname, notifications]);
 
   const handleChange = (e) => {
     setFormData({

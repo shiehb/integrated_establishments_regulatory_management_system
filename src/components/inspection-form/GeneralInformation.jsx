@@ -12,6 +12,7 @@ export default function GeneralInformation({
   onLawFilterChange,
   inspectionData,
   errors,
+  clearError,
 }) {
   // State for phone/fax validation
   const [phoneValidation, setPhoneValidation] = useState({ isValid: false, message: "" });
@@ -107,6 +108,9 @@ export default function GeneralInformation({
     const formattedValue = formatInput.phone(value);
     setData({ ...data, phone_fax_no: formattedValue });
     
+    // Clear error when user changes the value
+    if (clearError) clearError("phone_fax_no");
+    
     // Validate the phone/fax number
     const validation = validatePhoneOrFax(formattedValue);
     setPhoneValidation(validation);
@@ -117,6 +121,9 @@ export default function GeneralInformation({
     const formattedValue = formatInput.lower(value);
     setData({ ...data, email_address: formattedValue });
     
+    // Clear error when user changes the value
+    if (clearError) clearError("email_address");
+    
     // Validate the email address
     const validation = validateEmailAddress(formattedValue);
     setEmailValidation(validation);
@@ -125,6 +132,9 @@ export default function GeneralInformation({
   // Handle date/time validation
   const handleDateTimeChange = (value) => {
     setData({ ...data, inspection_date_time: value });
+    
+    // Clear error when user changes the value
+    if (clearError) clearError("inspection_date_time");
     
     // Validate the date/time
     const inspectionCreatedAt = getInspectionCreatedAt(inspectionData);
@@ -347,6 +357,9 @@ export default function GeneralInformation({
             }
             onChange={(e) => {
               const val = e.target.value;
+              // Clear error when user changes the value
+              if (clearError) clearError("operating_hours");
+              
               if (val === "Others") {
                 updateField("operating_hours", "Others", (v) => v); 
               } else if (val === "") {
@@ -374,6 +387,9 @@ export default function GeneralInformation({
               value={typeof data.operating_hours === "number" ? data.operating_hours : ""}
               onChange={(e) => {
                 const val = parseInt(e.target.value);
+                // Clear error when user changes the value
+                if (clearError) clearError("operating_hours");
+                
                 if (!isNaN(val) && val >= 1 && val <= 24) {
                   updateField("operating_hours", val, (v) => v);
                 } else {
@@ -406,6 +422,9 @@ export default function GeneralInformation({
             }
             onChange={(e) => {
               const val = e.target.value;
+              // Clear error when user changes the value
+              if (clearError) clearError("operating_days_per_week");
+              
               if (val === "Others") {
                 updateField("operating_days_per_week", "Others", (v) => v); 
               } else if (val === "") {
@@ -440,6 +459,9 @@ export default function GeneralInformation({
               value={typeof data.operating_days_per_week === "number" ? data.operating_days_per_week : ""}
               onChange={(e) => {
                 const val = parseInt(e.target.value);
+                // Clear error when user changes the value
+                if (clearError) clearError("operating_days_per_week");
+                
                 if (!isNaN(val) && val >= 1 && val <= 7) {
                   updateField("operating_days_per_week", val, (v) => v);
                   
@@ -478,6 +500,9 @@ export default function GeneralInformation({
             }
             onChange={(e) => {
               const val = e.target.value;
+              // Clear error when user changes the value
+              if (clearError) clearError("operating_days_per_year");
+              
               if (val === "Others") {
                 updateField("operating_days_per_year", "Others", (v) => v); 
               } else if (val === "") {
@@ -505,6 +530,9 @@ export default function GeneralInformation({
               value={typeof data.operating_days_per_year === "number" ? data.operating_days_per_year : ""}
               onChange={(e) => {
                 const val = parseInt(e.target.value);
+                // Clear error when user changes the value
+                if (clearError) clearError("operating_days_per_year");
+                
                 if (!isNaN(val) && val >= 1 && val <= 365) {
                   updateField("operating_days_per_year", val, (v) => v);
                 } else {

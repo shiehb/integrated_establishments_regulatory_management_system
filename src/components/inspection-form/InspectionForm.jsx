@@ -5,6 +5,8 @@ import LayoutForm from "../LayoutForm";
 import { saveInspectionDraft, completeInspection } from "../../services/api";
 import { useAutoSave } from "../../hooks/useAutoSave";
 import { validateInspectionForm } from "../../utils/formValidation";
+import ConfirmationDialog from "../common/ConfirmationDialog";
+import { useNotifications } from "../NotificationManager";
 
 // Import all section components
 import InternalHeader from "./InternalHeader";
@@ -23,6 +25,7 @@ export default function InspectionForm({ inspectionData }) {
   const { id } = useParams();
   const inspectionId = id || inspectionData?.id;
   const storageKey = `inspection-form-${inspectionId || "draft"}`;
+  const notifications = useNotifications();
 
   // Load saved draft
   const loadSavedData = () => {
@@ -94,6 +97,16 @@ export default function InspectionForm({ inspectionData }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [inspectionStatus, setInspectionStatus] = useState(null);
   const [fullInspectionData, setFullInspectionData] = useState(null);
+  
+  // Confirmation dialog states
+  const [completeConfirmation, setCompleteConfirmation] = useState({ 
+    open: false, 
+    compliance: '', 
+    violations: '', 
+    findings: '' 
+  });
+  const [closeConfirmation, setCloseConfirmation] = useState({ open: false });
+  const [loading, setLoading] = useState(false);
 
   // Form data object for auto-save
   const formData = {
@@ -416,13 +429,26 @@ export default function InspectionForm({ inspectionData }) {
     return Object.keys(errs).length === 0;
   };
 
+  // Function to clear specific field errors
+  const clearError = (fieldName) => {
+    if (errors[fieldName]) {
+      setErrors(prevErrors => {
+        const newErrors = { ...prevErrors };
+        delete newErrors[fieldName];
+        return newErrors;
+      });
+    }
+  };
+
   /* ======================
      Handlers
      ====================== */
   const handleSave = () => {
     if (!validateForm()) {
       window.scrollTo({ top: 0, behavior: "smooth" });
-      alert("Please fix errors before saving.");
+      notifications.warning("Please fix errors before saving.", { 
+        title: 'Validation Error' 
+      });
       return;
     }
 
@@ -439,8 +465,14 @@ export default function InspectionForm({ inspectionData }) {
 
     try {
       localStorage.removeItem(storageKey);
+      notifications.success("Inspection saved successfully!", { 
+        title: 'Save Successful' 
+      });
     } catch (e) {
       console.error("clear draft error", e);
+      notifications.error("Error clearing draft data", { 
+        title: 'Warning' 
+      });
     }
     
     // Navigate back to inspections list after successful save
@@ -449,7 +481,9 @@ export default function InspectionForm({ inspectionData }) {
 
   const handleDraft = async () => {
     if (!inspectionId) {
-      alert("No inspection ID found. Cannot save draft.");
+      notifications.error("No inspection ID found. Cannot save draft.", { 
+        title: 'Draft Save Failed' 
+      });
       return;
     }
 
@@ -477,55 +511,77 @@ export default function InspectionForm({ inspectionData }) {
       }
       
       // Show success message
-      alert("Draft saved successfully!");
+      notifications.success("Draft saved successfully!", { 
+        title: 'Draft Saved' 
+      });
       
       // Navigate back to inspections list
       navigate("/inspections");
     } catch (error) {
       console.error("Failed to save draft:", error);
-      alert(`Failed to save draft: ${error.message}`);
+      notifications.error(`Failed to save draft: ${error.message}`, { 
+        title: 'Draft Save Failed' 
+      });
     }
   };
 
-  const handleComplete = async () => {
+  const handleComplete = () => {
     if (!validateForm()) {
       window.scrollTo({ top: 0, behavior: "smooth" });
-      alert("Please fix errors before completing the inspection.");
+      notifications.warning("Please fix errors before completing the inspection.", { 
+        title: 'Validation Error' 
+      });
       return;
     }
 
     if (!inspectionId) {
-      alert("No inspection ID found. Cannot complete inspection.");
+      notifications.error("No inspection ID found. Cannot complete inspection.", { 
+        title: 'Completion Failed' 
+      });
       return;
     }
 
-    // Show compliance decision dialog
-    const compliance = prompt("Please enter compliance decision (COMPLIANT/NON_COMPLIANT/PARTIALLY_COMPLIANT):");
+    // Show completion confirmation dialog with form inputs
+    setCompleteConfirmation({ 
+      open: true, 
+      compliance: '', 
+      violations: '', 
+      findings: '' 
+    });
+  };
+
+  const executeComplete = async () => {
+    const { compliance, violations, findings } = completeConfirmation;
+    
     if (!compliance) {
-      alert("Compliance decision is required to complete the inspection.");
+      notifications.error("Compliance decision is required to complete the inspection.", { 
+        title: 'Missing Information' 
+      });
       return;
     }
 
     if (!['COMPLIANT', 'NON_COMPLIANT', 'PARTIALLY_COMPLIANT'].includes(compliance.toUpperCase())) {
-      alert("Invalid compliance decision. Please enter COMPLIANT, NON_COMPLIANT, or PARTIALLY_COMPLIANT.");
+      notifications.error("Invalid compliance decision. Please enter COMPLIANT, NON_COMPLIANT, or PARTIALLY_COMPLIANT.", { 
+        title: 'Invalid Input' 
+      });
       return;
     }
 
-    let violations = "";
-    if (compliance.toUpperCase() === 'NON_COMPLIANT') {
-      violations = prompt("Please describe the violations found:");
-      if (!violations) {
-        alert("Violations description is required for non-compliant inspections.");
-        return;
-      }
-    }
-
-    const findingsSummary = prompt("Please provide a summary of findings and observations:");
-    if (!findingsSummary) {
-      alert("Findings summary is required to complete the inspection.");
+    if (compliance.toUpperCase() === 'NON_COMPLIANT' && !violations) {
+      notifications.error("Violations description is required for non-compliant inspections.", { 
+        title: 'Missing Information' 
+      });
       return;
     }
 
+    if (!findings) {
+      notifications.error("Findings summary is required to complete the inspection.", { 
+        title: 'Missing Information' 
+      });
+      return;
+    }
+
+    setLoading(true);
     const formData = {
       general,
       purpose,
@@ -543,7 +599,7 @@ export default function InspectionForm({ inspectionData }) {
         form_data: formData,
         compliance_decision: compliance.toUpperCase(),
         violations_found: violations,
-        findings_summary: findingsSummary,
+        findings_summary: findings,
         remarks: 'Inspection completed via form'
       });
       
@@ -555,19 +611,40 @@ export default function InspectionForm({ inspectionData }) {
       }
       
       // Show success message
-      alert("Inspection completed successfully!");
+      notifications.success("Inspection completed successfully!", { 
+        title: 'Inspection Completed',
+        duration: 6000
+      });
+      
+      // Close confirmation dialog
+      setCompleteConfirmation({ open: false, compliance: '', violations: '', findings: '' });
       
       // Navigate back to inspections list
       navigate("/inspections");
     } catch (error) {
       console.error("Failed to complete inspection:", error);
-      alert(`Failed to complete inspection: ${error.message}`);
+      notifications.error(`Failed to complete inspection: ${error.message}`, { 
+        title: 'Completion Failed' 
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleClose = () => {
-    const keep = confirm("Keep your draft?");
-    if (!keep) localStorage.removeItem(storageKey);
+    setCloseConfirmation({ open: true });
+  };
+
+  const executeClose = (keepDraft) => {
+    if (!keepDraft) {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (e) {
+        console.error("Error removing draft:", e);
+      }
+    }
+    
+    setCloseConfirmation({ open: false });
     
     // Navigate back to inspections list
     navigate("/inspections");
@@ -599,6 +676,7 @@ export default function InspectionForm({ inspectionData }) {
           onLawFilterChange={setLawFilter}
           inspectionData={fullInspectionData}
           errors={errors}
+          clearError={clearError}
         />
         <PurposeOfInspection
           state={purpose}
@@ -636,6 +714,91 @@ export default function InspectionForm({ inspectionData }) {
         />
       </div>
     </div>
+
+    {/* Completion Confirmation Dialog */}
+    <ConfirmationDialog
+      open={completeConfirmation.open}
+      title="Complete Inspection"
+      message={
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Please provide the following information to complete the inspection:
+          </p>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Compliance Decision *
+            </label>
+            <select
+              value={completeConfirmation.compliance}
+              onChange={(e) => setCompleteConfirmation(prev => ({ ...prev, compliance: e.target.value }))}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select Compliance Decision</option>
+              <option value="COMPLIANT">COMPLIANT</option>
+              <option value="NON_COMPLIANT">NON_COMPLIANT</option>
+              <option value="PARTIALLY_COMPLIANT">PARTIALLY_COMPLIANT</option>
+            </select>
+          </div>
+
+          {completeConfirmation.compliance === 'NON_COMPLIANT' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Violations Found *
+              </label>
+              <textarea
+                value={completeConfirmation.violations}
+                onChange={(e) => setCompleteConfirmation(prev => ({ ...prev, violations: e.target.value }))}
+                placeholder="Describe the violations found..."
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                rows="3"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Summary of Findings and Observations *
+            </label>
+            <textarea
+              value={completeConfirmation.findings}
+              onChange={(e) => setCompleteConfirmation(prev => ({ ...prev, findings: e.target.value }))}
+              placeholder="Provide a summary of findings and observations..."
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              rows="4"
+            />
+          </div>
+        </div>
+      }
+      confirmText="Complete Inspection"
+      cancelText="Cancel"
+      confirmColor="green"
+      size="lg"
+      loading={loading}
+      onCancel={() => setCompleteConfirmation({ open: false, compliance: '', violations: '', findings: '' })}
+      onConfirm={executeComplete}
+    />
+
+    {/* Close Confirmation Dialog */}
+    <ConfirmationDialog
+      open={closeConfirmation.open}
+      title="Close Inspection Form"
+      message={
+        <div>
+          <p className="mb-2">Are you sure you want to close the inspection form?</p>
+          <p className="text-sm text-gray-600">
+            Your current progress will be saved as a draft unless you choose to discard it.
+          </p>
+        </div>
+      }
+      confirmText="Keep Draft & Close"
+      cancelText="Discard & Close"
+      confirmColor="sky"
+      size="md"
+      onCancel={() => executeClose(false)}
+      onConfirm={() => executeClose(true)}
+    />
+
     </LayoutForm>
   );
 }

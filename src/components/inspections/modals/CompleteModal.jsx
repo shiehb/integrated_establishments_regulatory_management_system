@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, CheckCircle, XCircle, FileText, AlertTriangle } from 'lucide-react';
+import { useNotifications } from '../../NotificationManager';
 
 const CompleteModal = ({ open, inspection, onClose, onSubmit, userLevel }) => {
   const [complianceDecision, setComplianceDecision] = useState('');
@@ -9,6 +10,7 @@ const CompleteModal = ({ open, inspection, onClose, onSubmit, userLevel }) => {
   const [complianceDeadline, setComplianceDeadline] = useState('');
   const [remarks, setRemarks] = useState('');
   const [loading, setLoading] = useState(false);
+  const notifications = useNotifications();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -16,7 +18,9 @@ const CompleteModal = ({ open, inspection, onClose, onSubmit, userLevel }) => {
 
     // Validate that violations are provided if non-compliant
     if (complianceDecision === 'NON_COMPLIANT' && !violationsFound.trim()) {
-      alert('Please provide details of violations found for non-compliant inspections.');
+      notifications.warning('Please provide details of violations found for non-compliant inspections.', {
+        title: 'Validation Error'
+      });
       return;
     }
 

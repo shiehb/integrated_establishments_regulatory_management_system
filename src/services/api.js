@@ -48,12 +48,18 @@ api.interceptors.response.use(
         } catch {
           localStorage.removeItem("access");
           localStorage.removeItem("refresh");
-          window.location.href = "/login";
+          // Only redirect if not already on login page to prevent page refresh during login
+          if (window.location.pathname !== "/login") {
+            window.location.href = "/login";
+          }
         }
       } else {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
-        window.location.href = "/login";
+        // Only redirect if not already on login page to prevent page refresh during login
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
       }
     }
 
