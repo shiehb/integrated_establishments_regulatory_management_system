@@ -187,9 +187,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 )
             )
         elif tab == 'review':
+            # Show inspections that need Unit Head review
             return queryset.filter(
-                assigned_to=user,
-                current_status='UNIT_REVIEWED'
+                current_status__in=[
+                    'MONITORING_COMPLETED_COMPLIANT', 
+                    'MONITORING_COMPLETED_NON_COMPLIANT',
+                    'UNIT_REVIEWED'
+                ]
             )
         else:
             # Special case: If user is in combined EIA section, also show PD-1586, RA-8749, RA-9275 inspections
@@ -1090,8 +1094,34 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection = self.get_object()
         user = request.user
         
+        # Debug logging
+        print(f"DEBUG REVIEW: Inspection ID={inspection.id}")
+        print(f"DEBUG REVIEW: Current Status={inspection.current_status}")
+        print(f"DEBUG REVIEW: Assigned To={inspection.assigned_to}")
+        print(f"DEBUG REVIEW: User ID={user.id}")
+        print(f"DEBUG REVIEW: User Level={user.userlevel}")
+        print(f"DEBUG REVIEW: User Section={user.section}")
+        print(f"DEBUG REVIEW: Inspection Law={inspection.law}")
+        
         # Check if user can act
-        if inspection.assigned_to != user:
+        # Unit Head can review inspections even if not assigned (for review tab)
+        user_can_review = False
+        
+        if inspection.assigned_to == user:
+            # User is assigned - can always review
+            user_can_review = True
+            print(f"DEBUG REVIEW: User is assigned - permission granted")
+        else:
+            # User is not assigned - check special cases
+            if user.userlevel == 'Unit Head' and inspection.current_status in ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT', 'UNIT_REVIEWED']:
+                # Unit Head can review completed monitoring inspections and UNIT_REVIEWED inspections even if not assigned
+                user_can_review = True
+                print(f"DEBUG REVIEW: Unit Head reviewing inspection in status {inspection.current_status} - permission granted")
+            else:
+                user_can_review = False
+                print(f"DEBUG REVIEW: Permission denied - not assigned and no special permission")
+        
+        if not user_can_review:
             return Response(
                 {'error': 'You are not assigned to this inspection'},
                 status=status.HTTP_403_FORBIDDEN
@@ -1099,6 +1129,8 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Determine next status
         status_map = {
+            'MONITORING_COMPLETED_COMPLIANT': 'UNIT_REVIEWED',
+            'MONITORING_COMPLETED_NON_COMPLIANT': 'UNIT_REVIEWED',
             'UNIT_REVIEWED': 'SECTION_REVIEWED',
             'SECTION_REVIEWED': 'DIVISION_REVIEWED',
         }
@@ -1111,8 +1143,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         
         # Get next assignee
+        print(f"DEBUG REVIEW: Getting next assignee for status={next_status}")
         next_assignee = inspection.get_next_assignee(next_status)
+        print(f"DEBUG REVIEW: Next assignee={next_assignee}")
         if not next_assignee:
+            print(f"DEBUG REVIEW: No next assignee found for {next_status}")
             return Response(
                 {'error': f'No personnel found for {next_status}'},
                 status=status.HTTP_404_NOT_FOUND

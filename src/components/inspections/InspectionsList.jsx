@@ -313,6 +313,28 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       return;
     }
     
+    // For review action, execute the action and then open the form
+    if (action === 'review') {
+      try {
+        await handleAction(action, inspectionId);
+        notifications.success(
+          `Inspection ${inspection.code} status updated for review`, 
+          { title: 'Review Started' }
+        );
+        
+        // Navigate to inspection form page
+        window.location.href = `/inspections/${inspectionId}/form`;
+        return;
+      } catch (error) {
+        console.error('Error executing review action:', error);
+        notifications.error(
+          `Error starting review: ${error.message}`, 
+          { title: 'Error' }
+        );
+        return;
+      }
+    }
+    
     // For other actions, show simple confirmation
     setActionConfirmation({ 
       open: true, 

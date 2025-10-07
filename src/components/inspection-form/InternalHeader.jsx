@@ -8,8 +8,10 @@ export default function InternalHeader({
   onDraft, 
   onClose, 
   onComplete, 
+  onSendToSection,
   lastSaveTime, 
   showCompleteButton = false,
+  showSendToSectionButton = false,
   isDraft = false
 }) {
   return (
@@ -46,7 +48,14 @@ export default function InternalHeader({
             onClick={onComplete}
             className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
           >
-            Submit and Complete
+            Submit for Review
+          </button>
+        ) : showSendToSectionButton ? (
+          <button
+            onClick={onSendToSection}
+            className="px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700"
+          >
+            Send to Section
           </button>
         ) : (
           <button

@@ -200,6 +200,9 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('MONITORING_COMPLETED_COMPLIANT', 'Monitoring Personnel'): ['review'],
             ('MONITORING_COMPLETED_NON_COMPLIANT', 'Monitoring Personnel'): ['review'],
             
+            # Unit Head can review completed monitoring inspections and UNIT_REVIEWED inspections
+            ('MONITORING_COMPLETED_COMPLIANT', 'Unit Head'): ['review'],
+            ('MONITORING_COMPLETED_NON_COMPLIANT', 'Unit Head'): ['review'],
             ('UNIT_REVIEWED', 'Unit Head'): ['review'],
             ('SECTION_REVIEWED', 'Section Chief'): ['review'],
             ('DIVISION_REVIEWED', 'Division Chief'): ['forward_to_legal', 'close'],
@@ -249,8 +252,15 @@ class InspectionSerializer(serializers.ModelSerializer):
             print(f"DEBUG: User is assigned - returning all actions: {available_actions}")
             return available_actions
         else:
-            # User is not assigned - can only assign to themselves
-            filtered_actions = [action for action in available_actions if action == 'assign_to_me']
+            # User is not assigned - can only assign to themselves or perform review actions
+            filtered_actions = []
+            for action in available_actions:
+                if action == 'assign_to_me':
+                    filtered_actions.append(action)
+                elif action == 'review' and user.userlevel == 'Unit Head':
+                    # Unit Head can review inspections even if not assigned (for review tab)
+                    filtered_actions.append(action)
+            
             print(f"DEBUG: User not assigned - returning filtered actions: {filtered_actions}")
             
             # TEMPORARY FIX: If no actions found, return assign_to_me for Division Chief

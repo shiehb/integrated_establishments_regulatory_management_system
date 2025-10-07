@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
-import { saveInspectionDraft, completeInspection, getInspection, updateInspection } from "../../services/api";
+import { saveInspectionDraft, completeInspection, getInspection, updateInspection, reviewInspection } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 
@@ -165,68 +165,74 @@ export default function InspectionForm({ inspectionData }) {
         // Store inspection status for completion logic
         setInspectionStatus(inspectionData.current_status);
         
-        // Check if there's draft data to load
-        if (inspectionData.form?.checklist?.is_draft) {
-          const draftData = inspectionData.form.checklist;
+        // Check if there's checklist data to load (draft or completed)
+        if (inspectionData.form?.checklist && (inspectionData.form.checklist.is_draft || inspectionData.form.checklist.completed_at)) {
+          const checklistData = inspectionData.form.checklist;
           
-          console.log("📝 Found draft data:", draftData);
+          console.log("📝 Found checklist data:", checklistData);
           
-          // Load draft data into form state, preserving existing values if they exist
-          if (draftData.general) {
-            console.log("📝 Loading general data from draft:", draftData.general);
+          // Load checklist data into form state, preserving existing values if they exist
+          if (checklistData.general) {
+            console.log("📝 Loading general data from checklist:", checklistData.general);
             setGeneral(prevGeneral => ({
               ...prevGeneral,
-              ...draftData.general,
-              // Ensure required fields from inspection data are preserved only if not in draft
-              establishment_name: draftData.general.establishment_name || prevGeneral.establishment_name,
-              address: draftData.general.address || prevGeneral.address,
-              coordinates: draftData.general.coordinates || prevGeneral.coordinates,
-              nature_of_business: draftData.general.nature_of_business || prevGeneral.nature_of_business,
-              year_established: draftData.general.year_established || prevGeneral.year_established,
+              ...checklistData.general,
+              // Ensure required fields from inspection data are preserved only if not in checklist
+              establishment_name: checklistData.general.establishment_name || prevGeneral.establishment_name,
+              address: checklistData.general.address || prevGeneral.address,
+              coordinates: checklistData.general.coordinates || prevGeneral.coordinates,
+              nature_of_business: checklistData.general.nature_of_business || prevGeneral.nature_of_business,
+              year_established: checklistData.general.year_established || prevGeneral.year_established,
             }));
           }
           
-          if (draftData.purpose) {
-            setPurpose(draftData.purpose);
+          if (checklistData.purpose) {
+            setPurpose(checklistData.purpose);
           }
           
-          if (draftData.permits) {
-            setPermits(draftData.permits);
+          if (checklistData.permits) {
+            setPermits(checklistData.permits);
           }
           
-          if (draftData.complianceItems) {
-            setComplianceItems(draftData.complianceItems);
+          if (checklistData.complianceItems) {
+            setComplianceItems(checklistData.complianceItems);
           }
           
-          if (draftData.systems) {
-            setSystems(draftData.systems);
+          if (checklistData.systems) {
+            setSystems(checklistData.systems);
           }
           
-          if (draftData.recommendationState) {
-            setRecommendationState(draftData.recommendationState);
+          if (checklistData.recommendationState) {
+            setRecommendationState(checklistData.recommendationState);
           }
           
-          if (draftData.lawFilter) {
-            setLawFilter(draftData.lawFilter);
+          if (checklistData.lawFilter) {
+            setLawFilter(checklistData.lawFilter);
           }
           
-          // Update last save time from draft
-          if (draftData.last_saved) {
-            setLastSaveTime(draftData.last_saved);
+          // Update last save time from checklist
+          if (checklistData.last_saved) {
+            setLastSaveTime(checklistData.last_saved);
           }
           
-          console.log("✅ Draft data loaded successfully into form state");
+          console.log("✅ Checklist data loaded successfully into form state");
           
-          // Show notification that draft was loaded (only once)
+          // Show notification that checklist data was loaded (only once)
           if (!draftNotificationShown.current) {
-            notifications.info("Draft inspection form loaded successfully. You can continue editing where you left off.", {
-              title: 'Draft Loaded',
+            const isDraft = checklistData.is_draft;
+            const message = isDraft 
+              ? "Draft inspection form loaded successfully. You can continue editing where you left off."
+              : "Completed inspection data loaded successfully. You can review the inspection details.";
+            const title = isDraft ? 'Draft Loaded' : 'Inspection Data Loaded';
+            
+            notifications.info(message, {
+              title: title,
               duration: 5000
             });
             draftNotificationShown.current = true;
           }
         } else {
-          console.log("📝 No draft data found, using fresh form");
+          console.log("📝 No checklist data found, using fresh form");
         }
         
         // Mark data as loaded to prevent duplicate loading
@@ -797,6 +803,39 @@ export default function InspectionForm({ inspectionData }) {
     });
   };
 
+  const handleSendToSection = async () => {
+    if (!inspectionId) {
+      notifications.error("No inspection ID found. Cannot send to section.", { 
+        title: 'Send Failed' 
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Call the review action to change status to SECTION_REVIEWED
+      await reviewInspection(inspectionId, {
+        remarks: 'Sent to Section Chief for review'
+      });
+      
+      notifications.success("Inspection sent to Section Chief successfully!", { 
+        title: 'Sent to Section',
+        duration: 6000
+      });
+      
+      // Navigate back to inspections list
+      navigate("/inspections");
+    } catch (error) {
+      console.error("Failed to send to section:", error);
+      notifications.error(`Failed to send to section: ${error.message}`, { 
+        title: 'Send Failed' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const executeComplete = async () => {
     const { compliance } = completeConfirmation;
     
@@ -822,15 +861,15 @@ export default function InspectionForm({ inspectionData }) {
     };
 
     try {
-      console.log("✅ Completing inspection with data:", formData);
+      console.log("✅ Submitting inspection for Unit Head review with data:", formData);
       
-      // Complete the inspection
+      // Complete the inspection (automatically transitions to UNIT_REVIEWED)
       await completeInspection(inspectionId, {
         form_data: formData,
         compliance_decision: compliance.toUpperCase(),
         violations_found: autoViolations,
         findings_summary: autoFindings,
-        remarks: 'Inspection completed via form'
+        remarks: 'Inspection submitted for Unit Head review'
       });
       
       // Clear localStorage draft since it's completed
@@ -841,8 +880,8 @@ export default function InspectionForm({ inspectionData }) {
       }
       
       // Show success message
-      notifications.success("Inspection completed successfully!", { 
-        title: 'Inspection Completed',
+      notifications.success("Inspection submitted successfully! It has been sent to Unit Head for review.", { 
+        title: 'Inspection Submitted',
         duration: 6000
       });
       
@@ -891,8 +930,10 @@ export default function InspectionForm({ inspectionData }) {
             onDraft={handleDraft}
             onClose={handleClose}
             onComplete={handleComplete}
+            onSendToSection={handleSendToSection}
             lastSaveTime={lastSaveTime}
             showCompleteButton={currentUser?.userlevel === 'Monitoring Personnel' && inspectionStatus === 'MONITORING_IN_PROGRESS'}
+            showSendToSectionButton={currentUser?.userlevel === 'Unit Head' && inspectionStatus === 'UNIT_REVIEWED'}
             isDraft={fullInspectionData?.form?.checklist?.is_draft || false}
           />
 
@@ -975,11 +1016,11 @@ export default function InspectionForm({ inspectionData }) {
     {/* Completion Confirmation Dialog */}
     <ConfirmationDialog
       open={completeConfirmation.open}
-      title="Complete Inspection"
+      title="Submit Inspection for Review"
       message={
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Based on the collected inspection data, the following compliance status has been determined:
+            Based on the collected inspection data, the following compliance status has been determined. This inspection will be submitted to the Unit Head for review:
           </p>
           
           <div>

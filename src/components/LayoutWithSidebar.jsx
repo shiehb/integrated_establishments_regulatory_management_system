@@ -70,7 +70,7 @@ export default function LayoutWithSidebar({ children }) {
           }
         />
         <main className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="p-6 pb-0">
+          <div className=" pb-0">
             {children}
           </div>
         </main>

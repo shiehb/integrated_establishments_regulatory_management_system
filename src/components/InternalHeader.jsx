@@ -333,7 +333,7 @@ export default function InternalHeader({
       {/* --- Floating Help Bubble (bottom-right) --- */}
       <button
         onClick={() => setShowHelpModal(true)}
-        className="fixed z-40 flex items-center justify-center w-8 h-8 transition-all duration-200 rounded-full shadow-lg bottom-10 right-4 bg-sky-600 hover:bg-sky-700 hover:scale-105"
+        className="fixed z-40 flex items-center justify-center w-8 h-8 transition-all duration-200 rounded-full shadow-lg bottom-4 right-4 bg-sky-600 hover:bg-sky-700 hover:scale-105"
         title="Help"
       >
         <HelpCircle className="text-white w-7 h-7" />
@@ -341,7 +341,7 @@ export default function InternalHeader({
 
       {/* --- Help Modal (bottom-right widget) --- */}
       {showHelpModal && (
-        <div className="fixed z-50 bottom-10 right-4">
+        <div className="fixed z-50 bottom-4 right-4">
           <div className="w-100 max-h-[60vh] min-h-[50vh] flex flex-col p-2 bg-white rounded border border-gray-500 relative">
             {/* Header */}
             <div className="flex items-center justify-between p-2 border-b border-gray-200 rounded-t-lg bg-sky-50">
