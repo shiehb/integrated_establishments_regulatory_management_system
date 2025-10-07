@@ -281,16 +281,16 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       return;
     }
     
-    // For inspect action, show confirmation dialog for section chiefs
+    // For inspect action, show confirmation dialog for section chiefs and unit heads
     if (action === 'inspect') {
-      // Check if user is Section Chief
-      if (userLevel === 'Section Chief') {
-      setActionConfirmation({ 
-        open: true, 
-        inspection, 
-        action 
-      });
-      return;
+      // Check if user is Section Chief or Unit Head
+      if (userLevel === 'Section Chief' || userLevel === 'Unit Head') {
+        setActionConfirmation({ 
+          open: true, 
+          inspection, 
+          action 
+        });
+        return;
       } else {
         // For other user levels, directly execute the action
         try {
@@ -335,49 +335,62 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     if (!inspection || !action) return;
 
     try {
-      // For inspect action by Section Chief, execute the action and then open the form
-      if (action === 'inspect' && userLevel === 'Section Chief') {
-      await handleAction(action, inspection.id);
+      // For inspect action by Section Chief or Unit Head, execute the action and then open the form
+      if (action === 'inspect' && (userLevel === 'Section Chief' || userLevel === 'Unit Head')) {
+        await handleAction(action, inspection.id);
         notifications.success(
           `Inspection ${inspection.code} assigned to you`, 
           { title: 'Inspection Assigned' }
         );
         
         // Close confirmation dialog
-      setActionConfirmation({ open: false, inspection: null, action: null });
+        setActionConfirmation({ open: false, inspection: null, action: null });
         
         // Navigate to inspection form page
         window.location.href = `/inspections/${inspection.id}/form`;
         return;
       }
       
-      // For forward action, determine target based on section type
+      // For forward action, determine target based on user level and section type
       if (action === 'forward') {
-        // Determine if this is a combined section (EIA, Air & Water)
-        const isCombinedSection = currentUser?.section === 'PD-1586,RA-8749,RA-9275';
-        
         let forwardData = {
           remarks: 'Forwarded to next level'
         };
         
-        if (isCombinedSection) {
-          // Combined section forwards to Unit (if Unit Head exists)
-          forwardData.target = 'unit';
-        } else {
-          // Individual sections (Toxic, Solid) forward to Monitoring
+        if (userLevel === 'Section Chief') {
+          // Section Chief forward logic
+          const isCombinedSection = currentUser?.section === 'PD-1586,RA-8749,RA-9275';
+          
+          if (isCombinedSection) {
+            // Combined section forwards to Unit (if Unit Head exists)
+            forwardData.target = 'unit';
+          } else {
+            // Individual sections (Toxic, Solid) forward to Monitoring
+            forwardData.target = 'monitoring';
+          }
+        } else if (userLevel === 'Unit Head') {
+          // Unit Head always forwards to Monitoring Personnel
           forwardData.target = 'monitoring';
         }
         
         try {
           await handleAction(action, inspection.id, forwardData);
           
-          // Show success message based on section type
-          if (isCombinedSection) {
-            notifications.success(
-              `Inspection ${inspection.code} forwarded to Unit Head`, 
-              { title: 'Inspection Forwarded' }
-            );
-          } else {
+          // Show success message based on user level and section type
+          if (userLevel === 'Section Chief') {
+            const isCombinedSection = currentUser?.section === 'PD-1586,RA-8749,RA-9275';
+            if (isCombinedSection) {
+              notifications.success(
+                `Inspection ${inspection.code} forwarded to Unit Head`, 
+                { title: 'Inspection Forwarded' }
+              );
+            } else {
+              notifications.success(
+                `Inspection ${inspection.code} forwarded to Monitoring Personnel`, 
+                { title: 'Inspection Forwarded' }
+              );
+            }
+          } else if (userLevel === 'Unit Head') {
             notifications.success(
               `Inspection ${inspection.code} forwarded to Monitoring Personnel`, 
               { title: 'Inspection Forwarded' }
@@ -1133,16 +1146,28 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             </p>
             {actionConfirmation.action === 'inspect' ? (
               <div className="text-sm text-gray-600">
-                <p className="mb-2">This will assign the inspection to you and open the inspection form.</p>
+                <p className="mb-2">
+                  {userLevel === 'Section Chief' 
+                    ? "This will assign the inspection to you and open the inspection form."
+                    : userLevel === 'Unit Head'
+                    ? "This will assign the inspection to you and open the inspection form."
+                    : "This will assign the inspection to you and open the inspection form."
+                  }
+                </p>
                 <p>Are you sure you want to proceed?</p>
               </div>
             ) : actionConfirmation.action === 'forward' ? (
               <div className="text-sm text-gray-600">
                 <p className="mb-2">
-                  {currentUser?.section === 'PD-1586,RA-8749,RA-9275' 
-                    ? "This will forward the inspection to Unit Head (Combined Section). If no Unit Head is assigned, you will be notified."
-                    : "This will forward the inspection to Monitoring Personnel (Individual Section)."
-                  }
+                  {userLevel === 'Section Chief' ? (
+                    currentUser?.section === 'PD-1586,RA-8749,RA-9275' 
+                      ? "This will forward the inspection to Unit Head (Combined Section). If no Unit Head is assigned, you will be notified."
+                      : "This will forward the inspection to Monitoring Personnel (Individual Section)."
+                  ) : userLevel === 'Unit Head' ? (
+                    "This will forward the inspection to Monitoring Personnel."
+                  ) : (
+                    "This will forward the inspection to the next level."
+                  )}
                 </p>
                 <p>Are you sure you want to proceed?</p>
               </div>
