@@ -5,6 +5,10 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 import os
+try:
+    from system_config.models import SystemConfiguration
+except Exception:
+    SystemConfiguration = None
 
 def generate_otp(email):
     """Generate a 6-digit OTP and store it in cache"""
@@ -29,7 +33,9 @@ def send_otp_email(user_email, otp):
     if os.path.exists(template_path):
         html_message = render_to_string('emails/otp_email.html', {
             'otp_code': otp,
-            'email': user_email
+            'email': user_email,
+            'logo_url': getattr(settings, 'EMAIL_HEADER_LOGO_URL', None),
+            'logo_alt': getattr(settings, 'EMAIL_HEADER_LOGO_ALT', 'IERMS Logo'),
         })
         plain_message = strip_tags(html_message)
     else:
@@ -48,10 +54,16 @@ def send_otp_email(user_email, otp):
         html_message = None
     
     try:
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None)
+        if not from_email and SystemConfiguration is not None:
+            try:
+                from_email = SystemConfiguration.get_active_config().get_constructed_from_email()
+            except Exception:
+                from_email = None
         send_mail(
             subject=subject,
             message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=from_email,
             recipient_list=[user_email],
             html_message=html_message,
             fail_silently=False,
