@@ -962,13 +962,17 @@ class InspectionViewSet(viewsets.ModelViewSet):
                     section=inspection.law,  # Use the specific law, not combined section
                     is_active=True
                 ).first()
+                
+                if unit_head:
+                    next_status = 'UNIT_ASSIGNED'
+                else:
+                    # No Unit Head found for combined section - return error
+                    return Response(
+                        {'error': f'No Unit Head assigned for {inspection.law}. Please assign a Unit Head before forwarding.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
             else:
                 # Individual section: go directly to Monitoring Personnel
-                unit_head = None
-            
-            if unit_head:
-                next_status = 'UNIT_ASSIGNED'
-            else:
                 next_status = 'MONITORING_ASSIGNED'
         # Unit Head can forward directly to Monitoring Personnel
         elif inspection.current_status == 'UNIT_ASSIGNED':
@@ -1072,7 +1076,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.save()
         
         # Log history
-        default_remarks = f'Forwarded to {next_assignee.get_full_name() or next_assignee.username} ({next_assignee.userlevel})'
+        # Create full name from available fields
+        full_name_parts = [next_assignee.first_name, next_assignee.middle_name, next_assignee.last_name]
+        full_name = ' '.join([part for part in full_name_parts if part]).strip()
+        display_name = full_name if full_name else next_assignee.email
+        default_remarks = f'Forwarded to {display_name} ({next_assignee.userlevel})'
         remarks = request.data.get('remarks', default_remarks)
         
         # Ensure remarks contains "Forwarded" for proper tab filtering

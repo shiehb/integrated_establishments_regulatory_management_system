@@ -24,7 +24,6 @@ import {
 import StatusBadge from "./StatusBadge";
 import InspectionTabs from "./InspectionTabs";
 import InspectionActions from "./InspectionActions";
-import ForwardModal from "./ForwardModal";
 import { roleTabs, tabDisplayNames } from "../../constants/inspectionConstants";
 import ExportDropdown from "../ExportDropdown";
 import PrintPDF from "../PrintPDF";
@@ -231,11 +230,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     action: null 
   });
 
-  // Forward modal state
-  const [forwardModal, setForwardModal] = useState({ 
-    open: false, 
-    inspection: null 
-  });
 
   // Handle action clicks with simple confirmation
   const handleActionClick = useCallback(async (action, inspectionId) => {
@@ -287,21 +281,41 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       return;
     }
     
-    // For inspect action, just execute the action (moves to My Inspections)
+    // For inspect action, show confirmation dialog for section chiefs
     if (action === 'inspect') {
+      // Check if user is Section Chief
+      if (userLevel === 'Section Chief') {
       setActionConfirmation({ 
         open: true, 
         inspection, 
         action 
       });
       return;
+      } else {
+        // For other user levels, directly execute the action
+        try {
+          await handleAction(action, inspectionId);
+          notifications.success(
+            `Inspection ${inspection.code} assigned to you`, 
+            { title: 'Inspection Assigned' }
+          );
+        } catch (error) {
+          console.error('Error executing inspect action:', error);
+          notifications.error(
+            `Error assigning inspection: ${error.message}`, 
+            { title: 'Error' }
+          );
+        }
+        return;
+      }
     }
     
-    // For forward action, show forward modal
+    // For forward action, show confirmation dialog
     if (action === 'forward') {
-      setForwardModal({ 
+      setActionConfirmation({ 
         open: true, 
-        inspection 
+        inspection, 
+        action 
       });
       return;
     }
@@ -312,7 +326,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       inspection, 
       action 
     });
-  }, [inspections, handleAction, notifications]);
+  }, [inspections, handleAction, notifications, userLevel]);
 
 
   // Execute confirmed action
@@ -321,22 +335,71 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     if (!inspection || !action) return;
 
     try {
+      // For inspect action by Section Chief, execute the action and then open the form
+      if (action === 'inspect' && userLevel === 'Section Chief') {
+      await handleAction(action, inspection.id);
+        notifications.success(
+          `Inspection ${inspection.code} assigned to you`, 
+          { title: 'Inspection Assigned' }
+        );
+        
+        // Close confirmation dialog
+      setActionConfirmation({ open: false, inspection: null, action: null });
+        
+        // Navigate to inspection form page
+        window.location.href = `/inspections/${inspection.id}/form`;
+        return;
+      }
+      
+      // For forward action, determine target based on section type
+      if (action === 'forward') {
+        // Determine if this is a combined section (EIA, Air & Water)
+        const isCombinedSection = currentUser?.section === 'PD-1586,RA-8749,RA-9275';
+        
+        let forwardData = {
+          remarks: 'Forwarded to next level'
+        };
+        
+        if (isCombinedSection) {
+          // Combined section forwards to Unit (if Unit Head exists)
+          forwardData.target = 'unit';
+        } else {
+          // Individual sections (Toxic, Solid) forward to Monitoring
+          forwardData.target = 'monitoring';
+        }
+        
+        try {
+          await handleAction(action, inspection.id, forwardData);
+          
+          // Show success message based on section type
+          if (isCombinedSection) {
+            notifications.success(
+              `Inspection ${inspection.code} forwarded to Unit Head`, 
+              { title: 'Inspection Forwarded' }
+            );
+          } else {
+            notifications.success(
+              `Inspection ${inspection.code} forwarded to Monitoring Personnel`, 
+              { title: 'Inspection Forwarded' }
+            );
+          }
+          
+          setActionConfirmation({ open: false, inspection: null, action: null });
+        } catch {
+          // Error handling is done in the useInspectionActions hook
+          // The error message will be displayed automatically
+        }
+        return;
+      }
+      
+      // For other actions, just execute normally
       await handleAction(action, inspection.id);
       setActionConfirmation({ open: false, inspection: null, action: null });
     } catch {
       // Error is already handled in the hook
     }
-  }, [actionConfirmation, handleAction]);
+  }, [actionConfirmation, handleAction, userLevel, notifications, currentUser]);
 
-  // Handle forward modal submit
-  const handleForwardSubmit = useCallback(async (inspectionId, data) => {
-    try {
-      await handleAction('forward', inspectionId, data);
-      setForwardModal({ open: false, inspection: null });
-    } catch {
-      // Error is already handled in the hook
-    }
-  }, [handleAction]);
 
   // Delete inspection function
   const handleDeleteInspection = useCallback(async (inspection) => {
@@ -1043,7 +1106,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       {/* Action Confirmation Dialog */}
       <ConfirmationDialog
         open={actionConfirmation.open}
-        title="Confirm Workflow Action"
+        title={
+          actionConfirmation.action === 'inspect' 
+            ? "Confirm Inspection Assignment" 
+            : actionConfirmation.action === 'forward'
+            ? "Confirm Forward Action"
+            : "Confirm Workflow Action"
+        }
         message={
           <div>
             <p className="mb-2">
@@ -1062,12 +1131,35 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             <p className="mb-2">
               <strong>Action:</strong> {actionConfirmation.action?.replace('_', ' ').toUpperCase()}
             </p>
+            {actionConfirmation.action === 'inspect' ? (
+              <div className="text-sm text-gray-600">
+                <p className="mb-2">This will assign the inspection to you and open the inspection form.</p>
+                <p>Are you sure you want to proceed?</p>
+              </div>
+            ) : actionConfirmation.action === 'forward' ? (
+              <div className="text-sm text-gray-600">
+                <p className="mb-2">
+                  {currentUser?.section === 'PD-1586,RA-8749,RA-9275' 
+                    ? "This will forward the inspection to Unit Head (Combined Section). If no Unit Head is assigned, you will be notified."
+                    : "This will forward the inspection to Monitoring Personnel (Individual Section)."
+                  }
+                </p>
+                <p>Are you sure you want to proceed?</p>
+              </div>
+            ) : (
             <p className="text-sm text-gray-600">
               Are you sure you want to perform this action?
             </p>
+            )}
           </div>
         }
-        confirmText="Confirm"
+        confirmText={
+          actionConfirmation.action === 'inspect' 
+            ? "Assign & Open Form" 
+            : actionConfirmation.action === 'forward'
+            ? "Forward Inspection"
+            : "Confirm"
+        }
         cancelText="Cancel"
         confirmColor="sky"
         size="lg"
@@ -1075,14 +1167,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         onConfirm={executeAction}
       />
 
-      {/* Forward Modal */}
-      <ForwardModal
-        open={forwardModal.open}
-        inspection={forwardModal.inspection}
-        userLevel={userLevel}
-        onClose={() => setForwardModal({ open: false, inspection: null })}
-        onSubmit={handleForwardSubmit}
-      />
 
     </div>
   );

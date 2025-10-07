@@ -377,11 +377,11 @@ export default function InspectionForm({ inspectionData }) {
     complianceItems.forEach((c, i) => {
       // Only validate if the compliance item's law is selected
       if (selectedLaws.includes(c.lawId)) {
-        if (!c.compliant) errs[`compliant-${i}`] = "Select compliance status.";
-        if (c.compliant === "Non-Compliant") {
-          if (!c.remarksOption) errs[`remarks-${i}`] = "Select a remark option.";
-          if (c.remarksOption === "Other" && !c.remarks)
-            errs[`remarks-${i}`] = "Enter custom remarks.";
+      if (!c.compliant) errs[`compliant-${i}`] = "Select compliance status.";
+      if (c.compliant === "Non-Compliant") {
+        if (!c.remarksOption) errs[`remarks-${i}`] = "Select a remark option.";
+        if (c.remarksOption === "Other" && !c.remarks)
+          errs[`remarks-${i}`] = "Enter custom remarks.";
         }
       }
     });
@@ -392,13 +392,13 @@ export default function InspectionForm({ inspectionData }) {
       const shouldValidate = selectedLaws.includes(s.lawId) && s.system !== "Commitment/s from previous Technical Conference";
       
       if (shouldValidate) {
-        if (!s.compliant && !s.nonCompliant)
-          errs[`systemStatus-${i}`] = `Select status for "${s.system}".`;
-        if (s.nonCompliant) {
-          if (!s.remarksOption)
-            errs[`sysRemarks-${i}`] = "Select a remark option.";
-          if (s.remarksOption === "Other" && !s.remarks)
-            errs[`sysRemarks-${i}`] = "Enter custom remarks.";
+      if (!s.compliant && !s.nonCompliant)
+        errs[`systemStatus-${i}`] = `Select status for "${s.system}".`;
+      if (s.nonCompliant) {
+        if (!s.remarksOption)
+          errs[`sysRemarks-${i}`] = "Select a remark option.";
+        if (s.remarksOption === "Other" && !s.remarks)
+          errs[`sysRemarks-${i}`] = "Enter custom remarks.";
         }
       }
     });
