@@ -31,7 +31,7 @@ export default function Login() {
       // Clear the state to prevent showing the message again
       window.history.replaceState({}, document.title, location.pathname);
     }
-  }, [location.state, location.pathname, notifications]);
+  }, [location.state, location.pathname]);
 
   const handleChange = (e) => {
     setFormData({

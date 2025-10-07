@@ -9,40 +9,17 @@ export default function InternalHeader({
   onClose, 
   onComplete, 
   lastSaveTime, 
-  isOnline, 
-  isSaving = false,
-  saveError = null,
-  hasDataChanged = false,
-  showCompleteButton = false 
+  showCompleteButton = false,
+  isDraft = false
 }) {
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between w-full px-6 py-2 bg-white border-b border-gray-200">
       <div className="text-xl font-bold text-sky-700">Inspection Form</div>
       <div className="flex items-center gap-4">
-        {/* Connection Status */}
-        <div className={`text-sm ${isOnline ? "text-green-600" : "text-red-600"}`}>
-          {isOnline ? "🟢 Online" : "🔴 Offline"}
-        </div>
-        
-        {/* Auto-save Status */}
-        {isSaving && (
-          <div className="text-sm text-blue-600 flex items-center gap-1">
-            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            Saving...
-          </div>
-        )}
-        
-        {/* Save Error */}
-        {saveError && (
-          <div className="text-sm text-red-600" title={saveError}>
-            ⚠️ Save Error
-          </div>
-        )}
-        
-        {/* Data Changed Indicator */}
-        {hasDataChanged && !isSaving && (
-          <div className="text-sm text-orange-600">
-            📝 Unsaved Changes
+        {/* Draft Status */}
+        {isDraft && (
+          <div className="text-sm text-yellow-600 flex items-center gap-1">
+            📝 Draft
           </div>
         )}
         

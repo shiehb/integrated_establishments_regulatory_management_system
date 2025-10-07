@@ -30,7 +30,7 @@ import PrintPDF from "../PrintPDF";
 import DateRangeDropdown from "../DateRangeDropdown";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
-import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
+import PaginationControls, { useLocalStoragePagination, useLocalStorageTab } from "../PaginationControls";
 import { useInspectionActions } from "../../hooks/useInspectionActions";
 
 // Debounce hook
@@ -72,9 +72,15 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
-  // 📑 Tab state for role-based tabs
+  // 📑 Tab state for role-based tabs with localStorage persistence
+  const { loadFromStorage: loadTabFromStorage, saveToStorage: saveTabToStorage } = useLocalStorageTab("inspections_list");
   const [activeTab, setActiveTab] = useState(() => {
     const availableTabs = roleTabs[userLevel] || ['all'];
+    const savedTab = loadTabFromStorage();
+    // Check if saved tab is still available for current user level
+    if (savedTab && availableTabs.includes(savedTab)) {
+      return savedTab;
+    }
     return availableTabs[0];
   });
 
@@ -92,6 +98,14 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
   // ✅ Bulk select
   const [selectedInspections, setSelectedInspections] = useState([]);
+
+  // Handle tab change with localStorage persistence
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    saveTabToStorage(newTab);
+    // Reset to page 1 when changing tabs
+    setCurrentPage(1);
+  };
 
 
   const fetchAllInspections = useCallback(async () => {
@@ -292,7 +306,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       inspection, 
       action 
     });
-  }, [inspections, handleAction, notifications]);
+  }, [inspections, handleAction]);
 
 
   // Execute confirmed action
@@ -319,7 +333,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       console.error('Error deleting inspection:', error);
       notifications.error(`Error deleting inspection: ${error.message}`, { title: 'Error' });
     }
-  }, [fetchAllInspections, notifications]);
+  }, [fetchAllInspections]);
 
   // Fetch user profile
   useEffect(() => {
@@ -505,8 +519,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     sortConfig,
   ]);
 
-  // ✅ Pagination (using server-side pagination, so no need for paginatedInspections)
-  const totalPages = Math.ceil(filteredInspections.length / pageSize);
+  // ✅ Pagination (using server-side pagination)
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   // ✅ Selection
   const toggleSelect = (id) => {
@@ -887,15 +901,16 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       <InspectionTabs 
         userLevel={userLevel}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         tabCounts={tabCounts}
       />
 
-      {/* Table */}
-      <table className="w-full border border-gray-300 rounded-lg">
-        <thead>
-          <tr className="text-sm text-left text-white bg-sky-700">
-            <th className="w-6 p-1 text-center border-b border-gray-300">
+      {/* Table Container with Scroll */}
+      <div className="overflow-x-auto border border-gray-300 rounded-lg">
+        <table className="w-full min-w-[800px]">
+          <thead className="bg-sky-700 text-white sticky top-0 z-10">
+            <tr className="text-sm text-left">
+              <th className="w-12 p-3 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
                   checked={
@@ -903,20 +918,21 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     selectedInspections.length === inspections.length
                   }
                   onChange={toggleSelectAll}
+                  className="rounded border-gray-300"
                 />
               </th>
               {[
-                { key: "code", label: "Code", sortable: true },
-                { key: "establishments_detail", label: "Establishments", sortable: false },
-                { key: "law", label: "Law", sortable: false },
-                { key: "current_status", label: "Status", sortable: true },
-                { key: "assigned_to_name", label: "Assigned To", sortable: false },
-                { key: "created_at", label: "Created", sortable: true },
+                { key: "code", label: "Code", sortable: true, width: "w-32" },
+                { key: "establishments_detail", label: "Establishments", sortable: false, width: "w-64" },
+                { key: "law", label: "Law", sortable: false, width: "w-32" },
+                { key: "current_status", label: "Status", sortable: true, width: "w-40" },
+                { key: "assigned_to_name", label: "Assigned To", sortable: false, width: "w-48" },
+                { key: "created_at", label: "Created", sortable: true, width: "w-36" },
               ].map((col) => (
                 <th
                   key={col.key}
-                  className={`p-1 border-b border-gray-300 ${
-                    col.sortable ? "cursor-pointer" : ""
+                  className={`p-3 border-b border-gray-300 ${col.width} ${
+                    col.sortable ? "cursor-pointer hover:bg-sky-600" : ""
                   }`}
                   onClick={col.sortable ? () => handleSort(col.key) : undefined}
                 >
@@ -926,7 +942,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   </div>
                 </th>
               ))}
-              <th className="p-1 text-center border-b border-gray-300 w-35 font-medium">
+              <th className="p-3 text-center border-b border-gray-300 w-32 font-medium">
                 Actions
               </th>
             </tr>
@@ -935,8 +951,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             {loading ? (
               <tr>
                 <td
-                  colSpan="7"
-                  className="px-2 py-8 text-center border-b border-gray-300"
+                  colSpan="8"
+                  className="px-4 py-8 text-center"
                 >
                   <div
                     className="flex flex-col items-center justify-center p-4"
@@ -951,8 +967,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             ) : inspections.length === 0 ? (
               <tr>
                 <td
-                  colSpan="7"
-                  className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
+                  colSpan="8"
+                  className="px-4 py-8 text-center text-gray-500"
                 >
                   {hasActiveFilters ? (
                     <div>
@@ -975,31 +991,32 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                 <tr
                   key={inspection.id}
                   onClick={() => handleRowClick(inspection)}
-                  className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50 cursor-pointer"
+                  className="text-sm border-b border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
                 >
-                  <td className="text-center border-b border-gray-300">
+                  <td className="p-3 text-center">
                     <input
                       type="checkbox"
                       checked={selectedInspections.includes(inspection.id)}
                       onChange={() => toggleSelect(inspection.id)}
+                      className="rounded border-gray-300"
                     />
                   </td>
-                  <td className="px-2 font-semibold border-b border-gray-300">
+                  <td className="p-3 font-semibold">
                     <div className="flex items-center">
-                      <FileText className="h-4 w-4 text-gray-400 mr-2" />
-                      {inspection.code}
+                      <FileText className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
+                      <span className="truncate">{inspection.code}</span>
                     </div>
                   </td>
-                  <td className="px-2 border-b border-gray-300">
-                    <div className="flex items-center">
-                      <Building className="h-4 w-4 text-gray-400 mr-2" />
-                      <div>
+                  <td className="p-3">
+                    <div className="flex items-start">
+                      <Building className="h-4 w-4 text-gray-400 mr-2 mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
                         {inspection.establishments_detail && inspection.establishments_detail.length > 0 ? (
                           inspection.establishments_detail.map((est, idx) => (
-                            <div key={idx} className="mb-1">
-                              <div className="text-sm font-medium text-gray-900">{est.name}</div>
-                              <div className="text-xs text-gray-500">{est.nature_of_business}</div>
-                              <div className="text-xs text-gray-400">{est.city}, {est.province}</div>
+                            <div key={idx} className="mb-1 last:mb-0">
+                              <div className="text-sm font-medium text-gray-900 truncate" title={est.name}>{est.name}</div>
+                              <div className="text-xs text-gray-500 truncate" title={est.nature_of_business}>{est.nature_of_business}</div>
+                              <div className="text-xs text-gray-400 truncate" title={`${est.city}, ${est.province}`}>{est.city}, {est.province}</div>
                             </div>
                           ))
                         ) : (
@@ -1008,33 +1025,33 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                       </div>
                     </div>
                   </td>
-                  <td className="px-2 border-b border-gray-300">
-                    <div className="text-sm text-gray-600">{inspection.law}</div>
+                  <td className="p-3">
+                    <div className="text-sm text-gray-600 truncate" title={inspection.law}>{inspection.law}</div>
                   </td>
-                  <td className="px-2 border-b border-gray-300">
+                  <td className="p-3">
                     <StatusBadge 
                       status={inspection.current_status} 
                     />
                   </td>
-                  <td className="px-2 border-b border-gray-300">
+                  <td className="p-3">
                     {inspection.assigned_to_name ? (
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{inspection.assigned_to_name}</div>
+                        <div className="text-sm font-medium text-gray-900 truncate" title={inspection.assigned_to_name}>{inspection.assigned_to_name}</div>
                         {inspection.assigned_to_level && (
-                          <div className="text-xs text-gray-500">{inspection.assigned_to_level}</div>
+                          <div className="text-xs text-gray-500 truncate" title={inspection.assigned_to_level}>{inspection.assigned_to_level}</div>
                         )}
                       </div>
                     ) : (
                       <span className="text-sm text-gray-400">Unassigned</span>
                     )}
                   </td>
-                  <td className="px-2 border-b border-gray-300">
+                  <td className="p-3">
                     <div className="flex items-center">
-                      <Calendar className="h-4 w-4 text-gray-400 mr-2" />
+                      <Calendar className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
                       <div className="text-sm text-gray-600">{formatFullDate(inspection.created_at)}</div>
                     </div>
                   </td>
-                  <td className="p-1 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
+                  <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <InspectionActions 
                       inspection={inspection}
                       availableActions={inspection.available_actions || []}
@@ -1047,6 +1064,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             )}
           </tbody>
         </table>
+      </div>
 
       {/* Pagination Controls */}
       <PaginationControls

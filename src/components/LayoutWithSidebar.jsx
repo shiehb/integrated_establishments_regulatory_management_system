@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import InternalHeader from "./InternalHeader";
+import Footer from "./Footer";
 import { getProfile } from "../services/api";
 
 // Helper: set cache with expiry
@@ -55,22 +56,25 @@ export default function LayoutWithSidebar({ children }) {
   }, [profile]);
 
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-1">
-        <Sidebar
+    <div className="h-full flex">
+      <Sidebar
+        userLevel={profile?.userlevel || "public"}
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
+      <div className="flex flex-col flex-1 min-w-0 transition-all duration-300">
+        <InternalHeader
           userLevel={profile?.userlevel || "public"}
-          isOpen={sidebarOpen}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          userName={
+            profile ? `${profile.first_name} ${profile.last_name}` : "Guest"
+          }
         />
-        <div className="flex flex-col flex-1 transition-all duration-300">
-          <InternalHeader
-            userLevel={profile?.userlevel || "public"}
-            userName={
-              profile ? `${profile.first_name} ${profile.last_name}` : "Guest"
-            }
-          />
-          <main>{children}</main>
-        </div>
+        <main className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="p-6 pb-0">
+            {children}
+          </div>
+        </main>
+        <Footer />
       </div>
     </div>
   );

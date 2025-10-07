@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, CheckCircle, AlertTriangle, FileText, Calendar, User, Building } from 'lucide-react';
-import { getInspection, startInspection } from '../../services/api';
+import { getInspection, startInspection, saveInspectionDraft } from '../../services/api';
 import { useNotifications } from '../NotificationManager';
 
 const InspectionForm = () => {
@@ -12,6 +12,8 @@ const InspectionForm = () => {
   const [inspection, setInspection] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [hasExistingData, setHasExistingData] = useState(false);
   const [formData, setFormData] = useState({
     findings_summary: '',
     compliance_observations: '',
@@ -29,6 +31,46 @@ const InspectionForm = () => {
     try {
       const data = await getInspection(id);
       setInspection(data);
+      
+      // Load existing form data if available
+      if (data.form) {
+        console.log('Loading existing form data:', data.form);
+        
+        // Extract data from checklist JSON if available
+        let checklistData = {};
+        if (data.form.checklist && typeof data.form.checklist === 'object') {
+          checklistData = data.form.checklist;
+        } else if (data.form.checklist && typeof data.form.checklist === 'string') {
+          try {
+            checklistData = JSON.parse(data.form.checklist);
+          } catch (e) {
+            console.warn('Failed to parse checklist JSON:', e);
+            checklistData = {};
+          }
+        }
+        
+        console.log('Extracted checklist data:', checklistData);
+        
+        // Check if we have any existing data (from direct fields or checklist)
+        const hasDirectData = data.form.findings_summary || data.form.compliance_observations || 
+                             data.form.violations_found || data.form.compliance_plan || 
+                             data.form.inspection_notes;
+        const hasChecklistData = checklistData.general || checklistData.purpose || 
+                                checklistData.permits || checklistData.complianceItems || 
+                                checklistData.systems || checklistData.recommendationState;
+        
+        setHasExistingData(!!(hasDirectData || hasChecklistData));
+        
+        // Load data from both direct fields and checklist
+        setFormData({
+          findings_summary: data.form.findings_summary || checklistData.general?.findings_summary || '',
+          compliance_observations: data.form.compliance_observations || checklistData.general?.compliance_observations || '',
+          violations_found: data.form.violations_found || checklistData.general?.violations_found || '',
+          recommendations: data.form.compliance_plan || checklistData.general?.recommendations || '',
+          remarks: data.form.inspection_notes || checklistData.general?.remarks || ''
+        });
+      }
+      
       setLoading(false);
     } catch (error) {
       console.error('Error fetching inspection:', error);
@@ -67,6 +109,31 @@ const InspectionForm = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleSaveDraft = async () => {
+    setSavingDraft(true);
+    try {
+      // Format form data to match backend save_draft structure
+      const formattedData = {
+        general: {
+          findings_summary: formData.findings_summary,
+          compliance_observations: formData.compliance_observations,
+          violations_found: formData.violations_found,
+          recommendations: formData.recommendations,
+          inspection_notes: formData.remarks
+        }
+      };
+      
+      await saveInspectionDraft(id, { form_data: formattedData });
+      notifications.success('Draft saved successfully!', { title: 'Success' });
+      setHasExistingData(true);
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      notifications.error('Failed to save draft', { title: 'Error' });
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
   const handleStartInspection = async () => {
     if (!validateForm()) {
       return;
@@ -74,8 +141,19 @@ const InspectionForm = () => {
 
     setSaving(true);
     try {
-      await startInspection(id, formData);
-      notifications.success('Inspection started successfully!', { title: 'Success' });
+      // Format form data to match backend save_draft structure
+      const formattedData = {
+        general: {
+          findings_summary: formData.findings_summary,
+          compliance_observations: formData.compliance_observations,
+          violations_found: formData.violations_found,
+          recommendations: formData.recommendations,
+          inspection_notes: formData.remarks
+        }
+      };
+      
+      await startInspection(id, formattedData);
+      notifications.success(hasExistingData ? 'Inspection updated successfully!' : 'Inspection started successfully!', { title: 'Success' });
       navigate('/inspections');
     } catch (error) {
       console.error('Error starting inspection:', error);
@@ -130,7 +208,9 @@ const InspectionForm = () => {
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Inspection Form</h1>
-                <p className="text-gray-600">Fill out the inspection details</p>
+                <p className="text-gray-600">
+                  {hasExistingData ? 'Continue filling out the inspection details' : 'Fill out the inspection details'}
+                </p>
               </div>
             </div>
             <div className="text-right">
@@ -260,7 +340,7 @@ const InspectionForm = () => {
             </div>
 
             {/* Form Actions */}
-            <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200 mt-8">
+            <div className="flex items-center justify-between pt-6 border-t border-gray-200 mt-8">
               <button
                 type="button"
                 onClick={handleBack}
@@ -268,23 +348,45 @@ const InspectionForm = () => {
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {saving ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Starting...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-4 w-4" />
-                    <span>Start Inspection</span>
-                  </>
-                )}
-              </button>
+              
+              <div className="flex items-center space-x-4">
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  disabled={savingDraft}
+                  className="flex items-center space-x-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {savingDraft ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      <span>Save Draft</span>
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex items-center space-x-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {saving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>{hasExistingData ? 'Updating...' : 'Starting...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4" />
+                      <span>{hasExistingData ? 'Update Inspection' : 'Start Inspection'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </div>

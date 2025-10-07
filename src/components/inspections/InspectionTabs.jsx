@@ -14,7 +14,10 @@ const InspectionTabs = ({ userLevel, activeTab, onTabChange, tabCounts = {} }) =
       <nav className="flex space-x-8">
         {availableTabs.map((tab) => {
           const count = tabCounts[tab] || 0;
-          const hasCount = count > 0;
+          
+          // Create tab label with count in format "Received(5)"
+          const tabLabel = tabDisplayNames[tab] || tab;
+          const displayLabel = count > 0 ? `${tabLabel}(${count})` : tabLabel;
           
           return (
             <button
@@ -26,18 +29,7 @@ const InspectionTabs = ({ userLevel, activeTab, onTabChange, tabCounts = {} }) =
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 hover:bg-gray-50'
               }`}
             >
-              <div className="flex items-center gap-2">
-                <span>{tabDisplayNames[tab] || tab}</span>
-                {hasCount && (
-                  <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-semibold rounded-full ${
-                    activeTab === tab 
-                      ? 'bg-sky-600 text-white' 
-                      : 'bg-gray-200 text-gray-700'
-                  }`}>
-                    {count}
-                  </span>
-                )}
-              </div>
+              <span>{displayLabel}</span>
             </button>
           );
         })}

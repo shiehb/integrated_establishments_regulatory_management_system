@@ -7,7 +7,8 @@ import SimpleInspectionWizard from "../components/inspections/SimpleInspectionWi
 import ViewInspection from "../components/inspections/ViewInspection";
 import { 
   getProfile, 
-  getEstablishments, 
+  getEstablishments,
+  getAvailableEstablishments, 
   createInspection,
   assignToMe,
   startInspection,
@@ -205,12 +206,12 @@ export default function Inspections() {
     }
   };
 
-  // Fetch establishments for the wizard - following EstablishmentList.jsx pattern
+  // Fetch available establishments for the wizard - only those not under active inspection
   const fetchEstablishments = useCallback(async (searchQuery = '', page = 1, pageSize = 100) => {
     setEstablishmentsLoading(true);
     try {
-      // Use the same API call pattern as EstablishmentList.jsx
-      const response = await getEstablishments({
+      // Use the new available establishments endpoint
+      const response = await getAvailableEstablishments({
         page: page,
         page_size: pageSize,
         ...(searchQuery && searchQuery.length >= 2 && { search: searchQuery }),
@@ -240,7 +241,7 @@ export default function Inspections() {
         setEstablishments(transformedEstablishments);
       }
     } catch (error) {
-      console.error("Error fetching establishments:", error);
+      console.error("Error fetching available establishments:", error);
       // Fallback to mock data on error
       setEstablishments([
         {

@@ -65,7 +65,7 @@ export default function SummaryOfFindingsAndObservations({
           if (globalIndex === -1) return null;
 
           return (
-            <div key={s.system} className="p-3 border border-black">
+            <div key={`${s.system}-${globalIndex}`} className="p-3 border border-black">
               <div className="flex items-center justify-between">
                 <div className="font-medium text-black">{s.system}</div>
                 <div className="flex gap-4">

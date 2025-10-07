@@ -79,6 +79,23 @@ class SystemConfiguration(models.Model):
         """Get the properly constructed from email address"""
         from .utils import construct_from_email
         return construct_from_email(self.default_from_email, self.email_host_user)
+    
+    def is_email_configured(self):
+        """Check if email configuration is complete"""
+        return bool(
+            self.email_host_user and 
+            self.email_host_password and 
+            self.default_from_email
+        )
+    
+    @classmethod
+    def is_system_email_configured(cls):
+        """Check if the active system configuration has complete email settings"""
+        try:
+            config = cls.get_active_config()
+            return config.is_email_configured()
+        except:
+            return False
 
 @receiver(post_save, sender=SystemConfiguration)
 def update_django_settings_on_save(sender, instance, **kwargs):

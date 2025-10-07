@@ -188,11 +188,13 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('MONITORING_ASSIGNED', 'Monitoring Personnel'): ['start'],
             
             # Actions available to assigned users
-            ('SECTION_IN_PROGRESS', 'Section Chief'): ['start', 'complete'],
-            ('SECTION_COMPLETED', 'Section Chief'): [],  # Auto-forwards to Division Chief
+            ('SECTION_IN_PROGRESS', 'Section Chief'): ['continue', 'complete'],
+            ('SECTION_COMPLETED_COMPLIANT', 'Section Chief'): [],  # Auto-forwards to Division Chief
+            ('SECTION_COMPLETED_NON_COMPLIANT', 'Section Chief'): [],  # Auto-forwards to Division Chief
             
-            ('UNIT_IN_PROGRESS', 'Unit Head'): ['start', 'complete'],
-            ('UNIT_COMPLETED', 'Unit Head'): [],  # Auto-forwards to Section Chief
+            ('UNIT_IN_PROGRESS', 'Unit Head'): ['continue', 'complete'],
+            ('UNIT_COMPLETED_COMPLIANT', 'Unit Head'): [],  # Auto-forwards to Monitoring Personnel
+            ('UNIT_COMPLETED_NON_COMPLIANT', 'Unit Head'): [],  # Auto-forwards to Monitoring Personnel
             
             ('MONITORING_IN_PROGRESS', 'Monitoring Personnel'): ['continue', 'complete'],
             ('MONITORING_COMPLETED_COMPLIANT', 'Monitoring Personnel'): ['review'],

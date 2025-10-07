@@ -140,7 +140,7 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
                     const shouldShowCitation = index === 0 || prevCitation !== currentCitation;
 
                     return (
-                      <tr key={`${li.lawId}-${globalIndex}`}>
+                      <tr key={`${lawId}-${li.conditionId}-${index}`}>
                         {/* First column - Condition No. for PD-1586, Citation for others */}
                         {lawId === "PD-1586" ? (
                           <td className="p-2 border border-black">
@@ -200,7 +200,7 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
                             <label key={opt} className="block">
                               <input
                                 type="radio"
-                                name={`comp-${li.conditionId}`}
+                                name={`comp-${li.lawId}-${li.conditionId}-${globalIndex}`}
                                 checked={item.compliant === opt}
                                 onChange={() =>
                                   updateItem(

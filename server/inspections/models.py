@@ -22,12 +22,14 @@ class Inspection(models.Model):
         # Section Chief workflow
         ('SECTION_ASSIGNED', 'Section Assigned'),
         ('SECTION_IN_PROGRESS', 'Section In Progress'),
-        ('SECTION_COMPLETED', 'Section Completed'),
+        ('SECTION_COMPLETED_COMPLIANT', 'Section Completed - Compliant'),
+        ('SECTION_COMPLETED_NON_COMPLIANT', 'Section Completed - Non-Compliant'),
         
         # Unit Head workflow
         ('UNIT_ASSIGNED', 'Unit Assigned'),
         ('UNIT_IN_PROGRESS', 'Unit In Progress'),
-        ('UNIT_COMPLETED', 'Unit Completed'),
+        ('UNIT_COMPLETED_COMPLIANT', 'Unit Completed - Compliant'),
+        ('UNIT_COMPLETED_NON_COMPLIANT', 'Unit Completed - Non-Compliant'),
         
         # Monitoring workflow
         ('MONITORING_ASSIGNED', 'Monitoring Assigned'),
@@ -125,10 +127,12 @@ class Inspection(models.Model):
             'CREATED': 'Created',
             'SECTION_ASSIGNED': 'New – Waiting for Action',
             'SECTION_IN_PROGRESS': 'In Progress',
-            'SECTION_COMPLETED': 'Completed',
+            'SECTION_COMPLETED_COMPLIANT': 'Completed – Compliant',
+            'SECTION_COMPLETED_NON_COMPLIANT': 'Completed – Non-Compliant',
             'UNIT_ASSIGNED': 'New – Waiting for Action',
             'UNIT_IN_PROGRESS': 'In Progress',
-            'UNIT_COMPLETED': 'Completed',
+            'UNIT_COMPLETED_COMPLIANT': 'Completed – Compliant',
+            'UNIT_COMPLETED_NON_COMPLIANT': 'Completed – Non-Compliant',
             'MONITORING_ASSIGNED': 'New – Waiting for Action',
             'MONITORING_IN_PROGRESS': 'In Progress',
             'MONITORING_COMPLETED_COMPLIANT': 'Completed – Compliant',
@@ -158,9 +162,14 @@ class Inspection(models.Model):
                 'MONITORING_ASSIGNED': ['Section Chief'],  # Can forward directly if no unit head
             },
             'SECTION_IN_PROGRESS': {
-                'SECTION_COMPLETED': ['Section Chief'],
+                'SECTION_COMPLETED_COMPLIANT': ['Section Chief'],
+                'SECTION_COMPLETED_NON_COMPLIANT': ['Section Chief'],
             },
-            'SECTION_COMPLETED': {
+            'SECTION_COMPLETED_COMPLIANT': {
+                'UNIT_ASSIGNED': ['Section Chief'],
+                'MONITORING_ASSIGNED': ['Section Chief'],  # If no unit head
+            },
+            'SECTION_COMPLETED_NON_COMPLIANT': {
                 'UNIT_ASSIGNED': ['Section Chief'],
                 'MONITORING_ASSIGNED': ['Section Chief'],  # If no unit head
             },
@@ -169,9 +178,13 @@ class Inspection(models.Model):
                 'MONITORING_ASSIGNED': ['Unit Head'],  # Can forward directly
             },
             'UNIT_IN_PROGRESS': {
-                'UNIT_COMPLETED': ['Unit Head'],
+                'UNIT_COMPLETED_COMPLIANT': ['Unit Head'],
+                'UNIT_COMPLETED_NON_COMPLIANT': ['Unit Head'],
             },
-            'UNIT_COMPLETED': {
+            'UNIT_COMPLETED_COMPLIANT': {
+                'MONITORING_ASSIGNED': ['Unit Head'],
+            },
+            'UNIT_COMPLETED_NON_COMPLIANT': {
                 'MONITORING_ASSIGNED': ['Unit Head'],
             },
             'MONITORING_ASSIGNED': {
@@ -261,10 +274,12 @@ class Inspection(models.Model):
         status_to_level = {
             'SECTION_ASSIGNED': 'Section Chief',
             'SECTION_IN_PROGRESS': 'Section Chief',
-            'SECTION_COMPLETED': 'Section Chief',
+            'SECTION_COMPLETED_COMPLIANT': 'Section Chief',
+            'SECTION_COMPLETED_NON_COMPLIANT': 'Section Chief',
             'UNIT_ASSIGNED': 'Unit Head',
             'UNIT_IN_PROGRESS': 'Unit Head',
-            'UNIT_COMPLETED': 'Unit Head',
+            'UNIT_COMPLETED_COMPLIANT': 'Unit Head',
+            'UNIT_COMPLETED_NON_COMPLIANT': 'Unit Head',
             'MONITORING_ASSIGNED': 'Monitoring Personnel',
             'MONITORING_IN_PROGRESS': 'Monitoring Personnel',
             'UNIT_REVIEWED': 'Unit Head',

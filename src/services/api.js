@@ -246,6 +246,11 @@ export const searchEstablishments = async (query, page = 1, pageSize = 10) => {
   return res.data;
 };
 
+export const getAvailableEstablishments = async (params = {}) => {
+  const res = await api.get("establishments/available_for_inspection/", { params });
+  return res.data;
+};
+
 // -------------------------------------------------
 // Inspections - Updated for new backend
 // -------------------------------------------------

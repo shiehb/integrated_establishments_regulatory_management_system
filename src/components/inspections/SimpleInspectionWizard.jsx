@@ -15,6 +15,7 @@ import Header from '../Header';
 import Footer from '../Footer';
 import LayoutWithSidebar from '../LayoutWithSidebar';
 import ConfirmationDialog from '../common/ConfirmationDialog';
+import { useNotifications } from '../NotificationManager';
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -50,6 +51,7 @@ export default function SimpleInspectionWizard({
   onRefreshEstablishments,
   onSearchEstablishments
 }) {
+  const notifications = useNotifications();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     establishment_ids: [],
@@ -138,7 +140,21 @@ export default function SimpleInspectionWizard({
     };
     
     setShowConfirmation(false);
-    await onSave(inspectionData);
+    
+    try {
+      await onSave(inspectionData);
+      // Show success notification after inspection is created
+      notifications.success(`Inspection created successfully for ${selectedEstablishments.length} establishment(s) with ${selectedLaw?.code}`, {
+        title: 'Inspection Created',
+        duration: 6000
+      });
+    } catch (error) {
+      // Show error notification if creation fails
+      notifications.error(`Failed to create inspection: ${error.message}`, {
+        title: 'Creation Failed',
+        duration: 8000
+      });
+    }
   };
 
   const updateFormData = (field, value) => {
@@ -161,36 +177,41 @@ export default function SimpleInspectionWizard({
         <div className="bg-white rounded-lg shadow-sm w-full">
          {/* Progress Steps */}
          <div className="px-6 py-4 border-b border-gray-200">
-           <div className="flex items-center justify-between">
+           <div className="flex items-center w-full">
              {steps.map((step, index) => {
                const Icon = step.icon;
                const isActive = currentStep === step.id;
                const isCompleted = currentStep > step.id;
                
                return (
-                 <div key={step.id} className="flex items-center">
-                   <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors ${
-                     isActive 
-                       ? 'border-sky-500 bg-sky-500 text-white' 
-                       : isCompleted 
-                         ? 'border-green-500 bg-green-500 text-white'
-                         : 'border-gray-300 bg-white text-gray-400'
-                   }`}>
-                     <Icon className="h-5 w-5" />
-                   </div>
-                   <div className="ml-3">
-                     <p className={`text-sm font-medium ${
+                 <React.Fragment key={step.id}>
+                   <div className="flex flex-col items-center">
+                     <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors ${
+                       isActive 
+                         ? 'border-sky-500 bg-sky-500 text-white' 
+                         : isCompleted 
+                           ? 'border-green-500 bg-green-500 text-white'
+                           : 'border-gray-300 bg-white text-gray-400'
+                     }`}>
+                       <Icon className="h-5 w-5" />
+                     </div>
+                     <p className={`text-sm font-medium mt-2 ${
                        isActive ? 'text-sky-600' : isCompleted ? 'text-green-600' : 'text-gray-500'
                      }`}>
                        {step.title}
                      </p>
                    </div>
+                   
                    {index < steps.length - 1 && (
-                     <div className={`w-16 h-0.5 mx-4 ${
-                       isCompleted ? 'bg-green-500' : 'bg-gray-300'
-                     }`} />
+                     <div className="flex-1 mx-4 relative">
+                       <div className="absolute top-1/2 left-0 right-0 h-0.5 transform -translate-y-1/2">
+                         <div className={`h-full w-full ${
+                           isCompleted ? 'bg-green-500' : 'bg-gray-300'
+                         }`} />
+                       </div>
+                     </div>
                    )}
-                 </div>
+                 </React.Fragment>
                );
              })}
            </div>
@@ -420,31 +441,31 @@ export default function SimpleInspectionWizard({
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Law/Section</h3>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                   {laws.map((law) => (
                     <div
                       key={law.code}
-                      className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
+                      className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
                         formData.law_code === law.code
                           ? 'border-sky-500 bg-sky-50'
                           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                       }`}
                       onClick={() => updateFormData('law_code', law.code)}
                     >
-                      <div className="flex items-center">
+                      <div className="flex items-start">
                         <input
                           type="radio"
                           name="law"
                           value={law.code}
                           checked={formData.law_code === law.code}
                           onChange={() => updateFormData('law_code', law.code)}
-                          className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300"
+                          className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 mt-0.5"
                         />
-                        <div className="ml-3">
-                          <div className="text-sm font-medium text-gray-900">
+                        <div className="ml-3 flex-1">
+                          <div className="text-sm font-medium text-gray-900 mb-1">
                             {law.code}
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-xs text-gray-600 leading-tight">
                             {law.name}
                           </div>
                         </div>

@@ -25,6 +25,40 @@ export const useLocalStoragePagination = (storageKey, defaultPageSize = 10) => {
   return loadFromStorage();
 };
 
+// Custom hook for localStorage tab persistence
+export const useLocalStorageTab = (storageKey, defaultTab = null) => {
+  const loadFromStorage = () => {
+    try {
+      const stored = localStorage.getItem(`${storageKey}_tab`);
+      if (stored) {
+        const tabData = JSON.parse(stored);
+        // Check if data is not too old (7 days)
+        const isRecent = Date.now() - tabData.timestamp < 7 * 24 * 60 * 60 * 1000;
+        if (isRecent && tabData.tab) {
+          return tabData.tab;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load tab from localStorage:', error);
+    }
+    return defaultTab;
+  };
+
+  const saveToStorage = (tab) => {
+    try {
+      const tabData = {
+        tab: tab,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`${storageKey}_tab`, JSON.stringify(tabData));
+    } catch (error) {
+      console.warn('Failed to save tab to localStorage:', error);
+    }
+  };
+
+  return { loadFromStorage, saveToStorage };
+};
+
 export default function PaginationControls({
   currentPage,
   totalPages,

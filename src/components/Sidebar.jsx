@@ -47,14 +47,16 @@ const baseMenu = [
 
 ];
 
-export default function Sidebar({ userLevel = "public" }) {
+export default function Sidebar({ userLevel = "public", isOpen = true, onToggle }) {
   const location = useLocation();
 
   // Public (not logged in) fallback
   if (userLevel === "public") {
     return (
-      <div className="sticky top-0 flex flex-col w-56 h-[calc(100vh-105px)] bg-white border-gray-200 shadow-md mr-2">
-        <nav className="flex-1 py-1 overflow-y-auto">
+      <div className={`flex flex-col bg-white border-r border-gray-200 shadow-sm transition-all duration-300 ${
+        isOpen ? "w-64" : "w-16"
+      }`}>
+        <nav className="flex-1 py-4 overflow-y-auto">
           <ul className="px-2 space-y-1">
             <li>
               <Link
@@ -66,7 +68,7 @@ export default function Sidebar({ userLevel = "public" }) {
                 }`}
               >
                 <LayoutDashboard size={20} className="flex-shrink-0" />
-                <span className="ml-3 text-sm">Home</span>
+                {isOpen && <span className="ml-3 text-sm">Home</span>}
               </Link>
             </li>
           </ul>
@@ -76,9 +78,11 @@ export default function Sidebar({ userLevel = "public" }) {
   }
 
   return (
-    <div className="sticky top-0 flex flex-col w-56 min-h-[calc(100vh-105px)] bg-white border-gray-200 shadow-md mr-2">
+    <div className={`flex flex-col bg-white border-r border-gray-200 shadow-sm transition-all duration-300 ${
+      isOpen ? "w-64" : "w-16"
+    }`}>
       {/* Navigation Items */}
-      <nav className="flex-1 py-1 overflow-y-auto">
+      <nav className="flex-1 py-4 overflow-y-auto">
         <ul className="px-2 space-y-1">
           {baseMenu.map((item) => {
             // ✅ Hide Users/System Config/Database Backup unless Admin
@@ -98,9 +102,10 @@ export default function Sidebar({ userLevel = "public" }) {
                       ? "bg-sky-700 text-white"
                       : "text-black hover:bg-gray-200"
                   }`}
+                  title={!isOpen ? item.name : undefined}
                 >
                   <IconComponent size={20} className="flex-shrink-0" />
-                  <span className="ml-3 text-sm">{item.name}</span>
+                  {isOpen && <span className="ml-3 text-sm">{item.name}</span>}
                 </Link>
               </li>
             );

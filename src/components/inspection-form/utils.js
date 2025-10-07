@@ -70,16 +70,16 @@ export const validatePhoneNumber = (phoneNumber) => {
     return { isValid: false, message: "Phone number must contain digits" };
   }
 
-  // Philippine phone number patterns
+  // Philippine phone number patterns (for digits only)
   const patterns = [
-    // Mobile: 09XX-XXX-XXXX or +639XX-XXX-XXXX
-    /^(\+?63)?9\d{9}$/,
-    // Landline: 0X-XXX-XXXX or +63X-XXX-XXXX
-    /^(\+?63)?[2-8]\d{7}$/,
-    // International format: +XX-XXX-XXX-XXXX
-    /^\+\d{1,3}-\d{3,4}-\d{3,4}-\d{3,4}$/,
-    // Simple format: XXX-XXX-XXXX
-    /^\d{3,4}-\d{3,4}-\d{3,4}$/,
+    // Mobile: 09XX-XXX-XXXX (11 digits starting with 09)
+    /^09\d{9}$/,
+    // Mobile: +639XX-XXX-XXXX (12 digits starting with 639)
+    /^639\d{9}$/,
+    // Landline: 0X-XXX-XXXX (8 digits starting with 02-08)
+    /^0[2-8]\d{7}$/,
+    // Landline: +63X-XXX-XXXX (9 digits starting with 632-638)
+    /^63[2-8]\d{7}$/,
   ];
 
   // Check against patterns
@@ -94,12 +94,11 @@ export const validatePhoneNumber = (phoneNumber) => {
       return { isValid: false, message: "Phone number too long (maximum 15 digits)" };
     }
     
-    // If it has reasonable length but doesn't match patterns, still consider valid
-    // but with a warning
-    return { isValid: true, message: "Phone number format accepted", warning: true };
+    // If it has reasonable length but doesn't match patterns, consider it invalid
+    return { isValid: false, message: "Invalid phone number format" };
   }
 
-  return { isValid: true, message: "Valid phone number" };
+  return { isValid: true, message: "" };
 };
 
 export const validateFaxNumber = (faxNumber) => {
@@ -115,14 +114,14 @@ export const validateFaxNumber = (faxNumber) => {
     return { isValid: false, message: "Fax number must contain digits" };
   }
 
-  // Fax number patterns (similar to phone but may have different requirements)
+  // Fax number patterns (for digits only)
   const patterns = [
-    // Philippine landline: 0X-XXX-XXXX or +63X-XXX-XXXX
-    /^(\+?63)?[2-8]\d{7}$/,
-    // International format: +XX-XXX-XXX-XXXX
-    /^\+\d{1,3}-\d{3,4}-\d{3,4}-\d{3,4}$/,
-    // Simple format: XXX-XXX-XXXX
-    /^\d{3,4}-\d{3,4}-\d{3,4}$/,
+    // Philippine landline: 0X-XXX-XXXX (8 digits starting with 02-08)
+    /^0[2-8]\d{7}$/,
+    // Philippine landline: +63X-XXX-XXXX (9 digits starting with 632-638)
+    /^63[2-8]\d{7}$/,
+    // International format: 7-15 digits
+    /^\d{7,15}$/,
   ];
 
   // Check against patterns
@@ -137,10 +136,10 @@ export const validateFaxNumber = (faxNumber) => {
       return { isValid: false, message: "Fax number too long (maximum 15 digits)" };
     }
     
-    return { isValid: true, message: "Fax number format accepted", warning: true };
+    return { isValid: false, message: "Invalid fax number format" };
   }
 
-  return { isValid: true, message: "Valid fax number" };
+  return { isValid: true, message: "" };
 };
 
 export const validatePhoneOrFax = (value) => {
@@ -156,7 +155,7 @@ export const validatePhoneOrFax = (value) => {
       const faxValidation = validateFaxNumber(parts[1]);
       
       if (phoneValidation.isValid && faxValidation.isValid) {
-        return { isValid: true, message: "Valid phone and fax numbers" };
+        return { isValid: true, message: "" };
       } else {
         const errors = [];
         if (!phoneValidation.isValid) errors.push(`Phone: ${phoneValidation.message}`);
@@ -254,24 +253,8 @@ export const validateEmailAddress = (email) => {
     domainPart === domain || domainPart.endsWith('.' + domain)
   );
 
-  // Check for potential typos in common domains
-  if (isCommonDomain) {
-    const potentialTypos = commonDomains.filter(domain => {
-      const similarity = calculateSimilarity(domainWithoutTld, domain.split('.')[0]);
-      return similarity > 0.6 && similarity < 1.0;
-    });
-    
-    if (potentialTypos.length > 0) {
-      return { 
-        isValid: true, 
-        message: "Valid email address", 
-        warning: true,
-        suggestion: `Did you mean ${potentialTypos[0]}?`
-      };
-    }
-  }
 
-  return { isValid: true, message: "Valid email address" };
+  return { isValid: true, message: "" };
 };
 
 // Helper function to calculate string similarity (simple Levenshtein distance)
@@ -329,42 +312,41 @@ export const validateInspectionDateTime = (dateTimeValue, inspectionCreatedAt = 
   }
 
   const now = new Date();
+  // Use consistent precision - round to minutes for all comparisons
   const currentDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
+  const inspectionDateTimeRounded = new Date(
+    inspectionDateTime.getFullYear(), 
+    inspectionDateTime.getMonth(), 
+    inspectionDateTime.getDate(), 
+    inspectionDateTime.getHours(), 
+    inspectionDateTime.getMinutes()
+  );
 
   // Check if the inspection date is in the future
-  if (inspectionDateTime > currentDateTime) {
+  if (inspectionDateTimeRounded > currentDateTime) {
     return { isValid: false, message: "Inspection date cannot be in the future" };
   }
 
-  // Check if inspection date is before creation date (if provided)
+  // Check if the inspection date is before the creation date (if provided)
   if (inspectionCreatedAt) {
-    const createdAt = new Date(inspectionCreatedAt);
-    if (!isNaN(createdAt.getTime())) {
-      // Allow some tolerance (e.g., 1 minute) for creation time
-      const toleranceMinutes = 1;
-      const createdAtWithTolerance = new Date(createdAt.getTime() + (toleranceMinutes * 60 * 1000));
+    const creationDateTime = new Date(inspectionCreatedAt);
+    if (!isNaN(creationDateTime.getTime())) {
+      const creationDateTimeRounded = new Date(
+        creationDateTime.getFullYear(), 
+        creationDateTime.getMonth(), 
+        creationDateTime.getDate(), 
+        creationDateTime.getHours(), 
+        creationDateTime.getMinutes()
+      );
       
-      if (inspectionDateTime < createdAtWithTolerance) {
-        return { isValid: false, message: "Inspection date cannot be before the inspection was created" };
+      if (inspectionDateTimeRounded < creationDateTimeRounded) {
+        return { isValid: false, message: "Inspection date cannot be before the creation date" };
       }
     }
   }
 
-  // Check if the date is too far in the past (e.g., more than 1 year)
-  const oneYearAgo = new Date();
-  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  
-  if (inspectionDateTime < oneYearAgo) {
-    return { isValid: true, message: "Valid inspection date", warning: true };
-  }
-
-  // Check if the date is very recent (within last hour) - might be a warning
-  const oneHourAgo = new Date(now.getTime() - (60 * 60 * 1000));
-  if (inspectionDateTime > oneHourAgo) {
-    return { isValid: true, message: "Valid inspection date", warning: true };
-  }
-
-  return { isValid: true, message: "Valid inspection date" };
+  // All valid cases return no message
+  return { isValid: true, message: "" };
 };
 
 export const formatDateTimeForInput = (dateTime) => {
@@ -573,7 +555,15 @@ export const validatePermitDates = (dateIssued, expiryDate) => {
   };
 };
 
-export const validateDateIssued = (dateIssued) => {
+export const validateDateIssued = (dateIssued, permitNumber = null) => {
+  // If permit number is empty, no validation required
+  if (!permitNumber || permitNumber.trim() === "") {
+    return {
+      isValid: true,
+      message: ""
+    };
+  }
+
   if (!dateIssued || dateIssued.trim() === "") {
     return {
       isValid: false,
@@ -595,9 +585,8 @@ export const validateDateIssued = (dateIssued) => {
   
   if (issuedDate > today) {
     return {
-      isValid: true,
-      message: "Valid date issued",
-      warning: true
+      isValid: false,
+      message: "Date issued cannot be in the future"
     };
   }
 
@@ -607,7 +596,15 @@ export const validateDateIssued = (dateIssued) => {
   };
 };
 
-export const validateExpiryDate = (expiryDate, dateIssued = null) => {
+export const validateExpiryDate = (expiryDate, dateIssued = null, permitNumber = null) => {
+  // If permit number is empty, no validation required
+  if (!permitNumber || permitNumber.trim() === "") {
+    return {
+      isValid: true,
+      message: ""
+    };
+  }
+
   if (!expiryDate || expiryDate.trim() === "") {
     return {
       isValid: false,
@@ -641,7 +638,7 @@ export const validateExpiryDate = (expiryDate, dateIssued = null) => {
   if (expiryDateObj < today) {
     return {
       isValid: true,
-      message: "Valid expiry date",
+      message: "Expiry date is in the past - permit may be expired",
       warning: true
     };
   }
