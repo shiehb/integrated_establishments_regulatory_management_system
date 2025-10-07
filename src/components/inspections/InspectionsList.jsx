@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -24,6 +24,7 @@ import {
 import StatusBadge from "./StatusBadge";
 import InspectionTabs from "./InspectionTabs";
 import InspectionActions from "./InspectionActions";
+import ForwardModal from "./ForwardModal";
 import { roleTabs, tabDisplayNames } from "../../constants/inspectionConstants";
 import ExportDropdown from "../ExportDropdown";
 import PrintPDF from "../PrintPDF";
@@ -230,6 +231,12 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     action: null 
   });
 
+  // Forward modal state
+  const [forwardModal, setForwardModal] = useState({ 
+    open: false, 
+    inspection: null 
+  });
+
   // Handle action clicks with simple confirmation
   const handleActionClick = useCallback(async (action, inspectionId) => {
     console.log('handleActionClick called with:', { inspectionId, action });
@@ -290,12 +297,11 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       return;
     }
     
-    // For forward action, show simple confirmation
+    // For forward action, show forward modal
     if (action === 'forward') {
-      setActionConfirmation({ 
+      setForwardModal({ 
         open: true, 
-        inspection, 
-        action 
+        inspection 
       });
       return;
     }
@@ -306,7 +312,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       inspection, 
       action 
     });
-  }, [inspections, handleAction]);
+  }, [inspections, handleAction, notifications]);
 
 
   // Execute confirmed action
@@ -322,6 +328,16 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     }
   }, [actionConfirmation, handleAction]);
 
+  // Handle forward modal submit
+  const handleForwardSubmit = useCallback(async (inspectionId, data) => {
+    try {
+      await handleAction('forward', inspectionId, data);
+      setForwardModal({ open: false, inspection: null });
+    } catch {
+      // Error is already handled in the hook
+    }
+  }, [handleAction]);
+
   // Delete inspection function
   const handleDeleteInspection = useCallback(async (inspection) => {
     try {
@@ -333,7 +349,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       console.error('Error deleting inspection:', error);
       notifications.error(`Error deleting inspection: ${error.message}`, { title: 'Error' });
     }
-  }, [fetchAllInspections]);
+  }, [fetchAllInspections, notifications]);
 
   // Fetch user profile
   useEffect(() => {
@@ -440,84 +456,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     { key: "desc", label: "Descending" },
   ];
 
-  // ✅ Filter + Sort with LOCAL search (client-side only)
-  const filteredInspections = useMemo(() => {
-    let list = inspections.filter((inspection) => {
-      // Apply local search filter
-      const query = debouncedSearchQuery.toLowerCase();
-      const establishmentNames = inspection.establishments_detail?.map(est => est.name).join(' ') || "";
-      const code = inspection.code || "";
-      const law = inspection.law || "";
-
-      const matchesSearch = debouncedSearchQuery
-        ? establishmentNames.toLowerCase().includes(query) ||
-          code.toLowerCase().includes(query) ||
-          law.toLowerCase().includes(query)
-        : true;
-
-      // Apply status filter
-      const matchesStatus =
-        statusFilter.length === 0 || statusFilter.includes(inspection.current_status);
-
-      // Apply section filter
-      const matchesSection =
-        sectionFilter.length === 0 || sectionFilter.includes(inspection.law);
-
-      // Apply priority filter
-      const matchesPriority =
-        priorityFilter.length === 0 || priorityFilter.includes(inspection.priority);
-
-      // Apply date filter
-      const matchesDateFrom = dateFrom
-        ? new Date(inspection.created_at) >= new Date(dateFrom)
-        : true;
-      const matchesDateTo = dateTo
-        ? new Date(inspection.created_at) <= new Date(dateTo)
-        : true;
-
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesSection &&
-        matchesPriority &&
-        matchesDateFrom &&
-        matchesDateTo
-      );
-    });
-
-    // Apply sorting
-    if (sortConfig.key) {
-      list = [...list].sort((a, b) => {
-        let aVal, bVal;
-
-        if (sortConfig.key === "establishments_detail") {
-          aVal = a.establishments_detail?.map(est => est.name).join(' ') || "";
-          bVal = b.establishments_detail?.map(est => est.name).join(' ') || "";
-        } else {
-          aVal = a[sortConfig.key] || "";
-          bVal = b[sortConfig.key] || "";
-        }
-
-        if (typeof aVal === "string") aVal = aVal.toLowerCase();
-        if (typeof bVal === "string") bVal = bVal.toLowerCase();
-
-        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-        return 0;
-      });
-    }
-
-    return list;
-  }, [
-    inspections,
-    debouncedSearchQuery,
-    statusFilter,
-    sectionFilter,
-    priorityFilter,
-    dateFrom,
-    dateTo,
-    sortConfig,
-  ]);
+  // Note: Filtering and sorting are now handled server-side
 
   // ✅ Pagination (using server-side pagination)
   const totalPages = Math.ceil(totalCount / pageSize);
@@ -1134,6 +1073,15 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         size="lg"
         onCancel={() => setActionConfirmation({ open: false, inspection: null, action: null })}
         onConfirm={executeAction}
+      />
+
+      {/* Forward Modal */}
+      <ForwardModal
+        open={forwardModal.open}
+        inspection={forwardModal.inspection}
+        userLevel={userLevel}
+        onClose={() => setForwardModal({ open: false, inspection: null })}
+        onSubmit={handleForwardSubmit}
       />
 
     </div>

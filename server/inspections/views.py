@@ -110,19 +110,29 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 current_status__in=['SECTION_IN_PROGRESS', 'SECTION_COMPLETED']
             )
         elif tab == 'forwarded':
-            # Inspections they forwarded (track by history or filter by law)
-            # Special case: If user is in combined EIA section, also show PD-1586, RA-8749, RA-9275 inspections
+            # Show inspections that this Section Chief has forwarded
+            # Get inspection IDs where this user has forwarded (from history)
+            forwarded_inspection_ids = InspectionHistory.objects.filter(
+                changed_by=user,
+                new_status__in=['UNIT_ASSIGNED', 'MONITORING_ASSIGNED'],
+                remarks__icontains='Forwarded'
+            ).values_list('inspection_id', flat=True)
+            
+            # Also include inspections that match the law filter and are in forwarded statuses
+            # This ensures we catch any inspections that might have been forwarded by other means
             law_filter = Q(law=user.section)
             if user.section == 'PD-1586,RA-8749,RA-9275':
                 law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
             
+            # Combine both conditions: either forwarded by this user OR matches law filter
             return queryset.filter(
-                law_filter,
-                current_status__in=[
-                    'UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_COMPLETED',
-                    'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
-                    'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
-                ]
+                Q(id__in=forwarded_inspection_ids) | (
+                    law_filter & Q(current_status__in=[
+                        'UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
+                        'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
+                        'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
+                    ])
+                )
             )
         elif tab == 'review':
             return queryset.filter(
@@ -155,17 +165,26 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         elif tab == 'forwarded':
             # Show inspections that this Unit Head has forwarded to Monitoring Personnel
-            # Use law filter but don't restrict by district since Monitoring Personnel might be in different district
+            # Get inspection IDs where this user has forwarded (from history)
+            forwarded_inspection_ids = InspectionHistory.objects.filter(
+                changed_by=user,
+                new_status='MONITORING_ASSIGNED',
+                remarks__icontains='Forwarded'
+            ).values_list('inspection_id', flat=True)
+            
+            # Also include inspections that match the law filter and are in forwarded statuses
             law_filter = Q(law=user.section)
             if user.section == 'PD-1586,RA-8749,RA-9275':
                 law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
             
+            # Combine both conditions: either forwarded by this user OR matches law filter
             return queryset.filter(
-                law_filter,
-                current_status__in=[
-                    'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
-                    'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
-                ]
+                Q(id__in=forwarded_inspection_ids) | (
+                    law_filter & Q(current_status__in=[
+                        'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
+                        'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
+                    ])
+                )
             )
         elif tab == 'review':
             return queryset.filter(
@@ -1053,12 +1072,19 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.save()
         
         # Log history
+        default_remarks = f'Forwarded to {next_assignee.get_full_name() or next_assignee.username} ({next_assignee.userlevel})'
+        remarks = request.data.get('remarks', default_remarks)
+        
+        # Ensure remarks contains "Forwarded" for proper tab filtering
+        if 'Forwarded' not in remarks:
+            remarks = f'Forwarded: {remarks}'
+        
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
             new_status=next_status,
             changed_by=user,
-            remarks=request.data.get('remarks', f'Forwarded to {next_assignee}')
+            remarks=remarks
         )
         
         serializer = self.get_serializer(inspection)
