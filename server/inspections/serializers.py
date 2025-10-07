@@ -196,7 +196,7 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('UNIT_COMPLETED_COMPLIANT', 'Unit Head'): [],  # Auto-forwards to Monitoring Personnel
             ('UNIT_COMPLETED_NON_COMPLIANT', 'Unit Head'): [],  # Auto-forwards to Monitoring Personnel
             
-            ('MONITORING_IN_PROGRESS', 'Monitoring Personnel'): ['continue', 'complete'],
+            ('MONITORING_IN_PROGRESS', 'Monitoring Personnel'): ['continue'],
             ('MONITORING_COMPLETED_COMPLIANT', 'Monitoring Personnel'): ['review'],
             ('MONITORING_COMPLETED_NON_COMPLIANT', 'Monitoring Personnel'): ['review'],
             

@@ -520,14 +520,29 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         form.save()
         
-        # Log history
-        InspectionHistory.objects.create(
-            inspection=inspection,
-            previous_status=inspection.current_status,
-            new_status=inspection.current_status,
-            changed_by=user,
-            remarks='Saved inspection form as draft'
-        )
+        # If inspection is in MONITORING_ASSIGNED status, change to MONITORING_IN_PROGRESS when draft is saved
+        if inspection.current_status == 'MONITORING_ASSIGNED':
+            prev_status = inspection.current_status
+            inspection.current_status = 'MONITORING_IN_PROGRESS'
+            inspection.save()
+            
+            # Log status change
+            InspectionHistory.objects.create(
+                inspection=inspection,
+                previous_status=prev_status,
+                new_status=inspection.current_status,
+                changed_by=user,
+                remarks='Status changed to In Progress when draft was saved'
+            )
+        else:
+            # Log draft save without status change
+            InspectionHistory.objects.create(
+                inspection=inspection,
+                previous_status=inspection.current_status,
+                new_status=inspection.current_status,
+                changed_by=user,
+                remarks='Saved inspection form as draft'
+            )
         
         serializer = self.get_serializer(inspection)
         return Response({
@@ -1013,48 +1028,19 @@ class InspectionViewSet(viewsets.ModelViewSet):
             if inspection.district:
                 next_assignee = monitoring_query.filter(district=inspection.district).first()
                 if not next_assignee:
-                    # Fallback: No Monitoring Personnel found, return to Section Chief for inspection
-                    # Change status to SECTION_IN_PROGRESS and assign back to current user (Section Chief)
-                    inspection.current_status = 'SECTION_IN_PROGRESS'
-                    inspection.assigned_to = user
-                    inspection.save()
-                    
-                    # Log history
-                    InspectionHistory.objects.create(
-                        inspection=inspection,
-                        previous_status=prev_status,
-                        new_status='SECTION_IN_PROGRESS',
-                        changed_by=user,
-                        remarks=f'No Monitoring Personnel found for law {inspection.law} in district {inspection.district}. Returned to Section Chief for inspection.'
+                    # No Monitoring Personnel found - return error instead of changing status
+                    return Response(
+                        {'error': f'No Monitoring Personnel found for {inspection.law} in district {inspection.district}. Please assign Monitoring Personnel before forwarding.'},
+                        status=status.HTTP_400_BAD_REQUEST
                     )
-                    
-                    serializer = self.get_serializer(inspection)
-                    return Response({
-                        'message': f'No Monitoring Personnel found for law {inspection.law} in district {inspection.district}. Inspection returned to Section Chief for inspection.',
-                        'inspection': serializer.data
-                    })
             else:
                 next_assignee = monitoring_query.first()
                 if not next_assignee:
-                    # Fallback: No Monitoring Personnel found, return to Section Chief for inspection
-                    inspection.current_status = 'SECTION_IN_PROGRESS'
-                    inspection.assigned_to = user
-                    inspection.save()
-                    
-                    # Log history
-                    InspectionHistory.objects.create(
-                        inspection=inspection,
-                        previous_status=prev_status,
-                        new_status='SECTION_IN_PROGRESS',
-                        changed_by=user,
-                        remarks=f'No Monitoring Personnel found for law {inspection.law}. Returned to Section Chief for inspection.'
+                    # No Monitoring Personnel found - return error instead of changing status
+                    return Response(
+                        {'error': f'No Monitoring Personnel found for {inspection.law}. Please assign Monitoring Personnel before forwarding.'},
+                        status=status.HTTP_400_BAD_REQUEST
                     )
-                    
-                    serializer = self.get_serializer(inspection)
-                    return Response({
-                        'message': f'No Monitoring Personnel found for law {inspection.law}. Inspection returned to Section Chief for inspection.',
-                        'inspection': serializer.data
-                    })
         else:
             # Use normal assignment logic
             next_assignee = inspection.get_next_assignee(next_status)

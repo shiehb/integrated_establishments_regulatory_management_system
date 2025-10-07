@@ -492,6 +492,70 @@ export default function InspectionForm({ inspectionData }) {
     }
   };
 
+  const generateViolationsSummary = () => {
+    const violations = [];
+    
+    // Check compliance items for violations
+    complianceItems.forEach(item => {
+      if (item.compliant === "No") {
+        violations.push(`• ${item.item}: ${item.remarksOption || 'Non-compliant'}`);
+      }
+    });
+    
+    // Check systems for violations
+    systems.forEach(system => {
+      if (system.nonCompliant) {
+        const remarks = system.remarksOption === "Other" ? system.remarks : system.remarksOption;
+        violations.push(`• ${system.system}: ${remarks || 'Non-compliant'}`);
+      }
+    });
+    
+    return violations.length > 0 ? violations.join('\n') : 'No violations found';
+  };
+
+  const generateFindingsSummary = () => {
+    const findings = [];
+    
+    // Add compliance items findings
+    const compliantItems = complianceItems.filter(item => item.compliant === "Yes");
+    const nonCompliantItems = complianceItems.filter(item => item.compliant === "No");
+    
+    if (compliantItems.length > 0) {
+      findings.push(`Compliant Items (${compliantItems.length}):`);
+      compliantItems.forEach(item => {
+        findings.push(`• ${item.item}: Compliant`);
+      });
+    }
+    
+    if (nonCompliantItems.length > 0) {
+      findings.push(`Non-Compliant Items (${nonCompliantItems.length}):`);
+      nonCompliantItems.forEach(item => {
+        findings.push(`• ${item.item}: ${item.remarksOption || 'Non-compliant'}`);
+      });
+    }
+    
+    // Add systems findings
+    const compliantSystems = systems.filter(system => system.compliant);
+    const nonCompliantSystems = systems.filter(system => system.nonCompliant);
+    
+    if (compliantSystems.length > 0) {
+      findings.push(`Compliant Systems (${compliantSystems.length}):`);
+      compliantSystems.forEach(system => {
+        findings.push(`• ${system.system}: Compliant`);
+      });
+    }
+    
+    if (nonCompliantSystems.length > 0) {
+      findings.push(`Non-Compliant Systems (${nonCompliantSystems.length}):`);
+      nonCompliantSystems.forEach(system => {
+        const remarks = system.remarksOption === "Other" ? system.remarks : system.remarksOption;
+        findings.push(`• ${system.system}: ${remarks || 'Non-compliant'}`);
+      });
+    }
+    
+    return findings.length > 0 ? findings.join('\n') : 'No findings recorded';
+  };
+
   // Function to determine the appropriate status based on current status and compliance
   const determineNewStatus = (currentStatus, complianceStatus) => {
     // If current status is MONITORING_IN_PROGRESS, update to appropriate completion status
@@ -721,17 +785,20 @@ export default function InspectionForm({ inspectionData }) {
       return;
     }
 
-    // Show completion confirmation dialog with form inputs
+    // Automatically determine compliance status based on collected data
+    const autoCompliance = determineComplianceStatus();
+    
+    // Show completion confirmation dialog with auto-determined compliance
     setCompleteConfirmation({ 
       open: true, 
-      compliance: '', 
+      compliance: autoCompliance, 
       violations: '', 
       findings: '' 
     });
   };
 
   const executeComplete = async () => {
-    const { compliance, violations, findings } = completeConfirmation;
+    const { compliance } = completeConfirmation;
     
     if (!compliance) {
       notifications.error("Compliance decision is required to complete the inspection.", { 
@@ -740,26 +807,9 @@ export default function InspectionForm({ inspectionData }) {
       return;
     }
 
-    if (!['COMPLIANT', 'NON_COMPLIANT', 'PARTIALLY_COMPLIANT'].includes(compliance.toUpperCase())) {
-      notifications.error("Invalid compliance decision. Please enter COMPLIANT, NON_COMPLIANT, or PARTIALLY_COMPLIANT.", { 
-        title: 'Invalid Input' 
-      });
-      return;
-    }
-
-    if (compliance.toUpperCase() === 'NON_COMPLIANT' && !violations) {
-      notifications.error("Violations description is required for non-compliant inspections.", { 
-        title: 'Missing Information' 
-      });
-      return;
-    }
-
-    if (!findings) {
-      notifications.error("Findings summary is required to complete the inspection.", { 
-        title: 'Missing Information' 
-      });
-      return;
-    }
+    // Automatically generate violations and findings based on collected data
+    const autoViolations = generateViolationsSummary();
+    const autoFindings = generateFindingsSummary();
 
     setLoading(true);
     const formData = {
@@ -778,8 +828,8 @@ export default function InspectionForm({ inspectionData }) {
       await completeInspection(inspectionId, {
         form_data: formData,
         compliance_decision: compliance.toUpperCase(),
-        violations_found: violations,
-        findings_summary: findings,
+        violations_found: autoViolations,
+        findings_summary: autoFindings,
         remarks: 'Inspection completed via form'
       });
       
@@ -929,52 +979,52 @@ export default function InspectionForm({ inspectionData }) {
       message={
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Please provide the following information to complete the inspection:
+            Based on the collected inspection data, the following compliance status has been determined:
           </p>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Compliance Decision *
+              Compliance Decision (Auto-determined)
             </label>
-            <select
-              value={completeConfirmation.compliance}
-              onChange={(e) => setCompleteConfirmation(prev => ({ ...prev, compliance: e.target.value }))}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Select Compliance Decision</option>
-              <option value="COMPLIANT">COMPLIANT</option>
-              <option value="NON_COMPLIANT">NON_COMPLIANT</option>
-              <option value="PARTIALLY_COMPLIANT">PARTIALLY_COMPLIANT</option>
-            </select>
+            <div className={`w-full p-3 border rounded-md ${
+              completeConfirmation.compliance === 'COMPLIANT' 
+                ? 'bg-green-50 border-green-200 text-green-800' 
+                : 'bg-red-50 border-red-200 text-red-800'
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className="text-lg">
+                  {completeConfirmation.compliance === 'COMPLIANT' ? '✅' : '❌'}
+                </span>
+                <span className="font-semibold">
+                  {completeConfirmation.compliance === 'COMPLIANT' ? 'COMPLIANT' : 'NON-COMPLIANT'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Summary of Findings and Observations (Auto-generated)
+            </label>
+            <div className="w-full p-3 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-700 max-h-32 overflow-y-auto">
+              {generateFindingsSummary()}
+            </div>
           </div>
 
           {completeConfirmation.compliance === 'NON_COMPLIANT' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Violations Found *
+                Violations Found (Auto-generated)
               </label>
-              <textarea
-                value={completeConfirmation.violations}
-                onChange={(e) => setCompleteConfirmation(prev => ({ ...prev, violations: e.target.value }))}
-                placeholder="Describe the violations found..."
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                rows="3"
-              />
+              <div className="w-full p-3 border border-red-200 rounded-md bg-red-50 text-sm text-red-700 max-h-32 overflow-y-auto">
+                {generateViolationsSummary()}
+              </div>
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Summary of Findings and Observations *
-            </label>
-            <textarea
-              value={completeConfirmation.findings}
-              onChange={(e) => setCompleteConfirmation(prev => ({ ...prev, findings: e.target.value }))}
-              placeholder="Provide a summary of findings and observations..."
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              rows="4"
-            />
-          </div>
+          <p className="text-sm text-gray-600">
+            Click "Complete Inspection" to finalize the inspection with the above status.
+          </p>
         </div>
       }
       confirmText="Complete Inspection"

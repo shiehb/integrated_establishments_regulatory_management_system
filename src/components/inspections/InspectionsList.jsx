@@ -18,8 +18,7 @@ import {
 import {
   getProfile, 
   getInspections, 
-  deleteInspection,
-  checkInspectionFormData
+  deleteInspection
 } from "../../services/api";
 import StatusBadge from "./StatusBadge";
 import InspectionTabs from "./InspectionTabs";
@@ -242,30 +241,24 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
     console.log('Found inspection:', inspection.code, 'for action:', action);
     
-    // For start action, check if form has data and change status accordingly
+    // For start action, change status to MONITORING_IN_PROGRESS and open form
     if (action === 'start') {
       try {
-        // Check if the form has any data
-        const formDataCheck = await checkInspectionFormData(inspectionId);
-        console.log('Form data check result:', formDataCheck);
-        
-        if (formDataCheck.has_form_data) {
-          // If form has data, change status to MONITORING_IN_PROGRESS first
-          console.log('Form has data, changing status to MONITORING_IN_PROGRESS');
+        // Always change status to MONITORING_IN_PROGRESS when starting inspection
+        console.log('Starting inspection, changing status to MONITORING_IN_PROGRESS');
           await handleAction('start', inspectionId);
           
           // Show success message
           notifications.success(
-            `Inspection ${inspection.code} status updated to In Progress`, 
-            { title: 'Status Updated' }
+          `Inspection ${inspection.code} started successfully`, 
+          { title: 'Inspection Started' }
           );
-        }
         
         // Navigate to inspection form page
         window.location.href = `/inspections/${inspectionId}/form`;
         return;
       } catch (error) {
-        console.error('Error checking form data or starting inspection:', error);
+        console.error('Error starting inspection:', error);
         notifications.error(
           `Error starting inspection: ${error.message}`, 
           { title: 'Error' }
@@ -285,12 +278,12 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     if (action === 'inspect') {
       // Check if user is Section Chief or Unit Head
       if (userLevel === 'Section Chief' || userLevel === 'Unit Head') {
-        setActionConfirmation({ 
-          open: true, 
-          inspection, 
-          action 
-        });
-        return;
+      setActionConfirmation({ 
+        open: true, 
+        inspection, 
+        action 
+      });
+      return;
       } else {
         // For other user levels, directly execute the action
         try {
@@ -337,14 +330,14 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     try {
       // For inspect action by Section Chief or Unit Head, execute the action and then open the form
       if (action === 'inspect' && (userLevel === 'Section Chief' || userLevel === 'Unit Head')) {
-        await handleAction(action, inspection.id);
+      await handleAction(action, inspection.id);
         notifications.success(
           `Inspection ${inspection.code} assigned to you`, 
           { title: 'Inspection Assigned' }
         );
         
         // Close confirmation dialog
-        setActionConfirmation({ open: false, inspection: null, action: null });
+      setActionConfirmation({ open: false, inspection: null, action: null });
         
         // Navigate to inspection form page
         window.location.href = `/inspections/${inspection.id}/form`;
