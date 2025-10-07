@@ -188,6 +188,10 @@ export default function GeneralInformation({
       ? selected.filter((l) => l !== lawId)
       : [...selected, lawId];
     setData({ ...data, environmental_laws: updated });
+    
+    // Clear environmental laws error when user makes a selection
+    if (clearError) clearError("environmental_laws");
+    
     if (onLawFilterChange) onLawFilterChange(updated);
   };
 
@@ -221,6 +225,9 @@ export default function GeneralInformation({
             );
           })}
         </div>
+        {errors.environmental_laws && (
+          <p className="text-sm text-red-600 mt-2">{errors.environmental_laws}</p>
+        )}
       </div>
 
       <div className="mt-4">

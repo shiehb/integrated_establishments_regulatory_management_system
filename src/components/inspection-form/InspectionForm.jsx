@@ -367,37 +367,43 @@ export default function InspectionForm({ inspectionData }) {
       errs.inspection_date_time = "Inspection date/time is required.";
     }
 
-    // Compliance
-    complianceItems.forEach((c, i) => {
-      if (!c.compliant) errs[`compliant-${i}`] = "Select compliance status.";
-      if (c.compliant === "Non-Compliant") {
-        if (!c.remarksOption) errs[`remarks-${i}`] = "Select a remark option.";
-        if (c.remarksOption === "Other" && !c.remarks)
-          errs[`remarks-${i}`] = "Enter custom remarks.";
-      }
-    });
-
-    // Findings
-    systems.forEach((s, i) => {
-      if (!s.compliant && !s.nonCompliant)
-        errs[`systemStatus-${i}`] = `Select status for "${s.system}".`;
-      if (s.nonCompliant) {
-        if (!s.remarksOption)
-          errs[`sysRemarks-${i}`] = "Select a remark option.";
-        if (s.remarksOption === "Other" && !s.remarks)
-          errs[`sysRemarks-${i}`] = "Enter custom remarks.";
-      }
-    });
-
-    // Recommendations
-    if (!recommendationState.checked?.length)
-      errs.recommendations = "Select at least one recommendation.";
-    if (
-      recommendationState.checked?.includes("Other Recommendations") &&
-      !recommendationState.otherText
-    ) {
-      errs.recommendations = "Provide text for other recommendation.";
+    // Environmental Laws (at least one must be selected)
+    if (!general.environmental_laws || general.environmental_laws.length === 0) {
+      errs.environmental_laws = "At least one environmental law must be selected.";
     }
+
+    // Compliance - only validate items for selected environmental laws
+    const selectedLaws = general.environmental_laws || [];
+    complianceItems.forEach((c, i) => {
+      // Only validate if the compliance item's law is selected
+      if (selectedLaws.includes(c.lawId)) {
+        if (!c.compliant) errs[`compliant-${i}`] = "Select compliance status.";
+        if (c.compliant === "Non-Compliant") {
+          if (!c.remarksOption) errs[`remarks-${i}`] = "Select a remark option.";
+          if (c.remarksOption === "Other" && !c.remarks)
+            errs[`remarks-${i}`] = "Enter custom remarks.";
+        }
+      }
+    });
+
+    // Findings - only validate systems for selected environmental laws
+    systems.forEach((s, i) => {
+      // Only validate if the system's law is selected (exclude "Commitment/s from previous Technical Conference")
+      const shouldValidate = selectedLaws.includes(s.lawId) && s.system !== "Commitment/s from previous Technical Conference";
+      
+      if (shouldValidate) {
+        if (!s.compliant && !s.nonCompliant)
+          errs[`systemStatus-${i}`] = `Select status for "${s.system}".`;
+        if (s.nonCompliant) {
+          if (!s.remarksOption)
+            errs[`sysRemarks-${i}`] = "Select a remark option.";
+          if (s.remarksOption === "Other" && !s.remarks)
+            errs[`sysRemarks-${i}`] = "Enter custom remarks.";
+        }
+      }
+    });
+
+    // Recommendations - no validation required
 
     setErrors(errs);
     
@@ -422,6 +428,43 @@ export default function InspectionForm({ inspectionData }) {
         return newErrors;
       });
     }
+  };
+
+  // Function to clear system data when environmental law is unchecked
+  const clearSystemsForUnselectedLaws = (selectedLaws) => {
+    const updatedSystems = systems.map(system => {
+      // If the system's law is not selected and it's not the "Commitment/s from previous Technical Conference"
+      // Also, only clear if the system has a lawId (to avoid clearing systems without lawId)
+      if (!selectedLaws.includes(system.lawId) && system.system !== "Commitment/s from previous Technical Conference" && system.lawId) {
+        return {
+          ...system,
+          compliant: false,
+          nonCompliant: false,
+          notApplicable: false,
+          remarks: "",
+          remarksOption: ""
+        };
+      }
+      return system;
+    });
+    setSystems(updatedSystems);
+  };
+
+  // Function to clear compliance items for unselected laws
+  const clearComplianceItemsForUnselectedLaws = (selectedLaws) => {
+    const updatedComplianceItems = complianceItems.map(item => {
+      // If the compliance item's law is not selected
+      if (!selectedLaws.includes(item.lawId)) {
+        return {
+          ...item,
+          compliant: "",
+          remarksOption: "",
+          remarks: ""
+        };
+      }
+      return item;
+    });
+    setComplianceItems(updatedComplianceItems);
   };
 
   /* ======================
@@ -832,7 +875,12 @@ export default function InspectionForm({ inspectionData }) {
         <GeneralInformation
           data={general}
           setData={setGeneral}
-          onLawFilterChange={setLawFilter}
+          onLawFilterChange={(selectedLaws) => {
+            setLawFilter(selectedLaws);
+            // Clear systems and compliance items for unselected laws
+            clearSystemsForUnselectedLaws(selectedLaws);
+            clearComplianceItemsForUnselectedLaws(selectedLaws);
+          }}
           inspectionData={fullInspectionData}
           errors={errors}
           clearError={clearError}
