@@ -107,6 +107,55 @@ export default function InspectionForm({ inspectionData }) {
   const [closeConfirmation, setCloseConfirmation] = useState({ open: false });
   const [loading, setLoading] = useState(false);
 
+  // Determine button visibility based on status and user role
+  const getButtonVisibility = () => {
+    const userLevel = currentUser?.userlevel;
+    const status = inspectionStatus;
+    const isDraft = fullInspectionData?.form?.checklist?.is_draft || false;
+    
+    // Review statuses where main form should be read-only
+    const reviewStatuses = ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED', 'FINALIZED', 'CLOSED'];
+    const isInReviewStatus = reviewStatuses.includes(status);
+    
+    // Statuses where Close Form, Draft, Submit buttons should be visible
+    const editableStatuses = ['CREATED', 'SECTION_IN_PROGRESS', 'UNIT_IN_PROGRESS', 'MONITORING_IN_PROGRESS'];
+    const isEditableStatus = editableStatuses.includes(status) || isDraft;
+    
+    return {
+      // Close Form Button - Always visible (including in review statuses)
+      showCloseButton: true,
+      
+      // Draft Button - Visible for all editable statuses including review statuses
+      showDraftButton: isEditableStatus || isInReviewStatus,
+      
+      // Submit Button - Removed as per user request
+      showSubmitButton: false,
+      
+      // Submit for Review Button - For Section Chief in SECTION_IN_PROGRESS and Unit Head in UNIT_IN_PROGRESS
+      showSubmitForReviewButton: (userLevel === 'Section Chief' && status === 'SECTION_IN_PROGRESS') || 
+                                 (userLevel === 'Unit Head' && status === 'UNIT_IN_PROGRESS'),
+      
+      // Submit for Review Button - Only for Monitoring Personnel in MONITORING_IN_PROGRESS
+      showCompleteButton: userLevel === 'Monitoring Personnel' && status === 'MONITORING_IN_PROGRESS',
+      
+      // Send to Section Button - For Unit Head in UNIT_REVIEWED and in review forms
+      showSendToSectionButton: (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') || 
+                               (status === 'UNIT_REVIEWED' && isInReviewStatus),
+      
+      // Send to Division Button - For Section Chief in SECTION_REVIEWED and in review forms
+      showSendToDivisionButton: (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') || 
+                                (status === 'SECTION_REVIEWED' && isInReviewStatus),
+      
+      // Finalize Button - Only for Division Chief in DIVISION_REVIEWED
+      showFinalizeButton: userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED',
+      
+      // Check if form should be read-only
+      isReadOnly: isInReviewStatus && userLevel !== 'Division Chief'
+    };
+  };
+
+  const buttonVisibility = getButtonVisibility();
+
 
   // Local storage backup (only for manual saves)
   useEffect(() => {
@@ -836,6 +885,77 @@ export default function InspectionForm({ inspectionData }) {
     }
   };
 
+  const handleSendToDivision = async () => {
+    if (!inspectionId) {
+      notifications.error("No inspection ID found. Cannot send to division.", { 
+        title: 'Send Failed' 
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Call the review action to change status to DIVISION_REVIEWED
+      await reviewInspection(inspectionId, {
+        remarks: 'Sent to Division Chief for review'
+      });
+      
+      notifications.success("Inspection sent to Division Chief successfully!", { 
+        title: 'Sent to Division',
+        duration: 6000
+      });
+      
+      // Navigate back to inspections list
+      navigate("/inspections");
+    } catch (error) {
+      console.error("Failed to send to division:", error);
+      notifications.error(`Failed to send to division: ${error.message}`, { 
+        title: 'Send Failed' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFinalize = async () => {
+    if (!inspectionId) {
+      notifications.error("No inspection ID found. Cannot finalize.", { 
+        title: 'Finalize Failed' 
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Save the recommendation first
+      await updateInspection(inspectionId, {
+        recommendation: recommendationState
+      });
+      
+      // Call the review action to change status to FINALIZED
+      await reviewInspection(inspectionId, {
+        remarks: 'Inspection finalized by Division Chief'
+      });
+      
+      notifications.success("Inspection finalized successfully!", { 
+        title: 'Inspection Finalized',
+        duration: 6000
+      });
+      
+      // Navigate back to inspections list
+      navigate("/inspections");
+    } catch (error) {
+      console.error("Failed to finalize inspection:", error);
+      notifications.error(`Failed to finalize inspection: ${error.message}`, { 
+        title: 'Finalize Failed' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const executeComplete = async () => {
     const { compliance } = completeConfirmation;
     
@@ -861,15 +981,37 @@ export default function InspectionForm({ inspectionData }) {
     };
 
     try {
-      console.log("✅ Submitting inspection for Unit Head review with data:", formData);
+      const userLevel = currentUser?.userlevel;
+      const status = inspectionStatus;
+      let remarks = '';
+      let successMessage = '';
       
-      // Complete the inspection (automatically transitions to UNIT_REVIEWED)
+      // Determine the appropriate action based on user level and status
+      if (userLevel === 'Monitoring Personnel' && status === 'MONITORING_IN_PROGRESS') {
+        remarks = 'Inspection submitted for Unit Head review';
+        successMessage = 'Inspection submitted successfully! It has been sent to Unit Head for review.';
+        console.log("✅ Submitting inspection for Unit Head review with data:", formData);
+      } else if (userLevel === 'Section Chief' && status === 'SECTION_IN_PROGRESS') {
+        remarks = 'Inspection submitted for Division Chief review';
+        successMessage = 'Inspection submitted successfully! It has been sent to Division Chief for review.';
+        console.log("✅ Submitting inspection for Division Chief review with data:", formData);
+      } else if (userLevel === 'Unit Head' && status === 'UNIT_IN_PROGRESS') {
+        remarks = 'Inspection submitted for Section Chief review';
+        successMessage = 'Inspection submitted successfully! It has been sent to Section Chief for review.';
+        console.log("✅ Submitting inspection for Section Chief review with data:", formData);
+      } else {
+        remarks = 'Inspection submitted for review';
+        successMessage = 'Inspection submitted successfully!';
+        console.log("✅ Submitting inspection for review with data:", formData);
+      }
+      
+      // Complete the inspection
       await completeInspection(inspectionId, {
         form_data: formData,
         compliance_decision: compliance.toUpperCase(),
         violations_found: autoViolations,
         findings_summary: autoFindings,
-        remarks: 'Inspection submitted for Unit Head review'
+        remarks: remarks
       });
       
       // Clear localStorage draft since it's completed
@@ -880,7 +1022,7 @@ export default function InspectionForm({ inspectionData }) {
       }
       
       // Show success message
-      notifications.success("Inspection submitted successfully! It has been sent to Unit Head for review.", { 
+      notifications.success(successMessage, { 
         title: 'Inspection Submitted',
         duration: 6000
       });
@@ -931,10 +1073,20 @@ export default function InspectionForm({ inspectionData }) {
             onClose={handleClose}
             onComplete={handleComplete}
             onSendToSection={handleSendToSection}
+            onSendToDivision={handleSendToDivision}
+            onFinalize={handleFinalize}
             lastSaveTime={lastSaveTime}
-            showCompleteButton={currentUser?.userlevel === 'Monitoring Personnel' && inspectionStatus === 'MONITORING_IN_PROGRESS'}
-            showSendToSectionButton={currentUser?.userlevel === 'Unit Head' && inspectionStatus === 'UNIT_REVIEWED'}
+            showCompleteButton={buttonVisibility.showCompleteButton}
+            showSubmitForReviewButton={buttonVisibility.showSubmitForReviewButton}
+            showSendToSectionButton={buttonVisibility.showSendToSectionButton}
+            showSendToDivisionButton={buttonVisibility.showSendToDivisionButton}
+            showFinalizeButton={buttonVisibility.showFinalizeButton}
+            showDraftButton={buttonVisibility.showDraftButton}
+            showSubmitButton={buttonVisibility.showSubmitButton}
+            showCloseButton={buttonVisibility.showCloseButton}
             isDraft={fullInspectionData?.form?.checklist?.is_draft || false}
+            currentUser={currentUser}
+            inspectionStatus={inspectionStatus}
           />
 
           <div className="p-4">
@@ -975,11 +1127,13 @@ export default function InspectionForm({ inspectionData }) {
           inspectionData={fullInspectionData}
           errors={errors}
           clearError={clearError}
+          isReadOnly={buttonVisibility.isReadOnly}
         />
         <PurposeOfInspection
           state={purpose}
           setState={setPurpose}
           errors={errors}
+          isReadOnly={buttonVisibility.isReadOnly}
         />
 
         {lawFilter.length > 0 && (
@@ -989,18 +1143,21 @@ export default function InspectionForm({ inspectionData }) {
               setPermits={setPermits}
               lawFilter={lawFilter}
               errors={errors}
+              isReadOnly={buttonVisibility.isReadOnly}
             />
             <SummaryOfCompliance
               items={complianceItems}
               setItems={setComplianceItems}
               lawFilter={lawFilter}
               errors={errors}
+              isReadOnly={buttonVisibility.isReadOnly}
             />
             <SummaryOfFindingsAndObservations
               systems={systems}
               setSystems={setSystems}
               lawFilter={lawFilter}
               errors={errors}
+              isReadOnly={buttonVisibility.isReadOnly}
             />
           </>
         )}
@@ -1009,6 +1166,8 @@ export default function InspectionForm({ inspectionData }) {
           recState={recommendationState}
           setRecState={setRecommendationState}
           errors={errors}
+          isReadOnly={buttonVisibility.isReadOnly && currentUser?.userlevel !== 'Division Chief'}
+          canEditRecommendation={currentUser?.userlevel === 'Division Chief' && inspectionStatus === 'DIVISION_REVIEWED'}
         />
       </div>
     </div>

@@ -788,9 +788,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Determine next status based on current status
         if inspection.current_status == 'SECTION_IN_PROGRESS':
-            next_status = 'SECTION_COMPLETED'
+            # Section Chief submits for Division Chief review
+            next_status = 'DIVISION_REVIEWED'
         elif inspection.current_status == 'UNIT_IN_PROGRESS':
-            next_status = 'UNIT_COMPLETED'
+            # Unit Head submits for Section Chief review  
+            next_status = 'SECTION_REVIEWED'
         elif inspection.current_status == 'MONITORING_IN_PROGRESS':
             # Monitoring needs compliance decision
             compliance = data.get('compliance_decision')
@@ -855,11 +857,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
         # Auto-transition completed inspections to review
         if next_status in ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']:
             self._auto_forward_to_review(inspection, user)
-        elif next_status == 'SECTION_COMPLETED':
-            # Section completed - forward to Division Chief for review
+        elif next_status == 'DIVISION_REVIEWED':
+            # Section Chief submitted - assign to Division Chief for review
             self._auto_forward_to_division_review(inspection, user)
-        elif next_status == 'UNIT_COMPLETED':
-            # Unit completed - forward to Section Chief for review
+        elif next_status == 'SECTION_REVIEWED':
+            # Unit Head submitted - assign to Section Chief for review
             self._auto_forward_to_section_review(inspection, user)
         
         serializer = self.get_serializer(inspection)
@@ -1133,6 +1135,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'MONITORING_COMPLETED_NON_COMPLIANT': 'UNIT_REVIEWED',
             'UNIT_REVIEWED': 'SECTION_REVIEWED',
             'SECTION_REVIEWED': 'DIVISION_REVIEWED',
+            'DIVISION_REVIEWED': 'FINALIZED',
         }
         
         next_status = status_map.get(inspection.current_status)

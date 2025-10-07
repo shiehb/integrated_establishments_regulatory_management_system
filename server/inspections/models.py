@@ -48,6 +48,7 @@ class Inspection(models.Model):
         ('NOO_SENT', 'NOO Sent'),
         
         # Final states
+        ('FINALIZED', 'Finalized'),
         ('CLOSED_COMPLIANT', 'Closed - Compliant'),
         ('CLOSED_NON_COMPLIANT', 'Closed - Non-Compliant'),
     ]
