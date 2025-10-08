@@ -13,6 +13,7 @@ export default function SummaryOfFindingsAndObservations({
   setSystems,
   lawFilter,
   errors,
+  isReadOnly = false,
 }) {
   const filteredSystems = useMemo(() => {
     if (!lawFilter || lawFilter.length === 0) return systems;
@@ -74,6 +75,7 @@ export default function SummaryOfFindingsAndObservations({
                       type="radio"
                       checked={s.compliant === "Yes"}
                       onChange={() => updateSystem(globalIndex, "compliant", "Yes")}
+                      disabled={isReadOnly}
                     />{" "}
                     Compliant
                   </label>
@@ -82,6 +84,7 @@ export default function SummaryOfFindingsAndObservations({
                       type="radio"
                       checked={s.nonCompliant === true}
                       onChange={() => updateSystem(globalIndex, "compliant", "No")}
+                      disabled={isReadOnly}
                     />{" "}
                     Non-Compliant
                   </label>
@@ -104,6 +107,7 @@ export default function SummaryOfFindingsAndObservations({
                         updateSystem(globalIndex, "remarksOption", e.target.value)
                       }
                       className="w-full px-2 py-1 text-black bg-white border border-black"
+                      disabled={isReadOnly}
                     >
                       <option value="">-- Select Remark --</option>
                       {PREDEFINED_REMARKS.filter((r) => r !== "Compliant").map((r) => (
@@ -120,6 +124,7 @@ export default function SummaryOfFindingsAndObservations({
                         }
                         placeholder="ENTER REMARKS..."
                         className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase mt-2"
+                        disabled={isReadOnly}
                       />
                     )}
                   </>

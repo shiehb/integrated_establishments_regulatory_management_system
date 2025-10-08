@@ -6,7 +6,7 @@ import SectionHeader from "./SectionHeader";
    Compliance Status (Permits)
    - includes date validation & formatting
    ---------------------------*/
-export default function ComplianceStatus({ permits, setPermits, lawFilter, errors }) {
+export default function ComplianceStatus({ permits, setPermits, lawFilter, errors, isReadOnly = false }) {
   // State for validation
   const [dateValidations, setDateValidations] = useState({});
 
@@ -100,6 +100,7 @@ export default function ComplianceStatus({ permits, setPermits, lawFilter, error
                             formatInput.upper
                           )
                         }
+                        disabled={isReadOnly}
                       />
                     </td>
                     <td className="p-2 border border-black">
@@ -122,6 +123,7 @@ export default function ComplianceStatus({ permits, setPermits, lawFilter, error
                             )
                           }
                           max={new Date().toISOString().split('T')[0]} // Prevent future dates
+                          disabled={isReadOnly}
                         />
                       </div>
                       {/* Validation message */}
@@ -157,6 +159,7 @@ export default function ComplianceStatus({ permits, setPermits, lawFilter, error
                             )
                           }
                           min={permits[originalIndex].dateIssued || undefined} // Prevent dates before issued date
+                          disabled={isReadOnly}
                         />
                       </div>
                       {/* Validation message */}

@@ -471,6 +471,36 @@ export const forwardToLegal = async (id, data = {}) => {
   }
 };
 
+export const sendToSection = async (id, data = {}) => {
+  try {
+  const res = await api.post(`inspections/${id}/send_to_section/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to send to section. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const sendToDivision = async (id, data = {}) => {
+  try {
+  const res = await api.post(`inspections/${id}/send_to_division/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to send to division. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
 export const sendNOV = async (id, data = {}) => {
   try {
   const res = await api.post(`inspections/${id}/send_nov/`, data);

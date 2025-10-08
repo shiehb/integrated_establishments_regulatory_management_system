@@ -26,14 +26,13 @@ export const statusDisplayMap = {
   UNIT_COMPLETED_NON_COMPLIANT: { label: 'Unit Completed - Non-Compliant', color: 'red' },
   MONITORING_ASSIGNED: { label: 'Assigned for Monitoring', color: 'indigo' },
   MONITORING_IN_PROGRESS: { label: 'Monitoring Ongoing', color: 'amber' },
-  MONITORING_COMPLETED_COMPLIANT: { label: 'Monitoring Completed - Compliant ✅', color: 'green' },
-  MONITORING_COMPLETED_NON_COMPLIANT: { label: 'Monitoring Completed - Non-Compliant ❌', color: 'red' },
   UNIT_REVIEWED: { label: 'Unit Reviewed', color: 'purple' },
   SECTION_REVIEWED: { label: 'Section Reviewed', color: 'purple' },
   DIVISION_REVIEWED: { label: 'Division Reviewed', color: 'purple' },
   LEGAL_REVIEW: { label: 'Legal Review', color: 'orange' },
   NOV_SENT: { label: 'Notice of Violation Sent', color: 'purple' },
   NOO_SENT: { label: 'Notice of Order Sent', color: 'pink' },
+  CLOSED: { label: 'Complied ✅', color: 'green' },
   CLOSED_COMPLIANT: { label: 'Closed ✅', color: 'green' },
   CLOSED_NON_COMPLIANT: { label: 'Closed ❌', color: 'rose' }
 };

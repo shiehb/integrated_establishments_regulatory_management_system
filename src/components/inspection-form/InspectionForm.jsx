@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
-import { saveInspectionDraft, completeInspection, getInspection, updateInspection, reviewInspection, forwardToLegal, sendNOV, sendNOO } from "../../services/api";
+import { saveInspectionDraft, completeInspection, getInspection, updateInspection, reviewInspection, forwardToLegal, sendToSection, sendToDivision, closeInspection, sendNOV, sendNOO } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 
@@ -111,6 +111,43 @@ export default function InspectionForm({ inspectionData }) {
     action: null 
   });
   const [loading, setLoading] = useState(false);
+  const [hasFormChanges, setHasFormChanges] = useState(false);
+  const [hasActionTaken, setHasActionTaken] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState('saved'); // 'saving', 'saved', 'error'
+
+  // Function to determine compliance status based on form data
+  const determineComplianceStatus = () => {
+    // Check compliance items
+    const hasNonCompliantItems = complianceItems.some(item => item.compliant === "No");
+    const hasCompliantItems = complianceItems.some(item => item.compliant === "Yes");
+    
+    // Check systems (findings)
+    const hasNonCompliantSystems = systems.some(system => system.nonCompliant);
+    const hasCompliantSystems = systems.some(system => system.compliant);
+    
+    // Log compliance detection for debugging
+    console.log('🔍 Compliance Detection:', {
+      hasNonCompliantItems,
+      hasCompliantItems,
+      hasNonCompliantSystems,
+      hasCompliantSystems,
+      complianceItems: complianceItems.filter(item => item.compliant),
+      systems: systems.filter(system => system.compliant || system.nonCompliant)
+    });
+    
+    // Determine overall compliance
+    if (hasNonCompliantItems || hasNonCompliantSystems) {
+      console.log('❌ Result: NON_COMPLIANT');
+      return 'NON_COMPLIANT';
+    } else if (hasCompliantItems || hasCompliantSystems) {
+      console.log('✅ Result: COMPLIANT');
+      return 'COMPLIANT';
+    } else {
+      // If no compliance data is filled, assume non-compliant for safety
+      console.log('⚠️ Result: NON_COMPLIANT (default - no data)');
+      return 'NON_COMPLIANT';
+    }
+  };
 
   // Determine button visibility and access control based on status and user role
   const getButtonVisibility = () => {
@@ -119,7 +156,7 @@ export default function InspectionForm({ inspectionData }) {
     const isDraft = fullInspectionData?.form?.checklist?.is_draft || false;
     
     // Review statuses where main form should be read-only
-    const reviewStatuses = ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED', 'FINALIZED', 'CLOSED'];
+    const reviewStatuses = ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED', 'LEGAL_REVIEW', 'FINALIZED', 'CLOSED'];
     const isInReviewStatus = reviewStatuses.includes(status);
     
     // Statuses where Close Form, Draft, Submit buttons should be visible
@@ -127,17 +164,17 @@ export default function InspectionForm({ inspectionData }) {
     const isEditableStatus = editableStatuses.includes(status) || isDraft;
     
     // NEW ACCESS CONTROL LOGIC:
-    // All fields are read-only by default
+    // All fields are read-only during review process
     // Only Division Chief can edit recommendations
     const isDivisionChief = userLevel === 'Division Chief';
-    const isFormReadOnly = true; // All fields read-only by default
+    const isFormReadOnly = isInReviewStatus; // Make form read-only during review
     
     return {
       // Close Form Button - Always visible (including in review statuses)
       showCloseButton: true,
       
-      // Draft Button - Visible for all editable statuses including review statuses
-      showDraftButton: isEditableStatus || isInReviewStatus,
+      // Draft Button - Hidden during review statuses
+      showDraftButton: isEditableStatus && !isInReviewStatus,
       
       // Submit Button - Removed as per user request
       showSubmitButton: false,
@@ -155,10 +192,11 @@ export default function InspectionForm({ inspectionData }) {
       // Send to Division Button - For Section Chief in SECTION_REVIEWED and in review forms (hidden when new button is shown)
       showSendToDivisionButton: false, // Disabled in favor of generic "Send to Next Level" button
       
-      // Send to Next Level Button - Generic button for review workflow
-      showSendToNextLevelButton: (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') ||
-                                 (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') ||
-                                 (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED'),
+      // Send to Next Level Button - For Unit Head and Section Chief
+      showSendToNextLevelButton: (
+        (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') ||
+        (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED')
+      ),
       
       // Get the next level name for button text
       getNextLevelName: () => {
@@ -170,17 +208,17 @@ export default function InspectionForm({ inspectionData }) {
         return 'Next Level';
       },
       
-      // Review Button - For review workflow (Unit Head, Section Chief, Division Chief, Legal Unit)
-      showReviewButton: (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') ||
-                       (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') ||
-                       (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED') ||
-                       (userLevel === 'Legal Unit' && status === 'LEGAL_REVIEW'),
+      // Review Button - Only for Unit Head who uses it to enter the form
+      showReviewButton: (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED'),
       
       // Forward to Legal Button - Only for Division Chief in DIVISION_REVIEWED (any compliance status)
       showForwardToLegalButton: userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED',
       
-      // Finalize Button - Only for Division Chief in DIVISION_REVIEWED (compliant cases)
-      showFinalizeButton: userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED' && determineComplianceStatus() === 'COMPLIANT',
+      // Mark as Compliant Button - Only for Division Chief in DIVISION_REVIEWED
+      showMarkAsCompliantButton: userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED',
+      
+      // Finalize Button - Disabled (functionality moved to Close Form)
+      showFinalizeButton: false,
       
       // Legal Unit buttons - NOV and NOO buttons for Legal Unit in LEGAL_REVIEW
       showSendNOVButton: userLevel === 'Legal Unit' && status === 'LEGAL_REVIEW',
@@ -378,6 +416,43 @@ export default function InspectionForm({ inspectionData }) {
     loadCurrentUser();
   }, []);
 
+  // Auto-save to database for editable statuses
+  useEffect(() => {
+    // Only auto-save for Section Chief, Unit Head, Monitoring Personnel in editable statuses
+    const editableStatuses = ['SECTION_IN_PROGRESS', 'UNIT_IN_PROGRESS', 'MONITORING_IN_PROGRESS'];
+    const isEditable = editableStatuses.includes(inspectionStatus);
+    
+    if (!isEditable || !inspectionId || !hasFormChanges) return;
+    
+    // Debounce: save after 3 seconds of inactivity
+    const timer = setTimeout(async () => {
+      try {
+        setAutoSaveStatus('saving');
+        
+        const formDataToSave = {
+          general,
+          purpose,
+          permits,
+          complianceItems,
+          systems,
+          recommendationState
+        };
+        
+        await saveInspectionDraft(inspectionId, { form_data: formDataToSave });
+        console.log('✅ Auto-saved to database');
+        setLastSaveTime(new Date().toISOString());
+        setHasFormChanges(false);
+        setAutoSaveStatus('saved');
+      } catch (error) {
+        console.error('Auto-save failed:', error);
+        setAutoSaveStatus('error');
+        // Don't show error to user for auto-save failures
+      }
+    }, 3000); // 3 second debounce
+    
+    return () => clearTimeout(timer);
+  }, [general, purpose, permits, complianceItems, systems, recommendationState, inspectionStatus, inspectionId, hasFormChanges]);
+
   /* ======================
      Validation
      ====================== */
@@ -550,6 +625,7 @@ export default function InspectionForm({ inspectionData }) {
       return system;
     });
     setSystems(updatedSystems);
+    setHasFormChanges(true);
   };
 
   // Function to clear compliance items for unselected laws
@@ -567,45 +643,13 @@ export default function InspectionForm({ inspectionData }) {
       return item;
     });
     setComplianceItems(updatedComplianceItems);
+    setHasFormChanges(true);
   };
 
   /* ======================
      Helper Functions
      ====================== */
   
-  // Function to determine compliance status based on form data
-  const determineComplianceStatus = () => {
-    // Check compliance items
-    const hasNonCompliantItems = complianceItems.some(item => item.compliant === "No");
-    const hasCompliantItems = complianceItems.some(item => item.compliant === "Yes");
-    
-    // Check systems (findings)
-    const hasNonCompliantSystems = systems.some(system => system.nonCompliant);
-    const hasCompliantSystems = systems.some(system => system.compliant);
-    
-    // Log compliance detection for debugging
-    console.log('🔍 Compliance Detection:', {
-      hasNonCompliantItems,
-      hasCompliantItems,
-      hasNonCompliantSystems,
-      hasCompliantSystems,
-      complianceItems: complianceItems.filter(item => item.compliant),
-      systems: systems.filter(system => system.compliant || system.nonCompliant)
-    });
-    
-    // Determine overall compliance
-    if (hasNonCompliantItems || hasNonCompliantSystems) {
-      console.log('❌ Result: NON_COMPLIANT');
-      return 'NON_COMPLIANT';
-    } else if (hasCompliantItems || hasCompliantSystems) {
-      console.log('✅ Result: COMPLIANT');
-      return 'COMPLIANT';
-    } else {
-      // If no compliance data is filled, assume non-compliant for safety
-      console.log('⚠️ Result: NON_COMPLIANT (default - no data)');
-      return 'NON_COMPLIANT';
-    }
-  };
 
   const generateViolationsSummary = () => {
     const violations = [];
@@ -672,28 +716,17 @@ export default function InspectionForm({ inspectionData }) {
   };
 
   // Function to determine the appropriate status based on current status and compliance
-  const determineNewStatus = (currentStatus, complianceStatus) => {
-    // If current status is MONITORING_IN_PROGRESS, update to appropriate completion status
+  const determineNewStatus = (currentStatus) => {
+    // Determine next status based on current status (matching backend logic)
     if (currentStatus === 'MONITORING_IN_PROGRESS') {
-      return complianceStatus === 'COMPLIANT' 
-        ? 'MONITORING_COMPLETED_COMPLIANT' 
-        : 'MONITORING_COMPLETED_NON_COMPLIANT';
-    }
-    
-    // For other statuses, determine based on user level and compliance
-    const userLevel = currentUser?.userlevel;
-    
-    if (userLevel === 'Section Chief') {
-      // Section Chief completion should go to Division Chief for review
+      // Monitoring Personnel submits for Unit Head review
+      return 'UNIT_REVIEWED';
+    } else if (currentStatus === 'UNIT_IN_PROGRESS') {
+      // Unit Head submits for Section Chief review
+      return 'SECTION_REVIEWED';
+    } else if (currentStatus === 'SECTION_IN_PROGRESS') {
+      // Section Chief submits for Division Chief review
       return 'DIVISION_REVIEWED';
-    } else if (userLevel === 'Unit Head') {
-      return complianceStatus === 'COMPLIANT' 
-        ? 'UNIT_COMPLETED_COMPLIANT' 
-        : 'UNIT_COMPLETED_NON_COMPLIANT';
-    } else if (userLevel === 'Monitoring Personnel') {
-      return complianceStatus === 'COMPLIANT' 
-        ? 'MONITORING_COMPLETED_COMPLIANT' 
-        : 'MONITORING_COMPLETED_NON_COMPLIANT';
     }
     
     // Default fallback
@@ -752,7 +785,7 @@ export default function InspectionForm({ inspectionData }) {
       
       // Determine new status based on current status and compliance
       const currentStatus = fullInspectionData?.current_status || 'CREATED';
-      const newStatus = determineNewStatus(currentStatus, complianceStatus);
+      const newStatus = determineNewStatus(currentStatus);
       console.log("📊 Current status:", currentStatus, "→ New status:", newStatus);
       
       // Save draft to backend
@@ -791,16 +824,14 @@ export default function InspectionForm({ inspectionData }) {
       let statusMessage = "Inspection saved successfully!";
       
       if (newStatus !== currentStatus) {
-        if (newStatus === 'DIVISION_REVIEWED') {
+        if (newStatus === 'UNIT_REVIEWED') {
+          statusMessage = "Inspection saved successfully! Status updated to Unit Reviewed - assigned to Unit Head for review.";
+        } else if (newStatus === 'DIVISION_REVIEWED') {
           statusMessage = "Inspection saved successfully! Status updated to Division Reviewed - assigned to Division Chief for review.";
         } else if (newStatus === 'UNIT_COMPLETED_COMPLIANT') {
           statusMessage = "Inspection saved successfully! Status updated to Unit Completed - Compliant.";
         } else if (newStatus === 'UNIT_COMPLETED_NON_COMPLIANT') {
           statusMessage = "Inspection saved successfully! Status updated to Unit Completed - Non-Compliant.";
-        } else if (newStatus === 'MONITORING_COMPLETED_COMPLIANT') {
-          statusMessage = "Inspection saved successfully! Status updated to Monitoring Completed - Compliant.";
-        } else if (newStatus === 'MONITORING_COMPLETED_NON_COMPLIANT') {
-          statusMessage = "Inspection saved successfully! Status updated to Monitoring Completed - Non-Compliant.";
         } else {
           statusMessage = `Inspection saved successfully! Status updated to: ${newStatus.replace(/_/g, ' ')}`;
         }
@@ -995,31 +1026,28 @@ export default function InspectionForm({ inspectionData }) {
     try {
       setLoading(true);
       
-      // Determine the next level based on current status and user level
+      // Determine the next level and call appropriate action
       if (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') {
         nextLevel = 'Section';
         remarks = 'Sent to Section Chief for review';
         successMessage = 'Inspection sent to Section Chief successfully!';
+        // Call send to section action
+        await sendToSection(inspectionId, { remarks });
       } else if (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') {
         nextLevel = 'Division';
         remarks = 'Sent to Division Chief for review';
         successMessage = 'Inspection sent to Division Chief successfully!';
+        // Call send to division action
+        await sendToDivision(inspectionId, { remarks });
       } else if (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED') {
         nextLevel = 'Legal';
         remarks = 'Forwarded case to Legal Unit';
         successMessage = 'Inspection forwarded to Legal Unit successfully!';
-        // Call forward to legal instead of review
+        // Call forward to legal action
         await forwardToLegal(inspectionId, { remarks });
-        notifications.success(successMessage, { 
-          title: `Sent to ${nextLevel}`,
-          duration: 6000
-        });
-        navigate("/inspections");
-        return;
+      } else {
+        throw new Error('Invalid user level or status for sending to next level');
       }
-      
-      // Call the review action
-      await reviewInspection(inspectionId, { remarks });
       
       notifications.success(successMessage, { 
         title: `Sent to ${nextLevel}`,
@@ -1197,6 +1225,7 @@ export default function InspectionForm({ inspectionData }) {
           penalty_fees: 'To be determined based on violation severity'
         });
         
+        setHasActionTaken(true);
         notifications.success("Notice of Violation sent successfully!", { 
           title: 'NOV Sent',
           duration: 6000
@@ -1208,10 +1237,19 @@ export default function InspectionForm({ inspectionData }) {
           penalty_fees: 'To be determined based on violation severity'
         });
         
+        setHasActionTaken(true);
         notifications.success("Notice of Order sent successfully!", { 
           title: 'NOO Sent',
           duration: 6000
         });
+      } else if (action === 'mark_compliant') {
+        // Execute the onConfirm callback from actionConfirmation
+        if (actionConfirmation.onConfirm) {
+          await actionConfirmation.onConfirm();
+        }
+        // Close confirmation dialog
+        setActionConfirmation({ open: false, inspection: null, action: null });
+        return; // Don't navigate here, onConfirm handles it
       }
       
       // Close confirmation dialog
@@ -1315,7 +1353,178 @@ export default function InspectionForm({ inspectionData }) {
     }
   };
 
-  const handleClose = () => {
+  const handleMarkAsCompliant = async () => {
+    const complianceStatus = determineComplianceStatus();
+    
+    if (complianceStatus !== 'COMPLIANT') {
+      notifications.warning(
+        'Cannot mark as compliant. Please ensure all compliance items and systems are marked as compliant.',
+        { title: 'Action Not Allowed' }
+      );
+      return;
+    }
+    
+    setActionConfirmation({
+      open: true,
+      inspection: fullInspectionData,
+      action: 'mark_compliant',
+      message: 'Are you sure you want to mark this inspection as compliant? The inspection will be closed with compliant status.',
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          await closeInspection(inspectionId, {
+            remarks: 'Marked as compliant by Division Chief',
+            final_status: 'CLOSED'
+          });
+          notifications.success('Inspection marked as compliant successfully', { title: 'Inspection Closed' });
+          navigate("/inspections");
+        } catch (error) {
+          notifications.error(`Failed to mark as compliant: ${error.message}`, { title: 'Action Failed' });
+          setLoading(false);
+        }
+      }
+    });
+  };
+
+  const handleClose = async () => {
+    const userLevel = currentUser?.userlevel;
+    const status = inspectionStatus;
+
+    // Section Chief closing from SECTION_REVIEWED
+    if (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') {
+      if (hasFormChanges) {
+        // Show confirmation
+        setActionConfirmation({
+          open: true,
+          inspection: fullInspectionData,
+          action: 'close_section_review',
+          message: 'You have unsaved changes. Do you want to close and send this inspection to Division Chief?',
+          onConfirm: async () => {
+            try {
+              setLoading(true);
+              await sendToDivision(inspectionId, {
+                remarks: 'Reviewed and closed by Section Chief'
+              });
+              notifications.success('Inspection sent to Division Chief successfully', { title: 'Review Completed' });
+              navigate("/inspections");
+            } catch (error) {
+              notifications.error(`Failed to close: ${error.message}`, { title: 'Close Failed' });
+              setLoading(false);
+            }
+          }
+        });
+        return;
+      } else {
+        // No changes - auto-close
+        try {
+          setLoading(true);
+          await sendToDivision(inspectionId, {
+            remarks: 'Reviewed by Section Chief - no changes needed'
+          });
+          notifications.success('Inspection sent to Division Chief', { title: 'Review Completed' });
+          navigate("/inspections");
+          return;
+        } catch (error) {
+          notifications.error(`Failed to close: ${error.message}`, { title: 'Close Failed' });
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
+    // Division Chief closing from DIVISION_REVIEWED
+    if (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED') {
+      const complianceStatus = determineComplianceStatus();
+      
+      if (hasFormChanges) {
+        // Show confirmation
+        setActionConfirmation({
+          open: true,
+          inspection: fullInspectionData,
+          action: 'close_division_review',
+          message: `You have unsaved changes. Do you want to close this inspection as ${complianceStatus}?`,
+          onConfirm: async () => {
+            try {
+              setLoading(true);
+              const newStatus = complianceStatus === 'COMPLIANT' ? 'CLOSED_COMPLIANT' : 'CLOSED_NON_COMPLIANT';
+              await closeInspection(inspectionId, {
+                remarks: 'Closed by Division Chief',
+                final_status: newStatus
+              });
+              notifications.success(`Inspection closed successfully as ${complianceStatus}`, { title: 'Inspection Closed' });
+              navigate("/inspections");
+            } catch (error) {
+              notifications.error(`Failed to close: ${error.message}`, { title: 'Close Failed' });
+              setLoading(false);
+            }
+          }
+        });
+        return;
+      } else {
+        // No changes - auto-finalize
+        try {
+          setLoading(true);
+          const newStatus = complianceStatus === 'COMPLIANT' ? 'CLOSED_COMPLIANT' : 'CLOSED_NON_COMPLIANT';
+          await closeInspection(inspectionId, {
+            remarks: 'Reviewed by Division Chief - no changes needed',
+            final_status: newStatus
+          });
+          notifications.success(`Inspection closed as ${complianceStatus}`, { title: 'Inspection Closed' });
+          navigate("/inspections");
+          return;
+        } catch (error) {
+          notifications.error(`Failed to close: ${error.message}`, { title: 'Close Failed' });
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
+    // Legal Unit closing from LEGAL_REVIEW
+    if (userLevel === 'Legal Unit' && status === 'LEGAL_REVIEW') {
+      if (hasActionTaken || hasFormChanges) {
+        // Show confirmation if NOV/NOO was sent or changes made
+        setActionConfirmation({
+          open: true,
+          inspection: fullInspectionData,
+          action: 'close_legal_review',
+          message: 'Do you want to close this legal review? The inspection will be marked as closed.',
+          onConfirm: async () => {
+            try {
+              setLoading(true);
+              await closeInspection(inspectionId, {
+                remarks: 'Legal review completed',
+                final_status: 'CLOSED_NON_COMPLIANT'
+              });
+              notifications.success('Legal review closed successfully', { title: 'Review Closed' });
+              navigate("/inspections");
+            } catch (error) {
+              notifications.error(`Failed to close: ${error.message}`, { title: 'Close Failed' });
+              setLoading(false);
+            }
+          }
+        });
+        return;
+      } else {
+        // No action taken - auto-close
+        try {
+          setLoading(true);
+          await closeInspection(inspectionId, {
+            remarks: 'Legal review completed - no action needed',
+            final_status: 'CLOSED_NON_COMPLIANT'
+          });
+          notifications.success('Legal review closed', { title: 'Review Closed' });
+          navigate("/inspections");
+          return;
+        } catch (error) {
+          notifications.error(`Failed to close: ${error.message}`, { title: 'Close Failed' });
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
+    // Default: show regular close confirmation for other cases
     setCloseConfirmation({ open: true });
   };
 
@@ -1354,7 +1563,9 @@ export default function InspectionForm({ inspectionData }) {
             onSendNOV={handleSendNOV}
             onSendNOO={handleSendNOO}
             onSaveRecommendation={handleSaveRecommendation}
+            onMarkAsCompliant={handleMarkAsCompliant}
             lastSaveTime={lastSaveTime}
+            autoSaveStatus={autoSaveStatus}
             showCompleteButton={buttonVisibility.showCompleteButton}
             showSubmitForReviewButton={buttonVisibility.showSubmitForReviewButton}
             showSendToSectionButton={buttonVisibility.showSendToSectionButton}
@@ -1367,6 +1578,7 @@ export default function InspectionForm({ inspectionData }) {
             showSendNOVButton={buttonVisibility.showSendNOVButton}
             showSendNOOButton={buttonVisibility.showSendNOOButton}
             showSaveRecommendationButton={buttonVisibility.showSaveRecommendationButton}
+            showMarkAsCompliantButton={buttonVisibility.showMarkAsCompliantButton}
             showDraftButton={buttonVisibility.showDraftButton}
             showSubmitButton={buttonVisibility.showSubmitButton}
             showCloseButton={buttonVisibility.showCloseButton}
@@ -1464,7 +1676,10 @@ export default function InspectionForm({ inspectionData }) {
             
         <GeneralInformation
           data={general}
-          setData={setGeneral}
+          setData={(newData) => {
+            setGeneral(newData);
+            setHasFormChanges(true);
+          }}
           onLawFilterChange={(selectedLaws) => {
             setLawFilter(selectedLaws);
             // Clear systems and compliance items for unselected laws
@@ -1478,7 +1693,10 @@ export default function InspectionForm({ inspectionData }) {
         />
         <PurposeOfInspection
           state={purpose}
-          setState={setPurpose}
+          setState={(newState) => {
+            setPurpose(newState);
+            setHasFormChanges(true);
+          }}
           errors={errors}
           isReadOnly={buttonVisibility.isReadOnly}
         />
@@ -1494,14 +1712,20 @@ export default function InspectionForm({ inspectionData }) {
             />
             <SummaryOfCompliance
               items={complianceItems}
-              setItems={setComplianceItems}
+              setItems={(newItems) => {
+                setComplianceItems(newItems);
+                setHasFormChanges(true);
+              }}
               lawFilter={lawFilter}
               errors={errors}
               isReadOnly={buttonVisibility.isReadOnly}
             />
             <SummaryOfFindingsAndObservations
               systems={systems}
-              setSystems={setSystems}
+              setSystems={(newSystems) => {
+                setSystems(newSystems);
+                setHasFormChanges(true);
+              }}
               lawFilter={lawFilter}
               errors={errors}
               isReadOnly={buttonVisibility.isReadOnly}
@@ -1511,7 +1735,10 @@ export default function InspectionForm({ inspectionData }) {
 
         <Recommendations
           recState={recommendationState}
-          setRecState={setRecommendationState}
+          setRecState={(newState) => {
+            setRecommendationState(newState);
+            setHasFormChanges(true);
+          }}
           errors={errors}
           isReadOnly={buttonVisibility.isReadOnly}
           canEditRecommendation={buttonVisibility.canEditRecommendation}
@@ -1611,20 +1838,31 @@ export default function InspectionForm({ inspectionData }) {
           ? 'Send Notice of Violation' 
           : actionConfirmation.action === 'send_noo'
           ? 'Send Notice of Order'
+          : actionConfirmation.action === 'mark_compliant'
+          ? 'Mark as Compliant'
           : 'Confirm Action'
       }
       message={
-        <div>
-          <p className="mb-2">
-            Are you sure you want to {actionConfirmation.action === 'send_nov' ? 'send Notice of Violation' : 'send Notice of Order'} for inspection {actionConfirmation.inspection?.code}?
-          </p>
-          <p className="text-sm text-gray-600">
-            {actionConfirmation.action === 'send_nov' 
-              ? 'This will send a Notice of Violation to the establishment with a 30-day compliance deadline.'
-              : 'This will send a Notice of Order to the establishment with a 60-day compliance deadline.'
-            }
-          </p>
-        </div>
+        actionConfirmation.message || (
+          <div>
+            <p className="mb-2">
+              {actionConfirmation.action === 'send_nov' 
+                ? `Are you sure you want to send Notice of Violation for inspection ${actionConfirmation.inspection?.code}?`
+                : actionConfirmation.action === 'send_noo'
+                ? `Are you sure you want to send Notice of Order for inspection ${actionConfirmation.inspection?.code}?`
+                : 'Are you sure you want to proceed with this action?'
+              }
+            </p>
+            <p className="text-sm text-gray-600">
+              {actionConfirmation.action === 'send_nov' 
+                ? 'This will send a Notice of Violation to the establishment with a 30-day compliance deadline.'
+                : actionConfirmation.action === 'send_noo'
+                ? 'This will send a Notice of Order to the establishment with a 60-day compliance deadline.'
+                : ''
+              }
+            </p>
+          </div>
+        )
       }
       confirmText={
         actionConfirmation.action === 'send_nov' 

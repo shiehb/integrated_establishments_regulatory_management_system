@@ -17,7 +17,9 @@ export default function InternalHeader({
   onSendNOV,
   onSendNOO,
   onSaveRecommendation,
+  onMarkAsCompliant,
   lastSaveTime,
+  autoSaveStatus = 'saved',
   showCompleteButton = false,
   showSendToSectionButton = false,
   showSendToDivisionButton = false,
@@ -29,6 +31,7 @@ export default function InternalHeader({
   showSendNOVButton = false,
   showSendNOOButton = false,
   showSaveRecommendationButton = false,
+  showMarkAsCompliantButton = false,
   showDraftButton = false,
   showSubmitButton = false,
   showSubmitForReviewButton = false,
@@ -60,11 +63,40 @@ export default function InternalHeader({
           </div>
         )}
         
-        {/* Last Save Time */}
-        <div className="text-sm text-gray-600">
-          {lastSaveTime
-            ? `Last saved: ${new Date(lastSaveTime).toLocaleString()}`
-            : "Not saved yet"}
+        {/* Auto-Save Status */}
+        <div className="flex items-center gap-2">
+          {/* Auto-Save Status Indicator */}
+          <div className={`text-sm flex items-center gap-1 ${
+            autoSaveStatus === 'saving' ? 'text-blue-600' :
+            autoSaveStatus === 'saved' ? 'text-green-600' :
+            autoSaveStatus === 'error' ? 'text-red-600' : 'text-gray-600'
+          }`}>
+            {autoSaveStatus === 'saving' && (
+              <>
+                <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <span>Saving...</span>
+              </>
+            )}
+            {autoSaveStatus === 'saved' && (
+              <>
+                <span>✅</span>
+                <span>Saved</span>
+              </>
+            )}
+            {autoSaveStatus === 'error' && (
+              <>
+                <span>❌</span>
+                <span>Save failed</span>
+              </>
+            )}
+          </div>
+          
+          {/* Last Save Time */}
+          <div className="text-sm text-gray-600">
+            {lastSaveTime
+              ? `Last saved: ${new Date(lastSaveTime).toLocaleString()}`
+              : "Not saved yet"}
+          </div>
         </div>
         {/* Action Buttons - Conditional Rendering Based on Status and User Role */}
         
@@ -205,6 +237,19 @@ export default function InternalHeader({
             className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
           >
             Save Recommendation
+          </button>
+        )}
+        
+        {/* Mark as Compliant Button - Only for Division Chief in DIVISION_REVIEWED */}
+        {showMarkAsCompliantButton && (
+          <button
+            onClick={onMarkAsCompliant}
+            className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Mark as Compliant
           </button>
         )}
       </div>

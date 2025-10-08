@@ -49,6 +49,7 @@ class Inspection(models.Model):
         
         # Final states
         ('FINALIZED', 'Finalized'),
+        ('CLOSED', 'Closed'),
         ('CLOSED_COMPLIANT', 'Closed - Compliant'),
         ('CLOSED_NON_COMPLIANT', 'Closed - Non-Compliant'),
     ]
@@ -165,6 +166,7 @@ class Inspection(models.Model):
             'SECTION_IN_PROGRESS': {
                 'SECTION_COMPLETED_COMPLIANT': ['Section Chief'],
                 'SECTION_COMPLETED_NON_COMPLIANT': ['Section Chief'],
+                'DIVISION_REVIEWED': ['Section Chief'],  # Direct submission to Division Chief review
             },
             'SECTION_COMPLETED_COMPLIANT': {
                 'UNIT_ASSIGNED': ['Section Chief'],
@@ -181,6 +183,7 @@ class Inspection(models.Model):
             'UNIT_IN_PROGRESS': {
                 'UNIT_COMPLETED_COMPLIANT': ['Unit Head'],
                 'UNIT_COMPLETED_NON_COMPLIANT': ['Unit Head'],
+                'SECTION_REVIEWED': ['Unit Head'],  # Direct submission to Section Chief review
             },
             'UNIT_COMPLETED_COMPLIANT': {
                 'MONITORING_ASSIGNED': ['Unit Head'],
@@ -192,14 +195,7 @@ class Inspection(models.Model):
                 'MONITORING_IN_PROGRESS': ['Monitoring Personnel'],
             },
             'MONITORING_IN_PROGRESS': {
-                'MONITORING_COMPLETED_COMPLIANT': ['Monitoring Personnel'],
-                'MONITORING_COMPLETED_NON_COMPLIANT': ['Monitoring Personnel'],
-            },
-            'MONITORING_COMPLETED_COMPLIANT': {
-                'UNIT_REVIEWED': ['Monitoring Personnel'],  # Auto-transition
-            },
-            'MONITORING_COMPLETED_NON_COMPLIANT': {
-                'UNIT_REVIEWED': ['Monitoring Personnel'],  # Auto-transition
+                'UNIT_REVIEWED': ['Monitoring Personnel'],  # Direct submission to Unit Head review
             },
             'UNIT_REVIEWED': {
                 'SECTION_REVIEWED': ['Unit Head'],

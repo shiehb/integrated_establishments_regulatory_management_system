@@ -13,6 +13,7 @@ export default function GeneralInformation({
   inspectionData,
   errors,
   clearError,
+  isReadOnly = false,
 }) {
   // State for phone/fax validation
   const [phoneValidation, setPhoneValidation] = useState({ isValid: false, message: "" });
@@ -215,7 +216,7 @@ export default function GeneralInformation({
                   checked={isChecked}
                   onChange={() => toggleLaw(law.id)}
                   className="w-4 h-4 border-black"
-                  disabled={isInitialLaw && isChecked}
+                  disabled={(isInitialLaw && isChecked) || isReadOnly}
                 />
                 <span className="text-black">{law.label}</span>
                 {isInitialLaw && isChecked && (
@@ -324,6 +325,7 @@ export default function GeneralInformation({
             value={data.inspection_date_time || ""}
               onChange={(e) => handleDateTimeChange(e.target.value)}
               max={new Date().toISOString().slice(0, 16)} // Prevent future dates
+              disabled={isReadOnly}
             />
           </div>
           {/* Validation message */}
@@ -372,6 +374,7 @@ export default function GeneralInformation({
                 updateField("operating_hours", parseInt(val), (v) => v);
               }
             }}
+            disabled={isReadOnly}
           >
             <option value="">Select Operating Hours</option>
             <option value={8}>8 Hours</option>
@@ -400,6 +403,7 @@ export default function GeneralInformation({
                   updateField("operating_hours", "Others", (v) => v); // keep textbox open
                 }
               }}
+              disabled={isReadOnly}
             />
           )}
 
@@ -438,6 +442,7 @@ export default function GeneralInformation({
                 updateField("operating_days_per_week", daysPerWeek, (v) => v);
               }
             }}
+            disabled={isReadOnly}
           >
             <option value="">Select Operating Days/Week</option>
             <option value={5}>5 Days</option>
@@ -466,6 +471,7 @@ export default function GeneralInformation({
                   updateField("operating_days_per_week", "Others", (v) => v);
                 }
               }}
+              disabled={isReadOnly}
             />
           )}
 
@@ -503,6 +509,7 @@ export default function GeneralInformation({
                 updateField("operating_days_per_year", parseInt(val), (v) => v);
               }
             }}
+            disabled={isReadOnly}
           >
             <option value="">Select Operating Days/Year</option>
             <option value={250}>250 Days</option>
@@ -531,6 +538,7 @@ export default function GeneralInformation({
                   updateField("operating_days_per_year", "Others", (v) => v);
                 }
               }}
+              disabled={isReadOnly}
             />
           )}
 
@@ -561,6 +569,7 @@ export default function GeneralInformation({
             value={data.phone_fax_no || ""}
               onChange={(e) => handlePhoneFaxChange(e.target.value)}
               placeholder="e.g., 09123456789 or 02-123-4567 / 02-123-4568"
+              disabled={isReadOnly}
             />
           </div>
           {/* Validation message */}
@@ -597,6 +606,7 @@ export default function GeneralInformation({
             value={data.email_address || ""}
               onChange={(e) => handleEmailChange(e.target.value)}
               placeholder="e.g., example@company.com"
+              disabled={isReadOnly}
             />
           </div>
           {/* Validation message */}

@@ -6,7 +6,7 @@ import SectionHeader from "./SectionHeader";
 /* ---------------------------
    Summary Of Compliance (with predefined remarks)
    ---------------------------*/
-export default function SummaryOfCompliance({ items, setItems, lawFilter, errors }) {
+export default function SummaryOfCompliance({ items, setItems, lawFilter, errors, isReadOnly = false }) {
   useEffect(() => {
     if (!lawFilter || lawFilter.length === 0) return;
     let changed = false;
@@ -157,6 +157,7 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
                               }
                               placeholder="Enter condition number"
                               className="w-full px-2 py-1 text-black bg-white border border-black"
+                              disabled={isReadOnly}
                             />
                           </td>
                         ) : (
@@ -186,6 +187,7 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
                               }
                               placeholder="Enter compliance requirement"
                               className="w-full px-2 py-1 text-black bg-white border border-black min-h-[60px] uppercase"
+                              disabled={isReadOnly}
                             />
                           ) : (
                             li.complianceRequirement
@@ -210,6 +212,7 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
                                     (v) => v
                                   )
                                 }
+                                disabled={isReadOnly}
                               />{" "}
                               {opt}
                             </label>
@@ -244,6 +247,7 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
                                   )
                                 }
                                 className="w-full px-2 py-1 text-black bg-white border border-black"
+                                disabled={isReadOnly}
                               >
                                 <option value="">-- Select Remark --</option>
                                 {InspectionConstants.PREDEFINED_REMARKS.filter(
@@ -268,6 +272,7 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
                                   }
                                   placeholder="ENTER REMARKS..."
                                   className="w-full border border-black px-2 py-1 bg-white text-black min-h-[60px] uppercase mt-2"
+                                  disabled={isReadOnly}
                                 />
                               )}
                             </>

@@ -159,20 +159,11 @@ class InspectionSerializer(serializers.ModelSerializer):
         """Get available actions for current user"""
         request = self.context.get('request')
         if not request or not request.user:
-            print(f"DEBUG: No request or user - returning empty actions")
             return []
 
         user = request.user
         status = obj.current_status
         
-        print(f"DEBUG: get_available_actions for {obj.code}")
-        print(f"DEBUG: user={user.email}, userlevel='{user.userlevel}'")
-        print(f"DEBUG: status='{status}'")
-        print(f"DEBUG: assigned_to={obj.assigned_to}")
-        print(f"DEBUG: is_assigned={obj.assigned_to == user}")
-        print(f"DEBUG: user.userlevel type: {type(user.userlevel)}")
-        print(f"DEBUG: user.userlevel is None: {user.userlevel is None}")
-        print(f"DEBUG: user.userlevel == '': {user.userlevel == ''}")
         
         # Define actions based on status and user level
         actions_map = {
@@ -197,15 +188,10 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('UNIT_COMPLETED_NON_COMPLIANT', 'Unit Head'): [],  # Auto-forwards to Monitoring Personnel
             
             ('MONITORING_IN_PROGRESS', 'Monitoring Personnel'): ['continue'],
-            ('MONITORING_COMPLETED_COMPLIANT', 'Monitoring Personnel'): [],  # No actions - completed
-            ('MONITORING_COMPLETED_NON_COMPLIANT', 'Monitoring Personnel'): [],  # No actions - completed
-            
-            # Unit Head can review completed monitoring inspections and UNIT_REVIEWED inspections
-            ('MONITORING_COMPLETED_COMPLIANT', 'Unit Head'): ['review'],
-            ('MONITORING_COMPLETED_NON_COMPLIANT', 'Unit Head'): ['review'],
-            ('UNIT_REVIEWED', 'Unit Head'): ['review'],
-            ('SECTION_REVIEWED', 'Section Chief'): ['review'],
-            ('DIVISION_REVIEWED', 'Division Chief'): ['forward_to_legal', 'close'],
+            # Unit Head can review UNIT_REVIEWED inspections (Monitoring Personnel submissions)
+            ('UNIT_REVIEWED', 'Unit Head'): ['review', 'send_to_section'],
+            ('SECTION_REVIEWED', 'Section Chief'): ['review', 'send_to_division'],
+            ('DIVISION_REVIEWED', 'Division Chief'): ['review'],
             
             # Legal Unit actions - can review to access form with NOV/NOO buttons
             ('LEGAL_REVIEW', 'Legal Unit'): ['review'],
@@ -216,41 +202,33 @@ class InspectionSerializer(serializers.ModelSerializer):
         key = (status, user.userlevel)
         available_actions = actions_map.get(key, [])
         
-        print(f"DEBUG: key={key}")
-        print(f"DEBUG: available_actions from map={available_actions}")
         
         # Special case: Section Chief with SECTION_ASSIGNED status
         if status == 'SECTION_ASSIGNED' and user.userlevel == 'Section Chief':
             if obj.assigned_to == user:
                 # If assigned to user, they can inspect (move to My Inspections) or forward (in Received tab)
-                print(f"DEBUG: Section Chief assigned to SECTION_ASSIGNED - returning inspect, forward")
                 return ['inspect', 'forward']
             else:
                 # If not assigned, they can assign to themselves or forward
-                print(f"DEBUG: Section Chief not assigned to SECTION_ASSIGNED - returning assign_to_me, forward")
                 return ['assign_to_me', 'forward']
         
         # Special case: Unit Head with UNIT_ASSIGNED status
         if status == 'UNIT_ASSIGNED' and user.userlevel == 'Unit Head':
             if obj.assigned_to == user:
                 # If assigned to user, they can inspect (move to My Inspections) or forward (in Received tab)
-                print(f"DEBUG: Unit Head assigned to UNIT_ASSIGNED - returning inspect, forward")
                 return ['inspect', 'forward']
             else:
                 # If not assigned, they can assign to themselves or forward
-                print(f"DEBUG: Unit Head not assigned to UNIT_ASSIGNED - returning assign_to_me, forward")
                 return ['assign_to_me', 'forward']
         
         # Special case: Division Chief in "all_inspections" tab should have no actions
         # Check if this is a Division Chief viewing in "all_inspections" tab
         if user.userlevel == 'Division Chief' and status != 'DIVISION_REVIEWED':
-            print(f"DEBUG: Division Chief viewing non-review inspection - returning no actions")
             return []
         
         # Filter actions based on assignment status
         if obj.assigned_to == user:
             # User is assigned - can perform all available actions
-            print(f"DEBUG: User is assigned - returning all actions: {available_actions}")
             return available_actions
         else:
             # User is not assigned - can only assign to themselves or perform review actions
@@ -262,11 +240,9 @@ class InspectionSerializer(serializers.ModelSerializer):
                     # Unit Head can review inspections even if not assigned (for review tab)
                     filtered_actions.append(action)
             
-            print(f"DEBUG: User not assigned - returning filtered actions: {filtered_actions}")
             
             # TEMPORARY FIX: If no actions found, return assign_to_me for Division Chief
             if not filtered_actions and user.userlevel == 'Division Chief':
-                print(f"DEBUG: TEMPORARY FIX - returning assign_to_me for Division Chief")
                 return ['assign_to_me']
             
             return filtered_actions

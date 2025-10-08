@@ -5,7 +5,7 @@ import SectionHeader from "./SectionHeader";
 /* ---------------------------
    Purpose of Inspection
    ---------------------------*/
-export default function PurposeOfInspection({ state, setState, errors }) {
+export default function PurposeOfInspection({ state, setState, errors, isReadOnly = false }) {
   // State for validation
   const [purposeValidation, setPurposeValidation] = useState({ isValid: false, message: "" });
   const [accuracyDetailsValidation, setAccuracyDetailsValidation] = useState({ isValid: false, message: "" });
@@ -140,6 +140,7 @@ export default function PurposeOfInspection({ state, setState, errors }) {
               checked={state[p.id] || false}
               onChange={() => togglePurpose(p.id)}
               className="w-4 h-4 mt-1 border-black"
+              disabled={isReadOnly}
             />
             <div className="flex-1">
               <div className="text-black">{p.label}</div>
@@ -166,6 +167,7 @@ export default function PurposeOfInspection({ state, setState, errors }) {
                               )}
                               onChange={() => toggleAccuracyDetail(item.id)}
                               className="w-4 h-4 border-black"
+                              disabled={isReadOnly}
                             />
                             <span className="text-sm text-black">
                               {item.label}
@@ -188,6 +190,7 @@ export default function PurposeOfInspection({ state, setState, errors }) {
                                   }
                                   placeholder="PLEASE SPECIFY..."
                                   className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
+                                  disabled={isReadOnly}
                                 />
                               </div>
                             )}
@@ -227,6 +230,7 @@ export default function PurposeOfInspection({ state, setState, errors }) {
                               ).includes(item.id)}
                               onChange={() => toggleCommitmentStatus(item.id)}
                               className="w-4 h-4 border-black"
+                              disabled={isReadOnly}
                             />
                             <span className="text-sm text-black">
                               {item.label}
@@ -251,6 +255,7 @@ export default function PurposeOfInspection({ state, setState, errors }) {
                                   }
                                   placeholder="PLEASE SPECIFY..."
                                   className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
+                                  disabled={isReadOnly}
                                 />
                               </div>
                             )}
@@ -281,6 +286,7 @@ export default function PurposeOfInspection({ state, setState, errors }) {
                     }
                     placeholder="PLEASE SPECIFY..."
                     className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
+                    disabled={isReadOnly}
                   />
                   {/* Validation message for other purpose */}
                   {state.other_purpose && (!state.other_purpose_specify || state.other_purpose_specify.trim() === "") && (

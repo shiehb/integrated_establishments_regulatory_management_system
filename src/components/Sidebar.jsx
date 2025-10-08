@@ -20,7 +20,6 @@ const baseMenu = [
   { name: "Map", path: "/map", icon: MapPin },
   { name: "Establishments", path: "/establishments", icon: Building },
   { name: "Inspections", path: "/inspections", icon: InspectIcon },
-  { name: "Notifications", path: "/notifications", icon: Bell, adminOnly: true },
    // ✅ Admin, Section Chief, or Unit Head
   {
     name: "District Management",

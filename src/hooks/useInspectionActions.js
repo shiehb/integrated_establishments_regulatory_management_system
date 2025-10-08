@@ -9,6 +9,7 @@ import {
   forwardInspection,
   reviewInspection,
   forwardToLegal,
+  sendToDivision,
   sendNOV,
   sendNOO,
   closeInspection
@@ -48,6 +49,9 @@ export const useInspectionActions = (refreshInspections) => {
           break;
         case 'forward_to_legal':
           result = await forwardToLegal(inspectionId, data);
+          break;
+        case 'send_to_division':
+          result = await sendToDivision(inspectionId, data);
           break;
         case 'send_nov':
           result = await sendNOV(inspectionId, data);

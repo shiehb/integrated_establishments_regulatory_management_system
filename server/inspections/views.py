@@ -160,7 +160,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
                     law_filter & Q(current_status__in=[
                         'UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
                         'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
-                        'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
                     ])
                 )
             )
@@ -212,7 +211,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 Q(id__in=forwarded_inspection_ids) | (
                     law_filter & Q(current_status__in=[
                         'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
-                        'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
                     ])
                 )
             )
@@ -220,8 +218,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
             # Show inspections that need Unit Head review
             return queryset.filter(
                 current_status__in=[
-                    'MONITORING_COMPLETED_COMPLIANT', 
-                    'MONITORING_COMPLETED_NON_COMPLIANT',
                     'UNIT_REVIEWED'
                 ]
             )
@@ -254,8 +250,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
             return queryset.filter(
                 assigned_to=user,
                 current_status__in=[
-                    'MONITORING_COMPLETED_COMPLIANT', 
-                    'MONITORING_COMPLETED_NON_COMPLIANT',
                     'UNIT_REVIEWED',
                     'SECTION_REVIEWED', 
                     'DIVISION_REVIEWED',
@@ -831,39 +825,8 @@ class InspectionViewSet(viewsets.ModelViewSet):
             # Unit Head submits for Section Chief review  
             next_status = 'SECTION_REVIEWED'
         elif inspection.current_status == 'MONITORING_IN_PROGRESS':
-            # Monitoring needs compliance decision
-            compliance = data.get('compliance_decision')
-            if not compliance:
-                return Response(
-                    {'error': 'Compliance decision required for monitoring completion'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            if compliance == 'COMPLIANT':
-                next_status = 'MONITORING_COMPLETED_COMPLIANT'
-            elif compliance == 'PARTIALLY_COMPLIANT':
-                next_status = 'MONITORING_COMPLETED_NON_COMPLIANT'  # Treat partially compliant as non-compliant for workflow
-                # Validate violations for partially compliant
-                if not data.get('violations_found'):
-                    return Response(
-                        {'error': 'Violations required for partially compliant decision'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-            else:
-                next_status = 'MONITORING_COMPLETED_NON_COMPLIANT'
-                # Validate violations
-                if not data.get('violations_found'):
-                    return Response(
-                        {'error': 'Violations required for non-compliant decision'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-            
-            # Update form
-            form, created = InspectionForm.objects.get_or_create(inspection=inspection)
-            form.compliance_decision = compliance
-            form.violations_found = data.get('violations_found', '')
-            form.findings_summary = data.get('findings_summary', '')
-            form.save()
+            # Monitoring Personnel submits for Unit Head review
+            next_status = 'UNIT_REVIEWED'
         else:
             return Response(
                 {'error': f'Cannot complete from status {inspection.current_status}'},
@@ -892,8 +855,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
         )
         
         # Auto-transition completed inspections to review
-        if next_status in ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']:
-            self._auto_forward_to_review(inspection, user)
+        if next_status == 'UNIT_REVIEWED':
+            # Monitoring Personnel submitted - assign to Unit Head for review
+            self._auto_forward_to_unit_review(inspection, user)
         elif next_status == 'DIVISION_REVIEWED':
             # Section Chief submitted - assign to Division Chief for review
             self._auto_forward_to_division_review(inspection, user)
@@ -904,7 +868,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
     
-    def _auto_forward_to_review(self, inspection, user):
+    def _auto_forward_to_unit_review(self, inspection, user):
         """Auto-forward monitoring completed to Unit Head review"""
         prev_status = inspection.current_status
         inspection.current_status = 'UNIT_REVIEWED'
@@ -1129,87 +1093,77 @@ class InspectionViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def review(self, request, pk=None):
-        """Review and forward up the chain (Unit/Section/Division)"""
+        """Review inspection - grants access to view form without changing status"""
         inspection = self.get_object()
         user = request.user
         
-        # Debug logging
-        print(f"DEBUG REVIEW: Inspection ID={inspection.id}")
-        print(f"DEBUG REVIEW: Current Status={inspection.current_status}")
-        print(f"DEBUG REVIEW: Assigned To={inspection.assigned_to}")
-        print(f"DEBUG REVIEW: User ID={user.id}")
-        print(f"DEBUG REVIEW: User Level={user.userlevel}")
-        print(f"DEBUG REVIEW: User Section={user.section}")
-        print(f"DEBUG REVIEW: Inspection Law={inspection.law}")
-        
-        # Check if user can act
-        # Unit Head can review inspections even if not assigned (for review tab)
+        # Check if user can review this inspection
         user_can_review = False
         
         if inspection.assigned_to == user:
             # User is assigned - can always review
             user_can_review = True
-            print(f"DEBUG REVIEW: User is assigned - permission granted")
         else:
             # User is not assigned - check special cases
-            if user.userlevel == 'Unit Head' and inspection.current_status in ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT', 'UNIT_REVIEWED']:
-                # Unit Head can review completed monitoring inspections and UNIT_REVIEWED inspections even if not assigned
+            if user.userlevel == 'Unit Head' and inspection.current_status in ['UNIT_REVIEWED']:
+                # Unit Head can review UNIT_REVIEWED inspections even if not assigned
                 user_can_review = True
-                print(f"DEBUG REVIEW: Unit Head reviewing inspection in status {inspection.current_status} - permission granted")
+            elif user.userlevel == 'Section Chief' and inspection.current_status in ['SECTION_REVIEWED']:
+                # Section Chief can review SECTION_REVIEWED inspections even if not assigned
+                user_can_review = True
+            elif user.userlevel == 'Division Chief' and inspection.current_status in ['DIVISION_REVIEWED']:
+                # Division Chief can review DIVISION_REVIEWED inspections even if not assigned
+                user_can_review = True
             elif user.userlevel == 'Legal Unit' and inspection.current_status == 'LEGAL_REVIEW':
                 # Legal Unit can review inspections in LEGAL_REVIEW status even if not assigned
                 user_can_review = True
-                print(f"DEBUG REVIEW: Legal Unit reviewing inspection in status {inspection.current_status} - permission granted")
             else:
                 user_can_review = False
-                print(f"DEBUG REVIEW: Permission denied - not assigned and no special permission")
         
         if not user_can_review:
             return Response(
-                {'error': 'You are not assigned to this inspection'},
+                {'error': 'You are not authorized to review this inspection'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Special case: Legal Unit review should not change status
-        if user.userlevel == 'Legal Unit' and inspection.current_status == 'LEGAL_REVIEW':
-            # Legal Unit review is just for accessing the form - no status change needed
-            print(f"DEBUG REVIEW: Legal Unit review - no status change needed")
-            return Response({
-                'message': 'Review access granted - no status change',
-                'status': inspection.current_status,
-                'id': inspection.id
-            })
+        # Review action only grants access - no status change
+        return Response({
+            'message': 'Review access granted - no status change',
+            'status': inspection.current_status,
+            'id': inspection.id
+        })
         
-        # Determine next status
-        status_map = {
-            'MONITORING_COMPLETED_COMPLIANT': 'UNIT_REVIEWED',
-            'MONITORING_COMPLETED_NON_COMPLIANT': 'UNIT_REVIEWED',
-            'UNIT_REVIEWED': 'SECTION_REVIEWED',
-            'SECTION_REVIEWED': 'DIVISION_REVIEWED',
-            'DIVISION_REVIEWED': 'FINALIZED',
-        }
+    @action(detail=True, methods=['post'])
+    def send_to_section(self, request, pk=None):
+        """Send inspection to Section Chief for review (Unit Head only)"""
+        inspection = self.get_object()
+        user = request.user
         
-        next_status = status_map.get(inspection.current_status)
-        if not next_status:
+        # Check if user is Unit Head
+        if user.userlevel != 'Unit Head':
             return Response(
-                {'error': f'Cannot review from status {inspection.current_status}'},
+                {'error': 'Only Unit Heads can send to Section'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if in correct status
+        if inspection.current_status != 'UNIT_REVIEWED':
+            return Response(
+                {'error': 'Can only send to Section from Unit Reviewed status'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get next assignee
-        print(f"DEBUG REVIEW: Getting next assignee for status={next_status}")
-        next_assignee = inspection.get_next_assignee(next_status)
-        print(f"DEBUG REVIEW: Next assignee={next_assignee}")
+        # Get Section Chief assignee
+        next_assignee = inspection.get_next_assignee('SECTION_REVIEWED')
         if not next_assignee:
-            print(f"DEBUG REVIEW: No next assignee found for {next_status}")
             return Response(
-                {'error': f'No personnel found for {next_status}'},
+                {'error': 'No Section Chief found for assignment'},
                 status=status.HTTP_404_NOT_FOUND
             )
         
         # Transition
         prev_status = inspection.current_status
-        inspection.current_status = next_status
+        inspection.current_status = 'SECTION_REVIEWED'
         inspection.assigned_to = next_assignee
         inspection.save()
         
@@ -1217,9 +1171,55 @@ class InspectionViewSet(viewsets.ModelViewSet):
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
-            new_status=next_status,
+            new_status='SECTION_REVIEWED',
             changed_by=user,
-            remarks=request.data.get('remarks', 'Reviewed and forwarded')
+            remarks=request.data.get('remarks', 'Sent to Section Chief for review')
+        )
+        
+        serializer = self.get_serializer(inspection)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def send_to_division(self, request, pk=None):
+        """Send inspection to Division Chief for review (Section Chief only)"""
+        inspection = self.get_object()
+        user = request.user
+        
+        # Check if user is Section Chief
+        if user.userlevel != 'Section Chief':
+            return Response(
+                {'error': 'Only Section Chiefs can send to Division'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check if in correct status
+        if inspection.current_status != 'SECTION_REVIEWED':
+            return Response(
+                {'error': 'Can only send to Division from Section Reviewed status'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get Division Chief assignee
+        next_assignee = inspection.get_next_assignee('DIVISION_REVIEWED')
+        if not next_assignee:
+            return Response(
+                {'error': 'No Division Chief found for assignment'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Transition
+        prev_status = inspection.current_status
+        inspection.current_status = 'DIVISION_REVIEWED'
+        inspection.assigned_to = next_assignee
+        inspection.save()
+        
+        # Log history
+        InspectionHistory.objects.create(
+            inspection=inspection,
+            previous_status=prev_status,
+            new_status='DIVISION_REVIEWED',
+            changed_by=user,
+            remarks=request.data.get('remarks', 'Sent to Division Chief for review')
         )
         
         serializer = self.get_serializer(inspection)
@@ -1364,44 +1364,66 @@ class InspectionViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):
-        """Close inspection (Division Chief for compliant, Legal for non-compliant)"""
+        """Close inspection (Section/Division/Legal)"""
         inspection = self.get_object()
         user = request.user
         
-        # Determine final status based on compliance
-        form = getattr(inspection, 'form', None)
-        is_compliant = form and form.compliance_decision == 'COMPLIANT'
-        
-        if is_compliant:
-            # Division Chief closes compliant cases
-            if user.userlevel != 'Division Chief':
-                return Response(
-                    {'error': 'Only Division Chiefs can close compliant cases'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-            final_status = 'CLOSED_COMPLIANT'
+        if user.userlevel == 'Section Chief' and inspection.current_status == 'SECTION_REVIEWED':
+            # Section Chief closing - send to Division
+            next_assignee = inspection.get_next_assignee('DIVISION_REVIEWED')
+            if not next_assignee:
+                return Response({'error': 'No Division Chief found'}, status=status.HTTP_404_NOT_FOUND)
+            
+            prev_status = inspection.current_status
+            inspection.current_status = 'DIVISION_REVIEWED'
+            inspection.assigned_to = next_assignee
+            inspection.save()
+            
+            InspectionHistory.objects.create(
+                inspection=inspection,
+                previous_status=prev_status,
+                new_status='DIVISION_REVIEWED',
+                changed_by=user,
+                remarks=request.data.get('remarks', 'Closed by Section Chief')
+            )
+            
+        elif user.userlevel == 'Division Chief' and inspection.current_status == 'DIVISION_REVIEWED':
+            # Division Chief finalizing
+            final_status = request.data.get('final_status', 'CLOSED')
+            
+            prev_status = inspection.current_status
+            inspection.current_status = final_status
+            inspection.assigned_to = None
+            inspection.save()
+            
+            InspectionHistory.objects.create(
+                inspection=inspection,
+                previous_status=prev_status,
+                new_status=final_status,
+                changed_by=user,
+                remarks=request.data.get('remarks', 'Closed by Division Chief')
+            )
+            
+        elif user.userlevel == 'Legal Unit' and inspection.current_status == 'LEGAL_REVIEW':
+            # Legal Unit finalizing
+            final_status = request.data.get('final_status', 'CLOSED_NON_COMPLIANT')
+            
+            prev_status = inspection.current_status
+            inspection.current_status = final_status
+            inspection.assigned_to = None
+            inspection.save()
+            
+            InspectionHistory.objects.create(
+                inspection=inspection,
+                previous_status=prev_status,
+                new_status=final_status,
+                changed_by=user,
+                remarks=request.data.get('remarks', 'Legal review completed')
+            )
         else:
-            # Legal Unit closes non-compliant cases
-            if user.userlevel != 'Legal Unit':
-                return Response(
-                    {'error': 'Only Legal Unit can close non-compliant cases'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-            final_status = 'CLOSED_NON_COMPLIANT'
-        
-        # Transition
-        prev_status = inspection.current_status
-        inspection.current_status = final_status
-        inspection.assigned_to = None  # Clear assignment
-        inspection.save()
-        
-        # Log history
-        InspectionHistory.objects.create(
-            inspection=inspection,
-            previous_status=prev_status,
-            new_status=final_status,
-            changed_by=user,
-            remarks=request.data.get('remarks', f'Inspection closed - {"Compliant ✅" if is_compliant else "Non-Compliant ❌"}')
+            return Response(
+                {'error': 'Invalid status or user level for close action'},
+                status=status.HTTP_400_BAD_REQUEST
         )
         
         serializer = self.get_serializer(inspection)

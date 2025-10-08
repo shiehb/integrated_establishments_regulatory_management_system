@@ -1194,8 +1194,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                       "UNIT_COMPLETED",
                       "MONITORING_ASSIGNED",
                       "MONITORING_IN_PROGRESS",
-                      "MONITORING_COMPLETED_COMPLIANT",
-                      "MONITORING_COMPLETED_NON_COMPLIANT",
                       "UNIT_REVIEWED",
                       "SECTION_REVIEWED",
                       "DIVISION_REVIEWED",
