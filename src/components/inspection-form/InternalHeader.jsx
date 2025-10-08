@@ -10,23 +10,42 @@ export default function InternalHeader({
   onComplete,
   onSendToSection,
   onSendToDivision,
+  onSendToNextLevel,
   onFinalize,
+  onReview,
+  onForwardToLegal,
   lastSaveTime,
   showCompleteButton = false,
   showSendToSectionButton = false,
   showSendToDivisionButton = false,
+  showSendToNextLevelButton = false,
+  nextLevelName = 'Next Level',
   showFinalizeButton = false,
+  showReviewButton = false,
+  showForwardToLegalButton = false,
   showDraftButton = false,
   showSubmitButton = false,
   showSubmitForReviewButton = false,
   showCloseButton = false,
   isDraft = false,
-  currentUser = null,
-  inspectionStatus = null
+  complianceStatus = null
 }) {
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between w-full px-6 py-2 bg-white border-b border-gray-200">
-      <div className="text-xl font-bold text-sky-700">Inspection Form</div>
+      <div className="flex items-center gap-4">
+        <div className="text-xl font-bold text-sky-700">Inspection Form</div>
+        
+        {/* Compliance Status Badge */}
+        {complianceStatus && (
+          <div className={`px-3 py-1 text-sm font-semibold rounded-full ${
+            complianceStatus === 'COMPLIANT' 
+              ? 'bg-green-100 text-green-800 border border-green-200' 
+              : 'bg-red-100 text-red-800 border border-red-200'
+          }`}>
+            {complianceStatus === 'COMPLIANT' ? '✅ COMPLIANT' : '❌ NON-COMPLIANT'}
+          </div>
+        )}
+      </div>
       <div className="flex items-center gap-4">
         {/* Draft Status */}
         {isDraft && (
@@ -113,7 +132,37 @@ export default function InternalHeader({
           </button>
         )}
         
-        {/* Finalize Button - Only for Division Chief in DIVISION_REVIEWED */}
+        {/* Review Button - For review workflow (Unit Head, Section Chief, Division Chief) */}
+        {showReviewButton && (
+          <button
+            onClick={onReview}
+            className="px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700"
+          >
+            Review Form
+          </button>
+        )}
+        
+        {/* Send to Next Level Button - Generic button for review workflow */}
+        {showSendToNextLevelButton && (
+          <button
+            onClick={onSendToNextLevel}
+            className="px-3 py-1 text-sm text-white bg-purple-600 rounded hover:bg-purple-700"
+          >
+            Send to {nextLevelName}
+          </button>
+        )}
+        
+        {/* Forward to Legal Button - Only for Division Chief in DIVISION_REVIEWED (any compliance status) */}
+        {showForwardToLegalButton && (
+          <button
+            onClick={onForwardToLegal}
+            className="px-3 py-1 text-sm text-white bg-orange-600 rounded hover:bg-orange-700"
+          >
+            Send to Legal
+          </button>
+        )}
+        
+        {/* Finalize Button - Only for Division Chief in DIVISION_REVIEWED (compliant cases) */}
         {showFinalizeButton && (
           <button
             onClick={onFinalize}

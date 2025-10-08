@@ -3,6 +3,11 @@ from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 import os
+try:
+    # Optional import to construct reliable from-email
+    from system_config.models import SystemConfiguration
+except Exception:
+    SystemConfiguration = None
 
 def send_user_welcome_email(user, password):
     """Send welcome email to new user"""
@@ -16,7 +21,9 @@ def send_user_welcome_email(user, password):
         html_message = render_to_string('emails/welcome_email.html', {
             'user': user,
             'default_password': password,
-            'login_url': 'http://localhost:5173/login'
+            'login_url': 'http://localhost:5173/login',
+            'logo_url': getattr(settings, 'EMAIL_HEADER_LOGO_URL', None),
+            'logo_alt': getattr(settings, 'EMAIL_HEADER_LOGO_ALT', 'IERMS Logo'),
         })
         plain_message = strip_tags(html_message)
     else:
@@ -42,10 +49,18 @@ def send_user_welcome_email(user, password):
         html_message = None
     
     try:
+        # Prefer DEFAULT_FROM_EMAIL; fallback to constructed from SystemConfiguration
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None)
+        if not from_email and SystemConfiguration is not None:
+            try:
+                from_email = SystemConfiguration.get_active_config().get_constructed_from_email()
+            except Exception:
+                from_email = None
+
         send_mail(
             subject=subject,
             message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=from_email,
             recipient_list=[user.email],
             html_message=html_message,
             fail_silently=False,

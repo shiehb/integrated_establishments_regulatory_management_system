@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
-import { saveInspectionDraft, completeInspection, getInspection, updateInspection, reviewInspection } from "../../services/api";
+import { saveInspectionDraft, completeInspection, getInspection, updateInspection, reviewInspection, forwardToLegal } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 
@@ -138,16 +138,37 @@ export default function InspectionForm({ inspectionData }) {
       // Submit for Review Button - Only for Monitoring Personnel in MONITORING_IN_PROGRESS
       showCompleteButton: userLevel === 'Monitoring Personnel' && status === 'MONITORING_IN_PROGRESS',
       
-      // Send to Section Button - For Unit Head in UNIT_REVIEWED and in review forms
-      showSendToSectionButton: (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') || 
-                               (status === 'UNIT_REVIEWED' && isInReviewStatus),
+      // Send to Section Button - For Unit Head in UNIT_REVIEWED and in review forms (hidden when new button is shown)
+      showSendToSectionButton: false, // Disabled in favor of generic "Send to Next Level" button
       
-      // Send to Division Button - For Section Chief in SECTION_REVIEWED and in review forms
-      showSendToDivisionButton: (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') || 
-                                (status === 'SECTION_REVIEWED' && isInReviewStatus),
+      // Send to Division Button - For Section Chief in SECTION_REVIEWED and in review forms (hidden when new button is shown)
+      showSendToDivisionButton: false, // Disabled in favor of generic "Send to Next Level" button
       
-      // Finalize Button - Only for Division Chief in DIVISION_REVIEWED
-      showFinalizeButton: userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED',
+      // Send to Next Level Button - Generic button for review workflow
+      showSendToNextLevelButton: (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') ||
+                                 (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') ||
+                                 (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED'),
+      
+      // Get the next level name for button text
+      getNextLevelName: () => {
+        if (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') return 'Section';
+        if (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') return 'Division';
+        if (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED') {
+          return 'Legal'; // Division Chief can always send to Legal
+        }
+        return 'Next Level';
+      },
+      
+      // Review Button - For review workflow (Unit Head, Section Chief, Division Chief)
+      showReviewButton: (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') ||
+                       (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') ||
+                       (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED'),
+      
+      // Forward to Legal Button - Only for Division Chief in DIVISION_REVIEWED (any compliance status)
+      showForwardToLegalButton: userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED',
+      
+      // Finalize Button - Only for Division Chief in DIVISION_REVIEWED (compliant cases)
+      showFinalizeButton: userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED' && determineComplianceStatus() === 'COMPLIANT',
       
       // Check if form should be read-only
       isReadOnly: isInReviewStatus && userLevel !== 'Division Chief'
@@ -536,13 +557,26 @@ export default function InspectionForm({ inspectionData }) {
     const hasNonCompliantSystems = systems.some(system => system.nonCompliant);
     const hasCompliantSystems = systems.some(system => system.compliant);
     
+    // Log compliance detection for debugging
+    console.log('🔍 Compliance Detection:', {
+      hasNonCompliantItems,
+      hasCompliantItems,
+      hasNonCompliantSystems,
+      hasCompliantSystems,
+      complianceItems: complianceItems.filter(item => item.compliant),
+      systems: systems.filter(system => system.compliant || system.nonCompliant)
+    });
+    
     // Determine overall compliance
     if (hasNonCompliantItems || hasNonCompliantSystems) {
+      console.log('❌ Result: NON_COMPLIANT');
       return 'NON_COMPLIANT';
     } else if (hasCompliantItems || hasCompliantSystems) {
+      console.log('✅ Result: COMPLIANT');
       return 'COMPLIANT';
     } else {
       // If no compliance data is filled, assume non-compliant for safety
+      console.log('⚠️ Result: NON_COMPLIANT (default - no data)');
       return 'NON_COMPLIANT';
     }
   };
@@ -918,6 +952,108 @@ export default function InspectionForm({ inspectionData }) {
     }
   };
 
+  const handleSendToNextLevel = async () => {
+    if (!inspectionId) {
+      notifications.error("No inspection ID found. Cannot send to next level.", { 
+        title: 'Send Failed' 
+      });
+      return;
+    }
+
+    const userLevel = currentUser?.userlevel;
+    const status = inspectionStatus;
+    let remarks = '';
+    let successMessage = '';
+    let nextLevel = '';
+
+    try {
+      setLoading(true);
+      
+      // Determine the next level based on current status and user level
+      if (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') {
+        nextLevel = 'Section';
+        remarks = 'Sent to Section Chief for review';
+        successMessage = 'Inspection sent to Section Chief successfully!';
+      } else if (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') {
+        nextLevel = 'Division';
+        remarks = 'Sent to Division Chief for review';
+        successMessage = 'Inspection sent to Division Chief successfully!';
+      } else if (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED') {
+        nextLevel = 'Legal';
+        remarks = 'Forwarded case to Legal Unit';
+        successMessage = 'Inspection forwarded to Legal Unit successfully!';
+        // Call forward to legal instead of review
+        await forwardToLegal(inspectionId, { remarks });
+        notifications.success(successMessage, { 
+          title: `Sent to ${nextLevel}`,
+          duration: 6000
+        });
+        navigate("/inspections");
+        return;
+      }
+      
+      // Call the review action
+      await reviewInspection(inspectionId, { remarks });
+      
+      notifications.success(successMessage, { 
+        title: `Sent to ${nextLevel}`,
+        duration: 6000
+      });
+      
+      // Navigate back to inspections list
+      navigate("/inspections");
+    } catch (error) {
+      console.error("Failed to send to next level:", error);
+      notifications.error(`Failed to send to next level: ${error.message}`, { 
+        title: 'Send Failed' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReview = async () => {
+    // Review button should just open the form for viewing/reviewing
+    // It should NOT change the status - that's what the "Send to Section/Division" buttons do
+    notifications.info("Form opened for review. Use 'Send to Section/Division' buttons to advance the workflow.", { 
+      title: 'Form Opened for Review',
+      duration: 4000
+    });
+  };
+
+  const handleForwardToLegal = async () => {
+    if (!inspectionId) {
+      notifications.error("No inspection ID found. Cannot forward to legal.", { 
+        title: 'Forward Failed' 
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Call the forward to legal action
+      await forwardToLegal(inspectionId, {
+        remarks: 'Forwarded non-compliant case to Legal Unit'
+      });
+      
+      notifications.success("Inspection forwarded to Legal Unit successfully!", { 
+        title: 'Forwarded to Legal',
+        duration: 6000
+      });
+      
+      // Navigate back to inspections list
+      navigate("/inspections");
+    } catch (error) {
+      console.error("Failed to forward to legal:", error);
+      notifications.error(`Failed to forward to legal: ${error.message}`, { 
+        title: 'Forward Failed' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFinalize = async () => {
     if (!inspectionId) {
       notifications.error("No inspection ID found. Cannot finalize.", { 
@@ -1074,19 +1210,25 @@ export default function InspectionForm({ inspectionData }) {
             onComplete={handleComplete}
             onSendToSection={handleSendToSection}
             onSendToDivision={handleSendToDivision}
+            onSendToNextLevel={handleSendToNextLevel}
             onFinalize={handleFinalize}
+            onReview={handleReview}
+            onForwardToLegal={handleForwardToLegal}
             lastSaveTime={lastSaveTime}
             showCompleteButton={buttonVisibility.showCompleteButton}
             showSubmitForReviewButton={buttonVisibility.showSubmitForReviewButton}
             showSendToSectionButton={buttonVisibility.showSendToSectionButton}
             showSendToDivisionButton={buttonVisibility.showSendToDivisionButton}
+            showSendToNextLevelButton={buttonVisibility.showSendToNextLevelButton}
+            nextLevelName={buttonVisibility.getNextLevelName()}
             showFinalizeButton={buttonVisibility.showFinalizeButton}
+            showReviewButton={buttonVisibility.showReviewButton}
+            showForwardToLegalButton={buttonVisibility.showForwardToLegalButton}
             showDraftButton={buttonVisibility.showDraftButton}
             showSubmitButton={buttonVisibility.showSubmitButton}
             showCloseButton={buttonVisibility.showCloseButton}
             isDraft={fullInspectionData?.form?.checklist?.is_draft || false}
-            currentUser={currentUser}
-            inspectionStatus={inspectionStatus}
+            complianceStatus={determineComplianceStatus()}
           />
 
           <div className="p-4">
@@ -1111,6 +1253,68 @@ export default function InspectionForm({ inspectionData }) {
                       <span className="text-sm text-red-700">{message}</span>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Compliance Status Summary */}
+            {complianceItems.length > 0 && systems.length > 0 && (
+              <div className={`mb-6 p-4 rounded-lg border ${
+                determineComplianceStatus() === 'COMPLIANT' 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-center gap-3 mb-3">
+                  <h3 className={`text-lg font-semibold ${
+                    determineComplianceStatus() === 'COMPLIANT' ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {determineComplianceStatus() === 'COMPLIANT' ? '✅ Compliance Status: COMPLIANT' : '❌ Compliance Status: NON-COMPLIANT'}
+                  </h3>
+                </div>
+                
+                {/* Compliance Items Summary */}
+                <div className="mb-3">
+                  <h4 className="font-medium text-gray-700 mb-2">Compliance Items:</h4>
+                  <div className="space-y-1">
+                    {complianceItems.filter(item => general.environmental_laws?.includes(item.lawId)).map((item, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm">
+                        <span className={`w-3 h-3 rounded-full ${
+                          item.compliant === 'Yes' ? 'bg-green-500' : 
+                          item.compliant === 'No' ? 'bg-red-500' : 'bg-gray-300'
+                        }`}></span>
+                        <span className="text-gray-700">{item.item}:</span>
+                        <span className={`font-medium ${
+                          item.compliant === 'Yes' ? 'text-green-700' : 
+                          item.compliant === 'No' ? 'text-red-700' : 'text-gray-500'
+                        }`}>
+                          {item.compliant || 'Not assessed'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Systems Summary */}
+                <div>
+                  <h4 className="font-medium text-gray-700 mb-2">Systems/Findings:</h4>
+                  <div className="space-y-1">
+                    {systems.filter(system => general.environmental_laws?.includes(system.lawId)).map((system, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm">
+                        <span className={`w-3 h-3 rounded-full ${
+                          system.compliant ? 'bg-green-500' : 
+                          system.nonCompliant ? 'bg-red-500' : 'bg-gray-300'
+                        }`}></span>
+                        <span className="text-gray-700">{system.system}:</span>
+                        <span className={`font-medium ${
+                          system.compliant ? 'text-green-700' : 
+                          system.nonCompliant ? 'text-red-700' : 'text-gray-500'
+                        }`}>
+                          {system.compliant ? 'Compliant' : 
+                           system.nonCompliant ? 'Non-Compliant' : 'Not assessed'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

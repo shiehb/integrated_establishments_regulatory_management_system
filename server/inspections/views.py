@@ -220,10 +220,17 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 current_status='MONITORING_IN_PROGRESS'
             )
         elif tab == 'completed':
-            # Show inspections that this Monitoring Personnel has completed
+            # Show inspections that this Monitoring Personnel has completed and progressed through reviews up to legal
             return queryset.filter(
                 assigned_to=user,
-                current_status__in=['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']
+                current_status__in=[
+                    'MONITORING_COMPLETED_COMPLIANT', 
+                    'MONITORING_COMPLETED_NON_COMPLIANT',
+                    'UNIT_REVIEWED',
+                    'SECTION_REVIEWED', 
+                    'DIVISION_REVIEWED',
+                    'LEGAL_REVIEW'
+                ]
             )
         else:
             # Default: show all assigned inspections
@@ -1176,7 +1183,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def forward_to_legal(self, request, pk=None):
-        """Forward non-compliant case to Legal Unit (Division Chief only)"""
+        """Forward case to Legal Unit (Division Chief only)"""
         inspection = self.get_object()
         user = request.user
         
@@ -1194,13 +1201,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Check if non-compliant
-        form = getattr(inspection, 'form', None)
-        if not form or form.compliance_decision != 'NON_COMPLIANT':
-            return Response(
-                {'error': 'Can only forward non-compliant cases to Legal Unit'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Removed compliance validation - Division Chief can decide to forward any case to Legal Unit
         
         # Find Legal Unit user
         legal_user = User.objects.filter(userlevel='Legal Unit', is_active=True).first()
@@ -1222,7 +1223,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
             previous_status=prev_status,
             new_status='LEGAL_REVIEW',
             changed_by=user,
-            remarks=request.data.get('remarks', 'Forwarded non-compliant case to Legal Unit')
+            remarks=request.data.get('remarks', 'Forwarded case to Legal Unit')
         )
         
         serializer = self.get_serializer(inspection)

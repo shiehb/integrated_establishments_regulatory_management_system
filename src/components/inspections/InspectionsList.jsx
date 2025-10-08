@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Plus,
   ArrowUpDown,
@@ -50,7 +49,6 @@ const useDebounce = (value, delay) => {
 };
 
 export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Division Chief' }) {
-  const navigate = useNavigate();
   const notifications = useNotifications();
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -625,9 +623,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, filteredCount);
 
-  const handleRowClick = (inspection) => {
-    navigate(`/inspections/${inspection.id}`);
-  };
+  // Removed handleRowClick to prevent navigation on row click
 
   return (
     <div className="p-4 bg-white h-[calc(100vh-160px)]">
@@ -792,6 +788,9 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                       "MONITORING_IN_PROGRESS",
                       "MONITORING_COMPLETED_COMPLIANT",
                       "MONITORING_COMPLETED_NON_COMPLIANT",
+                      "UNIT_REVIEWED",
+                      "SECTION_REVIEWED",
+                      "DIVISION_REVIEWED",
                       "LEGAL_REVIEW",
                       "NOV_SENT",
                       "NOO_SENT",
@@ -1020,8 +1019,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               inspections.map((inspection) => (
                 <tr
                   key={inspection.id}
-                  onClick={() => handleRowClick(inspection)}
-                  className="text-sm border-b border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+                  className="text-sm border-b border-gray-200 transition-colors"
                 >
                   <td className="p-3 text-center">
                     <input
