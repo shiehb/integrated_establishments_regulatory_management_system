@@ -5,7 +5,7 @@ import SectionHeader from "./SectionHeader";
 /* ---------------------------
    Recommendations
    ---------------------------*/
-export default function Recommendations({ recState, setRecState, errors }) {
+export default function Recommendations({ recState, setRecState, errors, isReadOnly = false, canEditRecommendation = false }) {
   // Import recommendations from constants
   const recommendations = [
     {
@@ -74,9 +74,10 @@ export default function Recommendations({ recState, setRecState, errors }) {
               type="checkbox"
               checked={(recState.checked || []).includes(r.label)}
               onChange={() => toggle(r.label)}
-              className="w-4 h-4"
+              disabled={isReadOnly && !canEditRecommendation}
+              className={`w-4 h-4 ${isReadOnly && !canEditRecommendation ? 'opacity-50 cursor-not-allowed' : ''}`}
             />
-            <span className="text-sm text-black">{r.label}</span>
+            <span className={`text-sm text-black ${isReadOnly && !canEditRecommendation ? 'text-gray-500' : ''}`}>{r.label}</span>
           </label>
         ))}
 
@@ -86,7 +87,12 @@ export default function Recommendations({ recState, setRecState, errors }) {
               value={recState.otherText || ""}
               onChange={(e) => updateField("otherText", e.target.value)}
               placeholder="ENTER OTHER RECOMMENDATION..."
-              className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
+              disabled={isReadOnly && !canEditRecommendation}
+              className={`w-full border border-black px-2 py-1 min-h-[80px] uppercase ${
+                isReadOnly && !canEditRecommendation 
+                  ? 'bg-gray-100 text-gray-600 cursor-not-allowed' 
+                  : 'bg-white text-black'
+              }`}
             />
             {errors.recommendations && (
               <p className="text-sm text-red-600">{errors.recommendations}</p>

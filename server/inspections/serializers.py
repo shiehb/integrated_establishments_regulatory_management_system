@@ -188,11 +188,11 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('MONITORING_ASSIGNED', 'Monitoring Personnel'): ['start'],
             
             # Actions available to assigned users
-            ('SECTION_IN_PROGRESS', 'Section Chief'): ['continue', 'complete'],
+            ('SECTION_IN_PROGRESS', 'Section Chief'): ['continue'],
             ('SECTION_COMPLETED_COMPLIANT', 'Section Chief'): [],  # Auto-forwards to Division Chief
             ('SECTION_COMPLETED_NON_COMPLIANT', 'Section Chief'): [],  # Auto-forwards to Division Chief
             
-            ('UNIT_IN_PROGRESS', 'Unit Head'): ['continue', 'complete'],
+            ('UNIT_IN_PROGRESS', 'Unit Head'): ['continue'],
             ('UNIT_COMPLETED_COMPLIANT', 'Unit Head'): [],  # Auto-forwards to Monitoring Personnel
             ('UNIT_COMPLETED_NON_COMPLIANT', 'Unit Head'): [],  # Auto-forwards to Monitoring Personnel
             
@@ -207,9 +207,10 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('SECTION_REVIEWED', 'Section Chief'): ['review'],
             ('DIVISION_REVIEWED', 'Division Chief'): ['forward_to_legal', 'close'],
             
-            ('LEGAL_REVIEW', 'Legal Unit'): ['send_nov', 'send_noo', 'close'],
-            ('NOV_SENT', 'Legal Unit'): ['send_noo', 'close'],
-            ('NOO_SENT', 'Legal Unit'): ['close'],
+            # Legal Unit actions - can review to access form with NOV/NOO buttons
+            ('LEGAL_REVIEW', 'Legal Unit'): ['review'],
+            ('NOV_SENT', 'Legal Unit'): [],
+            ('NOO_SENT', 'Legal Unit'): [],
         }
         
         key = (status, user.userlevel)

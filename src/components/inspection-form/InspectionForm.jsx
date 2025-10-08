@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
-import { saveInspectionDraft, completeInspection, getInspection, updateInspection, reviewInspection, forwardToLegal } from "../../services/api";
+import { saveInspectionDraft, completeInspection, getInspection, updateInspection, reviewInspection, forwardToLegal, sendNOV, sendNOO } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 
@@ -105,9 +105,14 @@ export default function InspectionForm({ inspectionData }) {
     findings: '' 
   });
   const [closeConfirmation, setCloseConfirmation] = useState({ open: false });
+  const [actionConfirmation, setActionConfirmation] = useState({ 
+    open: false, 
+    inspection: null, 
+    action: null 
+  });
   const [loading, setLoading] = useState(false);
 
-  // Determine button visibility based on status and user role
+  // Determine button visibility and access control based on status and user role
   const getButtonVisibility = () => {
     const userLevel = currentUser?.userlevel;
     const status = inspectionStatus;
@@ -120,6 +125,12 @@ export default function InspectionForm({ inspectionData }) {
     // Statuses where Close Form, Draft, Submit buttons should be visible
     const editableStatuses = ['CREATED', 'SECTION_IN_PROGRESS', 'UNIT_IN_PROGRESS', 'MONITORING_IN_PROGRESS'];
     const isEditableStatus = editableStatuses.includes(status) || isDraft;
+    
+    // NEW ACCESS CONTROL LOGIC:
+    // All fields are read-only by default
+    // Only Division Chief can edit recommendations
+    const isDivisionChief = userLevel === 'Division Chief';
+    const isFormReadOnly = true; // All fields read-only by default
     
     return {
       // Close Form Button - Always visible (including in review statuses)
@@ -159,10 +170,11 @@ export default function InspectionForm({ inspectionData }) {
         return 'Next Level';
       },
       
-      // Review Button - For review workflow (Unit Head, Section Chief, Division Chief)
+      // Review Button - For review workflow (Unit Head, Section Chief, Division Chief, Legal Unit)
       showReviewButton: (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') ||
                        (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') ||
-                       (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED'),
+                       (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED') ||
+                       (userLevel === 'Legal Unit' && status === 'LEGAL_REVIEW'),
       
       // Forward to Legal Button - Only for Division Chief in DIVISION_REVIEWED (any compliance status)
       showForwardToLegalButton: userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED',
@@ -170,8 +182,22 @@ export default function InspectionForm({ inspectionData }) {
       // Finalize Button - Only for Division Chief in DIVISION_REVIEWED (compliant cases)
       showFinalizeButton: userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED' && determineComplianceStatus() === 'COMPLIANT',
       
-      // Check if form should be read-only
-      isReadOnly: isInReviewStatus && userLevel !== 'Division Chief'
+      // Legal Unit buttons - NOV and NOO buttons for Legal Unit in LEGAL_REVIEW
+      showSendNOVButton: userLevel === 'Legal Unit' && status === 'LEGAL_REVIEW',
+      showSendNOOButton: userLevel === 'Legal Unit' && status === 'LEGAL_REVIEW',
+      
+      // Save Recommendation Button - Only for Division Chief
+      showSaveRecommendationButton: isDivisionChief,
+      
+      // NEW ACCESS CONTROL:
+      // All fields are read-only by default
+      isReadOnly: isFormReadOnly,
+      
+      // Only Division Chief can edit recommendations
+      canEditRecommendation: isDivisionChief,
+      
+      // Division Chief specific access
+      isDivisionChief: isDivisionChief
     };
   };
 
@@ -1092,6 +1118,117 @@ export default function InspectionForm({ inspectionData }) {
     }
   };
 
+  const handleSendNOV = async () => {
+    if (!inspectionId) {
+      notifications.error("No inspection ID found. Cannot send NOV.", { 
+        title: 'Send NOV Failed' 
+      });
+      return;
+    }
+
+    // Show confirmation dialog for NOV
+    setActionConfirmation({
+      open: true,
+      inspection: { id: inspectionId, code: fullInspectionData?.code || 'Unknown' },
+      action: 'send_nov'
+    });
+  };
+
+  const handleSendNOO = async () => {
+    if (!inspectionId) {
+      notifications.error("No inspection ID found. Cannot send NOO.", { 
+        title: 'Send NOO Failed' 
+      });
+      return;
+    }
+
+    // Show confirmation dialog for NOO
+    setActionConfirmation({
+      open: true,
+      inspection: { id: inspectionId, code: fullInspectionData?.code || 'Unknown' },
+      action: 'send_noo'
+    });
+  };
+
+  const handleSaveRecommendation = async () => {
+    if (!inspectionId) {
+      notifications.error("No inspection ID found. Cannot save recommendation.", { 
+        title: 'Save Failed' 
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Save the recommendation
+      await updateInspection(inspectionId, {
+        recommendation: recommendationState
+      });
+      
+      notifications.success("Recommendation saved successfully!", { 
+        title: 'Recommendation Saved',
+        duration: 4000
+      });
+      
+      // Update last save time
+      setLastSaveTime(new Date().toISOString());
+    } catch (error) {
+      console.error("Failed to save recommendation:", error);
+      notifications.error(`Failed to save recommendation: ${error.message}`, { 
+        title: 'Save Failed' 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const executeAction = async () => {
+    const { inspection, action } = actionConfirmation;
+    if (!inspection || !action) return;
+
+    try {
+      setLoading(true);
+      
+      if (action === 'send_nov') {
+        await sendNOV(inspection.id, {
+          violation_breakdown: generateViolationsSummary(),
+          payment_deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+          penalty_fees: 'To be determined based on violation severity'
+        });
+        
+        notifications.success("Notice of Violation sent successfully!", { 
+          title: 'NOV Sent',
+          duration: 6000
+        });
+      } else if (action === 'send_noo') {
+        await sendNOO(inspection.id, {
+          violation_breakdown: generateViolationsSummary(),
+          payment_deadline: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 60 days from now
+          penalty_fees: 'To be determined based on violation severity'
+        });
+        
+        notifications.success("Notice of Order sent successfully!", { 
+          title: 'NOO Sent',
+          duration: 6000
+        });
+      }
+      
+      // Close confirmation dialog
+      setActionConfirmation({ open: false, inspection: null, action: null });
+      
+      // Navigate back to inspections list
+      navigate("/inspections");
+    } catch (error) {
+      console.error(`Failed to ${action}:`, error);
+      notifications.error(`Failed to ${action}: ${error.message}`, { 
+        title: `${action.charAt(0).toUpperCase() + action.slice(1)} Failed` 
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const executeComplete = async () => {
     const { compliance } = completeConfirmation;
     
@@ -1214,6 +1351,9 @@ export default function InspectionForm({ inspectionData }) {
             onFinalize={handleFinalize}
             onReview={handleReview}
             onForwardToLegal={handleForwardToLegal}
+            onSendNOV={handleSendNOV}
+            onSendNOO={handleSendNOO}
+            onSaveRecommendation={handleSaveRecommendation}
             lastSaveTime={lastSaveTime}
             showCompleteButton={buttonVisibility.showCompleteButton}
             showSubmitForReviewButton={buttonVisibility.showSubmitForReviewButton}
@@ -1224,6 +1364,9 @@ export default function InspectionForm({ inspectionData }) {
             showFinalizeButton={buttonVisibility.showFinalizeButton}
             showReviewButton={buttonVisibility.showReviewButton}
             showForwardToLegalButton={buttonVisibility.showForwardToLegalButton}
+            showSendNOVButton={buttonVisibility.showSendNOVButton}
+            showSendNOOButton={buttonVisibility.showSendNOOButton}
+            showSaveRecommendationButton={buttonVisibility.showSaveRecommendationButton}
             showDraftButton={buttonVisibility.showDraftButton}
             showSubmitButton={buttonVisibility.showSubmitButton}
             showCloseButton={buttonVisibility.showCloseButton}
@@ -1370,8 +1513,8 @@ export default function InspectionForm({ inspectionData }) {
           recState={recommendationState}
           setRecState={setRecommendationState}
           errors={errors}
-          isReadOnly={buttonVisibility.isReadOnly && currentUser?.userlevel !== 'Division Chief'}
-          canEditRecommendation={currentUser?.userlevel === 'Division Chief' && inspectionStatus === 'DIVISION_REVIEWED'}
+          isReadOnly={buttonVisibility.isReadOnly}
+          canEditRecommendation={buttonVisibility.canEditRecommendation}
         />
       </div>
     </div>
@@ -1458,6 +1601,44 @@ export default function InspectionForm({ inspectionData }) {
       size="md"
       onCancel={() => executeClose(false)}
       onConfirm={() => executeClose(true)}
+    />
+
+    {/* Action Confirmation Dialog */}
+    <ConfirmationDialog
+      open={actionConfirmation.open}
+      title={
+        actionConfirmation.action === 'send_nov' 
+          ? 'Send Notice of Violation' 
+          : actionConfirmation.action === 'send_noo'
+          ? 'Send Notice of Order'
+          : 'Confirm Action'
+      }
+      message={
+        <div>
+          <p className="mb-2">
+            Are you sure you want to {actionConfirmation.action === 'send_nov' ? 'send Notice of Violation' : 'send Notice of Order'} for inspection {actionConfirmation.inspection?.code}?
+          </p>
+          <p className="text-sm text-gray-600">
+            {actionConfirmation.action === 'send_nov' 
+              ? 'This will send a Notice of Violation to the establishment with a 30-day compliance deadline.'
+              : 'This will send a Notice of Order to the establishment with a 60-day compliance deadline.'
+            }
+          </p>
+        </div>
+      }
+      confirmText={
+        actionConfirmation.action === 'send_nov' 
+          ? 'Send NOV' 
+          : actionConfirmation.action === 'send_noo'
+          ? 'Send NOO'
+          : 'Confirm'
+      }
+      cancelText="Cancel"
+      confirmColor="red"
+      size="md"
+      loading={loading}
+      onCancel={() => setActionConfirmation({ open: false, inspection: null, action: null })}
+      onConfirm={executeAction}
     />
 
     </LayoutForm>

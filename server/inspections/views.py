@@ -43,6 +43,36 @@ class InspectionViewSet(viewsets.ModelViewSet):
         headers = self.get_success_headers(response_serializer.data)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
+    def update(self, request, *args, **kwargs):
+        """Update inspection with access control validation"""
+        inspection = self.get_object()
+        user = request.user
+        
+        # Check if user is trying to update recommendation
+        if 'recommendation' in request.data:
+            # Only Division Chief can update recommendations
+            if user.userlevel != 'Division Chief':
+                return Response(
+                    {'error': 'Only Division Chief can update recommendations'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            
+            # Update the recommendation in the form's checklist
+            form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+            if not form.checklist:
+                form.checklist = {}
+            
+            form.checklist['recommendationState'] = request.data['recommendation']
+            form.save()
+            
+            return Response({
+                'message': 'Recommendation updated successfully',
+                'inspection': self.get_serializer(inspection).data
+            })
+        
+        # Call the parent update method for other fields
+        return super().update(request, *args, **kwargs)
+    
     def get_queryset(self):
         """Filter inspections based on user role and tab"""
         user = self.request.user
@@ -1126,6 +1156,10 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 # Unit Head can review completed monitoring inspections and UNIT_REVIEWED inspections even if not assigned
                 user_can_review = True
                 print(f"DEBUG REVIEW: Unit Head reviewing inspection in status {inspection.current_status} - permission granted")
+            elif user.userlevel == 'Legal Unit' and inspection.current_status == 'LEGAL_REVIEW':
+                # Legal Unit can review inspections in LEGAL_REVIEW status even if not assigned
+                user_can_review = True
+                print(f"DEBUG REVIEW: Legal Unit reviewing inspection in status {inspection.current_status} - permission granted")
             else:
                 user_can_review = False
                 print(f"DEBUG REVIEW: Permission denied - not assigned and no special permission")
@@ -1135,6 +1169,16 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 {'error': 'You are not assigned to this inspection'},
                 status=status.HTTP_403_FORBIDDEN
             )
+        
+        # Special case: Legal Unit review should not change status
+        if user.userlevel == 'Legal Unit' and inspection.current_status == 'LEGAL_REVIEW':
+            # Legal Unit review is just for accessing the form - no status change needed
+            print(f"DEBUG REVIEW: Legal Unit review - no status change needed")
+            return Response({
+                'message': 'Review access granted - no status change',
+                'status': inspection.current_status,
+                'id': inspection.id
+            })
         
         # Determine next status
         status_map = {

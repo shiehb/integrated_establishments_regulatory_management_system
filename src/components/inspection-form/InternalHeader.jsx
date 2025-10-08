@@ -14,6 +14,9 @@ export default function InternalHeader({
   onFinalize,
   onReview,
   onForwardToLegal,
+  onSendNOV,
+  onSendNOO,
+  onSaveRecommendation,
   lastSaveTime,
   showCompleteButton = false,
   showSendToSectionButton = false,
@@ -23,6 +26,9 @@ export default function InternalHeader({
   showFinalizeButton = false,
   showReviewButton = false,
   showForwardToLegalButton = false,
+  showSendNOVButton = false,
+  showSendNOOButton = false,
+  showSaveRecommendationButton = false,
   showDraftButton = false,
   showSubmitButton = false,
   showSubmitForReviewButton = false,
@@ -169,6 +175,36 @@ export default function InternalHeader({
             className="px-3 py-1 text-sm text-white bg-gray-800 rounded hover:bg-gray-900"
           >
             Close Form
+          </button>
+        )}
+        
+        {/* Send NOV Button - Only for Legal Unit in LEGAL_REVIEW */}
+        {showSendNOVButton && (
+          <button
+            onClick={onSendNOV}
+            className="px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700"
+          >
+            Send NOV
+          </button>
+        )}
+        
+        {/* Send NOO Button - Only for Legal Unit in LEGAL_REVIEW */}
+        {showSendNOOButton && (
+          <button
+            onClick={onSendNOO}
+            className="px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700"
+          >
+            Send NOO
+          </button>
+        )}
+        
+        {/* Save Recommendation Button - Only for Division Chief */}
+        {showSaveRecommendationButton && (
+          <button
+            onClick={onSaveRecommendation}
+            className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
+          >
+            Save Recommendation
           </button>
         )}
       </div>

@@ -12,7 +12,20 @@ import {
   ChevronRight,
   FileText,
   Calendar,
-  Building
+  Building,
+  AlertCircle,
+  Info,
+  CheckCircle2,
+  ArrowRight,
+  Scale,
+  Send,
+  Play,
+  Lock,
+  Eye,
+  CheckCircle,
+  XCircle,
+  Clock,
+  User
 } from "lucide-react";
 import {
   getProfile, 
@@ -46,6 +59,401 @@ const useDebounce = (value, delay) => {
   }, [value, delay]);
 
   return debouncedValue;
+};
+
+// Helper function to create action-specific dialog content
+const getActionDialogContent = (action, inspection, userLevel, currentUser) => {
+  const establishmentNames = inspection?.establishments_detail?.length > 0 
+    ? inspection.establishments_detail.map(est => est.name).join(', ')
+    : 'No establishments';
+
+  const actionConfig = {
+    inspect: {
+      icon: <Play className="w-5 h-5 text-blue-600" />,
+      headerColor: 'blue',
+      title: 'Confirm Inspection Assignment',
+      confirmColor: 'blue',
+      confirmText: 'Assign & Open Form',
+      message: (
+        <div className="space-y-4">
+          {/* Inspection Details Card */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4 text-blue-600" />
+              <span className="font-medium text-blue-800">Inspection Details</span>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-gray-700">Code:</span>
+                <span className="text-gray-900">{inspection?.code}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Building className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-700">{establishmentNames}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-700">Status: {inspection?.current_status}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Info */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Info className="w-4 h-4 text-blue-600" />
+              <span className="font-medium text-blue-800">What will happen?</span>
+            </div>
+            <div className="space-y-2 text-sm text-blue-700">
+              {userLevel === 'Section Chief' ? (
+                <>
+                  <p>• This inspection will be assigned to you as the Section Chief</p>
+                  <p>• You will have full access to edit and complete the inspection form</p>
+                  <p>• The status will change to "Section In Progress"</p>
+                  <p>• The inspection form will open automatically</p>
+                </>
+              ) : userLevel === 'Unit Head' ? (
+                <>
+                  <p>• This inspection will be assigned to you as the Unit Head</p>
+                  <p>• You will have full access to edit and complete the inspection form</p>
+                  <p>• The status will change to "Unit In Progress"</p>
+                  <p>• The inspection form will open automatically</p>
+                </>
+              ) : (
+                <>
+                  <p>• This inspection will be assigned to you</p>
+                  <p>• You will have access to the inspection form</p>
+                  <p>• The inspection form will open automatically</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="text-sm text-gray-600">
+            <p>Are you sure you want to proceed with this assignment?</p>
+          </div>
+        </div>
+      )
+    },
+    forward: {
+      icon: <ArrowRight className="w-5 h-5 text-sky-600" />,
+      headerColor: 'sky',
+      title: 'Confirm Forward Action',
+      confirmColor: 'sky',
+      confirmText: 'Forward Inspection',
+      message: (
+        <div className="space-y-4">
+          {/* Inspection Details Card */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4 text-gray-600" />
+              <span className="font-medium text-gray-800">Inspection Details</span>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-gray-700">Code:</span>
+                <span className="text-gray-900">{inspection?.code}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Building className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-700">{establishmentNames}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Forwarding Rules */}
+          <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <ArrowRight className="w-4 h-4 text-sky-600" />
+              <span className="font-medium text-sky-800">Forwarding Rules</span>
+            </div>
+            <div className="space-y-2 text-sm text-sky-700">
+              {userLevel === 'Section Chief' ? (
+                <>
+                  {currentUser?.section === 'PD-1586,RA-8749,RA-9275' ? (
+                    <>
+                      <p>• <strong>Combined Section:</strong> Will forward to Unit Head</p>
+                      <p>• If no Unit Head is assigned, you will be notified</p>
+                      <p>• Unit Head will then assign to Monitoring Personnel</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>• <strong>Individual Section:</strong> Will forward directly to Monitoring Personnel</p>
+                      <p>• Monitoring Personnel will conduct the actual inspection</p>
+                    </>
+                  )}
+                </>
+              ) : userLevel === 'Unit Head' ? (
+                <>
+                  <p>• Will forward the inspection to Monitoring Personnel</p>
+                  <p>• Monitoring Personnel will conduct the actual inspection</p>
+                </>
+              ) : (
+                <>
+                  <p>• Will forward the inspection to the next level in the workflow</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="text-sm text-gray-600">
+            <p>Are you sure you want to forward this inspection?</p>
+          </div>
+        </div>
+      )
+    },
+    forward_to_legal: {
+      icon: <Scale className="w-5 h-5 text-orange-600" />,
+      headerColor: 'orange',
+      title: 'Forward to Legal Unit',
+      confirmColor: 'orange',
+      confirmText: 'Forward to Legal',
+      message: (
+        <div className="space-y-4">
+          {/* Inspection Details Card */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4 text-gray-600" />
+              <span className="font-medium text-gray-800">Inspection Details</span>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-gray-700">Code:</span>
+                <span className="text-gray-900">{inspection?.code}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Building className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-700">{establishmentNames}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-700">Status: {inspection?.current_status}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Legal Review Process */}
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Scale className="w-4 h-4 text-orange-600" />
+              <span className="font-medium text-orange-800">Legal Review Process</span>
+            </div>
+            <div className="space-y-2 text-sm text-orange-700">
+              <p>• This inspection will be forwarded to the Legal Unit for review</p>
+              <p>• Legal Unit will assess compliance and determine next steps</p>
+              <p>• They may issue NOV (Notice of Violation) or NOO (Notice of Order)</p>
+              <p>• The case will be marked for legal review in the system</p>
+            </div>
+          </div>
+
+          {/* Warning */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="w-4 h-4 text-amber-600" />
+              <span className="font-medium text-amber-800">Important Note</span>
+            </div>
+            <p className="text-sm text-amber-700">
+              Legal review is a critical step in the regulatory process. Ensure all documentation is complete before forwarding.
+            </p>
+          </div>
+
+          <div className="text-sm text-gray-600">
+            <p>Are you sure you want to forward this inspection to the Legal Unit?</p>
+          </div>
+        </div>
+      )
+    },
+    close: {
+      icon: userLevel === 'Legal Unit' || userLevel === 'Division Chief' 
+        ? <CheckCircle2 className="w-5 h-5 text-green-600" />
+        : <CheckCircle className="w-5 h-5 text-green-600" />,
+      headerColor: 'green',
+      title: userLevel === 'Legal Unit' || userLevel === 'Division Chief' 
+        ? 'Mark as Compliant'
+        : 'Close Inspection',
+      confirmColor: 'green',
+      confirmText: userLevel === 'Legal Unit' || userLevel === 'Division Chief' 
+        ? 'Mark as Compliant'
+        : 'Close Inspection',
+      message: (
+        <div className="space-y-4">
+          {/* Inspection Details Card */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4 text-gray-600" />
+              <span className="font-medium text-gray-800">Inspection Details</span>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-gray-700">Code:</span>
+                <span className="text-gray-900">{inspection?.code}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Building className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-700">{establishmentNames}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Completion Info */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
+              <span className="font-medium text-green-800">Final Status</span>
+            </div>
+            <div className="space-y-2 text-sm text-green-700">
+              {userLevel === 'Legal Unit' || userLevel === 'Division Chief' ? (
+                <>
+                  <p>• This inspection will be marked as <strong>Compliant</strong></p>
+                  <p>• The establishment will be considered in full compliance</p>
+                  <p>• The case will be closed and archived</p>
+                  <p>• A compliance certificate may be issued</p>
+                </>
+              ) : (
+                <>
+                  <p>• This inspection will be closed</p>
+                  <p>• The case will be marked as completed</p>
+                  <p>• No further action will be required</p>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="text-sm text-gray-600">
+            <p>Are you sure you want to {userLevel === 'Legal Unit' || userLevel === 'Division Chief' ? 'mark this as compliant' : 'close this inspection'}?</p>
+          </div>
+        </div>
+      )
+    },
+    assign_to_me: {
+      icon: <User className="w-5 h-5 text-indigo-600" />,
+      headerColor: 'indigo',
+      title: 'Assign Inspection to Me',
+      confirmColor: 'indigo',
+      confirmText: 'Assign to Me',
+      message: (
+        <div className="space-y-4">
+          {/* Inspection Details Card */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4 text-gray-600" />
+              <span className="font-medium text-gray-800">Inspection Details</span>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-gray-700">Code:</span>
+                <span className="text-gray-900">{inspection?.code}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Building className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-700">{establishmentNames}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Assignment Info */}
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <User className="w-4 h-4 text-indigo-600" />
+              <span className="font-medium text-indigo-800">Assignment Details</span>
+            </div>
+            <div className="space-y-2 text-sm text-indigo-700">
+              <p>• This inspection will be assigned to you</p>
+              <p>• You will become responsible for this inspection</p>
+              <p>• You will have access to edit and manage the inspection</p>
+            </div>
+          </div>
+
+          <div className="text-sm text-gray-600">
+            <p>Are you sure you want to assign this inspection to yourself?</p>
+          </div>
+        </div>
+      )
+    },
+    complete: {
+      icon: <CheckCircle className="w-5 h-5 text-green-600" />,
+      headerColor: 'green',
+      title: 'Complete Inspection',
+      confirmColor: 'green',
+      confirmText: 'Complete',
+      message: (
+        <div className="space-y-4">
+          {/* Inspection Details Card */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4 text-gray-600" />
+              <span className="font-medium text-gray-800">Inspection Details</span>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-gray-700">Code:</span>
+                <span className="text-gray-900">{inspection?.code}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Building className="w-4 h-4 text-gray-500" />
+                <span className="text-gray-700">{establishmentNames}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Completion Info */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle className="w-4 h-4 text-green-600" />
+              <span className="font-medium text-green-800">Completion Process</span>
+            </div>
+            <div className="space-y-2 text-sm text-green-700">
+              <p>• This inspection will be marked as completed</p>
+              <p>• All inspection data will be finalized</p>
+              <p>• The case will move to the next stage in the workflow</p>
+            </div>
+          </div>
+
+          <div className="text-sm text-gray-600">
+            <p>Are you sure you want to complete this inspection?</p>
+          </div>
+        </div>
+      )
+    }
+  };
+
+  // Default fallback for unknown actions
+  const defaultConfig = {
+    icon: <AlertCircle className="w-5 h-5 text-gray-600" />,
+    headerColor: 'sky',
+    title: 'Confirm Action',
+    confirmColor: 'sky',
+    confirmText: 'Confirm',
+    message: (
+      <div className="space-y-4">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="w-4 h-4 text-gray-600" />
+            <span className="font-medium text-gray-800">Inspection Details</span>
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-gray-700">Code:</span>
+              <span className="text-gray-900">{inspection?.code}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Building className="w-4 h-4 text-gray-500" />
+              <span className="text-gray-700">{establishmentNames}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-gray-700">Action:</span>
+              <span className="text-gray-900">{action?.replace('_', ' ').toUpperCase()}</span>
+            </div>
+          </div>
+        </div>
+        <div className="text-sm text-gray-600">
+          <p>Are you sure you want to perform this action?</p>
+        </div>
+      </div>
+    )
+  };
+
+  return actionConfig[action] || defaultConfig;
 };
 
 export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Division Chief' }) {
@@ -1085,6 +1493,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                       availableActions={inspection.available_actions || []}
                       onAction={handleActionClick}
                       loading={isActionLoading(inspection.id)}
+                      userLevel={userLevel}
                     />
                   </td>
                 </tr>
@@ -1130,80 +1539,30 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       />
 
       {/* Action Confirmation Dialog */}
-      <ConfirmationDialog
-        open={actionConfirmation.open}
-        title={
-          actionConfirmation.action === 'inspect' 
-            ? "Confirm Inspection Assignment" 
-            : actionConfirmation.action === 'forward'
-            ? "Confirm Forward Action"
-            : "Confirm Workflow Action"
-        }
-        message={
-          <div>
-            <p className="mb-2">
-              <strong>Inspection:</strong> {actionConfirmation.inspection?.code}
-            </p>
-            <p className="mb-2">
-              <strong>Current Status:</strong> {actionConfirmation.inspection?.current_status}
-            </p>
-            <p className="mb-2">
-              <strong>Establishment:</strong> {
-                actionConfirmation.inspection?.establishments_detail?.length > 0 
-                  ? actionConfirmation.inspection.establishments_detail.map(est => est.name).join(', ')
-                  : 'No establishments'
-              }
-            </p>
-            <p className="mb-2">
-              <strong>Action:</strong> {actionConfirmation.action?.replace('_', ' ').toUpperCase()}
-            </p>
-            {actionConfirmation.action === 'inspect' ? (
-              <div className="text-sm text-gray-600">
-                <p className="mb-2">
-                  {userLevel === 'Section Chief' 
-                    ? "This will assign the inspection to you and open the inspection form."
-                    : userLevel === 'Unit Head'
-                    ? "This will assign the inspection to you and open the inspection form."
-                    : "This will assign the inspection to you and open the inspection form."
-                  }
-                </p>
-                <p>Are you sure you want to proceed?</p>
-              </div>
-            ) : actionConfirmation.action === 'forward' ? (
-              <div className="text-sm text-gray-600">
-                <p className="mb-2">
-                  {userLevel === 'Section Chief' ? (
-                    currentUser?.section === 'PD-1586,RA-8749,RA-9275' 
-                      ? "This will forward the inspection to Unit Head (Combined Section). If no Unit Head is assigned, you will be notified."
-                      : "This will forward the inspection to Monitoring Personnel (Individual Section)."
-                  ) : userLevel === 'Unit Head' ? (
-                    "This will forward the inspection to Monitoring Personnel."
-                  ) : (
-                    "This will forward the inspection to the next level."
-                  )}
-                </p>
-                <p>Are you sure you want to proceed?</p>
-              </div>
-            ) : (
-            <p className="text-sm text-gray-600">
-              Are you sure you want to perform this action?
-            </p>
-            )}
-          </div>
-        }
-        confirmText={
-          actionConfirmation.action === 'inspect' 
-            ? "Assign & Open Form" 
-            : actionConfirmation.action === 'forward'
-            ? "Forward Inspection"
-            : "Confirm"
-        }
-        cancelText="Cancel"
-        confirmColor="sky"
-        size="lg"
-        onCancel={() => setActionConfirmation({ open: false, inspection: null, action: null })}
-        onConfirm={executeAction}
-      />
+      {actionConfirmation.open && (() => {
+        const dialogContent = getActionDialogContent(
+          actionConfirmation.action, 
+          actionConfirmation.inspection, 
+          userLevel, 
+          currentUser
+        );
+        
+        return (
+          <ConfirmationDialog
+            open={actionConfirmation.open}
+            title={dialogContent.title}
+            icon={dialogContent.icon}
+            headerColor={dialogContent.headerColor}
+            message={dialogContent.message}
+            confirmText={dialogContent.confirmText}
+            cancelText="Cancel"
+            confirmColor={dialogContent.confirmColor}
+            size="xl"
+            onCancel={() => setActionConfirmation({ open: false, inspection: null, action: null })}
+            onConfirm={executeAction}
+          />
+        );
+      })()}
 
 
     </div>

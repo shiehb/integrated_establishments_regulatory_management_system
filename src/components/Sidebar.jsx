@@ -10,6 +10,7 @@ import {
   Settings,
   Database, // ✅ add Database icon
   Map as MapIcon,
+  Bell,
 } from "lucide-react";
 
 // Common sidebar menu for all roles
@@ -19,6 +20,7 @@ const baseMenu = [
   { name: "Map", path: "/map", icon: MapPin },
   { name: "Establishments", path: "/establishments", icon: Building },
   { name: "Inspections", path: "/inspections", icon: InspectIcon },
+  { name: "Notifications", path: "/notifications", icon: Bell, adminOnly: true },
    // ✅ Admin, Section Chief, or Unit Head
   {
     name: "District Management",

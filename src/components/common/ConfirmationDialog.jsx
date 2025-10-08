@@ -11,6 +11,8 @@ export default function ConfirmationDialog({
   cancelText = "Cancel",
   confirmColor = "sky", // Added flexibility for different action types
   size = "sm", // sm, md, lg
+  icon = null, // Optional icon component
+  headerColor = null, // Optional header color (blue, orange, green, etc.)
 }) {
   if (!open) return null;
 
@@ -18,6 +20,7 @@ export default function ConfirmationDialog({
     sm: "max-w-sm",
     md: "max-w-md",
     lg: "max-w-lg",
+    xl: "max-w-xl",
   };
 
   const colorClasses = {
@@ -26,6 +29,20 @@ export default function ConfirmationDialog({
     red: "bg-red-600 hover:bg-red-700",
     green: "bg-green-600 hover:bg-green-700",
     amber: "bg-amber-600 hover:bg-amber-700",
+    orange: "bg-orange-600 hover:bg-orange-700",
+    indigo: "bg-indigo-600 hover:bg-indigo-700",
+    purple: "bg-purple-600 hover:bg-purple-700",
+  };
+
+  const headerColorClasses = {
+    blue: "bg-blue-50 border-b border-blue-200",
+    orange: "bg-orange-50 border-b border-orange-200",
+    green: "bg-green-50 border-b border-green-200",
+    sky: "bg-sky-50 border-b border-sky-200",
+    indigo: "bg-indigo-50 border-b border-indigo-200",
+    purple: "bg-purple-50 border-b border-purple-200",
+    red: "bg-red-50 border-b border-red-200",
+    amber: "bg-amber-50 border-b border-amber-200",
   };
 
   // Check if message is a React element or string
@@ -40,32 +57,60 @@ export default function ConfirmationDialog({
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
       <div
-        className={`w-full ${sizeClasses[size]} p-6 bg-white rounded-lg shadow-lg mx-4`}
+        className={`w-full ${sizeClasses[size]} bg-white rounded-lg shadow-xl mx-4 overflow-hidden`}
       >
-        <h3 className="mb-2 text-lg font-semibold text-gray-800">{title}</h3>
-        {renderMessage()}
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-gray-700 transition-colors bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-            disabled={loading}
-          >
-            {cancelText}
-          </button>
-          <button
-            onClick={onConfirm}
-            className={`px-4 py-2 text-white rounded transition-colors flex items-center justify-center min-w-[80px] ${colorClasses[confirmColor]} disabled:opacity-50`}
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <Spinner size="sm" />
-                <span className="ml-2">Processing...</span>
-              </>
-            ) : (
-              confirmText
-            )}
-          </button>
+        {/* Header Section */}
+        {headerColor && (
+          <div className={`px-6 py-4 ${headerColorClasses[headerColor]}`}>
+            <div className="flex items-center gap-3">
+              {icon && (
+                <div className="flex-shrink-0">
+                  {icon}
+                </div>
+              )}
+              <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
+            </div>
+          </div>
+        )}
+        
+        {/* Content Section */}
+        <div className="p-6">
+          {!headerColor && (
+            <div className="flex items-center gap-3 mb-4">
+              {icon && (
+                <div className="flex-shrink-0">
+                  {icon}
+                </div>
+              )}
+              <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
+            </div>
+          )}
+          {renderMessage()}
+          
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={onCancel}
+              className="px-6 py-2.5 text-gray-700 transition-colors bg-gray-200 rounded-lg hover:bg-gray-300 disabled:opacity-50 font-medium"
+              disabled={loading}
+            >
+              {cancelText}
+            </button>
+            <button
+              onClick={onConfirm}
+              className={`px-6 py-2.5 text-white rounded-lg transition-colors flex items-center justify-center min-w-[100px] font-medium ${colorClasses[confirmColor]} disabled:opacity-50`}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Spinner size="sm" />
+                  <span className="ml-2">Processing...</span>
+                </>
+              ) : (
+                confirmText
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

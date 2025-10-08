@@ -591,6 +591,26 @@ export const getUnreadNotificationsCount = async () => {
   return res.data;
 };
 
+// Bulk operations for notifications
+export const bulkMarkNotificationsAsRead = async (notificationIds) => {
+  const res = await api.post("notifications/bulk-mark-read/", {
+    notification_ids: notificationIds
+  });
+  return res.data;
+};
+
+export const bulkDeleteNotifications = async (notificationIds) => {
+  const res = await api.post("notifications/bulk-delete/", {
+    notification_ids: notificationIds
+  });
+  return res.data;
+};
+
+export const getNotificationStats = async () => {
+  const res = await api.get("notifications/stats/");
+  return res.data;
+};
+
 export const getEstablishmentNotifications = async () => {
   const res = await api.get("notifications/", {
     params: { notification_type: "new_establishment" },
