@@ -89,8 +89,8 @@ export const getProfile = async () => {
   return res.data;
 };
 
-export const getUsers = async () => {
-  const res = await api.get("auth/list/");
+export const getUsers = async (params = {}) => {
+  const res = await api.get("auth/list/", { params });
   return res.data;
 };
 
@@ -572,8 +572,8 @@ export const getAvailableActions = async (id) => {
 };
 
 // Dashboard compliance statistics
-export const getComplianceStats = async () => {
-  const res = await api.get('inspections/compliance_stats/');
+export const getComplianceStats = async (params = {}) => {
+  const res = await api.get('inspections/compliance_stats/', { params });
   return res.data;
 };
 
