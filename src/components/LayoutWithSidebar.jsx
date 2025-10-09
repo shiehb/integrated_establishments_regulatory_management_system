@@ -148,7 +148,7 @@ export default function LayoutWithSidebar({ children }) {
     : "Guest";
 
   return (
-    <div className="h-full flex">
+    <div className="h-[calc(100vh-100px)] flex">
       <Sidebar
         userLevel={userLevel}
         isOpen={sidebarOpen}
@@ -160,11 +160,10 @@ export default function LayoutWithSidebar({ children }) {
           userName={userName}
         />
         <main className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="pb-0">
+          <div>
             {children}
           </div>
         </main>
-        <Footer />
       </div>
     </div>
   );

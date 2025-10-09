@@ -1591,3 +1591,111 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'change_percentage': round(change_percentage, 1),
             'trend': trend
         })
+    
+    @action(detail=False, methods=['get'])
+    def compliance_by_law(self, request):
+        """
+        Get compliance statistics grouped by law with role-based filtering
+        """
+        from django.db.models import Count, Q
+        from .models import InspectionForm, Inspection
+        
+        user = request.user
+        law_choices = [
+            ("PD-1586", "PD-1586 (EIA)"),
+            ("RA-6969", "RA-6969 (TOX)"),
+            ("RA-8749", "RA-8749 (AIR)"),
+            ("RA-9275", "RA-9275 (WATER)"),
+            ("RA-9003", "RA-9003 (WASTE)")
+        ]
+        
+        # Get selected laws from query parameter
+        selected_laws = request.query_params.getlist('laws')
+        if selected_laws:
+            law_choices = [(code, name) for code, name in law_choices if code in selected_laws]
+        
+        # Section-based filtering for Section Chief and Unit Head
+        if user.userlevel in ['Section Chief', 'Unit Head']:
+            if user.section == 'PD-1586,RA-8749,RA-9275':
+                # Combined EIA section - show PD-1586, RA-8749, RA-9275
+                allowed_laws = ['PD-1586', 'RA-8749', 'RA-9275']
+            else:
+                # Single section - show only that law
+                allowed_laws = [user.section]
+            
+            # Filter law_choices to only include allowed laws
+            law_choices = [(code, name) for code, name in law_choices if code in allowed_laws]
+        
+        stats_by_law = []
+        
+        for law_code, law_name in law_choices:
+            # Get base inspection queryset for this law
+            base_inspections = Inspection.objects.filter(law=law_code)
+            
+            # Apply role-based filtering (similar to get_queryset logic)
+            if user.userlevel == 'Admin':
+                # Admin sees all inspections
+                filtered_inspections = base_inspections
+            elif user.userlevel == 'Division Chief':
+                # Division Chief sees inspections they created or are assigned for review
+                filtered_inspections = base_inspections.filter(
+                    Q(created_by=user) | Q(current_status='DIVISION_REVIEWED')
+                )
+            elif user.userlevel == 'Section Chief':
+                # Section Chief sees inspections related to their section
+                if user.section == 'PD-1586,RA-8749,RA-9275':
+                    # Special case for combined EIA section
+                    filtered_inspections = base_inspections.filter(
+                        Q(assigned_to=user) | 
+                        Q(law__in=['PD-1586', 'RA-8749', 'RA-9275'])
+                    )
+                else:
+                    filtered_inspections = base_inspections.filter(
+                        Q(assigned_to=user) | Q(law=user.section)
+                    )
+            elif user.userlevel == 'Unit Head':
+                # Unit Head sees inspections related to their section
+                if user.section == 'PD-1586,RA-8749,RA-9275':
+                    # Special case for combined EIA section
+                    filtered_inspections = base_inspections.filter(
+                        Q(assigned_to=user) | 
+                        Q(law__in=['PD-1586', 'RA-8749', 'RA-9275'])
+                    )
+                else:
+                    filtered_inspections = base_inspections.filter(
+                        Q(assigned_to=user) | Q(law=user.section)
+                    )
+            elif user.userlevel == 'Monitoring Personnel':
+                # Monitoring Personnel sees inspections assigned to them
+                filtered_inspections = base_inspections.filter(assigned_to=user)
+            elif user.userlevel == 'Legal Unit':
+                # Legal Unit sees inspections in legal review status
+                filtered_inspections = base_inspections.filter(
+                    current_status__in=['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
+                )
+            else:
+                # Default: only see inspections assigned to user
+                filtered_inspections = base_inspections.filter(assigned_to=user)
+            
+            # Get inspection IDs for compliance stats
+            inspection_ids = filtered_inspections.values_list('id', flat=True)
+            
+            # Get compliance stats for these inspections
+            law_stats = InspectionForm.objects.filter(inspection_id__in=inspection_ids).aggregate(
+                pending=Count('inspection_id', filter=Q(compliance_decision='PENDING')),
+                compliant=Count('inspection_id', filter=Q(compliance_decision='COMPLIANT')),
+                non_compliant=Count('inspection_id', filter=Q(compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT']))
+            )
+            
+            total = law_stats['pending'] + law_stats['compliant'] + law_stats['non_compliant']
+            
+            stats_by_law.append({
+                'law': law_code,
+                'law_name': law_name,
+                'pending': law_stats['pending'],
+                'compliant': law_stats['compliant'],
+                'non_compliant': law_stats['non_compliant'],
+                'total': total
+            })
+        
+        return Response(stats_by_law)

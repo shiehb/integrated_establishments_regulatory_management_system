@@ -16,9 +16,18 @@ import {
   UserPlus,
   FileText,
   Loader2,
+  Search,
+  Filter,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  X,
 } from "lucide-react";
 import {
   Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
   ArcElement,
   Tooltip,
   Legend,
@@ -29,19 +38,98 @@ import LoadingSkeleton from "./shared/LoadingSkeleton";
 import SummaryCard from "./shared/SummaryCard";
 import ComplianceCard from "./shared/ComplianceCard";
 import QuarterlyComparisonCard from "./shared/QuarterlyComparisonCard";
+import ComplianceByLawCard from "./shared/ComplianceByLawCard";
 import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
+import DateRangeDropdown from "../DateRangeDropdown";
 
 // Register Chart.js components
-ChartJS.register(ArcElement, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
+
+// Status display mapping based on backend - COMPLETE MAPPING
+const getInspectionStatusDisplay = (status) => {
+  const statusMap = {
+    // Initial creation
+    'CREATED': 'Created',
+    
+    // Section Chief workflow
+    'SECTION_ASSIGNED': 'New – Waiting for Action',
+    'SECTION_IN_PROGRESS': 'In Progress',
+    'SECTION_COMPLETED_COMPLIANT': 'Completed – Compliant',
+    'SECTION_COMPLETED_NON_COMPLIANT': 'Completed – Non-Compliant',
+    
+    // Unit Head workflow
+    'UNIT_ASSIGNED': 'New – Waiting for Action',
+    'UNIT_IN_PROGRESS': 'In Progress',
+    'UNIT_COMPLETED_COMPLIANT': 'Completed – Compliant',
+    'UNIT_COMPLETED_NON_COMPLIANT': 'Completed – Non-Compliant',
+    
+    // Monitoring Personnel workflow
+    'MONITORING_ASSIGNED': 'New – Waiting for Action',
+    'MONITORING_IN_PROGRESS': 'In Progress',
+    'MONITORING_COMPLETED_COMPLIANT': 'Completed – Compliant',
+    'MONITORING_COMPLETED_NON_COMPLIANT': 'Completed – Non-Compliant',
+    
+    // Review workflow (compliant path)
+    'UNIT_REVIEWED': 'Reviewed',
+    'SECTION_REVIEWED': 'Reviewed',
+    'DIVISION_REVIEWED': 'For Legal Review',
+    
+    // Legal workflow (non-compliant path)
+    'LEGAL_REVIEW': 'For Legal Review',
+    'NOV_SENT': 'NOV Sent',
+    'NOO_SENT': 'NOO Sent',
+    
+    // Final states
+    'FINALIZED': 'Finalized',
+    'CLOSED': 'Closed',
+    'CLOSED_COMPLIANT': 'Closed',
+    'CLOSED_NON_COMPLIANT': 'Closed',
+  };
+  
+  return statusMap[status] || status;
+};
+
+// Status badge with proper colors
+const getInspectionStatusBadge = (status) => {
+  const displayName = getInspectionStatusDisplay(status);
+  
+  const config = {
+    'Created': { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' },
+    'New – Waiting for Action': { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
+    'In Progress': { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300' },
+    'Completed – Compliant': { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' },
+    'Completed – Non-Compliant': { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' },
+    'Reviewed': { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300' },
+    'For Legal Review': { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-300' },
+    'NOV Sent': { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-300' },
+    'NOO Sent': { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300' },
+    'Finalized': { bg: 'bg-teal-100', text: 'text-teal-700', border: 'border-teal-300' },
+    'Closed': { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300' },
+  };
+  
+  const style = config[displayName] || { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' };
+  
+  return (
+    <span className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 text-xs font-semibold border rounded w-45 ${style.bg} ${style.text} ${style.border}`}>
+      {displayName}
+    </span>
+  );
+};
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [inspections, setInspections] = useState([]);
   const [activityLog, setActivityLog] = useState([]);
-  const [isActivityCollapsed, setIsActivityCollapsed] = useState(false);
+  const [isActivityCollapsed, setIsActivityCollapsed] = useState(() => {
+    const saved = localStorage.getItem('dashboard_activity_collapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
   
   // Inspection list controls
-  const [isInspectionCollapsed, setIsInspectionCollapsed] = useState(false);
+  const [isInspectionCollapsed, setIsInspectionCollapsed] = useState(() => {
+    const saved = localStorage.getItem('dashboard_inspection_collapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
   
   // Pagination
   const { page: initialPage, pageSize: initialPageSize } = useLocalStoragePagination('dashboard_activity', 10);
@@ -56,6 +144,24 @@ export default function AdminDashboard() {
   // Loading states
   const [isActivityLoading, setIsActivityLoading] = useState(false);
   const [isInspectionLoading, setIsInspectionLoading] = useState(false);
+
+  // Inspection controls - following UsersList pattern
+  const [inspectionSearchTerm, setInspectionSearchTerm] = useState('');
+  const [inspectionSortBy, setInspectionSortBy] = useState('date');
+  const [inspectionSortOrder, setInspectionSortOrder] = useState('desc');
+  const [inspectionSortOpen, setInspectionSortOpen] = useState(false);
+  const [inspectionFilterOpen, setInspectionFilterOpen] = useState(false);
+  const [inspectionStatusFilter, setInspectionStatusFilter] = useState([]);
+  const [inspectionDateFrom, setInspectionDateFrom] = useState('');
+  const [inspectionDateTo, setInspectionDateTo] = useState('');
+
+  // Activity controls - following UsersList pattern
+  const [activitySearchTerm, setActivitySearchTerm] = useState('');
+  const [activitySortOpen, setActivitySortOpen] = useState(false);
+  const [activityFilterOpen, setActivityFilterOpen] = useState(false);
+  const [activityActionFilter, setActivityActionFilter] = useState([]);
+  const [activityDateFrom, setActivityDateFrom] = useState('');
+  const [activityDateTo, setActivityDateTo] = useState('');
 
   // Use shared dashboard data hook (no role parameter for admin - sees all data)
   const { isLoading, stats, complianceStats, quarterlyData, refetch } = useDashboardData();
@@ -104,6 +210,15 @@ export default function AdminDashboard() {
     localStorage.setItem('dashboard_inspection_pagination', JSON.stringify(paginationData));
   }, [inspectionCurrentPage, inspectionPageSize]);
 
+  // Save dropdown states to localStorage
+  useEffect(() => {
+    localStorage.setItem('dashboard_activity_collapsed', JSON.stringify(isActivityCollapsed));
+  }, [isActivityCollapsed]);
+
+  useEffect(() => {
+    localStorage.setItem('dashboard_inspection_collapsed', JSON.stringify(isInspectionCollapsed));
+  }, [isInspectionCollapsed]);
+
 
   // 🔹 Inspections
   const fetchInspections = async () => {
@@ -138,15 +253,102 @@ export default function AdminDashboard() {
   };
 
 
-  // Simple activity logs (no filtering)
+  // Activity filtering
   const filteredActivityLog = useMemo(() => {
-    return activityLog.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [activityLog]);
+    let filtered = [...activityLog];
 
-  // Simple inspections (no filtering)
+    // Search filter
+    if (activitySearchTerm) {
+      const term = activitySearchTerm.toLowerCase();
+      filtered = filtered.filter(log => 
+        log.message?.toLowerCase().includes(term) ||
+        log.action?.toLowerCase().includes(term)
+      );
+    }
+
+    // Action filter (array-based)
+    if (activityActionFilter.length > 0) {
+      filtered = filtered.filter(log => 
+        activityActionFilter.includes(log.action?.toLowerCase())
+      );
+    }
+
+    // Date filter
+    if (activityDateFrom) {
+      filtered = filtered.filter(log => 
+        new Date(log.created_at) >= new Date(activityDateFrom)
+      );
+    }
+    if (activityDateTo) {
+      filtered = filtered.filter(log => 
+        new Date(log.created_at) <= new Date(activityDateTo)
+      );
+    }
+
+    return filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }, [activityLog, activitySearchTerm, activityActionFilter, activityDateFrom, activityDateTo]);
+
+  // Inspection filtering and sorting
   const filteredInspections = useMemo(() => {
-    return inspections.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  }, [inspections]);
+    let filtered = [...inspections];
+
+    // Search filter
+    if (inspectionSearchTerm) {
+      const term = inspectionSearchTerm.toLowerCase();
+      filtered = filtered.filter(inspection => 
+        inspection.establishments_detail?.[0]?.name?.toLowerCase().includes(term) ||
+        inspection.assigned_to_name?.toLowerCase().includes(term) ||
+        inspection.code?.toLowerCase().includes(term) ||
+        inspection.current_status?.toLowerCase().includes(term)
+      );
+    }
+
+    // Status filter (array-based)
+    if (inspectionStatusFilter.length > 0) {
+      filtered = filtered.filter(inspection => 
+        inspectionStatusFilter.includes(inspection.current_status)
+      );
+    }
+
+    // Date range filter
+    if (inspectionDateFrom) {
+      filtered = filtered.filter(inspection => 
+        new Date(inspection.created_at) >= new Date(inspectionDateFrom + 'T00:00:00')
+      );
+    }
+    if (inspectionDateTo) {
+      filtered = filtered.filter(inspection => 
+        new Date(inspection.created_at) <= new Date(inspectionDateTo + 'T23:59:59')
+      );
+    }
+
+    // Sorting
+    filtered.sort((a, b) => {
+      let compareA, compareB;
+      
+      if (inspectionSortBy === 'date') {
+        compareA = new Date(a.created_at);
+        compareB = new Date(b.created_at);
+      } else if (inspectionSortBy === 'status') {
+        compareA = a.current_status || '';
+        compareB = b.current_status || '';
+      } else if (inspectionSortBy === 'establishment') {
+        compareA = a.establishments_detail?.[0]?.name || '';
+        compareB = b.establishments_detail?.[0]?.name || '';
+      } else if (inspectionSortBy === 'inspector') {
+        compareA = a.assigned_to_name || '';
+        compareB = b.assigned_to_name || '';
+      }
+
+      if (inspectionSortOrder === 'asc') {
+        return compareA > compareB ? 1 : -1;
+      } else {
+        return compareA < compareB ? 1 : -1;
+      }
+    });
+
+    return filtered;
+  }, [inspections, inspectionSearchTerm, inspectionStatusFilter, inspectionDateFrom, inspectionDateTo, inspectionSortBy, inspectionSortOrder]);
 
   
   // Pagination calculations
@@ -173,11 +375,72 @@ export default function AdminDashboard() {
   const goToInspectionPage = (page) => {
     setInspectionCurrentPage(page);
   };
+
+  // Sorting handlers
+  const handleInspectionSortFromDropdown = (fieldKey, directionKey) => {
+    if (fieldKey) {
+      setInspectionSortBy(fieldKey);
+      setInspectionSortOrder(directionKey || 'asc');
+    } else {
+      setInspectionSortBy('date');
+      setInspectionSortOrder('desc');
+    }
+  };
   
   // Navigation handlers
   const handleViewAll = (route) => {
     navigate(route);
   };
+
+  // Helper functions for dropdowns and filters
+  const toggleInspectionStatusFilter = (status) => {
+    setInspectionStatusFilter((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    );
+  };
+
+  const toggleActivityActionFilter = (action) => {
+    setActivityActionFilter((prev) =>
+      prev.includes(action) ? prev.filter((a) => a !== action) : [...prev, action]
+    );
+  };
+
+  const inspectionActiveFilterCount = 
+    inspectionStatusFilter.length +
+    (inspectionDateFrom ? 1 : 0) +
+    (inspectionDateTo ? 1 : 0);
+
+  const activityActiveFilterCount = 
+    activityActionFilter.length +
+    (activityDateFrom ? 1 : 0) +
+    (activityDateTo ? 1 : 0);
+
+
+  // Click outside to close dropdowns
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (inspectionSortOpen && !e.target.closest(".sort-dropdown")) {
+        setInspectionSortOpen(false);
+      }
+      if (inspectionFilterOpen && !e.target.closest(".filter-dropdown")) {
+        setInspectionFilterOpen(false);
+      }
+      if (activitySortOpen && !e.target.closest(".sort-dropdown")) {
+        setActivitySortOpen(false);
+      }
+      if (activityFilterOpen && !e.target.closest(".filter-dropdown")) {
+        setActivityFilterOpen(false);
+      }
+    }
+
+    if (inspectionSortOpen || inspectionFilterOpen || activitySortOpen || activityFilterOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [inspectionSortOpen, inspectionFilterOpen, activitySortOpen, activityFilterOpen]);
 
 
   return (
@@ -257,6 +520,14 @@ export default function AdminDashboard() {
           />
         </div>
       </div>
+
+      {/* Third Row - Compliance by Law Chart */}
+      <div className="mb-6">
+        <ComplianceByLawCard
+          userRole={null} // Admin sees all data
+          onViewAll={handleViewAll}
+        />
+      </div>
       
       {/* Second Grid - Activity and Inspection Panels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
@@ -278,18 +549,141 @@ export default function AdminDashboard() {
           </button>
         </div>
 
-        {/* Simple Controls */}
+        {/* Advanced Controls - Following UsersList Pattern */}
         {!isActivityCollapsed && (
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex justify-end">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search activities..."
+                  value={activitySearchTerm}
+                  onChange={(e) => setActivitySearchTerm(e.target.value)}
+                  className="w-full py-0.5 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-lg min-w-xs hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                />
+                {activitySearchTerm && (
+                  <button
+                    onClick={() => setActivitySearchTerm('')}
+                    className="absolute -translate-y-1/2 right-3 top-1/2"
+                  >
+                    <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                  </button>
+                )}
+              </div>
+
+              {/* Sort Dropdown */}
+              <div className="relative sort-dropdown">
                 <button
-                  onClick={fetchActivityLogs}
-                disabled={isActivityLoading}
-                className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setActivitySortOpen(!activitySortOpen)}
+                  className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
                 >
-                <RefreshCw size={14} className={`mr-1 ${isActivityLoading ? 'animate-spin' : ''}`} />
-                {isActivityLoading ? 'Refreshing...' : 'Refresh'}
+                  <ArrowUpDown size={14} />
+                  Sort by
+                  <ChevronDown size={14} />
                 </button>
+
+                {activitySortOpen && (
+                  <div className="absolute right-0 top-full z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
+                    <div className="p-2">
+                      <div className="px-3 py-2 text-xs font-semibold text-sky-600 uppercase tracking-wide">
+                        Sort Options
+                      </div>
+                      
+                      {/* Sort Fields */}
+                      <div className="mb-2">
+                        <div className="px-3 py-1 text-xs font-medium text-sky-600 uppercase tracking-wide">
+                          Sort by Field
+                        </div>
+                        {[
+                          { key: 'date', label: 'Date' },
+                          { key: 'action', label: 'Action' },
+                          { key: 'message', label: 'Message' },
+                        ].map((field) => (
+                          <button
+                            key={field.key}
+                            onClick={() => setActivitySortOpen(false)}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors"
+                          >
+                            <div className="flex-1 text-left">
+                              <div className="font-medium">{field.label}</div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Filter Dropdown */}
+              <div className="relative filter-dropdown">
+                <button
+                  onClick={() => setActivityFilterOpen(!activityFilterOpen)}
+                  className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
+                >
+                  <Filter size={14} />
+                  Filters
+                  <ChevronDown size={14} />
+                  {activityActiveFilterCount > 0 && ` (${activityActiveFilterCount})`}
+                </button>
+
+                {activityFilterOpen && (
+                  <div className="absolute right-0 top-full z-20 w-56 mt-1 bg-white border border-gray-200 rounded shadow">
+                    <div className="p-2">
+                      <div className="flex items-center justify-between px-3 py-2 mb-2">
+                        <div className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
+                          Filter Options
+                        </div>
+                        {activityActionFilter.length > 0 && (
+                          <button
+                            onClick={() => setActivityActionFilter([])}
+                            className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Action Filters */}
+                      <div className="mb-2">
+                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                          Action Type
+                        </div>
+                        {['create', 'update', 'delete'].map((action) => (
+                          <button
+                            key={action}
+                            onClick={() => toggleActivityActionFilter(action)}
+                            className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                              activityActionFilter.includes(action) ? "bg-sky-50 font-medium" : ""
+                            }`}
+                          >
+                            <div className="flex-1 text-left">
+                              <div className="font-medium capitalize">{action}</div>
+                            </div>
+                            {activityActionFilter.includes(action) && (
+                              <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Date Range Dropdown */}
+              <DateRangeDropdown
+                dateFrom={activityDateFrom}
+                dateTo={activityDateTo}
+                onDateFromChange={setActivityDateFrom}
+                onDateToChange={setActivityDateTo}
+                onClear={() => {
+                  setActivityDateFrom('');
+                  setActivityDateTo('');
+                }}
+              />
               </div>
           </div>
         )}
@@ -305,12 +699,12 @@ export default function AdminDashboard() {
                 </div>
               </div>
             )}
-            <table className="w-full border-2 border-gray-300 rounded-lg">
+            <table className="w-full border border-gray-300 rounded-lg">
               <thead>
                 <tr className="text-sm text-left text-white bg-sky-700">
-                  <th className="p-2 border-b-2 border-gray-300">Date</th>
-                  <th className="p-2 border-b-2 border-gray-300">Action</th>
-                  <th className="p-2 border-b-2 border-gray-300">Message</th>
+                  <th className="p-1 border-b border-gray-300">Date & Time</th>
+                  <th className="p-1 border-b border-gray-300 text-center">Action</th>
+                  <th className="p-1 border-b border-gray-300">Message</th>
                 </tr>
               </thead>
               <tbody>
@@ -318,9 +712,9 @@ export default function AdminDashboard() {
                   paginatedActivities.map((log, index) => (
                     <tr
                       key={log.id || index}
-                      className="p-2 text-xs border-b-2 border-gray-300 hover:bg-gray-50 transition-colors duration-200"
+                      className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
                     >
-                      <td className="px-3 py-2 font-semibold border-b-2 border-gray-300">
+                      <td className="px-2 font-semibold border-b border-gray-300">
                         <div className="flex items-center">
                           <RotateCcw size={14} className="text-gray-400 mr-2" />
                           <div>
@@ -337,20 +731,22 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-center border-b-2 border-gray-300 w-28">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs w-18 font-semibold border rounded bg-gray-100 text-gray-700 border-gray-200">
+                      <td className="px-2 text-center border-b border-gray-300">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold border rounded bg-gray-100 text-gray-700 border-gray-300">
                           {log.action || 'N/A'}
                         </span>
                       </td>
-                      <td className="px-3 py-2 border-b-2 border-gray-300">
-                        {log.message || 'No message'}
+                      <td className="px-2 border-b border-gray-300">
+                        <div className="text-gray-900">{log.message || 'No message'}</div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="3" className="px-3 py-8 text-center text-gray-500 border-b-2 border-gray-300">
-                      No activity logs found
+                    <td colSpan="3" className="px-2 py-4 text-center text-gray-500 border-b border-gray-300">
+                      <RotateCcw size={48} className="mx-auto text-gray-300 mb-3" />
+                      <p className="text-gray-500 font-medium">No activity logs found</p>
+                      <p className="text-sm text-gray-400 mt-1">Activity will appear here as users interact with the system</p>
                     </td>
                   </tr>
                 )}
@@ -394,18 +790,193 @@ export default function AdminDashboard() {
           </button>
         </div>
 
-        {/* Simple Controls */}
+        {/* Advanced Controls - Following UsersList Pattern */}
         {!isInspectionCollapsed && (
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex justify-end">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search Bar */}
+              <div className="relative">
+                <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search inspections..."
+                  value={inspectionSearchTerm}
+                  onChange={(e) => setInspectionSearchTerm(e.target.value)}
+                  className="w-full py-0.5 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-lg min-w-xs hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                />
+                {inspectionSearchTerm && (
+                  <button
+                    onClick={() => setInspectionSearchTerm('')}
+                    className="absolute -translate-y-1/2 right-3 top-1/2"
+                  >
+                    <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                  </button>
+                )}
+              </div>
+
+              {/* Sort Dropdown */}
+              <div className="relative sort-dropdown">
                 <button
-                  onClick={fetchInspections}
-                disabled={isInspectionLoading}
-                className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setInspectionSortOpen(!inspectionSortOpen)}
+                  className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
                 >
-                <RefreshCw size={14} className={`mr-1 ${isInspectionLoading ? 'animate-spin' : ''}`} />
-                {isInspectionLoading ? 'Refreshing...' : 'Refresh'}
+                  <ArrowUpDown size={14} />
+                  Sort by
+                  <ChevronDown size={14} />
                 </button>
+
+                {inspectionSortOpen && (
+                  <div className="absolute right-0 top-full z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
+                    <div className="p-2">
+                      <div className="px-3 py-2 text-xs font-semibold text-sky-600 uppercase tracking-wide">
+                        Sort Options
+                      </div>
+                      
+                      {/* Sort Fields */}
+                      <div className="mb-2">
+                        <div className="px-3 py-1 text-xs font-medium text-sky-600 uppercase tracking-wide">
+                          Sort by Field
+                        </div>
+                        {[
+                          { key: 'date', label: 'Date' },
+                          { key: 'establishment', label: 'Establishment' },
+                          { key: 'status', label: 'Status' },
+                          { key: 'inspector', label: 'Inspector' },
+                        ].map((field) => (
+                          <button
+                            key={field.key}
+                            onClick={() => handleInspectionSortFromDropdown(field.key, inspectionSortBy === field.key ? (inspectionSortOrder === 'asc' ? 'desc' : 'asc') : 'asc')}
+                            className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                              inspectionSortBy === field.key ? "bg-sky-50 font-medium" : ""
+                            }`}
+                          >
+                            <div className="flex-1 text-left">
+                              <div className="font-medium">{field.label}</div>
+                            </div>
+                            {inspectionSortBy === field.key && (
+                              <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Sort Order */}
+                      {inspectionSortBy && (
+                        <>
+                          <div className="my-1 border-t border-gray-200"></div>
+                          <div>
+                            <div className="px-3 py-1 text-xs font-medium text-sky-600 uppercase tracking-wide">
+                              Sort Order
+                            </div>
+                            {[
+                              { key: 'asc', label: 'Ascending' },
+                              { key: 'desc', label: 'Descending' },
+                            ].map((dir) => (
+                              <button
+                                key={dir.key}
+                                onClick={() => handleInspectionSortFromDropdown(inspectionSortBy, dir.key)}
+                                className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                                  inspectionSortOrder === dir.key ? "bg-sky-50 font-medium" : ""
+                                }`}
+                              >
+                                <div className="flex-1 text-left">
+                                  <div className="font-medium">{dir.label}</div>
+                                </div>
+                                {inspectionSortOrder === dir.key && (
+                                  <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Filter Dropdown */}
+              <div className="relative filter-dropdown">
+                <button
+                  onClick={() => setInspectionFilterOpen(!inspectionFilterOpen)}
+                  className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
+                >
+                  <Filter size={14} />
+                  Filters
+                  <ChevronDown size={14} />
+                  {inspectionActiveFilterCount > 0 && ` (${inspectionActiveFilterCount})`}
+                </button>
+
+                {inspectionFilterOpen && (
+                  <div className="absolute right-0 top-full z-20 w-56 mt-1 bg-white border border-gray-200 rounded shadow">
+                    <div className="p-2">
+                      <div className="flex items-center justify-between px-3 py-2 mb-2">
+                        <div className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
+                          Filter Options
+                        </div>
+                        {inspectionStatusFilter.length > 0 && (
+                          <button
+                            onClick={() => setInspectionStatusFilter([])}
+                            className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Status Filters */}
+                      <div className="mb-2">
+                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                          Status
+                        </div>
+                        {[
+                          'SECTION_ASSIGNED',
+                          'SECTION_IN_PROGRESS',
+                          'SECTION_COMPLETED_COMPLIANT',
+                          'SECTION_COMPLETED_NON_COMPLIANT',
+                          'UNIT_REVIEWED',
+                          'SECTION_REVIEWED',
+                          'DIVISION_REVIEWED',
+                          'LEGAL_REVIEW',
+                          'NOV_SENT',
+                          'NOO_SENT',
+                          'FINALIZED',
+                          'CLOSED',
+                          'CLOSED_COMPLIANT',
+                          'CLOSED_NON_COMPLIANT',
+                        ].map((status) => (
+                          <button
+                            key={status}
+                            onClick={() => toggleInspectionStatusFilter(status)}
+                            className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                              inspectionStatusFilter.includes(status) ? "bg-sky-50 font-medium" : ""
+                            }`}
+                          >
+                            <div className="flex-1 text-left">
+                              <div className="font-medium">{getInspectionStatusDisplay(status)}</div>
+                            </div>
+                            {inspectionStatusFilter.includes(status) && (
+                              <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Date Range Dropdown */}
+              <DateRangeDropdown
+                dateFrom={inspectionDateFrom}
+                dateTo={inspectionDateTo}
+                onDateFromChange={setInspectionDateFrom}
+                onDateToChange={setInspectionDateTo}
+                onClear={() => {
+                  setInspectionDateFrom('');
+                  setInspectionDateTo('');
+                }}
+              />
               </div>
           </div>
         )}
@@ -421,13 +992,13 @@ export default function AdminDashboard() {
                 </div>
               </div>
             )}
-            <table className="w-full border-2 border-gray-300 rounded-lg">
+            <table className="w-full border border-gray-300 rounded-lg">
               <thead>
                 <tr className="text-sm text-left text-white bg-sky-700">
-                  <th className="p-2 border-b-2 border-gray-300">Date</th>
-                  <th className="p-2 border-b-2 border-gray-300">Establishment</th>
-                  <th className="p-2 border-b-2 border-gray-300">Inspector</th>
-                  <th className="p-2 border-b-2 border-gray-300">Status</th>
+                  <th className="p-1 border-b border-gray-300">Date & Time</th>
+                  <th className="p-1 border-b border-gray-300">Establishment</th>
+                  <th className="p-1 border-b border-gray-300">Inspector</th>
+                  <th className="p-1 border-b border-gray-300 text-center">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -435,9 +1006,9 @@ export default function AdminDashboard() {
                   paginatedInspections.map((inspection, index) => (
                     <tr
                       key={inspection.id || index}
-                      className="p-2 text-xs border-b-2 border-gray-300 hover:bg-gray-50 transition-colors duration-200"
+                      className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
                     >
-                      <td className="px-3 py-2 font-semibold border-b-2 border-gray-300">
+                      <td className="px-2 font-semibold border-b border-gray-300">
                         <div className="flex items-center">
                           <ClipboardList size={14} className="text-gray-400 mr-2" />
                           <div>
@@ -454,35 +1025,32 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-2 border-b border-gray-300">
+                      <td className="px-2 border-b border-gray-300">
                         <div className="font-medium text-gray-900">
-                          {inspection.establishment_name || 'N/A'}
+                          {inspection.establishments_detail?.[0]?.name || 'N/A'}
+                        </div>
+                        {inspection.establishments_detail?.length > 1 && (
+                          <div className="text-xs text-gray-500">
+                            +{inspection.establishments_detail.length - 1} more
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-2 border-b border-gray-300">
+                        <div className="font-medium text-gray-900">
+                          {inspection.assigned_to_name || 'Unassigned'}
                         </div>
                       </td>
-                      <td className="px-3 py-2 border-b border-gray-300">
-                        <div className="font-medium text-gray-900">
-                          {inspection.inspector_name || 'N/A'}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-center border-b-2 border-gray-300 w-28">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs w-18 font-semibold border rounded ${
-                          inspection.status === 'COMPLETED' ? 'border-green-400 bg-green-100 text-green-700' :
-                          inspection.status === 'IN_PROGRESS' ? 'border-blue-400 bg-blue-100 text-blue-700' :
-                          inspection.status === 'PENDING' ? 'border-yellow-400 bg-yellow-100 text-yellow-700' :
-                          inspection.status === 'REVIEWED' ? 'border-purple-400 bg-purple-100 text-purple-700' :
-                          inspection.status === 'APPROVED' ? 'border-green-400 bg-green-100 text-green-700' :
-                          inspection.status === 'REJECTED' ? 'border-red-400 bg-red-100 text-red-700' :
-                          'border-gray-400 bg-gray-100 text-gray-700'
-                        }`}>
-                          {inspection.status || 'N/A'}
-                        </span>
+                      <td className="px-2 text-center border-b border-gray-300 w-45">
+                        {getInspectionStatusBadge(inspection.current_status)}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" className="px-3 py-8 text-center text-gray-500 border-b-2 border-gray-300">
-                      No inspections found
+                    <td colSpan="4" className="px-2 py-4 text-center text-gray-500 border-b border-gray-300">
+                      <ClipboardList size={48} className="mx-auto text-gray-300 mb-3" />
+                      <p className="text-gray-500 font-medium">No inspections found</p>
+                      <p className="text-sm text-gray-400 mt-1">Create a new inspection to get started</p>
                     </td>
                   </tr>
                 )}

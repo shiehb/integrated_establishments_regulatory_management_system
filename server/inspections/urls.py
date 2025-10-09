@@ -15,4 +15,5 @@ urlpatterns = [
     # Dashboard endpoints
     path('inspections/compliance_stats/', InspectionViewSet.as_view({'get': 'compliance_stats'}), name='inspection-compliance-stats'),
     path('inspections/quarterly_comparison/', InspectionViewSet.as_view({'get': 'quarterly_comparison'}), name='inspection-quarterly-comparison'),
+    path('inspections/compliance_by_law/', InspectionViewSet.as_view({'get': 'compliance_by_law'}), name='inspection-compliance-by-law'),
 ]

@@ -583,6 +583,12 @@ export const getQuarterlyComparison = async (params = {}) => {
   return res.data;
 };
 
+// Compliance by law data
+export const getComplianceByLaw = async (params = {}) => {
+  const res = await api.get('inspections/compliance_by_law/', { params });
+  return res.data;
+};
+
 // Get tab counts for role-based dashboards
 export const getTabCounts = async () => {
   try {

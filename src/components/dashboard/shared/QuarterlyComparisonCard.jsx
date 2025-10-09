@@ -72,7 +72,7 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
   };
 
   return (
-    <div className=" border-2 rounded-lg p-4 transition-all duration-300 hover:shadow-lg border-sky-200 bg-sky-50 group h-full flex flex-col">
+    <div className=" border-2 rounded-lg p-4 transition-all duration-300 hover:shadow-lg border-sky-200 bg-white group h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">

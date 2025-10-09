@@ -49,14 +49,6 @@ export const useDashboardData = (userRole = null) => {
         getQuarterlyComparison(params)
       ]);
       
-      // Debug logging
-      console.log('Dashboard API responses:', {
-        usersRes,
-        establishmentsRes,
-        inspectionsRes,
-        complianceRes,
-        quarterlyRes
-      });
       
       setStats({
         totalUsers: usersRes.count || 0,
