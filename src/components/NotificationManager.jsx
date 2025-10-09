@@ -19,10 +19,24 @@ class NotificationManager {
     this.notifications = [];
     this.listeners = [];
     this.nextId = 1;
+    this.debounceMap = new Map(); // Track debounced notifications
   }
 
   // Add notification
   add(notification) {
+    // Check for duplicate notifications (same type, title, and message)
+    const isDuplicate = this.notifications.some(existing => 
+      existing.type === (notification.type || NOTIFICATION_TYPES.INFO) &&
+      existing.title === (notification.title || '') &&
+      existing.message === (notification.message || '') &&
+      (Date.now() - existing.timestamp.getTime()) < 1000 // Within last second
+    );
+
+    if (isDuplicate) {
+      console.log('Duplicate notification prevented:', notification);
+      return null;
+    }
+
     const id = this.nextId++;
     const newNotification = {
       id,
@@ -47,6 +61,24 @@ class NotificationManager {
     }
 
     return id;
+  }
+
+  // Add notification with debouncing
+  addDebounced(notification, debounceMs = 1000) {
+    const key = `${notification.type || NOTIFICATION_TYPES.INFO}-${notification.title || ''}-${notification.message || ''}`;
+    
+    // Clear existing timeout for this key
+    if (this.debounceMap.has(key)) {
+      clearTimeout(this.debounceMap.get(key));
+    }
+    
+    // Set new timeout
+    const timeoutId = setTimeout(() => {
+      this.add(notification);
+      this.debounceMap.delete(key);
+    }, debounceMs);
+    
+    this.debounceMap.set(key, timeoutId);
   }
 
   // Remove notification
@@ -142,6 +174,25 @@ const notificationManager = new NotificationManager();
 
 // Professional notification component
 function ProfessionalNotification({ notification, onClose }) {
+  const [isVisible, setIsVisible] = useState(true);
+  const [progress, setProgress] = useState(100);
+
+  useEffect(() => {
+    if (!notification.persistent && notification.duration > 0) {
+      const interval = setInterval(() => {
+        setProgress(prev => {
+          if (prev <= 0) {
+            setIsVisible(false);
+            setTimeout(() => onClose(notification.id), 300);
+            return 0;
+          }
+          return prev - (100 / (notification.duration / 50));
+        });
+      }, 50);
+      return () => clearInterval(interval);
+    }
+  }, [notification.id, notification.duration, notification.persistent, onClose]);
+
   const getIcon = (type) => {
     switch (type) {
       case NOTIFICATION_TYPES.SUCCESS:
@@ -218,17 +269,29 @@ function ProfessionalNotification({ notification, onClose }) {
 
   const styles = getStyles(notification.type);
 
+  if (!isVisible) return null;
+
   return (
     <div
       role="alert"
       aria-live="polite"
       aria-atomic="true"
       className={`
-        relative max-w-md w-full flex items-start p-4 border rounded-lg shadow-lg
+        relative max-w-lg w-full flex items-start p-4 border rounded-lg shadow-xl
         transition-all duration-300 ease-in-out transform
-        animate-slide-in-right ${styles.bg}
+        animate-slide-down ${styles.bg}
       `}
     >
+      {/* Progress bar */}
+      {!notification.persistent && notification.duration > 0 && (
+        <div className="absolute top-0 left-0 w-full h-1 bg-black/10 rounded-t-lg overflow-hidden">
+          <div 
+            className="h-full bg-current opacity-30 transition-all duration-50"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
+      
       <div className="flex-shrink-0">{getIcon(notification.type)}</div>
       <div className="ml-3 flex-1 min-w-0">
         {notification.title && (
@@ -284,7 +347,7 @@ function NotificationContainer() {
   if (notifications.length === 0) return null;
 
   return createPortal(
-    <div className="fixed top-4 right-4 z-[9999] space-y-3 max-h-screen overflow-y-auto">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] space-y-3 max-h-screen overflow-y-auto">
       {notifications.map((notification) => (
         <ProfessionalNotification
           key={notification.id}
@@ -301,13 +364,22 @@ function NotificationContainer() {
 export function useNotifications() {
   return {
     success: notificationManager.success.bind(notificationManager),
-    error: notificationManager.error.bind(notificationManager),
+    error: (message, options = {}) => {
+      // Use debounced error notifications to prevent spam
+      notificationManager.addDebounced({
+        type: NOTIFICATION_TYPES.ERROR,
+        message,
+        duration: 8000,
+        ...options
+      }, 2000); // 2 second debounce for errors
+    },
     warning: notificationManager.warning.bind(notificationManager),
     info: notificationManager.info.bind(notificationManager),
     passwordChange: notificationManager.passwordChange.bind(notificationManager),
     login: notificationManager.login.bind(notificationManager),
     system: notificationManager.system.bind(notificationManager),
     add: notificationManager.add.bind(notificationManager),
+    addDebounced: notificationManager.addDebounced.bind(notificationManager),
     remove: notificationManager.remove.bind(notificationManager),
     clear: notificationManager.clear.bind(notificationManager)
   };

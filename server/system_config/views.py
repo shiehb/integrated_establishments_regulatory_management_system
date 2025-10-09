@@ -142,7 +142,7 @@ def perform_email_test(config, test_email=None):
             settings.EMAIL_USE_TLS = config.email_use_tls
             settings.EMAIL_HOST_USER = config.email_host_user
             settings.EMAIL_HOST_PASSWORD = config.email_host_password
-            constructed_from_email = construct_from_email(config.default_from_email, config.email_host_user)
+            constructed_from_email = construct_from_email(config.default_from_email, config.email_host_user, config.email_from_name)
             settings.DEFAULT_FROM_EMAIL = constructed_from_email
             
             

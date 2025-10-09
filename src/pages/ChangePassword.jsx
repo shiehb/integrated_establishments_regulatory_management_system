@@ -152,9 +152,9 @@ export default function ChangePassword() {
 
   return (
     <Layout>
-      <div className="w-full max-w-md px-8 py-4 bg-white shadow-lg rounded-2xl">
+      <div className="w-full max-w-md min-h-[500px] p-8 bg-white shadow-lg rounded-2xl">
         <div className="mb-6 text-center">
-          <h2 className="mb-2 text-xl font-bold text-sky-600">
+          <h2 className="mt-10 mb-6 text-2xl font-bold text-sky-600">
             Change Password
           </h2>
           <p className="text-sm text-gray-600">
@@ -162,9 +162,9 @@ export default function ChangePassword() {
           </p>
         </div>
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
               Old Password
             </label>
             <div className="relative">
@@ -197,7 +197,7 @@ export default function ChangePassword() {
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
               New Password
             </label>
             <div className="relative">
@@ -230,7 +230,7 @@ export default function ChangePassword() {
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
               Confirm Password
             </label>
             <div className="relative">

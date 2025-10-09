@@ -565,7 +565,7 @@ export default function AdminDashboard() {
                     <ChevronDown size={14} className="ml-1" />
                   </button>
                   {sortDropdownOpen && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                       <div className="p-2">
                         <div className="text-xs font-medium text-gray-500 mb-1">Sort by:</div>
                         {sortFields.map(field => (
@@ -600,9 +600,9 @@ export default function AdminDashboard() {
                     <ChevronDown size={14} className="ml-1" />
                   </button>
                   {filtersOpen && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                       <div className="p-2">
-                        <div className="text-xs font-medium text-gray-500 mb-2">Action:</div>
+                        <div className="text-xs font-medium text-sky-600 mb-2">Action:</div>
                         <select
                           value={actionFilter}
                           onChange={(e) => setActionFilter(e.target.value)}
@@ -916,7 +916,7 @@ export default function AdminDashboard() {
                     <ChevronDown size={14} className="ml-1" />
                   </button>
                   {inspectionSortDropdownOpen && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                       <div className="p-2">
                         <div className="text-xs font-medium text-gray-500 mb-1">Sort by:</div>
                         {inspectionSortFields.map(field => (
@@ -951,9 +951,9 @@ export default function AdminDashboard() {
                     <ChevronDown size={14} className="ml-1" />
                   </button>
                   {inspectionFiltersOpen && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
                       <div className="p-2">
-                        <div className="text-xs font-medium text-gray-500 mb-2">Status:</div>
+                        <div className="text-xs font-medium text-sky-600 mb-2">Status:</div>
                         <select
                           value={statusFilter}
                           onChange={(e) => setStatusFilter(e.target.value)}

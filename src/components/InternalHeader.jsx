@@ -299,7 +299,7 @@ export default function InternalHeader({
               </button>
 
               {showUserDropdown && (
-                <div className="absolute right-0 z-50 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg">
+                <div className="absolute right-0 top-full z-50 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg">
                   <div className="py-2">
                     <button
                       onClick={() => {

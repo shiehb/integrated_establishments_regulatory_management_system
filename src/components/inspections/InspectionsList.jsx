@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Plus,
   ArrowUpDown,
@@ -461,7 +461,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
-  const [totalCount, setTotalCount] = useState(0);
   const [tabCounts, setTabCounts] = useState({});
 
 
@@ -471,9 +470,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
   // 🎚 Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState([]);
   const [sectionFilter, setSectionFilter] = useState([]);
-  const [priorityFilter, setPriorityFilter] = useState([]);
+  const [lawFilter, setLawFilter] = useState([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -536,63 +534,84 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         params.search = debouncedSearchQuery;
       }
 
-      // Add status filter if selected
-      if (statusFilter.length > 0) {
-        params.status = statusFilter.join(",");
-      }
-
       // Add section filter if selected
       if (sectionFilter.length > 0) {
         params.section = sectionFilter.join(",");
       }
-
-      // Add priority filter if selected
-      if (priorityFilter.length > 0) {
-        params.priority = priorityFilter.join(",");
-      }
-
       const response = await getInspections(params);
-      console.log('Inspections response:', response);
 
       if (response.results) {
         // Server-side paginated response
-        console.log('Setting inspections with results:', response.results);
-        // Debug each inspection
-        response.results.forEach(inspection => {
-          console.log(`Inspection ${inspection.code}:`, {
-            status: inspection.current_status,
-            assigned_to: inspection.assigned_to,
-            assigned_to_name: inspection.assigned_to_name,
-            available_actions: inspection.available_actions,
-            can_user_act: inspection.can_user_act
-          });
-        });
         setInspections(response.results);
-        setTotalCount(response.count || 0);
       } else {
         // Fallback for non-paginated response
-        console.log('Setting inspections with direct response:', response);
-        // Debug each inspection
-        response.forEach(inspection => {
-          console.log(`Inspection ${inspection.code}:`, {
-            status: inspection.current_status,
-            assigned_to: inspection.assigned_to,
-            assigned_to_name: inspection.assigned_to_name,
-            available_actions: inspection.available_actions,
-            can_user_act: inspection.can_user_act
-          });
-        });
         setInspections(response);
-        setTotalCount(response.length);
       }
     } catch (err) {
       console.error("Error fetching inspections:", err);
       setInspections([]);
-      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, debouncedSearchQuery, statusFilter, sectionFilter, priorityFilter, activeTab, userLevel, currentUser]);
+  }, [currentPage, pageSize, debouncedSearchQuery, sectionFilter, activeTab, userLevel, currentUser]);
+
+  // Client-side filtering and sorting
+  const filteredInspections = useMemo(() => {
+    let list = inspections.filter((inspection) => {
+    // Law filter - use partial matching
+    const matchesLaw = lawFilter.length === 0 || 
+      lawFilter.some(law => {
+        // Extract just the code part (e.g., "PD-1586" from "PD-1586 (Philippine Environment Code)")
+        const lawCode = law.split(' ')[0];
+        return inspection.law?.includes(lawCode);
+      });
+      
+      // Date range filter
+      const matchesDateFrom = !dateFrom || 
+        new Date(inspection.created_at) >= new Date(dateFrom);
+      const matchesDateTo = !dateTo || 
+        new Date(inspection.created_at) <= new Date(dateTo);
+      
+      return matchesLaw && matchesDateFrom && matchesDateTo;
+    });
+
+    // Client-side sorting
+    if (sortConfig.key) {
+      list = [...list].sort((a, b) => {
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+        
+        // Handle date fields
+        if (sortConfig.key === 'created_at') {
+          aVal = new Date(aVal).getTime();
+          bVal = new Date(bVal).getTime();
+        }
+        
+        // Handle string fields
+        if (sortConfig.key === 'code') {
+          aVal = aVal ? aVal.toLowerCase() : '';
+          bVal = bVal ? bVal.toLowerCase() : '';
+        }
+        
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return list;
+  }, [inspections, lawFilter, dateFrom, dateTo, sortConfig]);
+
+  // Get unique laws from current inspections
+  const availableLaws = useMemo(() => {
+    const lawSet = new Set();
+    inspections.forEach(inspection => {
+      if (inspection.law) {
+        lawSet.add(inspection.law);
+      }
+    });
+    return Array.from(lawSet).sort();
+  }, [inspections]);
 
   // Calculate tab counts for all tabs
   const calculateTabCounts = useCallback(async () => {
@@ -941,10 +960,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   // Sort options for dropdown
   const sortFields = [
     { key: "code", label: "Inspection Code" },
-    { key: "establishments_detail", label: "Establishments" },
-    { key: "law", label: "Law" },
-    { key: "current_status", label: "Status" },
-    { key: "assigned_to_name", label: "Assigned To" },
     { key: "created_at", label: "Created Date" },
   ];
 
@@ -953,10 +968,10 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     { key: "desc", label: "Descending" },
   ];
 
-  // Note: Filtering and sorting are now handled server-side
+  // Note: Filtering and sorting are now handled client-side
 
-  // ✅ Pagination (using server-side pagination)
-  const totalPages = Math.ceil(totalCount / pageSize);
+  // ✅ Pagination (using client-side pagination)
+  const totalPages = Math.ceil(filteredInspections.length / pageSize);
 
   // ✅ Selection
   const toggleSelect = (id) => {
@@ -974,23 +989,17 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   };
 
   // Toggle filter checkboxes
-  const toggleStatus = (status) =>
-    setStatusFilter((prev) =>
-      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
-    );
-
-  const togglePriority = (priority) =>
-    setPriorityFilter((prev) =>
-      prev.includes(priority) ? prev.filter((p) => p !== priority) : [...prev, priority]
+  const toggleLaw = (law) =>
+    setLawFilter((prev) =>
+      prev.includes(law) ? prev.filter((l) => l !== law) : [...prev, law]
     );
 
   // Clear functions
   const clearSearch = () => setSearchQuery("");
   const clearAllFilters = () => {
     setSearchQuery("");
-    setStatusFilter([]);
     setSectionFilter([]);
-    setPriorityFilter([]);
+    setLawFilter([]);
     setDateFrom("");
     setDateTo("");
     setSortConfig({ key: null, direction: null });
@@ -1010,26 +1019,24 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  const totalInspections = totalCount;
-  const filteredCount = totalCount; // Server-side filtering
+  const totalInspections = inspections.length;
+  const filteredCount = filteredInspections.length;
   const hasActiveFilters =
     searchQuery ||
-    statusFilter.length > 0 ||
     sectionFilter.length > 0 ||
-    priorityFilter.length > 0 ||
+    lawFilter.length > 0 ||
     dateFrom ||
     dateTo ||
     sortConfig.key;
   const activeFilterCount =
-    statusFilter.length +
     sectionFilter.length +
-    priorityFilter.length +
+    lawFilter.length +
     (dateFrom ? 1 : 0) +
     (dateTo ? 1 : 0);
 
   // Calculate display range
   const startItem = (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, filteredCount);
+  const endItem = Math.min(currentPage * pageSize, filteredInspections.length);
 
   // Removed handleRowClick to prevent navigation on row click
 
@@ -1074,15 +1081,15 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             </button>
 
             {sortDropdownOpen && (
-              <div className="absolute right-0 z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
+              <div className="absolute right-0 top-full z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
                 <div className="p-2">
-                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <div className="px-3 py-2 text-xs font-semibold text-sky-600 uppercase tracking-wide">
                     Sort Options
                   </div>
                   
                   {/* Sort by Field Section */}
                   <div className="mb-2">
-                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                    <div className="px-3 py-1 text-xs font-medium text-sky-600 uppercase tracking-wide">
                       Sort by Field
                     </div>
                     {sortFields.map((field) => (
@@ -1117,7 +1124,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     <>
                       <div className="my-1 border-t border-gray-200"></div>
                       <div>
-                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                        <div className="px-3 py-1 text-xs font-medium text-sky-600 uppercase tracking-wide">
                           Sort Order
                         </div>
                         {sortDirections.map((dir) => (
@@ -1159,18 +1166,17 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             </button>
 
             {filtersOpen && (
-              <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded shadow">
+              <div className="absolute right-0 top-full z-20 w-64 mt-1 bg-white border border-gray-200 rounded shadow">
                 <div className="p-2">
                   <div className="flex items-center justify-between px-3 py-2 mb-2">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <div className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
                       Filter Options
                     </div>
-                    {(statusFilter.length > 0 || sectionFilter.length > 0 || priorityFilter.length > 0) && (
+                    {(sectionFilter.length > 0 || lawFilter.length > 0) && (
                       <button
                         onClick={() => {
-                          setStatusFilter([]);
                           setSectionFilter([]);
-                          setPriorityFilter([]);
+                          setLawFilter([]);
                         }}
                         className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
                       >
@@ -1179,68 +1185,34 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     )}
                   </div>
                   
-                  {/* Status Section */}
-                  <div className="mb-3">
-                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                      Status
-                    </div>
-                    {[
-                      "CREATED",
-                      "SECTION_ASSIGNED",
-                      "SECTION_IN_PROGRESS",
-                      "SECTION_COMPLETED",
-                      "UNIT_ASSIGNED",
-                      "UNIT_IN_PROGRESS",
-                      "UNIT_COMPLETED",
-                      "MONITORING_ASSIGNED",
-                      "MONITORING_IN_PROGRESS",
-                      "UNIT_REVIEWED",
-                      "SECTION_REVIEWED",
-                      "DIVISION_REVIEWED",
-                      "LEGAL_REVIEW",
-                      "NOV_SENT",
-                      "NOO_SENT",
-                      "CLOSED_COMPLIANT",
-                      "CLOSED_NON_COMPLIANT"
-                    ].map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => toggleStatus(status)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                          statusFilter.includes(status) ? "bg-sky-50 font-medium" : ""
-                        }`}
-                      >
-                        <div className="flex-1 text-left">
-                          <div className="font-medium">{status.replace(/_/g, ' ')}</div>
-                        </div>
-                        {statusFilter.includes(status) && (
-                          <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
 
-                  {/* Priority Section */}
+                  {/* Law Section */}
                   <div className="mb-2">
                     <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                      Priority
+                      Law
                     </div>
-                    {["LOW", "MEDIUM", "HIGH", "URGENT"].map((priority) => (
-                      <button
-                        key={priority}
-                        onClick={() => togglePriority(priority)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                          priorityFilter.includes(priority) ? "bg-sky-50 font-medium" : ""
-                        }`}
-                      >
-                        <div className="flex-1 text-left">
-                          <div className="font-medium">{priority}</div>
-                        </div>
-                        {priorityFilter.includes(priority) && (
-                          <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                        )}
-                      </button>
-                    ))}
+                    {availableLaws.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-500 italic">
+                        No laws available
+                      </div>
+                    ) : (
+                      availableLaws.map((law) => (
+                        <button
+                          key={law}
+                          onClick={() => toggleLaw(law)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                            lawFilter.includes(law) ? "bg-sky-50 font-medium" : ""
+                          }`}
+                        >
+                          <div className="flex-1 text-left">
+                            <div className="font-medium">{law}</div>
+                          </div>
+                          {lawFilter.includes(law) && (
+                            <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                          )}
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -1360,7 +1332,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                 { key: "code", label: "Code", sortable: true, width: "w-32" },
                 { key: "establishments_detail", label: "Establishments", sortable: false, width: "w-64" },
                 { key: "law", label: "Law", sortable: false, width: "w-32" },
-                { key: "current_status", label: "Status", sortable: true, width: "w-40" },
+                { key: "current_status", label: "Status", sortable: false, width: "w-40" },
                 { key: "assigned_to_name", label: "Assigned To", sortable: false, width: "w-48" },
                 { key: "created_at", label: "Created", sortable: true, width: "w-36" },
               ].map((col) => (
@@ -1399,7 +1371,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   </div>
                 </td>
               </tr>
-            ) : inspections.length === 0 ? (
+            ) : filteredInspections.length === 0 ? (
               <tr>
                 <td
                   colSpan="8"
@@ -1422,7 +1394,9 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                 </td>
               </tr>
             ) : (
-              inspections.map((inspection) => (
+              filteredInspections
+                .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                .map((inspection) => (
                 <tr
                   key={inspection.id}
                   className="text-sm border-b border-gray-200 transition-colors"

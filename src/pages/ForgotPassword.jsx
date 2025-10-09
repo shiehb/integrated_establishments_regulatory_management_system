@@ -8,17 +8,14 @@ export default function ForgotPassword() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
   const notifications = useNotifications();
 
   const handleSendOtp = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setMessage("");
 
     try {
       const response = await sendOtp(email);
-      setMessage(response.detail);
 
       // Show success notification
       notifications.success(
@@ -51,8 +48,6 @@ export default function ForgotPassword() {
         errorMessage = error.response.data.detail;
       }
       
-      setMessage(errorMessage);
-      
       // Show error notification
       notifications.error(
         errorMessage,
@@ -68,36 +63,33 @@ export default function ForgotPassword() {
 
   return (
     <Layout>
-      <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-2xl">
+      <div className="w-full max-w-md min-h-[500px] p-8 bg-white shadow-lg rounded-2xl">
+        {/* Back button */}
+        <button
+          onClick={() => navigate("/")}
+          className="mb-4 text-left text-gray-600 hover:text-gray-800 transition-colors"
+        >
+          ← Back
+        </button>
+        
         <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
-          Forgot Password
+          Forgot password
         </h2>
+        
+        {/* Descriptive text */}
+        <p className="mb-6 text-sm text-gray-600 text-center">
+          Enter the email associated with your account, and we will email you a verification code to reset your password
+        </p>
 
-        {message && (
-          <div
-            className={`p-3 mb-4 rounded-lg text-center ${
-              message.includes("sent")
-                ? "bg-green-100 text-green-800"
-                : "bg-red-100 text-red-800"
-            }`}
-          >
-            {message}
-            {message.includes("sent") && (
-              <div className="mt-2 text-sm">
-                Redirecting to reset password...
-              </div>
-            )}
-          </div>
-        )}
 
         <form className="space-y-5" onSubmit={handleSendOtp}>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Email
             </label>
             <input
               type="email"
-              placeholder="Enter your registered email"
+              placeholder="Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -105,22 +97,14 @@ export default function ForgotPassword() {
             />
           </div>
 
-          {/* Action buttons side by side */}
-          <div className="flex gap-4 pt-2">
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="flex-1 py-3 font-medium text-gray-700 transition bg-gray-300 rounded-lg hover:bg-gray-400"
-            >
-              Cancel
-            </button>
-
+          {/* Single Continue button */}
+          <div className="pt-2">
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50"
+              className="w-full py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50"
             >
-              {loading ? "Sending..." : "Send OTP"}
+              {loading ? "Sending..." : "Continue"}
             </button>
           </div>
         </form>

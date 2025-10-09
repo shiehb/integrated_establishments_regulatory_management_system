@@ -86,6 +86,7 @@ export default function DistrictManagement() {
   
   // UI state
   const [showFilters, setShowFilters] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assigningDistrict, setAssigningDistrict] = useState("");
@@ -365,6 +366,21 @@ export default function DistrictManagement() {
     setCurrentPage(1);
   }, [selectedSection, selectedProvince, selectedDistrict, debouncedSearchQuery, showAllLaws]);
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.dropdown-container')) {
+        setShowFilters(false);
+        setShowSortDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   if (loadingUser) {
     return (
       <>
@@ -447,9 +463,9 @@ export default function DistrictManagement() {
               </div>
 
               {/* 🔽 Sort Dropdown */}
-              <div className="relative">
+              <div className="relative dropdown-container">
                 <button
-                  onClick={() => setShowFilters(!showFilters)}
+                  onClick={() => setShowSortDropdown(!showSortDropdown)}
                   className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
                 >
                   <ArrowUpDown size={14} />
@@ -457,7 +473,7 @@ export default function DistrictManagement() {
                   <ChevronDown size={14} />
                 </button>
 
-                {showFilters && (
+                {showSortDropdown && (
                   <div className="absolute right-0 z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
                     <div className="p-2">
                       <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -478,7 +494,10 @@ export default function DistrictManagement() {
                         ].map((field) => (
                           <button
                             key={field.key}
-                            onClick={() => handleSort(field.key)}
+                            onClick={() => {
+                              handleSort(field.key);
+                              setShowSortDropdown(false);
+                            }}
                             className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
                               sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
                             }`}
@@ -498,7 +517,7 @@ export default function DistrictManagement() {
               </div>
 
               {/* 🎚 Filters dropdown */}
-              <div className="relative">
+              <div className="relative dropdown-container">
                 <button
                   onClick={() => setShowFilters(!showFilters)}
                   className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
@@ -518,7 +537,10 @@ export default function DistrictManagement() {
                         </div>
                         {hasActiveFilters && (
                           <button
-                            onClick={clearFilters}
+                            onClick={() => {
+                              clearFilters();
+                              setShowFilters(false);
+                            }}
                             className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
                           >
                             Clear All

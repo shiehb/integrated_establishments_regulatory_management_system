@@ -5,6 +5,23 @@ import autoTable from "jspdf-autotable";
 import { useNotifications } from "./NotificationManager";
 import ConfirmationDialog from "./common/ConfirmationDialog";
 
+// Helper function to load images as base64
+const loadImageAsBase64 = async (imagePath) => {
+  try {
+    const response = await fetch(imagePath);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Error loading image:', error);
+    return null;
+  }
+};
+
 export default function PrintPDF({
   title,
   columns,
@@ -47,62 +64,92 @@ export default function PrintPDF({
         doc.text(`${safeDate}`, pageWidth - 15, 16, { align: "right" });
         doc.setFont("times", "normal");
 
+        // Load and add logos
+        const logo1Data = await loadImageAsBase64('/assets/document/logo1.png');
+        const logo2Data = await loadImageAsBase64('/assets/document/logo2.png');
+        
+        const logoWidth = 15; // mm
+        const logoHeight = 15; // mm
+        const logoY = 24; // Y position for logos
+        
+        // Calculate title text width to position logos closer
+        const titleText = "Integrated Establishment Regulatory Management System";
+        const titleTextWidth = doc.getTextWidth(titleText);
+        
+        // Position logos with more spacing from the title text
+        const leftLogoX = (pageWidth / 2) - (titleTextWidth / 2) - logoWidth - 20; // 10mm gap
+        const rightLogoX = (pageWidth / 2) + (titleTextWidth / 2) + 20; // 10mm gap
+        
+        // Add logo1 on the left (closer to title)
+        if (logo1Data) {
+          doc.addImage(logo1Data, 'PNG', leftLogoX, logoY, logoWidth, logoHeight);
+        }
+        
+        // Add logo2 on the right (closer to title)
+        if (logo2Data) {
+          doc.addImage(logo2Data, 'PNG', rightLogoX, logoY, logoWidth, logoHeight);
+        }
+
         doc.setFontSize(12);
         doc.setTextColor(0, 0, 0);
         doc.text(
           "Integrated Establishment Regulatory Management System",
           pageWidth / 2,
-          24,
+          28,
           { align: "center" }
         );
         doc.text(
           "Department of Environmental and Natural Resources",
           pageWidth / 2,
-          29,
+          33,
           { align: "center" }
         );
         doc.text(
           "Environmental Management Bureau Region I",
           pageWidth / 2,
-          34,
+          38,
           { align: "center" }
         );
 
         doc.setFont("times", "bold");
         doc.setFontSize(12);
         const titleUpper = title.toUpperCase();
-        doc.text(titleUpper, pageWidth / 2, 42, { align: "center" });
+        doc.text(titleUpper, pageWidth / 2, 46, { align: "center" });
         const titleWidth = doc.getTextWidth(titleUpper);
         doc.line(
           pageWidth / 2 - titleWidth / 2,
-          44,
+          48,
           pageWidth / 2 + titleWidth / 2,
-          44
+          48
         );
         doc.setFont("times", "normal");
 
         autoTable(doc, {
           head: [columns],
           body: rows,
-          startY: 48,
+          startY: 52,
           styles: {
             fontSize: 8,
             font: "times",
             cellPadding: 1,
             lineWidth: 0.2,
+            lineColor: [0, 0, 0],
             textColor: [0, 0, 0],
             fillColor: [255, 255, 255],
           },
           headStyles: {
-            fillColor: [200, 200, 200],
+            fillColor: [255, 255, 255],
             textColor: [0, 0, 0],
             fontSize: 10,
             font: "times",
             cellPadding: 1,
             fontStyle: "bold",
+            lineWidth: 0.5,
+            lineColor: [0, 0, 0],
           },
           margin: { left: 10, right: 10 },
-          tableLineWidth: 0.2,
+          tableLineWidth: 0.5,
+          tableLineColor: [0, 0, 0],
         });
 
         const pageCount = doc.internal.getNumberOfPages();
@@ -170,30 +217,39 @@ export default function PrintPDF({
 
       <ConfirmationDialog
         open={showConfirm}
-        title="Confirm Print"
+        title="Print Report"
         message={
-          <div>
-            <p>Are you sure you want to print the {title}?</p>
-            <p className="mt-2 text-sm text-gray-600">
-              This will open the print dialog in a new window.
-            </p>
-            {selectedCount > 0 ? (
-              <p className="mt-1 text-sm text-blue-600 font-medium">
-                Selected items to print: {selectedCount}
+          <div className="space-y-3">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Printer size={24} className="text-sky-600" />
+              </div>
+              <h3 className="font-semibold text-gray-900 text-lg">Print {title}</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Generate PDF and open print dialog
               </p>
-            ) : rows.length > 0 ? (
-              <p className="mt-1 text-sm text-gray-500">
-                Total items to print: {rows.length}
-              </p>
-            ) : null}
+            </div>
+            
+            <div className="bg-sky-50 rounded-lg p-3 border border-sky-200">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">Records to print:</span>
+                {selectedCount > 0 ? (
+                  <span className="font-semibold text-sky-600">{selectedCount} selected</span>
+                ) : rows.length > 0 ? (
+                  <span className="font-semibold text-gray-700">{rows.length} total</span>
+                ) : (
+                  <span className="font-semibold text-gray-500">No data</span>
+                )}
+              </div>
+            </div>
           </div>
         }
         loading={isPrinting}
         onCancel={handleCancel}
         onConfirm={handlePrint}
-        confirmText="Print"
+        confirmText={isPrinting ? "Generating..." : "Print"}
         cancelText="Cancel"
-        confirmColor="blue"
+        confirmColor="sky"
       />
     </>
   );

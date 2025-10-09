@@ -469,15 +469,15 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
             </button>
 
             {sortDropdownOpen && (
-              <div className="absolute right-0 z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
+              <div className="absolute right-0 top-full z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
                 <div className="p-2">
-                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <div className="px-3 py-2 text-xs font-semibold text-sky-600 uppercase tracking-wide">
                     Sort Options
                   </div>
                   
                   {/* Sort by Field Section */}
                   <div className="mb-2">
-                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                    <div className="px-3 py-1 text-xs font-medium text-sky-600 uppercase tracking-wide">
                       Sort by Field
                     </div>
                     {sortFields.map((field) => (
@@ -512,7 +512,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                     <>
                       <div className="my-1 border-t border-gray-200"></div>
                       <div>
-                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                        <div className="px-3 py-1 text-xs font-medium text-sky-600 uppercase tracking-wide">
                           Sort Order
                         </div>
                         {sortDirections.map((dir) => (
@@ -554,10 +554,10 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
              </button>
 
             {filtersOpen && (
-              <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded shadow">
+              <div className="absolute right-0 top-full z-20 w-56 mt-1 bg-white border border-gray-200 rounded shadow">
                 <div className="p-2">
                   <div className="flex items-center justify-between px-3 py-2 mb-2">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <div className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
                       Filter Options
                     </div>
                     {(roleFilter.length > 0 || statusFilter.length > 0) && (

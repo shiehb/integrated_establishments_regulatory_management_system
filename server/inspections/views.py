@@ -83,6 +83,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
         status_filter = self.request.query_params.get('status')
         assigned_to_me = self.request.query_params.get('assigned_to_me') == 'true'
         created_by_me = self.request.query_params.get('created_by_me') == 'true'
+        search = self.request.query_params.get('search')
         
         # Role-based filtering
         if user.userlevel == 'Admin':
@@ -121,9 +122,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if created_by_me:
             queryset = queryset.filter(created_by=user)
         
+        # Search functionality
+        if search:
+            queryset = self._apply_search_filter(queryset, search)
+        
         return queryset.select_related(
             'created_by', 'assigned_to'
-        ).prefetch_related('establishments', 'history').order_by('-created_at')
+        ).prefetch_related('establishments', 'history').distinct().order_by('-created_at')
     
     def _filter_section_chief(self, queryset, user, tab):
         """Filter for Section Chief based on tab"""
@@ -262,6 +267,38 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 assigned_to=user,
                 current_status__in=['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS', 'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']
             )
+    
+    def _apply_search_filter(self, queryset, search_term):
+        """
+        Apply comprehensive search across multiple fields
+        Searches: Code, Establishment names, Law, Status, Assigned To
+        """
+        from django.db.models import Q
+        
+        # Build complex Q query for OR search
+        search_query = Q()
+        
+        # Search in inspection code
+        search_query |= Q(code__icontains=search_term)
+        
+        # Search in law field
+        search_query |= Q(law__icontains=search_term)
+        
+        # Search in current status
+        search_query |= Q(current_status__icontains=search_term)
+        
+        # Search in assigned user's name
+        search_query |= Q(assigned_to__first_name__icontains=search_term)
+        search_query |= Q(assigned_to__last_name__icontains=search_term)
+        search_query |= Q(assigned_to__email__icontains=search_term)
+        
+        # Search in establishments (name, city, province, nature of business)
+        search_query |= Q(establishments__name__icontains=search_term)
+        search_query |= Q(establishments__city__icontains=search_term)
+        search_query |= Q(establishments__province__icontains=search_term)
+        search_query |= Q(establishments__nature_of_business__icontains=search_term)
+        
+        return queryset.filter(search_query).distinct()
     
     def get_serializer_class(self):
         """Use different serializers for different actions"""

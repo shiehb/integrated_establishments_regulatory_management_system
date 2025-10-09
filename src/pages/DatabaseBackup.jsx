@@ -577,7 +577,7 @@ const DatabaseBackup = () => {
     <>
       <Header />
       <LayoutWithSidebar userLevel={userLevel}>
-        <div className="p-4 bg-white h-[calc(100vh-165px)] overflow-y-auto">
+        <div className="p-4 bg-white overflow-y-auto">
           <h1 className="flex items-center mb-4 text-2xl font-bold text-sky-600">
             {" "}
             Database Backup & Restore

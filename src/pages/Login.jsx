@@ -154,8 +154,8 @@ export default function Login() {
 
   return (
     <Layout>
-      <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-2xl">
-        <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
+      <div className="w-full max-w-md min-h-[500px] p-8 bg-white shadow-lg rounded-2xl">
+        <h2 className="mt-10 mb-6 text-2xl font-bold text-center text-sky-600">
           Account Login
         </h2>
 
@@ -167,7 +167,7 @@ export default function Login() {
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-700">
                 Email
               </label>
@@ -188,7 +188,7 @@ export default function Login() {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-700">
                 Password
               </label>

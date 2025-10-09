@@ -25,6 +25,7 @@ class SystemConfiguration(models.Model):
     email_host_user = models.EmailField(max_length=255, blank=True, null=True)
     email_host_password = models.CharField(max_length=255, blank=True, null=True)
     default_from_email = models.CharField(max_length=255, blank=True, null=True)
+    email_from_name = models.CharField(max_length=255, blank=True, null=True, help_text="Display name for email sender (e.g., 'Your Company Name')")
     
     # JWT Token Configuration
     access_token_lifetime_minutes = models.IntegerField(default=60)
@@ -78,7 +79,7 @@ class SystemConfiguration(models.Model):
     def get_constructed_from_email(self):
         """Get the properly constructed from email address"""
         from .utils import construct_from_email
-        return construct_from_email(self.default_from_email, self.email_host_user)
+        return construct_from_email(self.default_from_email, self.email_host_user, self.email_from_name)
     
     def is_email_configured(self):
         """Check if email configuration is complete"""

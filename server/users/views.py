@@ -441,6 +441,12 @@ def reset_password_with_otp(request):
     except User.DoesNotExist:
         return Response({'detail': 'User with this email does not exist.'}, status=404)
 
+    # Check if new password is same as current password
+    if user.check_password(new_password):
+        return Response({
+            'detail': 'New password cannot be the same as your current password. Please choose a different password.'
+        }, status=400)
+
     user.set_password(new_password)
     user.must_change_password = False
     user.is_first_login = False

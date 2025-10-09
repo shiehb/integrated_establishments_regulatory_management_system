@@ -18,6 +18,7 @@ const SystemConfiguration = () => {
     email_host_user: "",
     email_host_password: "",
     default_from_email: "",
+    email_from_name: "",
     access_token_lifetime_minutes: 60,
     refresh_token_lifetime_days: 1,
     rotate_refresh_tokens: true,
@@ -265,7 +266,7 @@ const SystemConfiguration = () => {
     <>
       <Header userLevel={userLevel} />
       <LayoutWithSidebar userLevel={userLevel}>
-        <div className="p-4 bg-white h-[calc(100vh-165px)] overflow-y-auto">
+        <div className="p-4 bg-white overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-sky-600">
               System Configuration
@@ -437,28 +438,35 @@ const SystemConfiguration = () => {
                         className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                         placeholder="noreply@ or user@domain.com"
                       />
-                      <p className="mt-1 text-xs text-gray-500">
-                        You can use "noreply@" (without domain) or a complete email address. If using "noreply@", the system will use your email host user domain.
-                      </p>
-                      {config.constructed_from_email && config.constructed_from_email !== config.default_from_email && (
-                        <p className="text-xs text-blue-600 font-medium">
-                          Final email address: {config.constructed_from_email}
+                      {config.email_host_user && config.email_host_user.includes('gmail.com') && (
+                        <p className="mt-1 text-xs text-yellow-600">
+                          Gmail requires verified sender addresses
                         </p>
                       )}
-                      {config.email_host_user && config.email_host_user.includes('gmail.com') && (
-                        <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                          <p className="text-xs text-yellow-800">
-                            <strong>Gmail Limitation:</strong> Gmail only allows sending emails from verified addresses. 
-                            If you want to use "noreply@gmail.com", you need to add it as an alias in your Gmail account, 
-                            or use a different email service that supports custom sender addresses.
-                          </p>
-                        </div>
-                      )}
+                    </div>
+
+                    {/* Email Sender Name */}
+                    <div>
+                      <label className="block mb-1 text-sm font-medium text-gray-700">
+                        Email Sender Name
+                      </label>
+                      <input
+                        type="text"
+                        value={config.email_from_name}
+                        onChange={(e) =>
+                          handleInputChange("email_from_name", e.target.value)
+                        }
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                        placeholder="Your Company Name or System Administrator"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Optional display name for email sender
+                      </p>
                     </div>
 
                     {/* TLS Configuration */}
                     <div className="lg:col-span-2">
-                      <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-center space-x-3">
                         <input
                           type="checkbox"
                           id="email_use_tls"
@@ -466,22 +474,14 @@ const SystemConfiguration = () => {
                           onChange={(e) =>
                             handleInputChange("email_use_tls", e.target.checked)
                           }
-                          className="w-4 h-4 mt-1 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
+                          className="w-4 h-4 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
                         />
-                        <div className="flex-1">
-                          <label
-                            htmlFor="email_use_tls"
-                            className="block text-sm font-medium text-gray-700"
-                          >
-                            Use TLS (Transport Layer Security)
-                          </label>
-                          <p className="mt-1 text-xs text-gray-600">
-                            Encrypts email communication between your server and the mail provider.
-                            <span className="block mt-1 font-medium text-green-600">
-                              Recommended: Keep enabled in production for security.
-                            </span>
-                          </p>
-                        </div>
+                        <label
+                          htmlFor="email_use_tls"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Use TLS (Transport Layer Security)
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -489,12 +489,9 @@ const SystemConfiguration = () => {
                   {/* Email Test Section */}
                   <div>
                     <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                      <h3 className="mb-2 text-sm font-medium text-gray-900">
+                      <h3 className="mb-3 text-sm font-medium text-gray-900">
                         Test Email Configuration
                       </h3>
-                      <p className="mb-3 text-xs text-gray-600">
-                        Send a test email to verify your configuration is working correctly.
-                      </p>
                       <div className="flex flex-col sm:flex-row gap-3">
                         <input
                           type="email"
@@ -546,9 +543,6 @@ const SystemConfiguration = () => {
                         min="5"
                         max="1440"
                       />
-                      <p className="mt-1 text-xs text-gray-500">
-                        How long access tokens remain valid (5-1440 minutes)
-                      </p>
                     </div>
 
                     {/* Refresh Token Lifetime */}
@@ -569,14 +563,11 @@ const SystemConfiguration = () => {
                         min="1"
                         max="365"
                       />
-                      <p className="mt-1 text-xs text-gray-500">
-                        How long refresh tokens remain valid (1-365 days)
-                      </p>
                     </div>
 
                     {/* Rotate Refresh Tokens */}
-                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <div className="flex items-start space-x-3">
+                    <div>
+                      <div className="flex items-center space-x-3">
                         <input
                           type="checkbox"
                           id="rotate_refresh_tokens"
@@ -587,26 +578,20 @@ const SystemConfiguration = () => {
                               e.target.checked
                             )
                           }
-                          className="w-4 h-4 mt-1 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
+                          className="w-4 h-4 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
                         />
-                        <div className="flex-1">
-                          <label
-                            htmlFor="rotate_refresh_tokens"
-                            className="block text-sm font-medium text-gray-700"
-                          >
-                            Rotate Refresh Tokens
-                          </label>
-                          <p className="mt-1 text-xs text-gray-600">
-                            When enabled, new refresh tokens are issued each time they're used, 
-                            invalidating the old token. This enhances security by limiting token reuse.
-                          </p>
-                        </div>
+                        <label
+                          htmlFor="rotate_refresh_tokens"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Rotate Refresh Tokens
+                        </label>
                       </div>
                     </div>
 
                     {/* Blacklist After Rotation */}
-                    <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                      <div className="flex items-start space-x-3">
+                    <div>
+                      <div className="flex items-center space-x-3">
                         <input
                           type="checkbox"
                           id="blacklist_after_rotation"
@@ -617,20 +602,14 @@ const SystemConfiguration = () => {
                               e.target.checked
                             )
                           }
-                          className="w-4 h-4 mt-1 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
+                          className="w-4 h-4 border-gray-300 rounded text-sky-600 focus:ring-sky-500"
                         />
-                        <div className="flex-1">
-                          <label
-                            htmlFor="blacklist_after_rotation"
-                            className="block text-sm font-medium text-gray-700"
-                          >
-                            Blacklist After Rotation
-                          </label>
-                          <p className="mt-1 text-xs text-gray-600">
-                            When enabled, old refresh tokens are blacklisted after rotation, 
-                            preventing their reuse even if somehow obtained. Provides additional security layer.
-                          </p>
-                        </div>
+                        <label
+                          htmlFor="blacklist_after_rotation"
+                          className="text-sm font-medium text-gray-700"
+                        >
+                          Blacklist After Rotation
+                        </label>
                       </div>
                     </div>
                   </div>

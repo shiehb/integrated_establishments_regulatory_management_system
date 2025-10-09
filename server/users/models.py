@@ -31,6 +31,10 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         extra_fields.setdefault('is_active', True)
+        extra_fields.setdefault('userlevel', 'Admin')  # Auto-set Admin level
+        extra_fields.setdefault('first_name', 'Administrator')  # Auto-set first name
+        extra_fields.setdefault('is_first_login', False)  # Not first login
+        extra_fields.setdefault('must_change_password', False)  # No password change required
         return self.create_user(email, password, **extra_fields)
 
 class User(AbstractBaseUser, PermissionsMixin):

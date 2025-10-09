@@ -12,6 +12,11 @@ export default function DateRangeDropdown({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
+  // Date validation
+  const today = new Date().toISOString().split('T')[0];
+  const isDateFromInvalid = dateFrom && dateFrom > today;
+  const isDateToInvalid = dateTo && dateFrom && dateTo < dateFrom;
+
   // Close dropdown when clicking outside
   const handleClickOutside = (event) => {
     if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -26,6 +31,7 @@ export default function DateRangeDropdown({
   });
 
   const hasActiveFilters = dateFrom || dateTo;
+  const hasValidationErrors = isDateFromInvalid || isDateToInvalid;
 
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
@@ -35,7 +41,9 @@ export default function DateRangeDropdown({
         className={`
            flex items-center px-3 py-1 text-sm font-medium rounded
           transition-colors duration-200
-          ${hasActiveFilters 
+          ${hasValidationErrors
+            ? 'text-white bg-red-600 hover:bg-red-700'
+            : hasActiveFilters 
             ? 'text-white bg-orange-600 hover:bg-orange-700' 
             : 'text-gray-700 bg-gray-200 hover:bg-gray-300'
           }
@@ -53,10 +61,10 @@ export default function DateRangeDropdown({
 
       {/* Dropdown Menu */}
       {isOpen && (
-         <div className="absolute right-0 z-50 w-64 mt-1 bg-white border border-gray-200 rounded shadow">
+         <div className="absolute right-0 top-full z-50 w-64 mt-1 bg-white border border-gray-200 rounded shadow">
           <div className="p-2">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-900">Date Range Filter</h3>
+              <h3 className="text-sm font-semibold text-sky-600">Date Range Filter</h3>
               {hasActiveFilters && (
                 <button
                   onClick={() => {
@@ -80,9 +88,19 @@ export default function DateRangeDropdown({
                 <input
                   type="date"
                   value={dateFrom}
+                  max={today}
                   onChange={(e) => onDateFromChange(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className={`w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                    isDateFromInvalid 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-300'
+                  }`}
                 />
+                {isDateFromInvalid && (
+                  <p className="mt-1 text-xs text-red-600">
+                    From date cannot be in the future
+                  </p>
+                )}
               </div>
 
               {/* To Date */}
@@ -93,9 +111,20 @@ export default function DateRangeDropdown({
                 <input
                   type="date"
                   value={dateTo}
+                  min={dateFrom || undefined}
+                  max={today}
                   onChange={(e) => onDateToChange(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className={`w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                    isDateToInvalid 
+                      ? 'border-red-500 bg-red-50' 
+                      : 'border-gray-300'
+                  }`}
                 />
+                {isDateToInvalid && (
+                  <p className="mt-1 text-xs text-red-600">
+                    To date cannot be before from date
+                  </p>
+                )}
               </div>
 
               {/* Active Filters Display */}

@@ -244,10 +244,10 @@ export default function NonComplianceList({ onSelectReport }) {
             </button>
 
             {filtersOpen && (
-              <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded shadow max-h-80 overflow-y-auto">
+              <div className="absolute right-0 top-full z-20 w-64 mt-1 bg-white border border-gray-200 rounded shadow max-h-80 overflow-y-auto">
                 <div className="p-2">
                   <div className="flex items-center justify-between px-3 py-2 mb-2">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <div className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
                       Filter Options
                     </div>
                     {(establishmentFilter.length > 0 || statusFilter.length > 0 || dateFrom || dateTo) && (
