@@ -1,5 +1,23 @@
 @import "tailwindcss";
 
+/* Override Leaflet map cursor to default arrow */
+.leaflet-container {
+  cursor: default !important;
+}
+
+.leaflet-grab {
+  cursor: default !important;
+}
+
+.leaflet-dragging .leaflet-grab {
+  cursor: default !important;
+}
+
+/* Force uppercase display for all form inputs */
+.uppercase-input {
+  text-transform: uppercase !important;
+}
+
 /* Custom animations for notifications */
 @keyframes slide-down {
   from {

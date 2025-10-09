@@ -1465,3 +1465,129 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def compliance_stats(self, request):
+        """
+        Get compliance statistics based on InspectionForm.compliance_decision
+        """
+        from django.db.models import Count, Q
+        from .models import InspectionForm
+        
+        # Get compliance statistics
+        stats = InspectionForm.objects.aggregate(
+            pending=Count('inspection_id', filter=Q(compliance_decision='PENDING')),
+            compliant=Count('inspection_id', filter=Q(compliance_decision='COMPLIANT')),
+            non_compliant=Count('inspection_id', filter=Q(compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT']))
+        )
+        
+        # Calculate total completed
+        stats['total_completed'] = stats['compliant'] + stats['non_compliant']
+        
+        return Response(stats)
+    
+    @action(detail=False, methods=['get'])
+    def quarterly_comparison(self, request):
+        """
+        Get quarterly comparison data for finished inspections
+        """
+        from django.db.models import Count, Q
+        from .models import InspectionForm
+        from datetime import datetime, timedelta
+        
+        # Get year parameter (default to current year)
+        year = int(request.query_params.get('year', datetime.now().year))
+        
+        # Calculate quarters
+        def get_quarter_range(year, quarter):
+            """Get start and end dates for a quarter"""
+            if quarter == 1:
+                return datetime(year, 1, 1), datetime(year, 3, 31, 23, 59, 59)
+            elif quarter == 2:
+                return datetime(year, 4, 1), datetime(year, 6, 30, 23, 59, 59)
+            elif quarter == 3:
+                return datetime(year, 7, 1), datetime(year, 9, 30, 23, 59, 59)
+            else:  # quarter == 4
+                return datetime(year, 10, 1), datetime(year, 12, 31, 23, 59, 59)
+        
+        # Get current quarter
+        now = datetime.now()
+        current_quarter = ((now.month - 1) // 3) + 1
+        current_year = now.year
+        
+        # Calculate last quarter
+        if current_quarter == 1:
+            last_quarter = 4
+            last_year = current_year - 1
+        else:
+            last_quarter = current_quarter - 1
+            last_year = current_year
+        
+        # Get date ranges
+        current_start, current_end = get_quarter_range(current_year, current_quarter)
+        last_start, last_end = get_quarter_range(last_year, last_quarter)
+        
+        # Get current quarter stats (only finished inspections - not PENDING)
+        current_stats = InspectionForm.objects.filter(
+            created_at__range=[current_start, current_end],
+            compliance_decision__in=['COMPLIANT', 'NON_COMPLIANT', 'PARTIALLY_COMPLIANT']
+        ).aggregate(
+            compliant=Count('inspection_id', filter=Q(compliance_decision='COMPLIANT')),
+            non_compliant=Count('inspection_id', filter=Q(compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT']))
+        )
+        
+        # Get last quarter stats (only finished inspections - not PENDING)
+        last_stats = InspectionForm.objects.filter(
+            created_at__range=[last_start, last_end],
+            compliance_decision__in=['COMPLIANT', 'NON_COMPLIANT', 'PARTIALLY_COMPLIANT']
+        ).aggregate(
+            compliant=Count('inspection_id', filter=Q(compliance_decision='COMPLIANT')),
+            non_compliant=Count('inspection_id', filter=Q(compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT']))
+        )
+        
+        # Calculate totals
+        current_total = current_stats['compliant'] + current_stats['non_compliant']
+        last_total = last_stats['compliant'] + last_stats['non_compliant']
+        
+        # Calculate percentage change
+        if last_total > 0:
+            change_percentage = ((current_total - last_total) / last_total) * 100
+        else:
+            change_percentage = 100.0 if current_total > 0 else 0.0
+        
+        # Determine trend
+        if change_percentage > 5:
+            trend = 'up'
+        elif change_percentage < -5:
+            trend = 'down'
+        else:
+            trend = 'stable'
+        
+        # Convert quarter numbers to month range format
+        def get_quarter_name(quarter_num, year):
+            quarter_names = {
+                1: 'Jan-Mar',
+                2: 'Apr-Jun', 
+                3: 'Jul-Sep',
+                4: 'Oct-Dec'
+            }
+            return f"{quarter_names[quarter_num]} {year}"
+
+        return Response({
+            'current_quarter': {
+                'quarter': get_quarter_name(current_quarter, current_year),
+                'year': current_year,
+                'compliant': current_stats['compliant'],
+                'non_compliant': current_stats['non_compliant'],
+                'total_finished': current_total
+            },
+            'last_quarter': {
+                'quarter': get_quarter_name(last_quarter, last_year),
+                'year': last_year,
+                'compliant': last_stats['compliant'],
+                'non_compliant': last_stats['non_compliant'],
+                'total_finished': last_total
+            },
+            'change_percentage': round(change_percentage, 1),
+            'trend': trend
+        })

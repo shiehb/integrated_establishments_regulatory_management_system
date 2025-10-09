@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMapEvents, LayersControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import { updateEstablishment } from "../../services/api";
@@ -9,7 +9,10 @@ import {
   ALLOWED_PROVINCES, 
   NATURE_OF_BUSINESS_OPTIONS, 
   ILOCOS_REGION_BOUNDS,
-  ILOCOS_REGION_CENTER 
+  ILOCOS_REGION_CENTER,
+  ILOCOS_CITIES_BY_PROVINCE,
+  POSTAL_CODES_BY_CITY,
+  BARANGAYS_BY_CITY
 } from "../../constants/establishmentConstants";
 import { useNotifications } from "../NotificationManager";
 
@@ -20,40 +23,150 @@ const markerIcon = new L.Icon({
 });
 
 
+// Forward geocoding: address -> coordinates and postal code
+async function forwardGeocode(province, city = null, barangay = null) {
+  let query;
+  if (barangay && city) {
+    query = `${barangay}, ${city}, ${province}, Philippines`;
+  } else if (city) {
+    query = `${city}, ${province}, Philippines`;
+  } else {
+    query = `${province}, Philippines`;
+  }
+  
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+  
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data && data.length > 0) {
+      return {
+        latitude: parseFloat(data[0].lat).toFixed(6),
+        longitude: parseFloat(data[0].lon).toFixed(6),
+        postalCode: data[0].address?.postcode || null
+      };
+    }
+  } catch (error) {
+    console.error('Forward geocoding error:', error);
+  }
+  return null;
+}
+
+// Helper function to find best match for province
+function findBestProvinceMatch(osmProvince) {
+  if (!osmProvince) return "";
+  
+  const osmUpper = osmProvince.toUpperCase();
+  
+  // Direct match
+  if (ALLOWED_PROVINCES.includes(osmUpper)) {
+    return osmUpper;
+  }
+  
+  // Fuzzy matching for common variations
+  const provinceMap = {
+    "LAOAG": "ILOCOS NORTE",
+    "VIGAN": "ILOCOS SUR", 
+    "SAN FERNANDO": "LA UNION",
+    "DAGUPAN": "PANGASINAN",
+    "SAN CARLOS": "PANGASINAN",
+    "ALAMINOS": "PANGASINAN",
+    "URDANETA": "PANGASINAN"
+  };
+  
+  // Check if OSM city name matches a known city in our provinces
+  for (const [city, province] of Object.entries(provinceMap)) {
+    if (osmUpper.includes(city) || city.includes(osmUpper)) {
+      return province;
+    }
+  }
+  
+  // Check if OSM province name contains our province names
+  for (const province of ALLOWED_PROVINCES) {
+    if (osmUpper.includes(province) || province.includes(osmUpper)) {
+      return province;
+    }
+  }
+  
+  return "";
+}
+
+// Helper function to find best match for city
+function findBestCityMatch(osmCity, selectedProvince) {
+  if (!osmCity || !selectedProvince) return "";
+  
+  const osmUpper = osmCity.toUpperCase();
+  const availableCities = ILOCOS_CITIES_BY_PROVINCE[selectedProvince] || [];
+  
+  // Direct match
+  if (availableCities.includes(osmUpper)) {
+    return osmUpper;
+  }
+  
+  // Fuzzy matching - check if OSM city contains or is contained in our cities
+  for (const city of availableCities) {
+    if (osmUpper.includes(city) || city.includes(osmUpper)) {
+      return city;
+    }
+  }
+  
+  return "";
+}
+
+// Helper function to find best match for barangay
+function findBestBarangayMatch(osmBarangay, selectedProvince, selectedCity) {
+  if (!osmBarangay || !selectedProvince || !selectedCity) return "";
+  
+  const osmUpper = osmBarangay.toUpperCase();
+  const availableBarangays = BARANGAYS_BY_CITY[selectedProvince]?.[selectedCity] || [];
+  
+  // Direct match
+  if (availableBarangays.includes(osmUpper)) {
+    return osmUpper;
+  }
+  
+  // Fuzzy matching - check if OSM barangay contains or is contained in our barangays
+  for (const barangay of availableBarangays) {
+    if (osmUpper.includes(barangay) || barangay.includes(osmUpper)) {
+      return barangay;
+    }
+  }
+  
+  // Partial word matching for common patterns
+  const osmWords = osmUpper.split(/\s+/);
+  for (const barangay of availableBarangays) {
+    const barangayWords = barangay.split(/\s+/);
+    for (const osmWord of osmWords) {
+      for (const barangayWord of barangayWords) {
+        if (osmWord === barangayWord && osmWord.length > 3) {
+          return barangay;
+        }
+      }
+    }
+  }
+  
+  return ""; // No match found, leave empty
+}
+
 // Reverse geocode: lat/lng -> address
-async function reverseGeocode(lat, lon, setFormData) {
+async function reverseGeocode(lat, lon, setFormData, setMapZoom) {
   const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
   const res = await fetch(url);
   const data = await res.json();
   if (data && data.address) {
+    const osmProvince = data.address.state;
+    const osmCity = data.address.city || data.address.town || data.address.village;
+    const bestProvince = findBestProvinceMatch(osmProvince);
+    const bestCity = findBestCityMatch(osmCity, bestProvince);
+    
     setFormData((prev) => ({
       ...prev,
       address: {
         ...prev.address,
-        province: (
-          data.address.state ||
-          prev.address.province ||
-          ""
-        ).toUpperCase(),
-        city: (
-          data.address.city ||
-          data.address.town ||
-          data.address.village ||
-          prev.address.city ||
-          ""
-        ).toUpperCase(),
-        barangay: (
-          data.address.suburb ||
-          data.address.neighbourhood ||
-          data.address.village ||
-          prev.address.barangay ||
-          ""
-        ).toUpperCase(),
-        streetBuilding: (
-          data.address.road ||
-          prev.address.streetBuilding ||
-          ""
-        ).toUpperCase(),
+        province: bestProvince || prev.address.province || "",
+        city: bestCity || prev.address.city || "",
+        barangay: prev.address.barangay, // Keep existing barangay unchanged
+        streetBuilding: prev.address.streetBuilding, // Keep existing street/building unchanged
         postalCode: (
           data.address.postcode ||
           prev.address.postalCode ||
@@ -65,16 +178,18 @@ async function reverseGeocode(lat, lon, setFormData) {
         longitude: lon,
       },
     }));
+    setMapZoom(18); // Manual click zoom level
   }
 }
 
-function LocationMarker({ formData, setFormData }) {
+function LocationMarker({ formData, setFormData, setMapZoom }) {
   useMapEvents({
     click(e) {
       reverseGeocode(
         e.latlng.lat.toFixed(6),
         e.latlng.lng.toFixed(6),
-        setFormData
+        setFormData,
+        setMapZoom
       );
     },
   });
@@ -117,7 +232,43 @@ export default function EditEstablishment({
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [showConfirm, setShowConfirm] = useState(false);
+  const [mapZoom, setMapZoom] = useState(8); // Track zoom level for different selection types
   const notifications = useNotifications();
+
+  // Track if address/coordinate fields have changed
+  const hasLocationChanged = 
+    formData.address.province !== establishmentData?.province ||
+    formData.address.city !== establishmentData?.city ||
+    formData.address.barangay !== establishmentData?.barangay ||
+    formData.address.streetBuilding !== establishmentData?.street_building ||
+    formData.coordinates.latitude !== establishmentData?.latitude ||
+    formData.coordinates.longitude !== establishmentData?.longitude;
+
+  // Show warning only if establishment has polygon and location changed
+  const showPolygonWarning = hasLocationChanged && 
+    establishmentData?.polygon && 
+    establishmentData.polygon.length > 0;
+
+  // Create conditional message for confirmation dialog
+  const confirmationMessage = showPolygonWarning ? (
+    <>
+      <p className="mb-4">Are you sure you want to save changes to this establishment?</p>
+      <div className="p-3 bg-amber-50 border-l-4 border-amber-400 rounded">
+        <div className="flex items-start">
+          <svg className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          <div className="ml-3">
+            <p className="text-sm font-medium text-amber-800">
+              Modifying the address or coordinates will clear the existing polygon boundary. You will need to redraw the polygon after saving.
+            </p>
+          </div>
+        </div>
+      </div>
+    </>
+  ) : (
+    "Are you sure you want to save changes to this establishment?"
+  );
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -166,20 +317,111 @@ export default function EditEstablishment({
     setFormData((prev) => ({ ...prev, yearEstablished: val }));
   };
 
-  const handleAddressChange = (e) => {
+  const handleAddressChange = async (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
+    
+    // Skip uppercase for barangay (already uppercase in dropdown)
+    const processedValue = name === 'barangay' ? value : value.toUpperCase();
+    
+    const newFormData = {
+      ...formData,
       address: {
-        ...prev.address,
-        [name]: value.toUpperCase(),
+        ...formData.address,
+        [name]: processedValue,
+        // Clear city when province changes
+        ...(name === "province" ? { city: "" } : {}),
+        // Clear barangay when city changes
+        ...(name === "city" ? { barangay: "" } : {}),
       },
-    }));
+    };
+    
+    setFormData(newFormData);
 
     // Clear province error when user starts typing
     if (name === "province" && errors.province) {
       setErrors((prev) => ({ ...prev, province: "" }));
     }
+
+    // Only run geocoding logic for province and city, not barangay
+    if (name === "province" && value) {
+      // Update map to province center when province is selected
+      const coords = await forwardGeocode(value);
+      if (coords) {
+        setFormData((prev) => ({
+          ...prev,
+          coordinates: {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+          },
+        }));
+        setMapZoom(13); // Province zoom level
+      }
+    } else if (name === "city" && value && newFormData.address.province) {
+      // Update map to city center when city is selected
+      const coords = await forwardGeocode(newFormData.address.province, value);
+      if (coords) {
+        setFormData((prev) => ({
+          ...prev,
+          coordinates: {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+          },
+        }));
+        setMapZoom(15); // City zoom level
+      }
+
+      // Auto-populate postal code when city is selected
+      let postalCode = "";
+      if (coords && coords.postalCode) {
+        postalCode = coords.postalCode;
+      } else {
+        // Fallback to hardcoded mapping
+        postalCode = getPostalCodeForCity(newFormData.address.province, value);
+      }
+
+      if (postalCode) {
+        setFormData((prev) => ({
+          ...prev,
+          address: {
+            ...prev.address,
+            postalCode: postalCode,
+          },
+        }));
+      }
+    } else if (name === "barangay" && value && newFormData.address.province && newFormData.address.city) {
+      // Forward geocode to get barangay center coordinates when barangay is selected
+      const coords = await forwardGeocode(newFormData.address.province, newFormData.address.city, value);
+      if (coords) {
+        setFormData((prev) => ({
+          ...prev,
+          coordinates: {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+          },
+        }));
+        setMapZoom(17); // Barangay zoom level (between city 15 and manual 18)
+      }
+    }
+  };
+
+  // Get available cities for the selected province
+  const getAvailableCities = () => {
+    const selectedProvince = formData.address.province;
+    return ILOCOS_CITIES_BY_PROVINCE[selectedProvince] || [];
+  };
+
+  // Get available barangays for the selected city
+  const getAvailableBarangays = () => {
+    const selectedProvince = formData.address.province;
+    const selectedCity = formData.address.city;
+    if (!selectedProvince || !selectedCity) return [];
+    return BARANGAYS_BY_CITY[selectedProvince]?.[selectedCity] || [];
+  };
+
+  // Get postal code for the selected city
+  const getPostalCodeForCity = (province, city) => {
+    if (!province || !city) return "";
+    return POSTAL_CODES_BY_CITY[province]?.[city] || "";
   };
 
   const validateProvince = (province) => {
@@ -313,6 +555,7 @@ export default function EditEstablishment({
             Edit Establishment
           </h2>
 
+
           {/* Name of Establishment */}
           <div>
             <Label field="name">Name of Establishment</Label>
@@ -321,7 +564,7 @@ export default function EditEstablishment({
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className={`w-full p-2 border rounded-lg ${
+              className={`w-full p-2 border rounded-lg uppercase-input ${
                 errors.name ? "border-red-500" : ""
               }`}
             />
@@ -338,7 +581,7 @@ export default function EditEstablishment({
                 name="natureOfBusiness"
                 value={formData.natureOfBusiness}
                 onChange={handleNatureOfBusinessChange}
-                className="w-full p-2 border rounded-lg"
+                className="w-full p-2 border rounded-lg uppercase-input"
               >
                 <option value="">Select Nature of Business</option>
                 {NATURE_OF_BUSINESS_OPTIONS.map((option) => (
@@ -354,7 +597,7 @@ export default function EditEstablishment({
                   value={formData.natureOfBusinessOther}
                   onChange={handleNatureOfBusinessOtherChange}
                   placeholder="Please specify..."
-                  className="w-full p-2 mt-2 border rounded-lg"
+                  className="w-full p-2 mt-2 border rounded-lg uppercase-input"
                 />
               )}
             </div>
@@ -368,7 +611,7 @@ export default function EditEstablishment({
                 min="1900"
                 max={new Date().getFullYear()}
                 placeholder="YYYY"
-                className="w-full p-2 border rounded-lg"
+                className="w-full p-2 border rounded-lg uppercase-input"
               />
             </div>
           </div>
@@ -377,35 +620,43 @@ export default function EditEstablishment({
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <Label field="address.province">Province</Label>
-              <input
-                type="text"
+              <select
                 name="province"
                 value={formData.address.province}
                 onChange={handleAddressChange}
-                className={`w-full p-2 border rounded-lg ${
+                className={`w-full p-2 border rounded-lg uppercase-input ${
                   errors.province ? "border-red-500" : ""
                 }`}
-                list="province-list"
-                placeholder="Select from list"
-              />
-              <datalist id="province-list">
+              >
+                <option value="">Select Province</option>
                 {ALLOWED_PROVINCES.map((province) => (
-                  <option key={province} value={province} />
+                  <option key={province} value={province}>
+                    {province}
+                  </option>
                 ))}
-              </datalist>
+              </select>
               {errors.province && (
                 <p className="mt-1 text-xs text-red-500">{errors.province}</p>
               )}
             </div>
             <div>
-              <Label field="address.city">City</Label>
-              <input
-                type="text"
+              <Label field="address.city">City/Municipality</Label>
+              <select
                 name="city"
                 value={formData.address.city}
                 onChange={handleAddressChange}
-                className="w-full p-2 border rounded-lg"
-              />
+                className="w-full p-2 border rounded-lg uppercase-input"
+                disabled={!formData.address.province}
+              >
+                <option value="">
+                  {formData.address.province ? "Select City/Municipality" : "Select Province first"}
+                </option>
+                {getAvailableCities().map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -413,13 +664,22 @@ export default function EditEstablishment({
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <Label field="address.barangay">Barangay</Label>
-              <input
-                type="text"
+              <select
                 name="barangay"
                 value={formData.address.barangay}
                 onChange={handleAddressChange}
-                className="w-full p-2 border rounded-lg"
-              />
+                className="w-full p-2 border rounded-lg uppercase-input"
+                disabled={!formData.address.city}
+              >
+                <option value="">
+                  {formData.address.city ? "Select Barangay" : "Select City first"}
+                </option>
+                {getAvailableBarangays().map((barangay) => (
+                  <option key={barangay} value={barangay}>
+                    {barangay}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <Label field="address.streetBuilding">Street/Building</Label>
@@ -428,7 +688,7 @@ export default function EditEstablishment({
                 name="streetBuilding"
                 value={formData.address.streetBuilding}
                 onChange={handleAddressChange}
-                className="w-full p-2 border rounded-lg"
+                className="w-full p-2 border rounded-lg uppercase-input"
               />
             </div>
           </div>
@@ -452,7 +712,7 @@ export default function EditEstablishment({
                     },
                   }));
                 }}
-                className="w-full p-2 border rounded-lg"
+                className="w-full p-2 border rounded-lg uppercase-input"
                 maxLength={4}
                 inputMode="numeric"
                 pattern="\d{4}"
@@ -531,7 +791,7 @@ export default function EditEstablishment({
         <ConfirmationDialog
           open={showConfirm}
           title="Confirm Action"
-          message="Are you sure you want to save changes to this establishment?"
+          message={confirmationMessage}
           loading={loading}
           onCancel={() => setShowConfirm(false)}
           onConfirm={confirmEdit}
@@ -539,23 +799,38 @@ export default function EditEstablishment({
       </div>
       <div className="order-2 h-[600px] w-full rounded-lg overflow-hidden shadow">
         <MapContainer
+          key={`${formData.coordinates.latitude}-${formData.coordinates.longitude}`}
           center={[
             formData.coordinates.latitude || ILOCOS_REGION_CENTER.latitude,
             formData.coordinates.longitude || ILOCOS_REGION_CENTER.longitude,
           ]}
-          zoom={formData.coordinates.latitude ? 18 : 8} // Zoom to show Ilocos Region
-          style={{ height: "100%", width: "100%" }}
+          zoom={formData.coordinates.latitude ? mapZoom : 8} // Dynamic zoom based on selection type
+          style={{ 
+            height: "100%", 
+            width: "100%",
+            cursor: "default"
+          }}
           bounds={[
             [ILOCOS_REGION_BOUNDS.south, ILOCOS_REGION_BOUNDS.west],
             [ILOCOS_REGION_BOUNDS.north, ILOCOS_REGION_BOUNDS.east]
           ]}
           boundsOptions={{ padding: [20, 20] }}
         >
-          <TileLayer
-            url={osm.maptiler.url}
-            attribution={osm.maptiler.attribution}
-          />
-          <LocationMarker formData={formData} setFormData={setFormData} />
+          <LayersControl position="topright">
+            <LayersControl.BaseLayer checked name="OpenStreetMap">
+              <TileLayer
+                url={osm.maptiler.url}
+                attribution={osm.maptiler.attribution}
+              />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer name="Google Satellite">
+              <TileLayer
+                url={osm.googleSatellite.url}
+                attribution={osm.googleSatellite.attribution}
+              />
+            </LayersControl.BaseLayer>
+          </LayersControl>
+          <LocationMarker formData={formData} setFormData={setFormData} setMapZoom={setMapZoom} />
         </MapContainer>
       </div>
     </div>

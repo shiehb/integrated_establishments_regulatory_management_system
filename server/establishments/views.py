@@ -295,3 +295,36 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
             'page_size': page_size,
             'total_pages': (total_count + page_size - 1) // page_size
         })
+    
+    @action(detail=False, methods=['get'])
+    def location_options(self, request):
+        """
+        Get location options (provinces and cities) for the establishment forms.
+        Returns hardcoded Ilocos Region data as fallback since normalized models may not exist yet.
+        """
+        # Future: Check if normalized models exist and return from database
+        # For now, return empty to use frontend constants
+        try:
+            # Try to import normalized models
+            from .models_normalized import Province, City
+            
+            # If models exist, return from database
+            provinces = Province.objects.filter(is_active=True, region='Ilocos Region').order_by('name')
+            cities_by_province = {}
+            
+            for province in provinces:
+                cities = City.objects.filter(province=province, is_active=True).order_by('name')
+                cities_by_province[province.name] = [city.name for city in cities]
+            
+            return Response({
+                'provinces': [province.name for province in provinces],
+                'cities_by_province': cities_by_province
+            })
+            
+        except ImportError:
+            # Normalized models don't exist yet, return empty to use frontend constants
+            return Response({
+                'provinces': [],
+                'cities_by_province': {},
+                'message': 'Using frontend constants - normalized models not available'
+            })

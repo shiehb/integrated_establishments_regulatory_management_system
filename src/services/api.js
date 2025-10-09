@@ -571,6 +571,18 @@ export const getAvailableActions = async (id) => {
   return res.data;
 };
 
+// Dashboard compliance statistics
+export const getComplianceStats = async () => {
+  const res = await api.get('inspections/compliance_stats/');
+  return res.data;
+};
+
+// Quarterly comparison data
+export const getQuarterlyComparison = async (params = {}) => {
+  const res = await api.get('inspections/quarterly_comparison/', { params });
+  return res.data;
+};
+
 // Get tab counts for role-based dashboards
 export const getTabCounts = async () => {
   try {
