@@ -24,6 +24,7 @@ import DatabaseBackup from "./pages/DatabaseBackup"; // ✅ import new page
 import DistrictManagement from "./pages/DistrictManagement";
 import DebugActions from "./components/inspections/DebugActions";
 import InspectionForm from "./components/inspection-form/InspectionForm";
+import NotFound from "./pages/NotFound";
 import PublicRoute from "./components/PublicRoute";
 import PrivateRoute from "./components/PrivateRoute";
 import RoleRoute from "./components/RoleRoute";
@@ -129,6 +130,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               }
             />
           </Route>
+
+          {/* 404 Not Found - Catch all undefined routes */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </SearchProvider>
     </BrowserRouter>

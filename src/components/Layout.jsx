@@ -9,9 +9,11 @@ export default function Layout({ children }) {
         <Header />
       </div>
 
-      {/* Main content with padding for header/footer */}
-      <main className="flex flex-col items-center justify-center flex-grow px-4 pt-20 pb-16 mt-16 mb-16">
-        <div className="flex justify-center w-full">{children}</div>
+      {/* Main content with proper spacing */}
+      <main className="flex flex-col items-center justify-center flex-grow px-4 pt-24 pb-20 min-h-screen">
+        <div className="flex justify-center w-full max-w-7xl mx-auto">
+          {children}
+        </div>
       </main>
 
       {/* Fixed Footer */}
