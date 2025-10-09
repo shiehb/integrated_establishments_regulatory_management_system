@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, forwardRef } from "react";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import { formatInput, validatePhoneOrFax, validateEmailAddress, validateInspectionDateTime } from "./utils";
 import SectionHeader from "./SectionHeader";
@@ -6,7 +6,7 @@ import SectionHeader from "./SectionHeader";
 /* ---------------------------
    General Information
    ---------------------------*/
-export default function GeneralInformation({
+const GeneralInformation = forwardRef(function GeneralInformation({
   data,
   setData,
   onLawFilterChange,
@@ -14,7 +14,7 @@ export default function GeneralInformation({
   errors,
   clearError,
   isReadOnly = false,
-}) {
+}, ref) {
   // State for phone/fax validation
   const [phoneValidation, setPhoneValidation] = useState({ isValid: false, message: "" });
   // State for email validation
@@ -197,7 +197,7 @@ export default function GeneralInformation({
   };
 
   return (
-    <section className="p-4 mb-6 bg-white border border-black">
+    <section ref={ref} data-section="general" className="min-h-[calc(100vh-220px)] p-4 mb-6 bg-white border border-black scroll-mt-48" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
       <SectionHeader title="General Information" />
       <div className="mt-4">
         <label className="block mb-2 text-black">
@@ -631,7 +631,9 @@ export default function GeneralInformation({
       </div>
     </section>
   );
-}
+});
+
+export default GeneralInformation;
 
 
  

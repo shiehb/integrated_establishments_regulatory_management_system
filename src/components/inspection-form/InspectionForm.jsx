@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
@@ -7,7 +7,7 @@ import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 
 // Import all section components
-import InternalHeader from "./InternalHeader";
+import UnifiedInspectionHeader from "./UnifiedInspectionHeader";
 import GeneralInformation from "./GeneralInformation";
 import PurposeOfInspection from "./PurposeOfInspection";
 import ComplianceStatus from "./ComplianceStatus";
@@ -114,6 +114,24 @@ export default function InspectionForm({ inspectionData }) {
   const [hasFormChanges, setHasFormChanges] = useState(false);
   const [hasActionTaken, setHasActionTaken] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState('saved'); // 'saving', 'saved', 'error'
+  
+  // Tab navigation state and refs
+  const [activeSection, setActiveSection] = useState('general');
+  const generalRef = useRef(null);
+  const purposeRef = useRef(null);
+  const complianceStatusRef = useRef(null);
+  const summaryComplianceRef = useRef(null);
+  const findingsRef = useRef(null);
+  const recommendationsRef = useRef(null);
+  
+  const sectionRefs = useMemo(() => ({
+    general: generalRef,
+    purpose: purposeRef,
+    'compliance-status': complianceStatusRef,
+    'summary-compliance': summaryComplianceRef,
+    findings: findingsRef,
+    recommendations: recommendationsRef
+  }), []);
 
   // Function to determine compliance status based on form data
   const determineComplianceStatus = () => {
@@ -452,6 +470,71 @@ export default function InspectionForm({ inspectionData }) {
     
     return () => clearTimeout(timer);
   }, [general, purpose, permits, complianceItems, systems, recommendationState, inspectionStatus, inspectionId, hasFormChanges]);
+
+  // Scroll detection for tab navigation
+  useEffect(() => {
+    const mainContainer = document.getElementById('inspection-form-container');
+    
+    if (!mainContainer) return;
+
+    const observerOptions = {
+      root: mainContainer, // Watch the scrollable container, not the window
+      rootMargin: '-20% 0px -70% 0px', // Trigger when section is 20% from top of viewport
+      threshold: [0, 0.1, 0.5, 1]
+    };
+
+    const observerCallback = (entries) => {
+      // Find the entry with the highest intersection ratio
+      let maxRatio = 0;
+      let activeEntry = null;
+
+      entries.forEach((entry) => {
+        if (entry.intersectionRatio > maxRatio) {
+          maxRatio = entry.intersectionRatio;
+          activeEntry = entry;
+        }
+      });
+
+      if (activeEntry && activeEntry.isIntersecting) {
+        const sectionId = activeEntry.target.getAttribute('data-section');
+        if (sectionId) {
+          setActiveSection(sectionId);
+        }
+      }
+    };
+
+    const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+    // Observe all section refs
+    Object.values(sectionRefs).forEach((ref) => {
+      if (ref.current) {
+        observer.observe(ref.current);
+      }
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [sectionRefs]);
+
+  // Scroll to section handler
+  const scrollToSection = (sectionId) => {
+    const ref = sectionRefs[sectionId];
+    const mainContainer = document.getElementById('inspection-form-container');
+    
+    if (ref && ref.current && mainContainer) {
+      // Get the section's position relative to the container
+      const sectionTop = ref.current.offsetTop;
+      // Account for the padding-top of the container (192px: 72px top-18 + 120px header)
+      const containerPaddingTop = 192;
+      const scrollPosition = sectionTop - containerPaddingTop;
+      
+      mainContainer.scrollTo({
+        top: scrollPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   /* ======================
      Validation
@@ -1547,9 +1630,9 @@ export default function InspectionForm({ inspectionData }) {
      Render
      ====================== */
     return (
-      <LayoutForm>
-        <div className="w-full bg-white">
-          <InternalHeader
+      <LayoutForm
+        inspectionHeader={
+          <UnifiedInspectionHeader
             onSave={handleSave}
             onDraft={handleDraft}
             onClose={handleClose}
@@ -1583,98 +1666,16 @@ export default function InspectionForm({ inspectionData }) {
             showSubmitButton={buttonVisibility.showSubmitButton}
             showCloseButton={buttonVisibility.showCloseButton}
             isDraft={fullInspectionData?.form?.checklist?.is_draft || false}
-            complianceStatus={determineComplianceStatus()}
+            activeSection={activeSection}
+            onTabClick={scrollToSection}
           />
+        }
+      >
+        <div className="w-full bg-white p-4">
 
-          <div className="p-4">
-            {/* Error Summary */}
-            {Object.keys(errors).length > 0 && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-                <div className="flex items-center mb-2">
-                  <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  <h3 className="text-lg font-semibold text-red-800">
-                    {Object.keys(errors).length} Validation Error(s) Found
-                  </h3>
-                </div>
-                <p className="text-sm text-red-700 mb-3">
-                  Please fix the following errors before saving or completing the inspection:
-                </p>
-                <div className="space-y-1">
-                  {Object.entries(errors).map(([field, message]) => (
-                    <div key={field} className="flex items-start">
-                      <span className="text-red-500 mr-2">•</span>
-                      <span className="text-sm text-red-700">{message}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Compliance Status Summary */}
-            {complianceItems.length > 0 && systems.length > 0 && (
-              <div className={`mb-6 p-4 rounded-lg border ${
-                determineComplianceStatus() === 'COMPLIANT' 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-red-50 border-red-200'
-              }`}>
-                <div className="flex items-center gap-3 mb-3">
-                  <h3 className={`text-lg font-semibold ${
-                    determineComplianceStatus() === 'COMPLIANT' ? 'text-green-800' : 'text-red-800'
-                  }`}>
-                    {determineComplianceStatus() === 'COMPLIANT' ? '✅ Compliance Status: COMPLIANT' : '❌ Compliance Status: NON-COMPLIANT'}
-                  </h3>
-                </div>
-                
-                {/* Compliance Items Summary */}
-                <div className="mb-3">
-                  <h4 className="font-medium text-gray-700 mb-2">Compliance Items:</h4>
-                  <div className="space-y-1">
-                    {complianceItems.filter(item => general.environmental_laws?.includes(item.lawId)).map((item, index) => (
-                      <div key={index} className="flex items-center gap-2 text-sm">
-                        <span className={`w-3 h-3 rounded-full ${
-                          item.compliant === 'Yes' ? 'bg-green-500' : 
-                          item.compliant === 'No' ? 'bg-red-500' : 'bg-gray-300'
-                        }`}></span>
-                        <span className="text-gray-700">{item.item}:</span>
-                        <span className={`font-medium ${
-                          item.compliant === 'Yes' ? 'text-green-700' : 
-                          item.compliant === 'No' ? 'text-red-700' : 'text-gray-500'
-                        }`}>
-                          {item.compliant || 'Not assessed'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Systems Summary */}
-                <div>
-                  <h4 className="font-medium text-gray-700 mb-2">Systems/Findings:</h4>
-                  <div className="space-y-1">
-                    {systems.filter(system => general.environmental_laws?.includes(system.lawId)).map((system, index) => (
-                      <div key={index} className="flex items-center gap-2 text-sm">
-                        <span className={`w-3 h-3 rounded-full ${
-                          system.compliant ? 'bg-green-500' : 
-                          system.nonCompliant ? 'bg-red-500' : 'bg-gray-300'
-                        }`}></span>
-                        <span className="text-gray-700">{system.system}:</span>
-                        <span className={`font-medium ${
-                          system.compliant ? 'text-green-700' : 
-                          system.nonCompliant ? 'text-red-700' : 'text-gray-500'
-                        }`}>
-                          {system.compliant ? 'Compliant' : 
-                           system.nonCompliant ? 'Non-Compliant' : 'Not assessed'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
             
         <GeneralInformation
+          ref={sectionRefs.general}
           data={general}
           setData={(newData) => {
             setGeneral(newData);
@@ -1692,6 +1693,7 @@ export default function InspectionForm({ inspectionData }) {
           isReadOnly={buttonVisibility.isReadOnly}
         />
         <PurposeOfInspection
+          ref={sectionRefs.purpose}
           state={purpose}
           setState={(newState) => {
             setPurpose(newState);
@@ -1704,6 +1706,7 @@ export default function InspectionForm({ inspectionData }) {
         {lawFilter.length > 0 && (
           <>
             <ComplianceStatus
+              ref={sectionRefs['compliance-status']}
               permits={permits}
               setPermits={setPermits}
               lawFilter={lawFilter}
@@ -1711,6 +1714,7 @@ export default function InspectionForm({ inspectionData }) {
               isReadOnly={buttonVisibility.isReadOnly}
             />
             <SummaryOfCompliance
+              ref={sectionRefs['summary-compliance']}
               items={complianceItems}
               setItems={(newItems) => {
                 setComplianceItems(newItems);
@@ -1721,6 +1725,7 @@ export default function InspectionForm({ inspectionData }) {
               isReadOnly={buttonVisibility.isReadOnly}
             />
             <SummaryOfFindingsAndObservations
+              ref={sectionRefs.findings}
               systems={systems}
               setSystems={(newSystems) => {
                 setSystems(newSystems);
@@ -1734,6 +1739,7 @@ export default function InspectionForm({ inspectionData }) {
         )}
 
         <Recommendations
+          ref={sectionRefs.recommendations}
           recState={recommendationState}
           setRecState={(newState) => {
             setRecommendationState(newState);
@@ -1743,8 +1749,7 @@ export default function InspectionForm({ inspectionData }) {
           isReadOnly={buttonVisibility.isReadOnly}
           canEditRecommendation={buttonVisibility.canEditRecommendation}
         />
-      </div>
-    </div>
+        </div>
 
     {/* Completion Confirmation Dialog */}
     <ConfirmationDialog

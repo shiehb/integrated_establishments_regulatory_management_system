@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, forwardRef } from "react";
 import { formatInput, validatePurposeOfInspection, validateVerifyAccuracyDetails, validateCommitmentStatusDetails } from "./utils";
 import SectionHeader from "./SectionHeader";
 
 /* ---------------------------
    Purpose of Inspection
    ---------------------------*/
-export default function PurposeOfInspection({ state, setState, errors, isReadOnly = false }) {
+const PurposeOfInspection = forwardRef(function PurposeOfInspection({ state, setState, errors, isReadOnly = false }, ref) {
   // State for validation
   const [purposeValidation, setPurposeValidation] = useState({ isValid: false, message: "" });
   const [accuracyDetailsValidation, setAccuracyDetailsValidation] = useState({ isValid: false, message: "" });
@@ -130,7 +130,7 @@ export default function PurposeOfInspection({ state, setState, errors, isReadOnl
     setState({ ...state, [field]: formatter(value) });
 
   return (
-    <section className="p-4 mb-6 bg-white border border-black">
+    <section ref={ref} data-section="purpose" className="min-h-[calc(100vh-220px)] p-4 mb-6 bg-white border border-black scroll-mt-48" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
       <SectionHeader title="Purpose of Inspection" />
       <div className="space-y-4">
         {purposes.map((p) => (
@@ -318,6 +318,8 @@ export default function PurposeOfInspection({ state, setState, errors, isReadOnl
       </div>
     </section>
   );
-}
+});
+
+export default PurposeOfInspection;
 
 

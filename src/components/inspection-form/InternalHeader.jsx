@@ -40,7 +40,7 @@ export default function InternalHeader({
   complianceStatus = null
 }) {
   return (
-    <header className="sticky top-0 z-10 flex items-center justify-between w-full px-6 py-2 bg-white border-b border-gray-200">
+    <header className="sticky top-0 z-30 flex items-center justify-between w-full px-6 py-2 bg-white border-b border-gray-200">
       <div className="flex items-center gap-4">
         <div className="text-xl font-bold text-sky-700">Inspection Form</div>
         

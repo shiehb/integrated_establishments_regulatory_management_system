@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, forwardRef } from "react";
 import { formatInput, validateDateIssued, validateExpiryDate, validatePermitDates } from "./utils";
 import SectionHeader from "./SectionHeader";
 
@@ -6,7 +6,7 @@ import SectionHeader from "./SectionHeader";
    Compliance Status (Permits)
    - includes date validation & formatting
    ---------------------------*/
-export default function ComplianceStatus({ permits, setPermits, lawFilter, errors, isReadOnly = false }) {
+const ComplianceStatus = forwardRef(function ComplianceStatus({ permits, setPermits, lawFilter, isReadOnly = false }, ref) {
   // State for validation
   const [dateValidations, setDateValidations] = useState({});
 
@@ -50,7 +50,7 @@ export default function ComplianceStatus({ permits, setPermits, lawFilter, error
   }, [filtered]);
 
   return (
-    <section className="p-4 mb-6 bg-white border border-black">
+    <section ref={ref} data-section="compliance-status" className="min-h-[calc(100vh-220px)] p-4 mb-6 bg-white border border-black scroll-mt-48" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
       <SectionHeader title="Compliance Status - DENR Permits / Licenses / Clearance" />
       <div className="overflow-x-auto">
         <table className="w-full border border-collapse border-black">
@@ -66,7 +66,7 @@ export default function ComplianceStatus({ permits, setPermits, lawFilter, error
             </tr>
           </thead>
           <tbody>
-            {Object.entries(grouped).map(([lawId, permitsArr]) =>
+            {Object.entries(grouped).map(([, permitsArr]) =>
               permitsArr.map((perm, idx) => {
                 const originalIndex = permits.findIndex(
                   (p) =>
@@ -192,4 +192,6 @@ export default function ComplianceStatus({ permits, setPermits, lawFilter, error
       </div>
     </section>
   );
-}
+});
+
+export default ComplianceStatus;

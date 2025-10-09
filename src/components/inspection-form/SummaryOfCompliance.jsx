@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, forwardRef } from "react";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import { formatInput } from "./utils";
 import SectionHeader from "./SectionHeader";
@@ -6,7 +6,7 @@ import SectionHeader from "./SectionHeader";
 /* ---------------------------
    Summary Of Compliance (with predefined remarks)
    ---------------------------*/
-export default function SummaryOfCompliance({ items, setItems, lawFilter, errors, isReadOnly = false }) {
+const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({ items, setItems, lawFilter, errors, isReadOnly = false }, ref) {
   useEffect(() => {
     if (!lawFilter || lawFilter.length === 0) return;
     let changed = false;
@@ -84,7 +84,7 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
   ];
 
   return (
-    <section className="p-4 mb-6 bg-white border border-black">
+    <section ref={ref} data-section="summary-compliance" className="min-h-[calc(100vh-220px)] p-4 mb-6 bg-white border border-black scroll-mt-48" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
       <SectionHeader title="Summary of Compliance" />
       {effectiveLawFilter.length === 0 && (
         <div className="p-4 text-center text-black">
@@ -123,7 +123,7 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
 
                     // Calculate rowSpan for merging duplicate lawCitation cells
                     const currentCitation = li.lawCitation || "";
-                    const nextCitation = index < lawItems.length - 1 ? lawItems[index + 1].lawCitation || "" : "";
+                    const _nextCitation = index < lawItems.length - 1 ? lawItems[index + 1].lawCitation || "" : "";
                     const prevCitation = index > 0 ? lawItems[index - 1].lawCitation || "" : "";
                     
                     // Count consecutive duplicates starting from current index
@@ -295,4 +295,6 @@ export default function SummaryOfCompliance({ items, setItems, lawFilter, errors
       })}
     </section>
   );
-}
+});
+
+export default SummaryOfCompliance;

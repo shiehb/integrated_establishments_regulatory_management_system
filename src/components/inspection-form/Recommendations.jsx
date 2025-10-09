@@ -1,11 +1,11 @@
-import React from "react";
+import React, { forwardRef } from "react";
 import { formatInput } from "./utils";
 import SectionHeader from "./SectionHeader";
 
 /* ---------------------------
    Recommendations
    ---------------------------*/
-export default function Recommendations({ recState, setRecState, errors, isReadOnly = false, canEditRecommendation = false }) {
+const Recommendations = forwardRef(function Recommendations({ recState, setRecState, errors, isReadOnly = false, canEditRecommendation = false }, ref) {
   // Import recommendations from constants
   const recommendations = [
     {
@@ -65,7 +65,7 @@ export default function Recommendations({ recState, setRecState, errors, isReadO
   };
 
   return (
-    <section className="p-4 mb-6 bg-white border border-black">
+    <section ref={ref} data-section="recommendations" className="min-h-[calc(100vh-220px)] p-4 mb-6 bg-white border border-black scroll-mt-48" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
       <SectionHeader title="Recommendations" />
       <div className="space-y-3">
         {recommendations.map((r) => (
@@ -102,4 +102,6 @@ export default function Recommendations({ recState, setRecState, errors, isReadO
       </div>
     </section>
   );
-}
+});
+
+export default Recommendations;

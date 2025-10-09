@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, forwardRef } from "react";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import { formatInput } from "./utils";
 import SectionHeader from "./SectionHeader";
@@ -8,13 +8,13 @@ const { PREDEFINED_REMARKS } = InspectionConstants;
 /* ---------------------------
    Summary Of Findings and Observations (with predefined remarks)
    ---------------------------*/
-export default function SummaryOfFindingsAndObservations({
+const SummaryOfFindingsAndObservations = forwardRef(function SummaryOfFindingsAndObservations({
   systems,
   setSystems,
   lawFilter,
   errors,
   isReadOnly = false,
-}) {
+}, ref) {
   const filteredSystems = useMemo(() => {
     if (!lawFilter || lawFilter.length === 0) return systems;
     return systems.filter(
@@ -56,7 +56,7 @@ export default function SummaryOfFindingsAndObservations({
   };
 
   return (
-    <section className="p-4 mb-6 bg-white border border-black">
+    <section ref={ref} data-section="findings" className="min-h-[calc(100vh-220px)] p-4 mb-6 bg-white border border-black scroll-mt-48" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
       <SectionHeader title="Summary of Findings and Observations" />
       <div className="space-y-4">
         {filteredSystems.map((s) => {
@@ -142,4 +142,6 @@ export default function SummaryOfFindingsAndObservations({
       </div>
     </section>
   );
-}
+});
+
+export default SummaryOfFindingsAndObservations;
