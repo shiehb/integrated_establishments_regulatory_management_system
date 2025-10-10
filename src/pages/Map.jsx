@@ -27,26 +27,27 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-// Fix for default markers in react-leaflet
+// Fix for default markers in react-leaflet - using local assets for offline support
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-shadow.png",
+  iconRetinaUrl: "/assets/map/marker-icon-2x.png",
+  iconUrl: "/assets/map/marker-icon.png",
+  shadowUrl: "/assets/map/marker-shadow.png",
 });
 
 const blueIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
+  iconUrl: "/assets/map/marker-icon.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
-  shadowUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-shadow.png",
+  shadowUrl: "/assets/map/marker-shadow.png",
 });
 
 const greenIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon-2x-green.png",
+  iconUrl: "/assets/map/marker-icon.png", // Using blue icon for now, can be customized later
   iconSize: [25, 41],
   iconAnchor: [12, 41],
-  shadowUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-shadow.png",
+  shadowUrl: "/assets/map/marker-shadow.png",
+  className: "green-marker", // Add CSS class to style as green
 });
 
 // Debounce hook
@@ -585,15 +586,16 @@ export default function MapPage() {
                       pathOptions={{
                         color:
                           focusedEstablishment?.id === e.id
-                            ? "green"
-                            : "#3388ff",
-                        weight: 4,
-                        opacity: 0.7,
+                            ? "#3388ff"
+                            : "#999999",
+                        weight: focusedEstablishment?.id === e.id ? 4 : 2,
+                        opacity: focusedEstablishment?.id === e.id ? 0.8 : 0.6,
                         fillColor:
                           focusedEstablishment?.id === e.id
-                            ? "green"
-                            : "#3388ff",
-                        fillOpacity: 0.2,
+                            ? "#3388ff"
+                            : "#999999",
+                        fillOpacity: focusedEstablishment?.id === e.id ? 0.3 : 0.1,
+                        dashArray: focusedEstablishment?.id === e.id ? "0" : "5 5",
                       }}
                       eventHandlers={{
                         click: () => setFocusedEstablishment(e),

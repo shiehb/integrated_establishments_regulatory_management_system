@@ -15,13 +15,19 @@ import L from "leaflet";
 import osm from "../map/osm-provider";
 import { getEstablishments } from "../../services/api";
 import * as turf from "@turf/turf";
+import {
+  subtractOverlappingPolygons,
+  snapToNearbyEdges
+} from "../../utils/polygonUtils";
+import SnapIndicator from "./map-overlays/SnapIndicator";
+import MarkerSnapZone from "./map-overlays/MarkerSnapZone";
 
-// Fix Leaflet marker icons
+// Fix Leaflet marker icons - using local assets for offline support
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-shadow.png",
+  iconRetinaUrl: "/assets/map/marker-icon-2x.png",
+  iconUrl: "/assets/map/marker-icon.png",
+  shadowUrl: "/assets/map/marker-shadow.png",
 });
 
 export default function PolygonMap({
@@ -29,14 +35,27 @@ export default function PolygonMap({
   onSave,
   userRole,
   editMode,
+  showOtherPolygons = true,
+  snapEnabled = true,
+  snapDistance = 10,
 }) {
   const featureGroupRef = useRef();
-  const [mapLayers, setMapLayers] = useState([]);
+  
+  // Simplified state management
+  const [displayPolygon, setDisplayPolygon] = useState(null);
   const [otherPolygons, setOtherPolygons] = useState([]);
   const [infoMessage, setInfoMessage] = useState("");
   const infoTimerRef = useRef(null);
+  
+  // Visual feedback state
+  const [snapIndicator, setSnapIndicator] = useState({ active: false, distance: 0, type: 'edge' });
+  const [showMarkerSnap, setShowMarkerSnap] = useState(false);
+  
+  // Validation state
+  const [isPolygonValid, setIsPolygonValid] = useState(true);
+  const [validationError, setValidationError] = useState("");
 
-  // ✅ Role check with Monitoring Personnel added
+  // Role check
   const canEditEstablishments = () => {
     return [
       "Division Chief",
@@ -46,10 +65,9 @@ export default function PolygonMap({
     ].includes(userRole);
   };
 
-  // ✅ Filter out invalid coordinates (undefined, null, NaN)
+  // Helper functions
   const filterValidCoordinates = (polygonData) => {
     if (!polygonData || !Array.isArray(polygonData)) return [];
-
     return polygonData.filter(([lat, lng]) => {
       return (
         lat !== undefined &&
@@ -60,7 +78,6 @@ export default function PolygonMap({
     });
   };
 
-  // ✅ Convert coordinates to LatLng objects safely
   const convertToLatLngs = (coordinates) => {
     return coordinates
       .map(([lat, lng]) => ({
@@ -70,28 +87,36 @@ export default function PolygonMap({
       .filter((point) => !isNaN(point.lat) && !isNaN(point.lng));
   };
 
-  // Load saved polygon if exists
+  // Load existing polygon into FeatureGroup when entering edit mode
   useEffect(() => {
-    if (establishment?.polygon && establishment.polygon.length > 0) {
-      // Filter out invalid coordinates
+    const fg = featureGroupRef.current;
+    if (!fg) return;
+    
+    // Clear existing layers
+    fg.clearLayers();
+    
+    if (editMode && establishment?.polygon && establishment.polygon.length > 0) {
+      // Add polygon to FeatureGroup for editing
       const validPolygon = filterValidCoordinates(establishment.polygon);
-
-      if (validPolygon.length > 0) {
-        setMapLayers([
-          {
-            id: "saved",
-            latlngs: convertToLatLngs(validPolygon),
-          },
-        ]);
-      } else {
-        setMapLayers([]);
+      if (validPolygon.length >= 3) {
+        const latlngs = convertToLatLngs(validPolygon);
+        const polygon = L.polygon(latlngs);
+        fg.addLayer(polygon);
+        setDisplayPolygon(latlngs);
+      }
+    } else if (!editMode && establishment?.polygon && establishment.polygon.length > 0) {
+      // Set display polygon for view mode
+      const validPolygon = filterValidCoordinates(establishment.polygon);
+      if (validPolygon.length >= 3) {
+        const latlngs = convertToLatLngs(validPolygon);
+        setDisplayPolygon(latlngs);
       }
     } else {
-      setMapLayers([]);
+      setDisplayPolygon(null);
     }
-  }, [establishment]);
+  }, [editMode, establishment?.polygon]);
 
-  // Load other establishments' polygons to show as gray overlays and for overlap checks
+  // Load other establishments' polygons
   useEffect(() => {
     let isMounted = true;
     (async () => {
@@ -109,8 +134,8 @@ export default function PolygonMap({
             latlngs: convertToLatLngs(filterValidCoordinates(e.polygon)),
           }));
         setOtherPolygons(polys);
-      } catch (e) {
-        // ignore
+      } catch (error) {
+        console.warn("Error loading other polygons:", error);
       }
     })();
     return () => {
@@ -118,120 +143,191 @@ export default function PolygonMap({
     };
   }, [establishment?.id]);
 
-  const notifyParent = (layers) => {
-    let polygonData = null;
-    if (layers.length > 0) {
-      // Convert back to array format and filter invalid coordinates
-      polygonData = layers[0].latlngs
-        .map((latlng) => [latlng.lat, latlng.lng])
-        .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng));
+  // Validate that marker is inside polygon
+  const validateMarkerInsidePolygon = (polygonLatLngs, markerPos) => {
+    if (!markerPos || !polygonLatLngs || polygonLatLngs.length < 3) {
+      return { isValid: false, error: "Invalid polygon or marker position" };
     }
-    if (onSave) onSave(polygonData || []);
+    
+    try {
+      const polygonCoords = polygonLatLngs.map(p => [p.lng, p.lat]);
+      polygonCoords.push([polygonLatLngs[0].lng, polygonLatLngs[0].lat]);
+      
+      const polygon = turf.polygon([polygonCoords]);
+      const point = turf.point([markerPos[1], markerPos[0]]);
+      
+      const isInside = turf.booleanPointInPolygon(point, polygon);
+      
+      if (!isInside) {
+        return { 
+          isValid: false, 
+          error: "Establishment marker must be inside the polygon boundary" 
+        };
+      }
+      
+      return { isValid: true, error: "" };
+    } catch (error) {
+      console.error("Error validating polygon:", error);
+      return { isValid: false, error: "Error validating polygon" };
+    }
   };
 
+  // Check marker snap
+  const checkMarkerSnap = (point, markerLocation, threshold = 20) => {
+    if (!markerLocation || !point) return { shouldSnap: false };
+    
+    try {
+      const distance = turf.distance(
+        turf.point([point.lng, point.lat]),
+        turf.point([markerLocation.lng, markerLocation.lat]),
+        { units: 'meters' }
+      );
+      
+      if (distance < threshold) {
+        return { 
+          shouldSnap: true, 
+          snapTo: { lat: markerLocation.lat, lng: markerLocation.lng },
+          distance: distance
+        };
+      }
+      return { shouldSnap: false, distance: distance };
+    } catch (error) {
+      console.warn("Error checking marker snap:", error);
+      return { shouldSnap: false };
+    }
+  };
+
+  // Get polygon style based on state
+  const getPolygonStyle = (state) => {
+    const styles = {
+      drawing: { 
+        color: '#3388ff', 
+        fillColor: '#3388ff', 
+        fillOpacity: 0.3,
+        weight: 4,
+        opacity: 0.8
+      },
+      valid: { 
+        color: '#22c55e', 
+        fillColor: '#22c55e', 
+        fillOpacity: 0.2,
+        weight: 3,
+        opacity: 0.8
+      },
+      modified: { 
+        color: '#f59e0b', 
+        fillColor: '#f59e0b', 
+        fillOpacity: 0.25,
+        weight: 3,
+        opacity: 0.8
+      },
+      error: { 
+        color: '#ef4444', 
+        fillColor: '#ef4444', 
+        fillOpacity: 0.2,
+        weight: 3,
+        opacity: 0.8
+      }
+    };
+    return styles[state] || styles.valid;
+  };
+
+  // Notify parent with polygon data and validation status
+  const notifyParent = (latlngs, isValid = true) => {
+    const polygonData = latlngs.map(pt => [pt.lat, pt.lng]);
+    if (onSave) {
+      onSave(polygonData, isValid);
+    }
+  };
+
+  // Event handlers
   const _onCreate = (e) => {
     if (!canEditEstablishments() || !editMode) return;
     const { layerType, layer } = e;
+    
     if (layerType === "polygon") {
       try {
-        const { _leaflet_id } = layer;
         let latlngs = layer.getLatLngs()[0];
 
-        // Filter out any invalid coordinates
+        // Filter out invalid coordinates
         let validLatLngs = latlngs.filter(
           (latlng) => !isNaN(latlng.lat) && !isNaN(latlng.lng)
         );
 
-        // Client-side non-overlap: subtract each overlapping polygon iteratively (more reliable than union)
+        // Check for marker snap
+        const markerPosition = getMarkerPosition();
+        if (markerPosition && snapEnabled) {
+          const markerLocation = { lat: markerPosition[0], lng: markerPosition[1] };
+          validLatLngs = validLatLngs.map(point => {
+            const snapResult = checkMarkerSnap(point, markerLocation, snapDistance);
+            if (snapResult.shouldSnap) {
+              setSnapIndicator({ active: true, distance: snapResult.distance, type: 'marker' });
+              return snapResult.snapTo;
+            }
+            return point;
+          });
+          
+          const hasMarkerSnap = validLatLngs.some((point, index) => {
+            const snapResult = checkMarkerSnap(latlngs[index], markerLocation, snapDistance);
+            return snapResult.shouldSnap;
+          });
+          setShowMarkerSnap(hasMarkerSnap);
+        }
+
+        // Snap to nearby edges
+        if (otherPolygons.length > 0 && validLatLngs.length >= 3 && snapEnabled) {
+          const snapResult = snapToNearbyEdges(validLatLngs, otherPolygons, snapDistance);
+          if (snapResult.wasSnapped) {
+            validLatLngs = snapResult.snappedLatLngs;
+            setSnapIndicator({ active: true, distance: snapDistance, type: 'edge' });
+            setInfoMessage(snapResult.message);
+            if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
+            infoTimerRef.current = setTimeout(() => setInfoMessage(""), 2500);
+          }
+        }
+
+        // Subtract overlapping areas
         if (otherPolygons.length > 0 && validLatLngs.length >= 3) {
-          let current = turf.polygon([
-            validLatLngs
-              .map((p) => [p.lng, p.lat])
-              .concat([[validLatLngs[0].lng, validLatLngs[0].lat]]),
-          ]);
-          const originalArea = turf.area(current);
-          const others = otherPolygons
-            .filter((p) => (p.latlngs || []).length >= 3)
-            .map((poly) =>
-              turf.polygon([
-                poly.latlngs
-                  .map((pt) => [pt.lng, pt.lat])
-                  .concat([[poly.latlngs[0].lng, poly.latlngs[0].lat]]),
-              ])
-            );
-          try {
-            others.forEach((o) => {
-              try {
-                if (turf.booleanIntersects(current, o)) {
-                  const d = turf.difference(current, o);
-                  if (d) current = d;
-                }
-              } catch (err) {
-                // skip problematic polygon
-              }
-            });
-          } catch (err) {
-            // ignore
-          }
-          if (current && current.geometry) {
-            if (current.geometry.type === "Polygon") {
-              const coords = current.geometry.coordinates[0] || [];
-              validLatLngs = coords.map(([lng, lat]) => ({ lat, lng }));
-              const newArea = turf.area(current);
-              if (newArea < originalArea) {
-                setInfoMessage("Adjusted polygon to avoid overlaps.");
-                if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
-                infoTimerRef.current = setTimeout(() => setInfoMessage(""), 2500);
-              }
-            } else if (current.geometry.type === "MultiPolygon") {
-              let best = null;
-              let bestArea = -1;
-              current.geometry.coordinates.forEach((polyCoords) => {
-                const poly = turf.polygon(polyCoords);
-                const area = turf.area(poly);
-                if (area > bestArea) {
-                  bestArea = area;
-                  best = poly;
-                }
-              });
-              if (best) {
-                const coords = best.geometry.coordinates[0] || [];
-                validLatLngs = coords.map(([lng, lat]) => ({ lat, lng }));
-                setInfoMessage("Adjusted polygon to avoid overlaps.");
-                if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
-                infoTimerRef.current = setTimeout(() => setInfoMessage(""), 2500);
-              } else {
-                validLatLngs = [];
-              }
-            }
-            if (validLatLngs.length === 0) {
-              setInfoMessage("Polygon fully overlapped existing areas and was cleared.");
-              if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
-              infoTimerRef.current = setTimeout(() => setInfoMessage(""), 2500);
-            }
+          const result = subtractOverlappingPolygons(validLatLngs, otherPolygons);
+          validLatLngs = result.adjustedLatLngs;
+          
+          if (result.wasAdjusted && result.message) {
+            setInfoMessage(result.message);
+            if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
+            infoTimerRef.current = setTimeout(() => setInfoMessage(""), 2500);
           }
         }
 
-        // Reflect adjustment on the actual Leaflet-draw layer immediately
-        if (validLatLngs.length > 0) {
-          try {
-            layer.setLatLngs([validLatLngs]);
-            if (layer.redraw) layer.redraw();
-          } catch (_) {}
-        } else {
-          try {
-            const fg = featureGroupRef.current;
-            if (fg && fg._leaflet_id && fg.removeLayer) {
-              fg.removeLayer(layer);
-            } else if (layer.remove) {
-              layer.remove();
-            }
-          } catch (_) {}
+        // Update layer with adjusted coordinates
+        try {
+          layer.setLatLngs([validLatLngs]);
+          if (layer.redraw) layer.redraw();
+        } catch (err) {
+          console.warn("Error updating layer:", err);
         }
 
-        const newLayers = validLatLngs.length ? [{ id: _leaflet_id, latlngs: validLatLngs }] : [];
-        setMapLayers(newLayers);
-        notifyParent(newLayers);
+        // Validate marker inside polygon
+        let validationResult = { isValid: true, error: "" };
+        if (validLatLngs.length > 0 && markerPosition) {
+          validationResult = validateMarkerInsidePolygon(validLatLngs, markerPosition);
+          setIsPolygonValid(validationResult.isValid);
+          setValidationError(validationResult.error);
+          
+          if (!validationResult.isValid) {
+            setInfoMessage(validationResult.error);
+            if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
+            infoTimerRef.current = setTimeout(() => setInfoMessage(""), 5000);
+          }
+        }
+        
+        // Update state and notify parent
+        setDisplayPolygon(validLatLngs);
+        notifyParent(validLatLngs, validationResult.isValid);
+        
+        // Reset visual feedback
+        setSnapIndicator({ active: false, distance: 0, type: 'edge' });
+        setShowMarkerSnap(false);
+        
       } catch (error) {
         console.error("Error creating polygon:", error);
       }
@@ -240,96 +336,69 @@ export default function PolygonMap({
 
   const _onEdit = (e) => {
     if (!canEditEstablishments() || !editMode) return;
+    
     try {
-      const { _layers } = e.layers;
-      let editedLayers = Object.values(_layers).map((l) => {
-        const { _leaflet_id, editing } = l;
-        let latlngs = editing.latlngs[0].filter((latlng) => !isNaN(latlng.lat) && !isNaN(latlng.lng));
-        if (otherPolygons.length > 0 && latlngs.length >= 3) {
-          let current = turf.polygon([
-            latlngs.map((p) => [p.lng, p.lat]).concat([[latlngs[0].lng, latlngs[0].lat]]),
-          ]);
-          const originalArea = turf.area(current);
-          const others = otherPolygons
-            .filter((p) => (p.latlngs || []).length >= 3)
-            .map((poly) =>
-              turf.polygon([
-                poly.latlngs
-                  .map((pt) => [pt.lng, pt.lat])
-                  .concat([[poly.latlngs[0].lng, poly.latlngs[0].lat]]),
-              ])
-            );
-          try {
-            others.forEach((o) => {
-              try {
-                if (turf.booleanIntersects(current, o)) {
-                  const d = turf.difference(current, o);
-                  if (d) current = d;
-                }
-              } catch (err) {
-                // skip problematic polygon
-              }
-            });
-          } catch (err) {
-            // ignore
-          }
-          if (current && current.geometry) {
-            if (current.geometry.type === "Polygon") {
-              const coords = current.geometry.coordinates[0] || [];
-              latlngs = coords.map(([lng, lat]) => ({ lat, lng }));
-              const newArea = turf.area(current);
-              if (newArea < originalArea) {
-                setInfoMessage("Adjusted polygon to avoid overlaps.");
-                if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
-                infoTimerRef.current = setTimeout(() => setInfoMessage(""), 2500);
-              }
-            } else if (current.geometry.type === "MultiPolygon") {
-              let best = null;
-              let bestArea = -1;
-              current.geometry.coordinates.forEach((polyCoords) => {
-                const poly = turf.polygon(polyCoords);
-                const area = turf.area(poly);
-                if (area > bestArea) {
-                  bestArea = area;
-                  best = poly;
-                }
-              });
-              if (best) {
-                const coords = best.geometry.coordinates[0] || [];
-                latlngs = coords.map(([lng, lat]) => ({ lat, lng }));
-                setInfoMessage("Adjusted polygon to avoid overlaps.");
-                if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
-                infoTimerRef.current = setTimeout(() => setInfoMessage(""), 2500);
-              } else {
-                latlngs = [];
-              }
-            }
-            if (latlngs.length === 0) {
-              setInfoMessage("Polygon fully overlapped existing areas and was cleared.");
-              if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
-              infoTimerRef.current = setTimeout(() => setInfoMessage(""), 2500);
-            }
+      const layers = e.layers;
+      layers.eachLayer((layer) => {
+        let latlngs = layer.getLatLngs()[0];
+        
+        // Filter valid coordinates
+        latlngs = latlngs.filter(
+          (latlng) => !isNaN(latlng.lat) && !isNaN(latlng.lng)
+        );
+        
+        // Apply snapping
+        if (otherPolygons.length > 0 && latlngs.length >= 3 && snapEnabled) {
+          const snapResult = snapToNearbyEdges(latlngs, otherPolygons, snapDistance);
+          if (snapResult.wasSnapped) {
+            latlngs = snapResult.snappedLatLngs;
+            setSnapIndicator({ active: true, distance: snapDistance, type: 'edge' });
+            setInfoMessage(snapResult.message);
+            if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
+            infoTimerRef.current = setTimeout(() => setInfoMessage(""), 2500);
           }
         }
-        // Reflect on the actual Leaflet layer
-        try {
-          if (latlngs.length > 0) {
-            l.setLatLngs([latlngs]);
-            if (l.redraw) l.redraw();
-          } else {
-            const fg = featureGroupRef.current;
-            if (fg && fg._leaflet_id && fg.removeLayer) {
-              fg.removeLayer(l);
-            } else if (l.remove) {
-              l.remove();
-            }
+        
+        // Subtract overlapping areas
+        if (otherPolygons.length > 0 && latlngs.length >= 3) {
+          const result = subtractOverlappingPolygons(latlngs, otherPolygons);
+          latlngs = result.adjustedLatLngs;
+          
+          if (result.wasAdjusted && result.message) {
+            setInfoMessage(result.message);
+            if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
+            infoTimerRef.current = setTimeout(() => setInfoMessage(""), 2500);
           }
-        } catch (_) {}
-
-        return { id: _leaflet_id, latlngs };
+        }
+        
+        // Update layer
+        try {
+          layer.setLatLngs([latlngs]);
+          if (layer.redraw) layer.redraw();
+        } catch (err) {
+          console.warn("Error updating edited layer:", err);
+        }
+        
+        // Validate marker inside polygon
+        const markerPosition = getMarkerPosition();
+        let validationResult = { isValid: true, error: "" };
+        if (latlngs.length > 0 && markerPosition) {
+          validationResult = validateMarkerInsidePolygon(latlngs, markerPosition);
+          setIsPolygonValid(validationResult.isValid);
+          setValidationError(validationResult.error);
+          
+          if (!validationResult.isValid) {
+            setInfoMessage(validationResult.error);
+            if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
+            infoTimerRef.current = setTimeout(() => setInfoMessage(""), 5000);
+          }
+        }
+        
+        // Update state and notify parent
+        setDisplayPolygon(latlngs);
+        notifyParent(latlngs, validationResult.isValid);
       });
-      setMapLayers(editedLayers);
-      notifyParent(editedLayers);
+      
     } catch (error) {
       console.error("Error editing polygon:", error);
     }
@@ -337,29 +406,27 @@ export default function PolygonMap({
 
   const _onDelete = () => {
     if (!canEditEstablishments() || !editMode) return;
-    setMapLayers([]);
-    notifyParent([]);
+    setDisplayPolygon(null);
+    notifyParent([], true);
   };
 
-  // ✅ Get valid center coordinates
+  // Get center coordinates
   const getCenter = () => {
     if (establishment?.latitude && establishment?.longitude) {
       const lat = parseFloat(establishment.latitude);
       const lng = parseFloat(establishment.longitude);
-
       if (!isNaN(lat) && !isNaN(lng)) {
         return [lat, lng];
       }
     }
-    return [14.676, 121.0437]; // Default center
+    return [14.676, 121.0437];
   };
 
-  // ✅ Get valid marker position
+  // Get marker position
   const getMarkerPosition = () => {
     if (establishment?.latitude && establishment?.longitude) {
       const lat = parseFloat(establishment.latitude);
       const lng = parseFloat(establishment.longitude);
-
       if (!isNaN(lat) && !isNaN(lng)) {
         return [lat, lng];
       }
@@ -370,92 +437,122 @@ export default function PolygonMap({
   const markerPosition = getMarkerPosition();
 
   return (
-    <div className="relative h-[calc(100vh-238px)] w-full">
-      <MapContainer
-        center={getCenter()}
-        zoom={18}
-        style={{ height: "100%", width: "100%", zIndex: 0 }}
-        maxZoom={22}
-      >
-        <LayersControl position="topright">
-          {/* Base Layers */}
-          <LayersControl.BaseLayer checked name="Street Map">
-            <TileLayer
-              url={osm.maptiler.url}
-              attribution={osm.maptiler.attribution}
+    <div className="w-full">
+      {/* Map Container */}
+      <div className="relative h-[calc(100vh-238px)] w-full">
+        <MapContainer
+          center={getCenter()}
+          zoom={18}
+          style={{ height: "100%", width: "100%", zIndex: 0 }}
+          maxZoom={22}
+        >
+          <LayersControl position="topright">
+            <LayersControl.BaseLayer checked name="Street Map">
+              <TileLayer
+                url={osm.maptiler.url}
+                attribution={osm.maptiler.attribution}
+              />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer name="Satellite">
+              <TileLayer
+                url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+                maxZoom={20}
+                subdomains={["mt1", "mt2", "mt3"]}
+                attribution="© Google"
+              />
+            </LayersControl.BaseLayer>
+          </LayersControl>
+
+          {/* Establishment marker */}
+          {markerPosition && (
+            <Marker position={markerPosition}>
+              <Popup>{establishment.name}</Popup>
+            </Marker>
+          )}
+
+          {/* Marker Snap Zone */}
+          {markerPosition && snapEnabled && (
+            <MarkerSnapZone 
+              center={{ lat: markerPosition[0], lng: markerPosition[1] }}
+              radius={snapDistance}
+              isActive={showMarkerSnap}
             />
-          </LayersControl.BaseLayer>
+          )}
 
-          <LayersControl.BaseLayer name="Satellite">
-            <TileLayer
-              url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
-              maxZoom={20}
-              subdomains={["mt1", "mt2", "mt3"]}
-              attribution="© Google"
+          {/* Show polygon when NOT in edit mode */}
+          {!editMode && displayPolygon && displayPolygon.length > 0 && (
+            <Polygon
+              positions={displayPolygon}
+              pathOptions={getPolygonStyle('valid')}
             />
-          </LayersControl.BaseLayer>
-        </LayersControl>
+          )}
 
-        {/* Establishment pin - only render if valid coordinates */}
-        {markerPosition && (
-          <Marker position={markerPosition}>
-            <Popup>{establishment.name}</Popup>
-          </Marker>
-        )}
-
-        {/* Draw saved polygon - only render if valid coordinates */}
-        {mapLayers.map((poly) => (
-          <Polygon
-            key={poly.id}
-            positions={poly.latlngs}
-            pathOptions={{
-              color: "#3388ff",
-              weight: 3,
-              opacity: 0.8,
-              fillOpacity: 0.2,
-            }}
-          />
-        ))}
-
-        {otherPolygons.map((poly) => (
-          <Polygon
-            key={`other-${poly.id}`}
-            positions={poly.latlngs}
-            pathOptions={{
-              color: "#999999",
-              weight: 1,
-              opacity: 0.7,
-              fillOpacity: 0.1,
-              dashArray: "4 4",
-            }}
-          />
-        ))}
-
-        {/* Drawing controls only for authorized roles AND in edit mode */}
-        {canEditEstablishments() && editMode && (
-          <FeatureGroup ref={featureGroupRef}>
-            <EditControl
-              position="topright"
-              onCreated={_onCreate}
-              onEdited={_onEdit}
-              onDeleted={_onDelete}
-              draw={{
-                rectangle: false,
-                circle: false,
-                circlemarker: false,
-                marker: false,
-                polyline: false,
-                polygon: true,
+          {/* Show other polygons */}
+          {showOtherPolygons && otherPolygons.map((poly) => (
+            <Polygon
+              key={`other-${poly.id}`}
+              positions={poly.latlngs}
+              pathOptions={{
+                color: "#999999",
+                weight: 1,
+                opacity: 0.7,
+                fillOpacity: 0.1,
+                dashArray: "4 4",
               }}
             />
-          </FeatureGroup>
+          ))}
+
+          {/* FeatureGroup for editing */}
+          {canEditEstablishments() && editMode && (
+            <FeatureGroup ref={featureGroupRef}>
+              <EditControl
+                position="topright"
+                onCreated={_onCreate}
+                onEdited={_onEdit}
+                onDeleted={_onDelete}
+                draw={{
+                  rectangle: false,
+                  circle: false,
+                  circlemarker: false,
+                  marker: false,
+                  polyline: false,
+                  polygon: true,
+                }}
+              />
+            </FeatureGroup>
+          )}
+        </MapContainer>
+
+        {/* Snap Indicator */}
+        {snapIndicator.active && (
+          <div className="absolute top-20 left-4 z-[1000]">
+            <SnapIndicator 
+              distance={snapIndicator.distance}
+              type={snapIndicator.type}
+              isActive={snapIndicator.active}
+            />
+          </div>
         )}
-      </MapContainer>
-      {infoMessage && (
-        <div className="pointer-events-none absolute left-3 bottom-3 z-[1000] rounded bg-black/70 px-3 py-2 text-xs text-white shadow">
-          {infoMessage}
-        </div>
-      )}
+
+        {/* Info Message */}
+        {infoMessage && (
+          <div className={`pointer-events-none absolute left-3 bottom-3 z-[1000] rounded px-3 py-2 text-xs text-white shadow ${
+            !isPolygonValid ? 'bg-red-600/90' : 'bg-black/70'
+          }`}>
+            {infoMessage}
+          </div>
+        )}
+        
+        {/* Validation Error Badge */}
+        {editMode && !isPolygonValid && validationError && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span className="font-medium">{validationError}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

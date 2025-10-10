@@ -6,7 +6,7 @@ import EstablishmentList from "../components/establishments/EstablishmentList";
 import AddEstablishment from "../components/establishments/AddEstablishment";
 import EditEstablishment from "../components/establishments/EditEstablishment";
 import PolygonMap from "../components/establishments/PolygonMap";
-import ConfirmationDialog from "../components/common/ConfirmationDialog";
+import EstablishmentDetailsPanel from "../components/establishments/EstablishmentDetailsPanel";
 import {
   getEstablishments,
   getProfile,
@@ -27,11 +27,18 @@ export default function Establishments() {
   const [polygonEditMode, setPolygonEditMode] = useState(false);
   const [hasPolygonChanges, setHasPolygonChanges] = useState(false);
 
+  // 🔹 Polygon control states
+  const [showOtherPolygons] = useState(true);
+  const [snapEnabled] = useState(true);
+  const [snapDistance] = useState(10);
+  
+  // 🔹 Polygon validation state
+  const [isPolygonValid, setIsPolygonValid] = useState(true);
+
   // 🔹 establishments state (used in polygon functionality)
   const [, setEstablishments] = useState([]);
 
-  // 🔹 confirmation dialog state
-  const [showConfirm, setShowConfirm] = useState(false);
+  // 🔹 loading state
   const [loading, setLoading] = useState(false);
 
   // 🔹 Fetch user profile and establishments on component mount
@@ -116,25 +123,38 @@ export default function Establishments() {
     if (!polygonEstablishment) return;
     setLoading(true);
     try {
-      await setEstablishmentPolygon(
+      const response = await setEstablishmentPolygon(
         polygonEstablishment.id,
         polygonEstablishment.polygon || []
       );
+      
+      // Use the polygon from response (backend may have adjusted it)
+      const savedPolygon = response.polygon || polygonEstablishment.polygon || [];
+      
+      // Update local state with the saved polygon
+      setPolygonEstablishment(prev => ({...prev, polygon: savedPolygon}));
+      
       setEstablishments((prev) =>
         prev.map((e) =>
           e.id === polygonEstablishment.id
-            ? { ...e, polygon: polygonEstablishment.polygon || [] }
+            ? { ...e, polygon: savedPolygon }
             : e
         )
       );
       setPolygonEditMode(false);
       setHasPolygonChanges(false);
       setRefreshTrigger((prev) => prev + 1);
+      
+      // Show notification with adjustment info if applicable
+      const message = response.was_adjusted && response.adjustment_message
+        ? `Polygon saved! ${response.adjustment_message}`
+        : "Polygon saved successfully!";
+        
       notifications.success(
-        "Polygon saved successfully!",
+        message,
         {
           title: "Polygon Saved",
-          duration: 4000
+          duration: response.was_adjusted ? 6000 : 4000
         }
       );
     } catch (err) {
@@ -148,7 +168,6 @@ export default function Establishments() {
       );
     } finally {
       setLoading(false);
-      setShowConfirm(false);
     }
   };
 
@@ -190,18 +209,22 @@ export default function Establishments() {
   };
 
   // 🔹 handle polygon changes
-  const handlePolygonChange = (polygon) => {
+  const handlePolygonChange = (polygon, isValid = true) => {
     setPolygonEstablishment((prev) => (prev ? { ...prev, polygon } : prev));
 
     // Check if there are changes compared to original
     const hasChanges = checkPolygonChanges(polygon);
     setHasPolygonChanges(hasChanges);
+    
+    // Update validation state
+    setIsPolygonValid(isValid);
   };
 
   // 🔹 handle establishment added/updated
   const handleEstablishmentChanged = () => {
     setRefreshTrigger((prev) => prev + 1);
   };
+
 
   return (
     <>
@@ -220,6 +243,7 @@ export default function Establishments() {
             />
           ) : (
             <div className="p-4 bg-white rounded shadow">
+              {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold text-sky-600">
                   {polygonEditMode
@@ -260,13 +284,18 @@ export default function Establishments() {
                             Cancel
                           </button>
                           <button
-                            onClick={() => setShowConfirm(true)}
-                            disabled={!hasPolygonChanges}
+                            onClick={() => {
+                              if (hasPolygonChanges && isPolygonValid) {
+                                confirmSavePolygon();
+                              }
+                            }}
+                            disabled={!hasPolygonChanges || !isPolygonValid}
                             className={`px-3 py-1 text-white rounded ${
-                              hasPolygonChanges
+                              hasPolygonChanges && isPolygonValid
                                 ? "bg-sky-600 hover:bg-sky-700"
                                 : "bg-gray-400 cursor-not-allowed"
                             }`}
+                            title={!isPolygonValid ? "Establishment marker must be inside polygon" : ""}
                           >
                             Save Polygon
                           </button>
@@ -284,12 +313,28 @@ export default function Establishments() {
                   )}
                 </div>
               </div>
-              <PolygonMap
-                establishment={polygonEstablishment}
-                userRole={userRole}
-                editMode={polygonEditMode}
-                onSave={handlePolygonChange}
-              />
+
+
+              {/* Grid Layout */}
+              <div className="grid grid-cols-3 gap-4 mt-4">
+                {/* Left Column - Establishment Details */}
+                <div className="col-span-1">
+                  <EstablishmentDetailsPanel establishment={polygonEstablishment} />
+                </div>
+                
+                {/* Right Column - Map (2 spans) */}
+                <div className="col-span-2">
+                  <PolygonMap
+                    establishment={polygonEstablishment}
+                    userRole={userRole}
+                    editMode={polygonEditMode}
+                    onSave={handlePolygonChange}
+                    showOtherPolygons={showOtherPolygons}
+                    snapEnabled={snapEnabled}
+                    snapDistance={snapDistance}
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -317,15 +362,6 @@ export default function Establishments() {
         </div>
       )}
 
-      {/* ✅ Confirmation Dialog for Saving Polygon */}
-      <ConfirmationDialog
-        open={showConfirm}
-        title="Confirm Action"
-        message="Are you sure you want to save changes to this polygon?"
-        loading={loading}
-        onCancel={() => setShowConfirm(false)}
-        onConfirm={confirmSavePolygon}
-      />
     </>
   );
 }

@@ -144,8 +144,11 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
                 except (ValueError, TypeError):
                     return Response({'error': 'Coordinates must be valid numbers'}, status=status.HTTP_400_BAD_REQUEST)
             
-            # Optional server-side non-overlap enforcement if shapely available
+            # Server-side non-overlap enforcement if shapely available
             result_polygon = polygon_data
+            was_adjusted = False
+            adjustment_message = ""
+            
             if ShapelyPolygon is not None and polygon_data and len(polygon_data) >= 3:
                 # Build current polygon
                 try:
@@ -172,9 +175,14 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
                     # Choose largest polygon if multipolygon
                     if diff.is_empty:
                         result_polygon = []
+                        was_adjusted = True
+                        adjustment_message = "Polygon fully overlapped existing areas and was cleared"
                     elif isinstance(diff, ShapelyPolygon):
                         coords = list(diff.exterior.coords)
                         result_polygon = [[lat, lng] for (lng, lat) in coords[:-1]]
+                        if len(result_polygon) < len(polygon_data):
+                            was_adjusted = True
+                            adjustment_message = "Polygon adjusted to avoid overlaps"
                     else:
                         # MultiPolygon: pick largest by area
                         biggest = None
@@ -186,13 +194,22 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
                         if biggest is not None:
                             coords = list(biggest.exterior.coords)
                             result_polygon = [[lat, lng] for (lng, lat) in coords[:-1]]
+                            was_adjusted = True
+                            adjustment_message = "Polygon adjusted to avoid overlaps - kept largest piece"
                         else:
                             result_polygon = []
+                            was_adjusted = True
+                            adjustment_message = "No valid polygon pieces found after adjustment"
 
             establishment.polygon = result_polygon
             establishment._action_user = request.user  # log who updated polygon
             establishment.save()
-            return Response({'status': 'polygon set', 'polygon': establishment.polygon})
+            return Response({
+                'status': 'polygon set', 
+                'polygon': establishment.polygon,
+                'was_adjusted': was_adjusted,
+                'adjustment_message': adjustment_message
+            })
         
         return Response({'error': 'No polygon data provided'}, status=400)
     
