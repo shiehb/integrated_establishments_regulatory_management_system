@@ -34,12 +34,44 @@ REGION_1 = {
 }
 
 def get_district_by_city(province: str, city: str) -> str | None:
+    # Try exact match first
     province_map = REGION_1.get(province)
+    
+    # If no exact match, try case-insensitive match
+    if not province_map:
+        for prov_key in REGION_1.keys():
+            if prov_key.lower() == province.lower():
+                province_map = REGION_1[prov_key]
+                break
+    
     if not province_map:
         return None
+    
+    # Clean the input city name
+    clean_city = city.strip()
+    
     for district, cities in province_map.items():
-        if city in cities:
-            return district
+        # Direct match first (case-insensitive)
+        for city_in_list in cities:
+            if clean_city.lower() == city_in_list.lower():
+                return district
+        
+        # Try fuzzy matching for common variations
+        for city_in_list in cities:
+            # Remove common suffixes and compare base names
+            base_city = city_in_list.replace(' City', '').replace(' (Capital)', '').strip()
+            base_input = clean_city.replace(' City', '').replace(' (Capital)', '').strip()
+            
+            if base_city.lower() == base_input.lower():
+                return district
+            
+            # Handle special cases like "San Fernando City" vs "San Fernando City (Capital)"
+            # More robust matching for partial matches
+            if (base_city.lower() in base_input.lower() or 
+                base_input.lower() in base_city.lower() or
+                base_city.lower().replace(' ', '') == base_input.lower().replace(' ', '')):
+                return district
+    
     return None
 
 def list_districts(province: str | None = None):

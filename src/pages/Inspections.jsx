@@ -1,336 +1,562 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
-import InspectionsCore from "../components/inspections/InspectionsCore";
-import { getProfile } from "../services/api";
-
-// Enhanced role configuration with more granular permissions
-const ROLE_CONFIG = {
-  "Legal Unit": {
-    canCreate: true,
-    canEdit: true,
-    canDelete: true,
-    displayName: "Legal Unit",
-    sidebarLabel: "Legal Unit",
-  },
-  "Division Chief": {
-    canCreate: true,
-    canEdit: true,
-    canDelete: false,
-    displayName: "Division Chief",
-    sidebarLabel: "Division Chief",
-  },
-  "Section Chief": {
-    canCreate: false,
-    canEdit: true,
-    canDelete: false,
-    displayName: "Section Chief",
-    sidebarLabel: "Section Chief",
-  },
-  "Unit Head": {
-    canCreate: false,
-    canEdit: true,
-    canDelete: false,
-    displayName: "Unit Head",
-    sidebarLabel: "Unit Head",
-  },
-  "Monitoring Personnel": {
-    canCreate: false,
-    canEdit: false,
-    canDelete: false,
-    displayName: "Monitoring Personnel",
-    sidebarLabel: "Monitoring Personnel",
-  },
-  public: {
-    canCreate: false,
-    canEdit: false,
-    canDelete: false,
-    displayName: "Public User",
-    sidebarLabel: "Inspections",
-  },
-  admin: {
-    canCreate: true,
-    canEdit: true,
-    canDelete: true,
-    displayName: "Administrator",
-    sidebarLabel: "Administrator",
-  },
-};
-
-// Custom hook for user profile management
-const useUserProfile = () => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [userLevel, setUserLevel] = useState("public");
-  const [userProfile, setUserProfile] = useState(null);
-  const [retryCount, setRetryCount] = useState(0);
-
-  const fetchUserProfile = async (skipCache = false) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      let profile = null;
-
-      // Try to get profile from API
-      try {
-        profile = await getProfile();
-      } catch (apiError) {
-        console.warn("API profile fetch failed:", apiError);
-        // Don't immediately throw, try fallback first
-      }
-
-      if (profile) {
-        setUserProfile(profile);
-        const level = normalizeUserLevel(profile);
-        setUserLevel(level);
-
-        // Store in localStorage for fallback
-        if (!skipCache) {
-          try {
-            localStorage.setItem("userLevel", level);
-            localStorage.setItem("userProfile", JSON.stringify(profile));
-            localStorage.setItem("profileTimestamp", Date.now().toString());
-          } catch (storageError) {
-            console.warn("Failed to cache profile:", storageError);
-          }
-        }
-      } else {
-        // Use fallback data
-        const fallbackData = getFallbackUserData();
-        if (fallbackData.level) {
-          setUserLevel(fallbackData.level);
-          setUserProfile(fallbackData.profile);
-          setError("Using cached profile data");
-        } else {
-          throw new Error("No profile data available");
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch user profile:", err);
-      setError("Failed to load user profile. Using guest access.");
-
-      // Set safe defaults
-      setUserLevel("public");
-      setUserProfile(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const normalizeUserLevel = (profile) => {
-    if (!profile) return "public";
-
-    // Try multiple possible field names for user level
-    const level =
-      profile.userlevel ||
-      profile.role ||
-      profile.userLevel ||
-      profile.user_level ||
-      profile.level;
-
-    // Validate against known roles
-    if (level && ROLE_CONFIG[level]) {
-      return level;
-    }
-
-    // Try to map common variations
-    const levelStr = String(level || "").toLowerCase();
-    const mappings = {
-      legal: "Legal Unit",
-      division: "Division Chief",
-      section: "Section Chief",
-      unit: "Unit Head",
-      monitor: "Monitoring Personnel",
-      monitoring: "Monitoring Personnel",
-      admin: "admin",
-      administrator: "admin",
-    };
-
-    for (const [key, value] of Object.entries(mappings)) {
-      if (levelStr.includes(key)) {
-        return value;
-      }
-    }
-
-    return "public";
-  };
-
-  const getFallbackUserData = () => {
-    try {
-      const storedLevel = localStorage.getItem("userLevel");
-      const storedProfile = localStorage.getItem("userProfile");
-      const timestamp = localStorage.getItem("profileTimestamp");
-
-      // Check if cached data is not too old (24 hours)
-      const isStale =
-        timestamp && Date.now() - parseInt(timestamp) > 24 * 60 * 60 * 1000;
-
-      if (!isStale && storedLevel && storedProfile) {
-        return {
-          level: storedLevel,
-          profile: JSON.parse(storedProfile),
-        };
-      }
-    } catch (e) {
-      console.warn("Failed to read cached profile:", e);
-    }
-
-    return {
-      level: "public",
-      profile: null,
-    };
-  };
-
-  const retry = () => {
-    setRetryCount((prev) => prev + 1);
-    fetchUserProfile(true);
-  };
-
-  return {
-    loading,
-    error,
-    userLevel,
-    userProfile,
-    fetchUserProfile,
-    retry,
-    retryCount,
-  };
-};
-
-// Loading component with better accessibility
-const LoadingState = ({ message = "Loading inspections..." }) => (
-  <div
-    className="flex items-center justify-center min-h-screen"
-    role="status"
-    aria-live="polite"
-  >
-    <div className="flex flex-col items-center gap-4">
-      <div
-        className="w-8 h-8 border-b-2 rounded-full animate-spin border-sky-600"
-        aria-hidden="true"
-      ></div>
-      <span className="text-gray-600">{message}</span>
-    </div>
-  </div>
-);
-
-// Enhanced error component
-const ErrorState = ({ message, onRetry, retryCount = 0 }) => (
-  <div
-    className="flex flex-col items-center justify-center min-h-screen gap-4"
-    role="alert"
-  >
-    <div className="flex items-center gap-2 text-lg text-red-600">
-      <span aria-hidden="true">⚠️</span>
-      <span>{message}</span>
-    </div>
-    {onRetry && (
-      <div className="flex flex-col items-center gap-2">
-        <button
-          onClick={onRetry}
-          className="px-4 py-2 text-white rounded bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 disabled:opacity-50"
-          disabled={retryCount > 3}
-        >
-          {retryCount > 3
-            ? "Max retries reached"
-            : `Try Again ${retryCount > 0 ? `(${retryCount})` : ""}`}
-        </button>
-        {retryCount > 2 && (
-          <p className="text-sm text-gray-600">
-            Having trouble? Try refreshing the page.
-          </p>
-        )}
-      </div>
-    )}
-  </div>
-);
+import InspectionsList from "../components/inspections/InspectionsList";
+import SimpleInspectionWizard from "../components/inspections/SimpleInspectionWizard";
+import ViewInspection from "../components/inspections/ViewInspection";
+import { 
+  getProfile, 
+  getEstablishments,
+  getAvailableEstablishments, 
+  createInspection,
+  assignToMe,
+  startInspection,
+  completeInspection,
+  forwardInspection,
+  reviewInspection,
+  forwardToLegal,
+  sendNOV,
+  sendNOO,
+  closeInspection
+} from "../services/api";
+import ComplianceModal from "../components/inspections/modals/ComplianceModal";
+import LegalUnitModal from "../components/inspections/modals/LegalUnitModal";
+import ForwardModal from "../components/inspections/modals/ForwardModal";
+import CompleteModal from "../components/inspections/modals/CompleteModal";
+import ReviewModal from "../components/inspections/modals/ReviewModal";
+import NOVModal from "../components/inspections/modals/NOVModal";
+import NOOModal from "../components/inspections/modals/NOOModal";
 
 export default function Inspections() {
-  const {
-    loading,
-    error,
-    userLevel,
-    userProfile,
-    fetchUserProfile,
-    retry,
-    retryCount,
-  } = useUserProfile();
+  const [showAdd, setShowAdd] = useState(false);
+  const [viewInspection, setViewInspection] = useState(null);
+  const [workflowInspection, setWorkflowInspection] = useState(null);
+  const [complianceModal, setComplianceModal] = useState({ open: false, inspection: null });
+  const [legalUnitModal, setLegalUnitModal] = useState({ open: false, inspection: null });
+  const [forwardModal, setForwardModal] = useState({ open: false, inspection: null });
+  const [completeModal, setCompleteModal] = useState({ open: false, inspection: null });
+  const [reviewModal, setReviewModal] = useState({ open: false, inspection: null });
+  const [novModal, setNovModal] = useState({ open: false, inspection: null });
+  const [nooModal, setNooModal] = useState({ open: false, inspection: null });
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [userLevel, setUserLevel] = useState("public");
+  const [loading, setLoading] = useState(true);
+  const [establishments, setEstablishments] = useState([]);
+  const [establishmentsLoading, setEstablishmentsLoading] = useState(false);
 
-  // Initialize profile fetch on mount
+  const refreshInspections = () => {
+    setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleWorkflowAction = async (inspection, actionType = 'inspect') => {
+    try {
+      // Handle modal-based actions
+      if (actionType === 'forward') {
+        setForwardModal({ open: true, inspection });
+        return;
+      } else if (actionType === 'review') {
+        setReviewModal({ open: true, inspection });
+        return;
+      } else if (actionType === 'send_nov') {
+        setNovModal({ open: true, inspection });
+        return;
+      } else if (actionType === 'send_noo') {
+        setNooModal({ open: true, inspection });
+        return;
+      } else if (actionType === 'complete') {
+        setCompleteModal({ open: true, inspection });
+        return;
+      }
+
+      let result;
+      let actionMessage = '';
+      
+      // Call the appropriate backend API based on current status and action
+      if (actionType === 'assign_to_me') {
+        result = await assignToMe(inspection.id);
+        actionMessage = `Inspection ${inspection.code} has been assigned to you.`;
+      } else if (actionType === 'start') {
+        result = await startInspection(inspection.id);
+        actionMessage = `Inspection ${inspection.code} has been started.`;
+      } else if (actionType === 'forward_to_legal') {
+        result = await forwardToLegal(inspection.id, { remarks: 'Forwarded to Legal Unit' });
+        actionMessage = `Inspection ${inspection.code} has been forwarded to Legal Unit.`;
+      } else if (actionType === 'close') {
+        result = await closeInspection(inspection.id, { remarks: 'Inspection closed' });
+        actionMessage = `Inspection ${inspection.code} has been closed.`;
+      } else {
+        // Fallback for other actions
+        actionMessage = `Workflow action for inspection: ${inspection.code}\nStatus: ${inspection.status}`;
+      }
+      
+      // Show success message
+      alert(actionMessage);
+      setWorkflowInspection(null);
+      
+      // Refresh the inspections list to show updated data
+      refreshInspections();
+      
+    } catch (error) {
+      console.error('Workflow action error:', error);
+      alert(`Error performing workflow action: ${error.message}`);
+      setWorkflowInspection(null);
+    }
+  };
+
+  // Handle compliance modal
+  const handleComplianceSubmit = async (complianceData) => {
+    try {
+      // Use the new completeInspection function for compliance decisions
+      await completeInspection(complianceModal.inspection.id, complianceData);
+      setComplianceModal({ open: false, inspection: null });
+      refreshInspections();
+      alert('Compliance status updated successfully!');
+    } catch (error) {
+      console.error('Error updating compliance:', error);
+      alert(`Error updating compliance: ${error.message}`);
+    }
+  };
+
+  // Handle Legal Unit modal
+  const handleLegalUnitSubmit = async (actionType, formData) => {
+    try {
+      switch (actionType) {
+        case 'send_nov':
+          await sendNOV(legalUnitModal.inspection.id, formData);
+          break;
+        case 'send_noo':
+          await sendNOO(legalUnitModal.inspection.id, formData);
+          break;
+        default:
+          throw new Error('Invalid action type');
+      }
+      
+      setLegalUnitModal({ open: false, inspection: null });
+      refreshInspections();
+      alert(`${actionType.replace('_', ' ').toUpperCase()} action completed successfully!`);
+    } catch (error) {
+      console.error('Error performing Legal Unit action:', error);
+      alert(`Error performing action: ${error.message}`);
+    }
+  };
+
+  // Handle Forward modal
+  const handleForwardSubmit = async (inspectionId, formData) => {
+    try {
+      await forwardInspection(inspectionId, formData);
+      setForwardModal({ open: false, inspection: null });
+      refreshInspections();
+      alert('Inspection forwarded successfully!');
+    } catch (error) {
+      console.error('Error forwarding inspection:', error);
+      alert(`Error forwarding inspection: ${error.message}`);
+    }
+  };
+
+  // Handle Complete modal
+  const handleCompleteSubmit = async (inspectionId, formData) => {
+    try {
+      await completeInspection(inspectionId, formData);
+      setCompleteModal({ open: false, inspection: null });
+      refreshInspections();
+      alert('Inspection completed successfully!');
+    } catch (error) {
+      console.error('Error completing inspection:', error);
+      alert(`Error completing inspection: ${error.message}`);
+    }
+  };
+
+  // Handle Review modal
+  const handleReviewSubmit = async (inspectionId, formData) => {
+    try {
+      await reviewInspection(inspectionId, formData);
+      setReviewModal({ open: false, inspection: null });
+      refreshInspections();
+      alert('Review submitted successfully!');
+    } catch (error) {
+      console.error('Error submitting review:', error);
+      alert(`Error submitting review: ${error.message}`);
+    }
+  };
+
+  // Handle NOV modal
+  const handleNOVSubmit = async (inspectionId, formData) => {
+    try {
+      await sendNOV(inspectionId, formData);
+      setNovModal({ open: false, inspection: null });
+      refreshInspections();
+      alert('Notice of Violation sent successfully!');
+    } catch (error) {
+      console.error('Error sending NOV:', error);
+      alert(`Error sending NOV: ${error.message}`);
+    }
+  };
+
+  // Handle NOO modal
+  const handleNOOSubmit = async (inspectionId, formData) => {
+    try {
+      await sendNOO(inspectionId, formData);
+      setNooModal({ open: false, inspection: null });
+      refreshInspections();
+      alert('Notice of Order sent successfully!');
+    } catch (error) {
+      console.error('Error sending NOO:', error);
+      alert(`Error sending NOO: ${error.message}`);
+    }
+  };
+
+  // Fetch available establishments for the wizard - only those not under active inspection
+  const fetchEstablishments = useCallback(async (searchQuery = '', page = 1, pageSize = 100) => {
+    setEstablishmentsLoading(true);
+    try {
+      // Use the new available establishments endpoint
+      const response = await getAvailableEstablishments({
+        page: page,
+        page_size: pageSize,
+        ...(searchQuery && searchQuery.length >= 2 && { search: searchQuery }),
+      });
+
+      if (response.results) {
+        // Transform the data to match the expected format for wizard
+        const transformedEstablishments = response.results.map(est => ({
+          id: est.id,
+          name: est.name,
+          address: `${est.street_building || ''}, ${est.barangay || ''}, ${est.city || ''}, ${est.province || ''}, ${est.postal_code || ''}`.replace(/,\s*,/g, ',').replace(/^,\s*|,\s*$/g, ''),
+          coordinates: `${est.latitude || ''}, ${est.longitude || ''}`.replace(/,\s*,/g, ',').replace(/^,\s*|,\s*$/g, ''),
+          nature_of_business: est.nature_of_business || 'N/A',
+          year_established: est.year_established || 'N/A'
+        }));
+        setEstablishments(transformedEstablishments);
+      } else {
+        // Fallback for non-paginated response
+        const transformedEstablishments = response.map(est => ({
+          id: est.id,
+          name: est.name,
+          address: `${est.street_building || ''}, ${est.barangay || ''}, ${est.city || ''}, ${est.province || ''}, ${est.postal_code || ''}`.replace(/,\s*,/g, ',').replace(/^,\s*|,\s*$/g, ''),
+          coordinates: `${est.latitude || ''}, ${est.longitude || ''}`.replace(/,\s*,/g, ',').replace(/^,\s*|,\s*$/g, ''),
+          nature_of_business: est.nature_of_business || 'N/A',
+          year_established: est.year_established || 'N/A'
+        }));
+        setEstablishments(transformedEstablishments);
+      }
+    } catch (error) {
+      console.error("Error fetching available establishments:", error);
+      // Fallback to mock data on error
+      setEstablishments([
+        {
+          id: 1,
+          name: "ABC Manufacturing Corp.",
+          address: "123 Industrial St, San Fernando, La Union",
+          coordinates: "16.6164, 120.3162",
+          nature_of_business: "Manufacturing",
+          year_established: "2015"
+        },
+        {
+          id: 2,
+          name: "XYZ Industries Inc.",
+          address: "456 Business Ave, Bauang, La Union",
+          coordinates: "16.5308, 120.3331",
+          nature_of_business: "Industrial Processing",
+          year_established: "2018"
+        }
+      ]);
+    } finally {
+      setEstablishmentsLoading(false);
+    }
+  }, []); // Empty dependency array since this function doesn't depend on any props or state
+
+  // Create stable callback functions for wizard props
+  const handleRefreshEstablishments = useCallback(() => fetchEstablishments(), [fetchEstablishments]);
+  const handleSearchEstablishments = useCallback((searchQuery) => fetchEstablishments(searchQuery), [fetchEstablishments]);
+
+  // Fetch user profile to get actual user level
   useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const accessToken = localStorage.getItem("access");
+        if (!accessToken) {
+          setUserLevel("public");
+          setLoading(false);
+          return;
+        }
+
+        const profile = await getProfile();
+        const level = profile.userlevel || "public";
+
+        setUserLevel(level);
+        localStorage.setItem("userLevel", level);
+      } catch (err) {
+        console.error("Error fetching user profile:", err);
+        const fallbackLevel = localStorage.getItem("userLevel") || "public";
+        setUserLevel(fallbackLevel);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchUserProfile();
   }, []);
 
-  // Get role configuration with fallback
-  const roleConfig = useMemo(
-    () => ROLE_CONFIG[userLevel] || ROLE_CONFIG.public,
-    [userLevel]
-  );
+  // Fetch establishments when component mounts
+  useEffect(() => {
+    fetchEstablishments();
+  }, [fetchEstablishments]);
 
-  const handleRetry = () => {
-    retry();
-  };
 
-  // Show loading state
+
+  const [laws] = useState([
+    { code: "PD-1586", name: "EIA Monitoring" },
+    { code: "RA-8749", name: "Air Quality Monitoring" },
+    { code: "RA-9275", name: "Water Quality Monitoring" },
+    { code: "RA-6969", name: "Toxic Chemicals Monitoring" },
+    { code: "RA-9003", name: "Solid Waste Management" }
+  ]);
+
+  // Show loading state while fetching user profile
   if (loading) {
-    return <LoadingState message="Loading user profile..." />;
+    return (
+      <>
+        <Header />
+        <LayoutWithSidebar userLevel="admin">
+          <div className="flex items-center justify-center h-64">
+            <div className="flex flex-col items-center text-gray-600">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600 mb-2"></div>
+              <span>Loading inspections...</span>
+            </div>
+          </div>
+        </LayoutWithSidebar>
+        <Footer />
+      </>
+    );
   }
 
-  // Show error only if we have no user level (complete failure)
-  if (error && !userLevel) {
+  // If showing wizard, render the wizard component (which includes its own layout)
+  if (showAdd) {
     return (
-      <ErrorState
-        message={error}
-        onRetry={handleRetry}
-        retryCount={retryCount}
+      <SimpleInspectionWizard
+        onClose={() => setShowAdd(false)}
+        onSave={async (formData) => {
+          try {
+            console.log('Creating inspections:', formData);
+            
+            const selectedLaw = laws.find(law => law.code === formData.law_code);
+            const establishmentCount = formData.establishment_ids.length;
+            
+            // Create inspection for each selected establishment
+            const inspectionPromises = formData.establishment_ids.map(establishmentId => {
+              const inspectionData = {
+                establishments: [establishmentId],
+                law: formData.law_code,
+                scheduled_at: formData.scheduled_at || null,
+                inspection_notes: `Inspection for ${selectedLaw?.name || formData.law_code}`,
+                // The backend will handle auto-assignment based on the workflow rules
+              };
+              return createInspection(inspectionData);
+            });
+            
+            // Create all inspections in parallel
+            const createdInspections = await Promise.all(inspectionPromises);
+            console.log('Inspections created successfully:', createdInspections);
+            
+            // Close wizard and refresh list
+            setShowAdd(false);
+            refreshInspections();
+            
+            // Show success message
+            alert(`Successfully created ${establishmentCount} inspection(s) for ${selectedLaw?.name || formData.law_code}!`);
+            
+          } catch (error) {
+            console.error('Error creating inspections:', error);
+            alert(`Error creating inspections: ${error.message}`);
+          }
+        }}
+        userProfile={{ userlevel: userLevel }}
+        establishments={establishments}
+        establishmentsLoading={establishmentsLoading}
+        laws={laws}
+        userLevel={userLevel}
+        onRefreshEstablishments={handleRefreshEstablishments}
+        onSearchEstablishments={handleSearchEstablishments}
       />
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Header userLevel={userLevel} userProfile={userProfile} />
+    <>
+      <Header />
+      <LayoutWithSidebar userLevel="admin">
+        <div>
+          {/* Inspections List */}
+          <InspectionsList
+            userLevel={userLevel}
+            onAdd={() => setShowAdd(true)}
+            onView={(inspection) => setViewInspection(inspection)}
+            onWorkflow={(inspection, actionType) => setWorkflowInspection({...inspection, actionType})}
+            onCompliance={(inspection) => setComplianceModal({ open: true, inspection })}
+            onLegalUnit={(inspection) => setLegalUnitModal({ open: true, inspection })}
+            refreshTrigger={refreshTrigger}
+          />
 
-      <main className="flex-1">
-        <LayoutWithSidebar
-          userLevel={userLevel}
-          sidebarLabel={roleConfig.sidebarLabel}
-          userProfile={userProfile}
-        >
-          {error && (
-            <div
-              className="p-4 mb-4 border border-yellow-200 rounded bg-yellow-50"
-              role="alert"
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-yellow-800">
-                  <strong>Notice:</strong> {error}
+
+          {/* View Inspection Modal */}
+          {viewInspection && (
+            <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
+              <ViewInspection
+                inspection={viewInspection}
+                onClose={() => setViewInspection(null)}
+              />
+            </div>
+          )}
+
+          {/* Simple Workflow Modal */}
+          {workflowInspection && (
+            <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
+              <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Workflow Action</h3>
+                  <button
+                    onClick={() => setWorkflowInspection(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-                <button
-                  onClick={handleRetry}
-                  className="px-3 py-1 text-sm bg-yellow-100 border border-yellow-300 rounded hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-1"
-                  type="button"
-                >
-                  Refresh Profile
-                </button>
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-2">
+                    <strong>Inspection:</strong> {workflowInspection.code}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    <strong>Current Status:</strong> {workflowInspection.status}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    <strong>Establishment:</strong> {workflowInspection.establishment_name}
+                  </p>
+                  {workflowInspection.status === 'DIVISION_CREATED' && (
+                    <div className="mt-3 p-3 bg-blue-50 rounded-md">
+                      <p className="text-sm text-blue-800">
+                        <strong>Action:</strong> This will move the inspection to "My Inspections" tab with SECTION_INSPECTING status.
+                      </p>
+                    </div>
+                  )}
+                  {workflowInspection.status === 'SECTION_INSPECTING' && (
+                    <div className="mt-3 p-3 bg-green-50 rounded-md">
+                      <p className="text-sm text-green-800">
+                        <strong>Action:</strong> This will complete the inspection or forward it to the next stage.
+                      </p>
+                    </div>
+                  )}
+                  {workflowInspection.status === 'UNIT_REVIEW' && (
+                    <div className="mt-3 p-3 bg-purple-50 rounded-md">
+                      <p className="text-sm text-purple-800">
+                        <strong>Action:</strong> This will move the inspection to "My Inspections" tab with UNIT_INSPECTING status.
+                      </p>
+                    </div>
+                  )}
+                  {workflowInspection.status === 'UNIT_INSPECTING' && (
+                    <div className="mt-3 p-3 bg-indigo-50 rounded-md">
+                      <p className="text-sm text-indigo-800">
+                        <strong>Action:</strong> This will complete the inspection or forward it to Monitoring Personnel.
+                      </p>
+                    </div>
+                  )}
+                  {workflowInspection.status === 'MONITORING_INSPECTION' && (
+                    <div className="mt-3 p-3 bg-cyan-50 rounded-md">
+                      <p className="text-sm text-cyan-800">
+                        <strong>Action:</strong> This will complete the inspection and initiate the return path based on compliance status.
+                      </p>
+                    </div>
+                  )}
+                  {workflowInspection.status === 'LEGAL_REVIEW' && (
+                    <div className="mt-3 p-3 bg-red-50 rounded-md">
+                      <p className="text-sm text-red-800">
+                        <strong>Action:</strong> This will send notices to the establishment or close the case.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setWorkflowInspection(null)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleWorkflowAction(workflowInspection, workflowInspection.actionType)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                  >
+                    Execute Action
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          <InspectionsCore
-            canCreate={roleConfig.canCreate}
-            canEdit={roleConfig.canEdit}
-            canDelete={roleConfig.canDelete}
-            userLevel={userLevel}
-            userProfile={userProfile}
-            permissions={roleConfig}
+          {/* Compliance Modal */}
+          <ComplianceModal
+            open={complianceModal.open}
+            inspection={complianceModal.inspection}
+            onClose={() => setComplianceModal({ open: false, inspection: null })}
+            onSubmit={handleComplianceSubmit}
           />
-        </LayoutWithSidebar>
-      </main>
 
+          {/* Legal Unit Modal */}
+          <LegalUnitModal
+            open={legalUnitModal.open}
+            inspection={legalUnitModal.inspection}
+            onClose={() => setLegalUnitModal({ open: false, inspection: null })}
+            onSubmit={handleLegalUnitSubmit}
+          />
+
+          {/* Forward Modal */}
+          <ForwardModal
+            open={forwardModal.open}
+            inspection={forwardModal.inspection}
+            onClose={() => setForwardModal({ open: false, inspection: null })}
+            onSubmit={handleForwardSubmit}
+            userLevel={userLevel}
+          />
+
+          {/* Complete Modal */}
+          <CompleteModal
+            open={completeModal.open}
+            inspection={completeModal.inspection}
+            onClose={() => setCompleteModal({ open: false, inspection: null })}
+            onSubmit={handleCompleteSubmit}
+            userLevel={userLevel}
+          />
+
+          {/* Review Modal */}
+          <ReviewModal
+            open={reviewModal.open}
+            inspection={reviewModal.inspection}
+            onClose={() => setReviewModal({ open: false, inspection: null })}
+            onSubmit={handleReviewSubmit}
+            userLevel={userLevel}
+          />
+
+          {/* NOV Modal */}
+          <NOVModal
+            open={novModal.open}
+            inspection={novModal.inspection}
+            onClose={() => setNovModal({ open: false, inspection: null })}
+            onSubmit={handleNOVSubmit}
+          />
+
+          {/* NOO Modal */}
+          <NOOModal
+            open={nooModal.open}
+            inspection={nooModal.inspection}
+            onClose={() => setNooModal({ open: false, inspection: null })}
+            onSubmit={handleNOOSubmit}
+          />
+
+                </div>
+        </LayoutWithSidebar>
       <Footer />
-    </div>
+            </>
   );
 }

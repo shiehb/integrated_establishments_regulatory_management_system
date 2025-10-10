@@ -24,6 +24,7 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
     
     def list(self, request, *args, **kwargs):
         # Get pagination parameters
+        
         page = int(request.query_params.get('page', 1))
         page_size = int(request.query_params.get('page_size', 10))
         
@@ -224,3 +225,106 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
             'results': serializer.data,
             'count': establishments.count()
         })
+    
+    @action(detail=False, methods=['get'])
+    def available_for_inspection(self, request):
+        """
+        Get establishments that are available for inspection (not currently under active inspection).
+        An establishment is considered unavailable if it has any inspection with status not in:
+        - CLOSED_COMPLIANT
+        - CLOSED_NON_COMPLIANT
+        - CREATED (initial state, can be overridden)
+        """
+        from inspections.models import Inspection
+        
+        # Get pagination parameters
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10))
+        
+        # Get search parameter
+        search = request.query_params.get('search', '').strip()
+        
+        # Get all establishments
+        queryset = Establishment.objects.all()
+        
+        # Apply search filter if provided
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(street_building__icontains=search) |
+                Q(barangay__icontains=search) |
+                Q(city__icontains=search) |
+                Q(province__icontains=search) |
+                Q(nature_of_business__icontains=search)
+            )
+        
+        # Exclude establishments that have active inspections
+        # Active statuses are all except the final closed states
+        active_statuses = [
+            'SECTION_ASSIGNED', 'SECTION_IN_PROGRESS', 'SECTION_COMPLETED',
+            'UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_COMPLETED',
+            'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS', 
+            'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT',
+            'UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED',
+            'LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT'
+        ]
+        
+        # Get establishment IDs that have active inspections
+        active_inspection_establishment_ids = Inspection.objects.filter(
+            current_status__in=active_statuses
+        ).values_list('establishments', flat=True)
+        
+        # Exclude establishments with active inspections
+        queryset = queryset.exclude(id__in=active_inspection_establishment_ids)
+        
+        # Calculate pagination
+        total_count = queryset.count()
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        
+        # Apply pagination
+        establishments = queryset[start_index:end_index]
+        
+        # Serialize data
+        serializer = self.get_serializer(establishments, many=True)
+        
+        return Response({
+            'results': serializer.data,
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size
+        })
+    
+    @action(detail=False, methods=['get'])
+    def location_options(self, request):
+        """
+        Get location options (provinces and cities) for the establishment forms.
+        Returns hardcoded Ilocos Region data as fallback since normalized models may not exist yet.
+        """
+        # Future: Check if normalized models exist and return from database
+        # For now, return empty to use frontend constants
+        try:
+            # Try to import normalized models
+            from .models_normalized import Province, City
+            
+            # If models exist, return from database
+            provinces = Province.objects.filter(is_active=True, region='Ilocos Region').order_by('name')
+            cities_by_province = {}
+            
+            for province in provinces:
+                cities = City.objects.filter(province=province, is_active=True).order_by('name')
+                cities_by_province[province.name] = [city.name for city in cities]
+            
+            return Response({
+                'provinces': [province.name for province in provinces],
+                'cities_by_province': cities_by_province
+            })
+            
+        except ImportError:
+            # Normalized models don't exist yet, return empty to use frontend constants
+            return Response({
+                'provinces': [],
+                'cities_by_province': {},
+                'message': 'Using frontend constants - normalized models not available'
+            })

@@ -83,8 +83,8 @@ export default function NotificationDetailModal({
         onClick={onClose}
       />
       
-      {/* Modal - Landscape Rectangle */}
-      <div className="relative w-full max-w-4xl mx-4 bg-white rounded-lg shadow-xl">
+      {/* Modal - Centered Single Column */}
+      <div className="relative w-full max-w-3xl mx-4 bg-white rounded-lg shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
@@ -108,13 +108,12 @@ export default function NotificationDetailModal({
           </button>
         </div>
 
-        {/* Content - Landscape Layout */}
+        {/* Content - Single Column Layout */}
         <div className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left Column - Main Content */}
-            <div className="space-y-6">
-              {/* Status Badge */}
-              <div className="flex items-center justify-between">
+          <div className="max-w-2xl mx-auto space-y-6">
+            {/* Status and Type Badge */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                   notification.is_read 
                     ? "bg-green-100 text-green-800" 
@@ -122,103 +121,50 @@ export default function NotificationDetailModal({
                 }`}>
                   {notification.is_read ? "Read" : "Unread"}
                 </span>
-                <span className="text-sm text-gray-500">
-                  {getRelativeTime(notification.created_at)}
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getNotificationTypeColor(notification.notification_type)}`}>
+                  {getNotificationTypeLabel(notification.notification_type)}
                 </span>
               </div>
+              <span className="text-sm text-gray-500">
+                {getRelativeTime(notification.created_at)}
+              </span>
+            </div>
 
-              {/* Title */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Title
-                </label>
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-900 font-medium">
-                    {notification.title}
-                  </p>
-                </div>
-              </div>
-
-              {/* Message */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Message
-                </label>
-                <div className="p-3 bg-gray-50 rounded-lg min-h-[120px]">
-                  <p className="text-gray-900 whitespace-pre-wrap">
-                    {notification.message}
-                  </p>
-                </div>
+            {/* Title */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Title
+              </label>
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-gray-900 font-medium text-lg">
+                  {notification.title}
+                </p>
               </div>
             </div>
 
-            {/* Right Column - Metadata */}
-            <div className="space-y-6">
-              {/* Notification ID */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Notification ID
-                </label>
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                  <Bell size={16} className="text-gray-400" />
-                  <span className="text-sm font-mono text-gray-600">
-                    #{notification.id}
-                  </span>
-                </div>
+            {/* Message */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Message
+              </label>
+              <div className="p-4 bg-gray-50 rounded-lg min-h-[120px]">
+                <p className="text-gray-900 whitespace-pre-wrap leading-relaxed">
+                  {notification.message}
+                </p>
               </div>
+            </div>
 
-              {/* Created Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Created Date
-                </label>
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                  <Calendar size={16} className="text-gray-400" />
-                  <span className="text-sm text-gray-600">
-                    {formatFullDate(notification.created_at)}
-                  </span>
-                </div>
+            {/* Created Date */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Created Date
+              </label>
+              <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                <Calendar size={16} className="text-gray-400" />
+                <span className="text-sm text-gray-600">
+                  {formatFullDate(notification.created_at)}
+                </span>
               </div>
-
-              {/* Recipient Info */}
-              {notification.recipient && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Recipient
-                  </label>
-                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                    <Mail size={16} className="text-gray-400" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {notification.recipient.first_name} {notification.recipient.last_name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {notification.recipient.email}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Sender Info */}
-              {notification.sender && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sender
-                  </label>
-                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                    <User size={16} className="text-gray-400" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {notification.sender.first_name} {notification.sender.last_name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {notification.sender.email}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>

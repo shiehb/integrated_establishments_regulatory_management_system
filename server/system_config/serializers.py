@@ -14,11 +14,13 @@ class SystemConfigurationSerializer(serializers.ModelSerializer):
             'email_host_user',
             'email_host_password',
             'default_from_email',
+            'email_from_name',
             'constructed_from_email',
             'access_token_lifetime_minutes',
             'refresh_token_lifetime_days',
             'rotate_refresh_tokens',
             'blacklist_after_rotation',
+            'backup_custom_path',
             'created_at',
             'updated_at',
             'is_active'
@@ -85,10 +87,12 @@ class SystemConfigurationUpdateSerializer(serializers.ModelSerializer):
             'email_host_user',
             'email_host_password',
             'default_from_email',
+            'email_from_name',
             'access_token_lifetime_minutes',
             'refresh_token_lifetime_days',
             'rotate_refresh_tokens',
-            'blacklist_after_rotation'
+            'blacklist_after_rotation',
+            'backup_custom_path'
         ]
     
     def validate_email_host_password(self, value):

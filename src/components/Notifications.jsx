@@ -49,6 +49,24 @@ export default function Notifications() {
     }
   }, []);
 
+  // Handle clicks outside the dropdown
+  const handleClickOutside = useCallback((event) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      const bellButton = event.target.closest("button");
+      if (!bellButton || !bellButton.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+  }, []);
+
+  // Reset auto-close timer on hover or interaction
+  const resetAutoClose = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 3000);
+  }, []);
+
   useEffect(() => {
     fetchNotifications();
 
@@ -63,25 +81,7 @@ export default function Notifications() {
       document.removeEventListener("mousedown", handleClickOutside);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [fetchNotifications, fetchUnreadCount]);
-
-  // Reset auto-close timer on hover or interaction
-  const resetAutoClose = useCallback(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
-    }, 3000);
-  }, []);
-
-  // Handle clicks outside the dropdown
-  const handleClickOutside = useCallback((event) => {
-    if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-      const bellButton = event.target.closest("button");
-      if (!bellButton || !bellButton.contains(event.target)) {
-        setIsOpen(false);
-      }
-    }
-  }, []);
+  }, [fetchNotifications, fetchUnreadCount, handleClickOutside]);
 
   const markAsRead = async (id) => {
     try {
@@ -227,7 +227,7 @@ export default function Notifications() {
 
       {isOpen && (
         <div
-          className="absolute right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-1000 w-120"
+          className="absolute right-0 top-full mt-2 bg-white border border-gray-200 rounded-lg shadow-xl z-1000 w-96"
           onMouseEnter={resetAutoClose}
           onMouseMove={resetAutoClose}
         >
@@ -266,19 +266,23 @@ export default function Notifications() {
 
           <div className="overflow-y-auto max-h-96">
             {isLoading ? (
-              <div className="p-4 text-center">
-                <div className="inline-block w-6 h-6 border-b-2 rounded-full animate-spin border-sky-600"></div>
-                <p className="mt-2 text-sm text-gray-500">
+              <div className="p-6 text-center">
+                <div className="inline-block w-8 h-8 border-2 border-sky-200 border-t-sky-600 rounded-full animate-spin"></div>
+                <p className="mt-3 text-sm text-gray-500 font-medium">
                   Loading notifications...
                 </p>
               </div>
             ) : notifications.length === 0 ? (
-              <p className="p-4 text-center text-gray-500">No notifications</p>
+              <div className="p-6 text-center">
+                <Bell size={32} className="mx-auto text-gray-300 mb-3" />
+                <p className="text-sm text-gray-500 font-medium">No notifications</p>
+                <p className="text-xs text-gray-400 mt-1">You're all caught up!</p>
+              </div>
             ) : (
               notifications.map((notification) => (
                 <div
                   key={notification.id}
-                  className={`relative p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
+                  className={`relative p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-all duration-200 ${
                     notification.is_read ? "bg-white" : "bg-blue-50"
                   }`}
                   onClick={() => handleNotificationClick(notification)}
@@ -286,9 +290,9 @@ export default function Notifications() {
                   onMouseLeave={handleNotificationLeave}
                 >
                   {hoveredNotification === notification.id && (
-                    <div className="absolute flex space-x-1 top-2 right-2">
+                    <div className="absolute flex space-x-1 top-3 right-3">
                       <button
-                        className="p-1 text-gray-400 transition-colors rounded-full hover:text-gray-600 hover:bg-gray-200"
+                        className="p-1.5 text-gray-400 transition-all duration-200 rounded-full hover:text-green-600 hover:bg-green-100 shadow-sm"
                         onClick={(e) =>
                           closeSingleNotification(e, notification.id)
                         }
@@ -297,7 +301,7 @@ export default function Notifications() {
                         <CheckCircle size={14} />
                       </button>
                       <button
-                        className="p-1 text-red-400 transition-colors rounded-full hover:text-red-600 hover:bg-red-100"
+                        className="p-1.5 text-gray-400 transition-all duration-200 rounded-full hover:text-red-600 hover:bg-red-100 shadow-sm"
                         onClick={(e) =>
                           deleteSingleNotification(notification.id, e)
                         }
@@ -317,14 +321,14 @@ export default function Notifications() {
                       )}
                     </div>
 
-                    <div className="flex-1 min-w-0 pr-4">
-                      <p className="text-sm font-medium truncate">
+                    <div className="flex-1 min-w-0 pr-8">
+                      <p className="text-sm font-semibold text-gray-900 truncate mb-1">
                         {notification.title}
                       </p>
-                      <p className="text-xs text-gray-600 line-clamp-2">
+                      <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
                         {notification.message}
                       </p>
-                      <p className="mt-1 text-xs text-gray-400">
+                      <p className="mt-2 text-xs text-gray-400 font-medium">
                         {formatDate(notification.created_at)}
                       </p>
                     </div>

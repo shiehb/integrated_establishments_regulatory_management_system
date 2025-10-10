@@ -1,13 +1,22 @@
+import React from 'react';
+import ComplianceByLawCard from './shared/ComplianceByLawCard';
+
 export default function SectionChiefDashboard() {
+  // Navigation handlers
+  const handleViewAll = (route) => {
+    // You can implement navigation logic here if needed
+    console.log('Navigate to:', route);
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {/* Section Chief-specific content */}
-        <div className="p-6 bg-white border rounded-lg shadow-sm">
-          <h3 className="font-semibold">Section Performance</h3>
-          <p className="text-2xl font-bold">Section Chief Content</p>
+    <div className="p-6 bg-gray-50">
+        {/* Compliance by Law Chart */}
+        <div>
+          <ComplianceByLawCard
+            userRole="Section Chief"
+            onViewAll={handleViewAll}
+          />
         </div>
-      </div>
     </div>
   );
 }

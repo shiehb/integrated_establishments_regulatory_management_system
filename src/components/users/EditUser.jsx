@@ -19,6 +19,16 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
 
   useEffect(() => {
     console.log("User data received:", userData);
+    
+    setFormData({
+      firstName: userData?.first_name || "",
+      middleName: userData?.middle_name || "",
+      lastName: userData?.last_name || "",
+      email: userData?.email || "",
+      userLevel: userData?.userlevel || "",
+      section: userData?.section || "",
+    });
+    
     console.log("Form data initialized:", {
       firstName: userData?.first_name,
       middleName: userData?.middle_name,
@@ -32,14 +42,8 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
   // Section options depending on role
   const sectionOptionsByLevel = {
     "Section Chief": [
-      {
-        value: "PD-1586,RA-8749,RA-9275",
-        label: "EIA, Air & Water Quality Monitoring Section",
-      },
-      {
-        value: "RA-6969",
-        label: "Toxic Chemicals & Hazardous Monitoring Section",
-      },
+      { value: "PD-1586,RA-8749,RA-9275", label: "EIA, Air & Water Quality Monitoring Section" },
+      { value: "RA-6969", label: "Toxic Chemicals & Hazardous Monitoring Section" },
       { value: "RA-9003", label: "Ecological Solid Waste Management Section" },
     ],
     "Unit Head": [
@@ -62,11 +66,16 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     if (["firstName", "middleName", "lastName"].includes(name)) {
       newValue = value.toUpperCase();
     }
+    
     setFormData((prev) => {
-      if (name === "userLevel" && !sectionOptionsByLevel[value]) {
-        return { ...prev, [name]: newValue, section: "" };
+      let newFormData = { ...prev, [name]: newValue };
+      
+      // Reset section when user level changes
+      if (name === "userLevel") {
+        newFormData.section = "";
       }
-      return { ...prev, [name]: newValue };
+      
+      return newFormData;
     });
   };
 
@@ -123,22 +132,24 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     }
   };
 
-  const Label = ({ field, children }) => (
-    <label className="flex items-center justify-between text-sm font-medium text-gray-700">
-      <span>
-        {children} <span className="text-red-500">*</span>
-      </span>
-      {field === "section" &&
-        submitted &&
-        sectionOptionsByLevel[formData.userLevel] &&
-        !formData.section.trim() && (
+  const Label = ({ field, children }) => {
+    return (
+      <label className="flex items-center justify-between text-sm font-medium text-gray-700">
+        <span>
+          {children} <span className="text-red-500">*</span>
+        </span>
+        {field === "section" &&
+          submitted &&
+          sectionOptionsByLevel[formData.userLevel] &&
+          !formData.section.trim() && (
+            <span className="text-xs text-red-500">Required</span>
+          )}
+        {field !== "section" && submitted && !formData[field]?.trim() && (
           <span className="text-xs text-red-500">Required</span>
         )}
-      {field !== "section" && submitted && !formData[field]?.trim() && (
-        <span className="text-xs text-red-500">Required</span>
-      )}
-    </label>
-  );
+      </label>
+    );
+  };
 
   return (
     <div className="w-full max-w-2xl p-8 bg-white shadow-lg rounded-2xl">
@@ -254,6 +265,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
             </select>
           </div>
         </div>
+
 
         {/* Buttons */}
         <div className="flex gap-4 pt-2">

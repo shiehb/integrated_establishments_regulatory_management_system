@@ -1,65 +1,76 @@
 import { Link, useLocation } from "react-router-dom";
-import {
-  LayoutDashboard,
-  Users,
-  Building,
-  BarChart3,
-  MapPin,
-  InspectIcon,
-  FileText,
-  Settings,
-  Database, // ✅ add Database icon
-} from "lucide-react";
+import { LayoutDashboard } from "lucide-react";
+import { filterMenuByRole, groupMenuByCategory } from "../constants/menuConfig";
 
-// Common sidebar menu for all roles
-const baseMenu = [
-  { name: "Dashboard", path: "/", icon: LayoutDashboard },
-  { name: "Users", path: "/users", icon: Users, adminOnly: true },
-  { name: "Map", path: "/map", icon: MapPin },
-  { name: "Establishments", path: "/establishments", icon: Building },
-  { name: "Inspections", path: "/inspections", icon: InspectIcon },
-  {
-    name: "Billing Records",
-    path: "/billing",
-    icon: FileText,
-    legalOnly: true,
-  }, // ✅ Only Legal Unit
-  {
-    name: "System Configuration",
-    path: "/system-config",
-    icon: Settings,
-    adminOnly: true,
-  }, // ✅ Only Admin
-  {
-    name: "Database Backup",
-    path: "/database-backup",
-    icon: Database,
-    adminOnly: true,
-  }, // ✅ Only Admin
-];
-
-export default function Sidebar({ userLevel = "public" }) {
+export default function Sidebar({ userLevel = "public", isOpen = true }) {
   const location = useLocation();
 
-  // Public (not logged in) fallback
+  // Get filtered menu items based on user role
+  const filteredMenu = filterMenuByRole(userLevel);
+  const { grouped, uncategorized } = groupMenuByCategory(filteredMenu);
+
+  const renderMenuItem = (item) => {
+    const IconComponent = item.icon;
+    const isActive = location.pathname === item.path;
+    
+    return (
+      <li key={item.id}>
+        <Link
+          to={item.path}
+          className={`flex items-center px-4 py-3 rounded-lg transition-colors group ${
+            isActive
+              ? "bg-sky-700 text-white"
+              : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+          }`}
+          title={!isOpen ? item.name : undefined}
+        >
+          <IconComponent 
+            size={20} 
+            className={`flex-shrink-0 transition-colors ${
+              isActive ? "text-white" : "text-gray-500 group-hover:text-gray-700"
+            }`} 
+          />
+          {isOpen && (
+            <span className="ml-3 text-sm font-medium truncate">
+              {item.name}
+            </span>
+          )}
+        </Link>
+      </li>
+    );
+  };
+
+  const renderMenuSection = (title, items) => {
+    if (items.length === 0) return null;
+    
+    return (
+      <div key={title} className="mb-4">
+        {isOpen && (
+          <h3 className="px-4 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            {title}
+          </h3>
+        )}
+        <ul className="space-y-1">
+          {items.map(renderMenuItem)}
+        </ul>
+      </div>
+    );
+  };
+
+  // Public (not logged in) fallback - show only dashboard
   if (userLevel === "public") {
     return (
-      <div className="sticky top-0 flex flex-col w-56 h-[calc(100vh-105px)] bg-white border-gray-200 shadow-md mr-2">
-        <nav className="flex-1 py-1 overflow-y-auto">
+      <div className={`flex flex-col bg-white border-r border-gray-200 shadow-sm transition-all duration-300 ${
+        isOpen ? "w-64" : "w-16"
+      }`}>
+        <nav className="flex-1 py-4 overflow-y-auto">
           <ul className="px-2 space-y-1">
-            <li>
-              <Link
-                to="/"
-                className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
-                  location.pathname === "/"
-                    ? "bg-sky-700 text-white"
-                    : "text-black hover:bg-sky-700 hover:text-white"
-                }`}
-              >
-                <LayoutDashboard size={20} className="flex-shrink-0" />
-                <span className="ml-3 text-sm">Home</span>
-              </Link>
-            </li>
+            {renderMenuItem({
+              id: "dashboard",
+              name: "Dashboard",
+              path: "/",
+              icon: LayoutDashboard,
+            })}
           </ul>
         </nav>
       </div>
@@ -67,34 +78,26 @@ export default function Sidebar({ userLevel = "public" }) {
   }
 
   return (
-    <div className="sticky top-0 flex flex-col w-56 min-h-[calc(100vh-105px)] bg-white border-gray-200 shadow-md mr-2">
+    <div className={`flex flex-col bg-white border-r border-gray-200 shadow-sm transition-all duration-300 ${
+      isOpen ? "w-64" : "w-16"
+    }`}>
       {/* Navigation Items */}
-      <nav className="flex-1 py-1 overflow-y-auto">
-        <ul className="px-2 space-y-1">
-          {baseMenu.map((item) => {
-            // ✅ Hide Users/System Config/Database Backup unless Admin
-            if (item.adminOnly && userLevel !== "Admin") return null;
-            // ✅ Hide Billing Records unless Legal Unit
-            if (item.legalOnly && userLevel !== "Legal Unit") return null;
-
-            const IconComponent = item.icon;
-            return (
-              <li key={item.path}>
-                <Link
-                  to={item.path}
-                  className={`flex items-center px-4 py-3 rounded-lg transition-colors ${
-                    location.pathname === item.path
-                      ? "bg-sky-700 text-white"
-                      : "text-black hover:bg-gray-200"
-                  }`}
-                >
-                  <IconComponent size={20} className="flex-shrink-0" />
-                  <span className="ml-3 text-sm">{item.name}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      <nav className="flex-1 py-4 overflow-y-auto">
+        <div className="px-2">
+          {/* Main navigation items (uncategorized) */}
+          {uncategorized.length > 0 && (
+            <div className="mb-4">
+              <ul className="space-y-1">
+                {uncategorized.map(renderMenuItem)}
+              </ul>
+            </div>
+          )}
+          
+          {/* Categorized sections */}
+          {Object.entries(grouped).map(([category, items]) =>
+            renderMenuSection(category, items)
+          )}
+        </div>
       </nav>
     </div>
   );

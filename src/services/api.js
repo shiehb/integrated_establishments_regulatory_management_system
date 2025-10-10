@@ -48,12 +48,18 @@ api.interceptors.response.use(
         } catch {
           localStorage.removeItem("access");
           localStorage.removeItem("refresh");
-          window.location.href = "/login";
+          // Only redirect if not already on login page to prevent page refresh during login
+          if (window.location.pathname !== "/login") {
+            window.location.href = "/login";
+          }
         }
       } else {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
-        window.location.href = "/login";
+        // Only redirect if not already on login page to prevent page refresh during login
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
       }
     }
 
@@ -83,8 +89,8 @@ export const getProfile = async () => {
   return res.data;
 };
 
-export const getUsers = async () => {
-  const res = await api.get("auth/list/");
+export const getUsers = async (params = {}) => {
+  const res = await api.get("auth/list/", { params });
   return res.data;
 };
 
@@ -109,6 +115,41 @@ export const toggleUserActive = async (id) => {
       error.response?.data?.detail ||
         error.response?.data?.message ||
         "Failed to update user status. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const getDistrictUsers = async (filters = {}) => {
+  try {
+    const params = new URLSearchParams();
+    if (filters.userlevel) params.append('userlevel', filters.userlevel);
+    if (filters.district) params.append('district', filters.district);
+    if (filters.section) params.append('section', filters.section);
+    
+    const response = await api.get(`auth/district-users/?${params.toString()}`);
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to fetch district users. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const assignDistrict = async (userId, district) => {
+  try {
+    const response = await api.post(`auth/assign-district/${userId}/`, { district });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to assign district. Please try again."
     );
     enhancedError.response = error.response;
     throw enhancedError;
@@ -205,25 +246,21 @@ export const searchEstablishments = async (query, page = 1, pageSize = 10) => {
   return res.data;
 };
 
+export const getAvailableEstablishments = async (params = {}) => {
+  const res = await api.get("establishments/available_for_inspection/", { params });
+  return res.data;
+};
+
 // -------------------------------------------------
-// Inspections
+// Inspections - Updated for new backend
 // -------------------------------------------------
 export const getInspections = async (params = {}) => {
   const res = await api.get("inspections/", { params });
   return res.data;
 };
 
-export const searchInspections = async (query, page = 1, pageSize = 10) => {
-  const res = await api.get("inspections/search/", {
-    params: { q: query, page, page_size: pageSize },
-  });
-  return res.data;
-};
-
-export const getInspectionSearchSuggestions = async (query) => {
-  const res = await api.get("inspections/search_suggestions/", {
-    params: { q: query },
-  });
+export const getInspection = async (id) => {
+  const res = await api.get(`inspections/${id}/`);
   return res.data;
 };
 
@@ -238,8 +275,8 @@ export const createInspection = async (inspectionData) => {
     const enhancedError = new Error(
       error.response?.data?.detail ||
         error.response?.data?.message ||
-        error.response?.data?.establishment?.[0] ||
-        error.response?.data?.section?.[0] ||
+        error.response?.data?.establishments?.[0] ||
+        error.response?.data?.law?.[0] ||
         "Failed to create inspection. Please try again."
     );
     enhancedError.response = error.response;
@@ -247,26 +284,326 @@ export const createInspection = async (inspectionData) => {
   }
 };
 
-export const assignInspection = async (id, payload) => {
-  const res = await api.post(`inspections/${id}/assign/`, payload);
+export const updateInspection = async (id, inspectionData) => {
+  const res = await api.patch(`inspections/${id}/`, inspectionData);
   return res.data;
 };
 
-export const advanceInspection = async (id) => {
-  const res = await api.post(`inspections/${id}/advance/`);
+export const deleteInspection = async (id) => {
+  try {
+    const res = await api.delete(`inspections/${id}/`);
+    return res.data;
+  } catch (error) {
+    console.error("Delete inspection error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to delete inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+// Workflow Action Functions
+export const assignToMe = async (id) => {
+  try {
+    const res = await api.post(`inspections/${id}/assign_to_me/`);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to assign inspection to yourself. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const inspectInspection = async (id, data = {}) => {
+  try {
+    const res = await api.post(`inspections/${id}/inspect/`, data);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to move inspection to My Inspections. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const startInspection = async (id, data = {}) => {
+  try {
+    const res = await api.post(`inspections/${id}/start/`, data);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to start inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const continueInspection = async (id, data = {}) => {
+  try {
+    const res = await api.post(`inspections/${id}/continue/`, data);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to continue inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const saveInspectionDraft = async (id, formData) => {
+  try {
+    const res = await api.post(`inspections/${id}/save_draft/`, formData);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to save draft. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const autoSaveInspection = async (id, formData) => {
+  try {
+    const res = await api.post(`inspections/${id}/auto_save/`, formData);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to auto-save. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const checkInspectionFormData = async (id) => {
+  try {
+    const res = await api.get(`inspections/${id}/check_form_data/`);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to check form data. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const completeInspection = async (id, data = {}) => {
+  try {
+  const res = await api.post(`inspections/${id}/complete/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to complete inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const forwardInspection = async (id, data = {}) => {
+  try {
+  const res = await api.post(`inspections/${id}/forward/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to forward inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const reviewInspection = async (id, data = {}) => {
+  try {
+  const res = await api.post(`inspections/${id}/review/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to review inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const forwardToLegal = async (id, data = {}) => {
+  try {
+  const res = await api.post(`inspections/${id}/forward_to_legal/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to forward to legal unit. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const sendToSection = async (id, data = {}) => {
+  try {
+  const res = await api.post(`inspections/${id}/send_to_section/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to send to section. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const sendToDivision = async (id, data = {}) => {
+  try {
+  const res = await api.post(`inspections/${id}/send_to_division/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to send to division. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const sendNOV = async (id, data = {}) => {
+  try {
+  const res = await api.post(`inspections/${id}/send_nov/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to send Notice of Violation. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const sendNOO = async (id, data = {}) => {
+  try {
+  const res = await api.post(`inspections/${id}/send_noo/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to send Notice of Order. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const closeInspection = async (id, data = {}) => {
+  try {
+  const res = await api.post(`inspections/${id}/close/`, data);
+  return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to close inspection. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const getInspectionHistory = async (id) => {
+  const res = await api.get(`inspections/${id}/history/`);
   return res.data;
 };
 
-export const getDistricts = async (province) => {
-  const res = await api.get("inspections/districts/", { params: { province } });
+export const getInspectionDocuments = async (id) => {
+  const res = await api.get(`inspections/${id}/documents/`);
   return res.data;
 };
 
-export const getAssignableUsers = async (district, role) => {
-  const res = await api.get("inspections/assignable_users/", {
-    params: { district, role },
+export const uploadInspectionDocument = async (id, formData) => {
+  const res = await api.post(`inspections/${id}/documents/`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
   });
   return res.data;
+};
+
+// Get available actions for an inspection
+export const getAvailableActions = async (id) => {
+  const res = await api.get(`inspections/${id}/available_actions/`);
+  return res.data;
+};
+
+// Dashboard compliance statistics
+export const getComplianceStats = async (params = {}) => {
+  const res = await api.get('inspections/compliance_stats/', { params });
+  return res.data;
+};
+
+// Quarterly comparison data
+export const getQuarterlyComparison = async (params = {}) => {
+  const res = await api.get('inspections/quarterly_comparison/', { params });
+  return res.data;
+};
+
+// Compliance by law data
+export const getComplianceByLaw = async (params = {}) => {
+  const res = await api.get('inspections/compliance_by_law/', { params });
+  return res.data;
+};
+
+// Get tab counts for role-based dashboards
+export const getTabCounts = async () => {
+  try {
+    const res = await api.get('inspections/tab_counts/');
+    return res.data;
+  } catch (error) {
+    console.error("Get tab counts error:", error.response?.data || error);
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.message ||
+        "Failed to get tab counts. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
 };
 
 // -------------------------------------------------
@@ -299,6 +636,26 @@ export const deleteAllNotifications = async () => {
 
 export const getUnreadNotificationsCount = async () => {
   const res = await api.get("notifications/unread-count/");
+  return res.data;
+};
+
+// Bulk operations for notifications
+export const bulkMarkNotificationsAsRead = async (notificationIds) => {
+  const res = await api.post("notifications/bulk-mark-read/", {
+    notification_ids: notificationIds
+  });
+  return res.data;
+};
+
+export const bulkDeleteNotifications = async (notificationIds) => {
+  const res = await api.post("notifications/bulk-delete/", {
+    notification_ids: notificationIds
+  });
+  return res.data;
+};
+
+export const getNotificationStats = async () => {
+  const res = await api.get("notifications/stats/");
   return res.data;
 };
 
@@ -402,10 +759,13 @@ export const createBackup = async (format, path = "") => {
   }
 };
 
-export const restoreBackupFromFile = async (file) => {
+export const restoreBackupFromFile = async (file, restoreOptions = {}) => {
   try {
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("restoreOptions", JSON.stringify({
+      conflictHandling: restoreOptions.conflictHandling || 'skip'
+    }));
 
     const res = await api.post("db/restore/", formData, {
       headers: {
@@ -424,9 +784,14 @@ export const restoreBackupFromFile = async (file) => {
   }
 };
 
-export const restoreBackupByName = async (fileName) => {
+export const restoreBackupByName = async (fileName, restoreOptions = {}) => {
   try {
-    const res = await api.post("db/restore/", { fileName });
+    const res = await api.post("db/restore/", { 
+      fileName, 
+      restoreOptions: {
+        conflictHandling: restoreOptions.conflictHandling || 'skip'
+      }
+    });
     return res.data;
   } catch (error) {
     const enhancedError = new Error(

@@ -1,0 +1,509 @@
+{
+  "formSections": [
+    {
+      "id": "general_information",
+      "title": "General Information",
+      "description": "Basic establishment and inspection details",
+      "fields": [
+        {
+          "id": "establishment_name",
+          "label": "Establishment Name",
+          "type": "text",
+          "required": true,
+          "placeholder": "Enter establishment name"
+        },
+        {
+          "id": "address",
+          "label": "Address",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Enter complete address"
+        },
+        {
+          "id": "coordinates",
+          "label": "Coordinates",
+          "type": "text",
+          "required": true,
+          "placeholder": "Enter coordinates (lat, lon)",
+          "validation": {
+            "pattern": "^\\d+\\.\\d+,\\s*\\d+\\.\\d+$",
+            "message": "Coordinates must be in 'lat, lon' decimal format"
+          }
+        },
+        {
+          "id": "nature_of_business",
+          "label": "Nature of Business",
+          "type": "text",
+          "required": true,
+          "placeholder": "Describe the nature of business"
+        },
+        {
+          "id": "year_established",
+          "label": "Year Established",
+          "type": "number",
+          "required": true,
+          "min": 1900,
+          "max": 2025,
+          "placeholder": "YYYY"
+        },
+        {
+          "id": "inspection_date_time",
+          "label": "Inspection Date & Time",
+          "type": "datetime-local",
+          "required": true
+        },
+        {
+          "id": "operating_hours",
+          "label": "Operating Hours (per day)",
+          "type": "number",
+          "required": true,
+          "min": 1,
+          "max": 24,
+          "placeholder": "Hours"
+        },
+        {
+          "id": "operating_days_per_week",
+          "label": "Operating Days per Week",
+          "type": "number",
+          "required": true,
+          "min": 1,
+          "max": 7,
+          "placeholder": "Days"
+        },
+        {
+          "id": "operating_days_per_year",
+          "label": "Operating Days per Year",
+          "type": "number",
+          "required": true,
+          "min": 1,
+          "max": 365,
+          "placeholder": "Days"
+        },
+        {
+          "id": "phone_fax_no",
+          "label": "Phone/Fax Number",
+          "type": "tel",
+          "required": true,
+          "placeholder": "Enter phone or fax number"
+        },
+        {
+          "id": "email_address",
+          "label": "Email Address",
+          "type": "email",
+          "required": true,
+          "placeholder": "Enter email address"
+        }
+      ]
+    },
+    {
+      "id": "purpose_of_inspection",
+      "title": "Purpose of Inspection",
+      "description": "Define the purpose and scope of the inspection",
+      "fields": [
+        {
+          "id": "verify_accuracy",
+          "label": "Verify accuracy of information submitted by the establishment pertaining to new permit applications, renewals, or modifications.",
+          "type": "checkbox",
+          "required": false
+        },
+        {
+          "id": "verify_accuracy_details",
+          "label": "Verify accuracy of (select all that apply):",
+          "type": "checkbox_group",
+          "required": false,
+          "options": [
+            "Permit to Operate Air (POA)",
+            "Discharge Permit (DP)",
+            "PMPIN Application",
+            "Hazardous Waste ID Registration",
+            "Hazardous Waste Transporter Registration",
+            "Others"
+          ],
+          "conditional": {
+            "field": "verify_accuracy",
+            "value": true
+          }
+        },
+        {
+          "id": "verify_accuracy_others",
+          "label": "Specify other accuracy details:",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Specify other accuracy details",
+          "conditional": {
+            "field": "verify_accuracy_details",
+            "contains": "Others"
+          }
+        },
+        {
+          "id": "determine_compliance",
+          "label": "Determine compliance status with ECC conditions, compliance with commitments made during Technical Conference, permit conditions, and other requirements",
+          "type": "checkbox",
+          "required": false
+        },
+        {
+          "id": "investigate_complaints",
+          "label": "Investigate community complaints.",
+          "type": "checkbox",
+          "required": false
+        },
+        {
+          "id": "check_commitment_status",
+          "label": "Check status of commitment(s)",
+          "type": "checkbox",
+          "required": false
+        },
+        {
+          "id": "commitment_status_details",
+          "label": "Check status of (select all that apply):",
+          "type": "checkbox_group",
+          "required": false,
+          "options": [
+            "Industrial Ecowatch",
+            "Philippine Environmental Partnership Program (PEPP)",
+            "Pollution Adjudication Board (PAB)",
+            "Others"
+          ],
+          "conditional": {
+            "field": "check_commitment_status",
+            "value": true
+          }
+        },
+        {
+          "id": "commitment_status_others",
+          "label": "Specify other commitment status:",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Specify other commitment status",
+          "conditional": {
+            "field": "commitment_status_details",
+            "contains": "Others"
+          }
+        },
+        {
+          "id": "other_purpose",
+          "label": "Others",
+          "type": "checkbox",
+          "required": false
+        },
+        {
+          "id": "other_purpose_specify",
+          "label": "Specify other purpose:",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Specify other purpose",
+          "conditional": {
+            "field": "other_purpose",
+            "value": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "compliance_status",
+      "title": "Compliance Status",
+      "description": "Environmental permits and compliance documentation",
+      "fields": [
+        {
+          "id": "permits",
+          "label": "Environmental Permits",
+          "type": "permit_checklist",
+          "required": false,
+          "permit_types": [
+            {
+              "id": "ecc",
+              "name": "Environmental Compliance Certificate (ECC)",
+              "laws": ["PD-1586"]
+            },
+            {
+              "id": "wdp",
+              "name": "Waste Discharge Permit (WDP)",
+              "laws": ["RA-9275"]
+            },
+            {
+              "id": "apcp",
+              "name": "Air Pollution Control Permit (APCP)",
+              "laws": ["RA-8749"]
+            },
+            {
+              "id": "hwp",
+              "name": "Hazardous Waste Permit (HWP)",
+              "laws": ["RA-6969"]
+            },
+            {
+              "id": "other",
+              "name": "Other Environmental Permits",
+              "laws": ["RA-9003"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "summary_of_compliance",
+      "title": "Summary of Compliance",
+      "description": "Detailed compliance assessment for each applicable law",
+      "fields": [
+        {
+          "id": "compliance_items",
+          "label": "Compliance Items",
+          "type": "compliance_checklist",
+          "required": true,
+          "compliance_categories": [
+            {
+              "id": "pd1586",
+              "name": "PD-1586 (Environmental Impact Assessment)",
+              "items": [
+                "Environmental Impact Statement (EIS) submitted",
+                "Environmental Management Plan (EMP) implemented",
+                "Environmental Monitoring Plan (EMoP) in place",
+                "Public consultation conducted",
+                "Environmental compliance monitoring ongoing"
+              ]
+            },
+            {
+              "id": "ra8749",
+              "name": "RA-8749 (Clean Air Act)",
+              "items": [
+                "Air quality monitoring system installed",
+                "Emission standards compliance",
+                "Air pollution control equipment operational",
+                "Regular air quality testing conducted",
+                "Emission reports submitted on time"
+              ]
+            },
+            {
+              "id": "ra9275",
+              "name": "RA-9275 (Clean Water Act)",
+              "items": [
+                "Wastewater treatment facility operational",
+                "Water quality standards compliance",
+                "Discharge permit valid and current",
+                "Regular water quality testing",
+                "Wastewater discharge reports submitted"
+              ]
+            },
+            {
+              "id": "ra6969",
+              "name": "RA-6969 (Toxic Substances and Hazardous Waste)",
+              "items": [
+                "Hazardous waste management plan in place",
+                "Proper storage and handling of hazardous materials",
+                "Waste disposal through authorized facilities",
+                "Emergency response plan for chemical spills",
+                "Personnel training on hazardous waste handling"
+              ]
+            },
+            {
+              "id": "ra9003",
+              "name": "RA-9003 (Ecological Solid Waste Management)",
+              "items": [
+                "Solid waste management plan implemented",
+                "Waste segregation at source",
+                "Recycling and composting programs",
+                "Proper waste collection and disposal",
+                "Waste reduction initiatives"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "summary_of_findings",
+      "title": "Summary of Findings and Observations",
+      "description": "Environmental systems and compliance observations",
+      "fields": [
+        {
+          "id": "systems",
+          "label": "Environmental Systems",
+          "type": "system_checklist",
+          "required": true,
+          "systems": [
+            {
+              "id": "air_quality",
+              "name": "Air Quality Management System",
+              "description": "Air pollution control and monitoring"
+            },
+            {
+              "id": "water_quality",
+              "name": "Water Quality Management System",
+              "description": "Wastewater treatment and water quality monitoring"
+            },
+            {
+              "id": "waste_management",
+              "name": "Waste Management System",
+              "description": "Solid and hazardous waste management"
+            },
+            {
+              "id": "noise_control",
+              "name": "Noise Control System",
+              "description": "Noise pollution control measures"
+            },
+            {
+              "id": "environmental_monitoring",
+              "name": "Environmental Monitoring System",
+              "description": "Overall environmental monitoring and reporting"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "recommendations",
+      "title": "Recommendations",
+      "description": "Recommendations for improvement and compliance",
+      "fields": [
+        {
+          "id": "recommendations",
+          "label": "Recommendations",
+          "type": "checkbox_group",
+          "required": true,
+          "options": [
+            "Improve environmental monitoring systems",
+            "Enhance waste management practices",
+            "Upgrade pollution control equipment",
+            "Conduct regular environmental training",
+            "Implement environmental management system",
+            "Improve documentation and record keeping",
+            "Enhance emergency response procedures",
+            "Other Recommendations"
+          ]
+        },
+        {
+          "id": "other_recommendations",
+          "label": "Other Recommendations",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Specify other recommendations",
+          "conditional": {
+            "field": "recommendations",
+            "value": "Other Recommendations"
+          }
+        }
+      ]
+    },
+    {
+      "id": "inspection_summary",
+      "title": "Inspection Summary",
+      "description": "Final inspection findings and compliance decision",
+      "fields": [
+        {
+          "id": "findings_summary",
+          "label": "Findings Summary",
+          "type": "textarea",
+          "required": true,
+          "rows": 4,
+          "placeholder": "Summarize the main findings from the inspection..."
+        },
+        {
+          "id": "compliance_observations",
+          "label": "Compliance Observations",
+          "type": "textarea",
+          "required": true,
+          "rows": 4,
+          "placeholder": "Describe compliance observations and any issues found..."
+        },
+        {
+          "id": "violations_found",
+          "label": "Violations Found",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "List any violations found (if applicable)..."
+        },
+        {
+          "id": "compliance_decision",
+          "label": "Compliance Decision",
+          "type": "select",
+          "required": true,
+          "options": [
+            { "value": "COMPLIANT", "label": "Compliant" },
+            { "value": "NON_COMPLIANT", "label": "Non-Compliant" },
+            { "value": "PARTIALLY_COMPLIANT", "label": "Partially Compliant" },
+            { "value": "PENDING", "label": "Pending Review" }
+          ]
+        },
+        {
+          "id": "compliance_plan",
+          "label": "Compliance Plan",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "Describe the establishment's compliance plan (if applicable)..."
+        },
+        {
+          "id": "compliance_deadline",
+          "label": "Compliance Deadline",
+          "type": "date",
+          "required": false,
+          "conditional": {
+            "field": "compliance_decision",
+            "value": "NON_COMPLIANT"
+          }
+        },
+        {
+          "id": "remarks",
+          "label": "Additional Remarks",
+          "type": "textarea",
+          "required": false,
+          "rows": 3,
+          "placeholder": "Any additional remarks or notes..."
+        }
+      ]
+    }
+  ],
+  "formValidation": {
+    "required_fields": [
+      "establishment_name",
+      "address",
+      "coordinates",
+      "nature_of_business",
+      "year_established",
+      "inspection_date_time",
+      "operating_hours",
+      "operating_days_per_week",
+      "operating_days_per_year",
+      "phone_fax_no",
+      "email_address",
+      "compliance_items",
+      "systems",
+      "recommendations",
+      "findings_summary",
+      "compliance_observations",
+      "compliance_decision"
+    ],
+    "conditional_required": [
+      {
+        "field": "verify_accuracy_others",
+        "condition": { "field": "verify_accuracy_details", "contains": "Others" }
+      },
+      {
+        "field": "commitment_status_others",
+        "condition": { "field": "commitment_status_details", "contains": "Others" }
+      },
+      {
+        "field": "other_purpose_specify",
+        "condition": { "field": "other_purpose", "equals": true }
+      },
+      {
+        "field": "other_recommendations",
+        "condition": { "field": "recommendations", "contains": "Other Recommendations" }
+      },
+      {
+        "field": "violations_found",
+        "condition": { "field": "compliance_decision", "equals": "NON_COMPLIANT" }
+      },
+      {
+        "field": "compliance_deadline",
+        "condition": { "field": "compliance_decision", "equals": "NON_COMPLIANT" }
+      }
+    ]
+  },
+  "formMetadata": {
+    "version": "1.0.0",
+    "lastUpdated": "2025-01-XX",
+    "description": "Comprehensive environmental inspection form configuration",
+    "applicableLaws": ["PD-1586", "RA-8749", "RA-9275", "RA-6969", "RA-9003"]
+  }
+}

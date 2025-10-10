@@ -142,13 +142,9 @@ def perform_email_test(config, test_email=None):
             settings.EMAIL_USE_TLS = config.email_use_tls
             settings.EMAIL_HOST_USER = config.email_host_user
             settings.EMAIL_HOST_PASSWORD = config.email_host_password
-            constructed_from_email = construct_from_email(config.default_from_email, config.email_host_user)
+            constructed_from_email = construct_from_email(config.default_from_email, config.email_host_user, config.email_from_name)
             settings.DEFAULT_FROM_EMAIL = constructed_from_email
             
-            # Debug logging
-            print(f"DEBUG: Sending email with from_email: {constructed_from_email}")
-            print(f"DEBUG: EMAIL_HOST_USER: {config.email_host_user}")
-            print(f"DEBUG: DEFAULT_FROM_EMAIL: {settings.DEFAULT_FROM_EMAIL}")
             
             # Note: Gmail will override the from_email if it's not verified in the account
             # This is why you're seeing jerichourbano.01.01.04@gmail.com instead of noreply@gmail.com

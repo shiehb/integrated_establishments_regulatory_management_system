@@ -25,12 +25,16 @@ class SystemConfiguration(models.Model):
     email_host_user = models.EmailField(max_length=255, blank=True, null=True)
     email_host_password = models.CharField(max_length=255, blank=True, null=True)
     default_from_email = models.CharField(max_length=255, blank=True, null=True)
+    email_from_name = models.CharField(max_length=255, blank=True, null=True, help_text="Display name for email sender (e.g., 'Your Company Name')")
     
     # JWT Token Configuration
     access_token_lifetime_minutes = models.IntegerField(default=60)
     refresh_token_lifetime_days = models.IntegerField(default=1)
     rotate_refresh_tokens = models.BooleanField(default=True)
     blacklist_after_rotation = models.BooleanField(default=True)
+    
+    # Backup Configuration
+    backup_custom_path = models.CharField(max_length=500, blank=True, null=True, help_text="Custom directory path for database backups")
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
@@ -75,7 +79,24 @@ class SystemConfiguration(models.Model):
     def get_constructed_from_email(self):
         """Get the properly constructed from email address"""
         from .utils import construct_from_email
-        return construct_from_email(self.default_from_email, self.email_host_user)
+        return construct_from_email(self.default_from_email, self.email_host_user, self.email_from_name)
+    
+    def is_email_configured(self):
+        """Check if email configuration is complete"""
+        return bool(
+            self.email_host_user and 
+            self.email_host_password and 
+            self.default_from_email
+        )
+    
+    @classmethod
+    def is_system_email_configured(cls):
+        """Check if the active system configuration has complete email settings"""
+        try:
+            config = cls.get_active_config()
+            return config.is_email_configured()
+        except:
+            return False
 
 @receiver(post_save, sender=SystemConfiguration)
 def update_django_settings_on_save(sender, instance, **kwargs):

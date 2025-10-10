@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>New Law Assignment</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #2c5aa0; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .law-info { background-color: white; padding: 15px; border-left: 4px solid #2c5aa0; margin: 15px 0; }
+        .establishment-info { background-color: white; padding: 15px; border-left: 4px solid #28a745; margin: 15px 0; }
+        .button { display: inline-block; padding: 10px 20px; background-color: #2c5aa0; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>New Law Assignment</h1>
+        </div>
+        
+        <div class="content">
+            <p>Dear {{ section_chief.first_name|default:section_chief.email }},</p>
+            
+            <p>You have been assigned a new environmental law for inspection:</p>
+            
+            <div class="law-info">
+                <h3>Assigned Law</h3>
+                <p><strong>Law Code:</strong> {{ law_code }}</p>
+                <p><strong>Law Name:</strong> {{ law_name }}</p>
+            </div>
+            
+            <div class="establishment-info">
+                <h3>Establishment Details</h3>
+                <p><strong>Name:</strong> {{ establishment.name }}</p>
+                <p><strong>Location:</strong> {{ establishment.city }}, {{ establishment.province }}</p>
+                <p><strong>Inspection Code:</strong> {{ inspection.code }}</p>
+            </div>
+            
+            <p>Please review the inspection details and proceed with the necessary actions.</p>
+            
+            <a href="{{ site_url }}/inspections/{{ inspection.id }}" class="button">View Inspection Details</a>
+        </div>
+        
+        <div class="footer">
+            <p>This is an automated notification from the Integrated Establishments Regulatory Management System.</p>
+            <p>Please do not reply to this email.</p>
+        </div>
+    </div>
+</body>
+</html>
+

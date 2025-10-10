@@ -1,0 +1,11 @@
+<div class="header">
+  {% if logo_url %}
+  <img src="{{ logo_url }}" alt="{{ logo_alt|default:'IERMS Logo' }}" style="height:48px; width:auto; display:block; margin:0 auto 8px auto;" />
+  {% endif %}
+  <h1>{{ title }}</h1>
+  {% if subtitle %}
+  <p>{{ subtitle }}</p>
+  {% endif %}
+</div>
+
+

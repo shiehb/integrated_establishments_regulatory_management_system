@@ -2,25 +2,32 @@ from django.conf import settings
 from django.core.cache import cache
 from .models import SystemConfiguration
 
-def construct_from_email(default_from_email, email_host_user):
+def construct_from_email(default_from_email, email_host_user, from_name=None):
     """
     Construct the proper from email address.
     If default_from_email ends with '@', append the domain from email_host_user.
+    If from_name is provided, format as "Display Name <email@domain.com>".
     """
     if not default_from_email:
-        return email_host_user
-    
-    if default_from_email.endswith('@'):
+        email_address = email_host_user
+    elif default_from_email.endswith('@'):
         # Extract domain from email_host_user
         if email_host_user and '@' in email_host_user:
             domain = email_host_user.split('@')[1]
-            return f"{default_from_email.rstrip('@')}@{domain}"
+            email_address = f"{default_from_email.rstrip('@')}@{domain}"
         else:
             # If no domain available, return as-is
-            return default_from_email
+            email_address = default_from_email
+    else:
+        # Complete email address, return as-is
+        email_address = default_from_email
     
-    # Complete email address, return as-is
-    return default_from_email
+    # If from_name is provided and not empty, format with display name
+    if from_name and from_name.strip():
+        return f'"{from_name.strip()}" <{email_address}>'
+    
+    # Return just the email address (backward compatible)
+    return email_address
 
 def update_django_settings():
     """Update Django settings with database configuration"""
@@ -33,7 +40,7 @@ def update_django_settings():
         settings.EMAIL_USE_TLS = config.email_use_tls
         settings.EMAIL_HOST_USER = config.email_host_user
         settings.EMAIL_HOST_PASSWORD = config.email_host_password
-        settings.DEFAULT_FROM_EMAIL = construct_from_email(config.default_from_email, config.email_host_user)
+        settings.DEFAULT_FROM_EMAIL = construct_from_email(config.default_from_email, config.email_host_user, config.email_from_name)
         
         # Update JWT settings
         from datetime import timedelta

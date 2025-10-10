@@ -31,116 +31,28 @@
         font-size: 24px;
         font-weight: 600;
       }
-      .header p {
-        margin: 8px 0 0 0;
-        font-size: 14px;
-        opacity: 0.9;
-      }
-      .content {
-        padding: 30px 20px;
-        background-color: #fff;
-      }
-      .welcome-message {
-        font-size: 16px;
-        margin-bottom: 20px;
-        color: #1f2937;
-      }
-      .credentials-box {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 20px;
-        margin: 20px 0;
-      }
-      .credential-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 0;
-        border-bottom: 1px solid #e2e8f0;
-      }
-      .credential-item:last-child {
-        border-bottom: none;
-      }
-      .credential-label {
-        font-weight: 600;
-        color: #374151;
-        font-size: 14px;
-      }
-      .credential-value {
-        font-family: 'Courier New', monospace;
-        background-color: #1f2937;
-        color: #10b981;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 13px;
-        font-weight: 600;
-      }
-      .password-warning {
-        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-        border: 1px solid #f59e0b;
-        padding: 16px;
-        border-radius: 8px;
-        margin: 20px 0;
-        text-align: center;
-      }
-      .password-warning strong {
-        color: #92400e;
-        font-size: 14px;
-      }
-      .password-warning p {
-        margin: 8px 0 0 0;
-        color: #92400e;
-        font-size: 13px;
-      }
-      .login-button {
-        display: inline-block;
-        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-        color: white;
-        text-decoration: none;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        margin: 20px 0;
-        text-align: center;
-        transition: transform 0.2s;
-      }
-      .login-button:hover {
-        transform: translateY(-1px);
-      }
-      .footer {
-        padding: 20px;
-        text-align: center;
-        font-size: 12px;
-        color: #6b7280;
-        background-color: #f9fafb;
-        border-top: 1px solid #e5e7eb;
-      }
-      .system-info {
-        background-color: #f0f9ff;
-        border-left: 4px solid #0ea5e9;
-        padding: 16px;
-        margin: 20px 0;
-        border-radius: 0 8px 8px 0;
-      }
-      .system-info h3 {
-        margin: 0 0 8px 0;
-        color: #0c4a6e;
-        font-size: 16px;
-      }
-      .system-info p {
-        margin: 0;
-        color: #0c4a6e;
-        font-size: 14px;
-      }
+      .header p { margin: 8px 0 0 0; font-size: 14px; opacity: 0.9; }
+      .content { padding: 30px 20px; background-color: #fff; }
+      .welcome-message { font-size: 16px; margin-bottom: 20px; color: #1f2937; }
+      .credentials-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0; }
+      .credential-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+      .credential-item:last-child { border-bottom: none; }
+      .credential-label { font-weight: 600; color: #374151; font-size: 14px; }
+      .credential-value { font-family: 'Courier New', monospace; background-color: #1f2937; color: #10b981; padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: 600; }
+      .password-warning { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; padding: 16px; border-radius: 8px; margin: 20px 0; text-align: center; }
+      .password-warning strong { color: #92400e; font-size: 14px; }
+      .password-warning p { margin: 8px 0 0 0; color: #92400e; font-size: 13px; }
+      .login-button { display: inline-block; background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; margin: 20px 0; text-align: center; transition: transform 0.2s; }
+      .login-button:hover { transform: translateY(-1px); }
+      .system-info { background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0; }
+      .system-info h3 { margin: 0 0 8px 0; color: #0c4a6e; font-size: 16px; }
+      .system-info p { margin: 0; color: #0c4a6e; font-size: 14px; }
+      .footer { padding: 20px; text-align: center; font-size: 12px; color: #6b7280; background-color: #f9fafb; border-top: 1px solid #e5e7eb; }
     </style>
   </head>
   <body>
     <div class="container">
-      <div class="header">
-        <h1>Welcome to IERMS</h1>
-        <p>Integrated Establishments Regulatory Management System</p>
-      </div>
+      {% include 'emails/partials/header.html' with title='Welcome to IERMS' subtitle='Integrated Establishments Regulatory Management System' %}
 
       <div class="content">
         <div class="welcome-message">
@@ -193,13 +105,9 @@
         </p>
       </div>
 
-      <div class="footer">
-        <p><strong>Integrated Establishments Regulatory Management System (IERMS)</strong></p>
-        <p>This is an automated message. Please do not reply to this email.</p>
-        <p style="margin-top: 8px; font-size: 11px; color: #9ca3af;">
-          © 2024 IERMS. All rights reserved.
-        </p>
-      </div>
+      {% include 'emails/partials/footer.html' %}
     </div>
   </body>
-</html>
+  </html>
+
+

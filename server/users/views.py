@@ -262,7 +262,15 @@ class LogoutView(APIView):
 def toggle_user_active(request, pk):
     try:
         user = User.objects.get(pk=pk)
-        user.is_active = not user.is_active
+        new_active_status = not user.is_active
+        
+        # Validate user level constraints when activating
+        if new_active_status:
+            validation_error = validate_user_level_constraints_for_activation(user)
+            if validation_error:
+                return Response({'detail': validation_error}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.is_active = new_active_status
         user.updated_at = timezone.now()
         user.save()
 
@@ -279,6 +287,45 @@ def toggle_user_active(request, pk):
         }, status=status.HTTP_200_OK)
     except User.DoesNotExist:
         return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+def validate_user_level_constraints_for_activation(user):
+    """Validate user level constraints when activating a user"""
+    from django.db.models import Q
+    
+    # Division Chief: Only one active
+    if user.userlevel == "Division Chief":
+        existing_active = User.objects.filter(
+            userlevel="Division Chief", 
+            is_active=True
+        ).exclude(id=user.id).first()
+        if existing_active:
+            return f"Only one active Division Chief is allowed. Currently active: {existing_active.email}"
+    
+    # Section Chief: Only one active per law (section)
+    elif user.userlevel == "Section Chief":
+        if user.section:
+            existing_active = User.objects.filter(
+                userlevel="Section Chief", 
+                section=user.section, 
+                is_active=True
+            ).exclude(id=user.id).first()
+            if existing_active:
+                return f"Only one active Section Chief is allowed per law. Currently active for {user.section}: {existing_active.email}"
+    
+    # Unit Head: Only one active per law (section)
+    elif user.userlevel == "Unit Head":
+        if user.section:
+            existing_active = User.objects.filter(
+                userlevel="Unit Head", 
+                section=user.section, 
+                is_active=True
+            ).exclude(id=user.id).first()
+            if existing_active:
+                return f"Only one active Unit Head is allowed per law. Currently active for {user.section}: {existing_active.email}"
+    
+    # Legal Unit and Monitoring Personnel: Multiple allowed (no validation needed)
+    
+    return None  # No validation error
 
 
 # ---------------------------
@@ -394,6 +441,12 @@ def reset_password_with_otp(request):
     except User.DoesNotExist:
         return Response({'detail': 'User with this email does not exist.'}, status=404)
 
+    # Check if new password is same as current password
+    if user.check_password(new_password):
+        return Response({
+            'detail': 'New password cannot be the same as your current password. Please choose a different password.'
+        }, status=400)
+
     user.set_password(new_password)
     user.must_change_password = False
     user.is_first_login = False
@@ -431,3 +484,96 @@ def user_search(request):
         'results': serializer.data,
         'count': users.count()
     })
+
+
+# ---------------------------
+# District User Management
+# ---------------------------
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def district_users_list(request):
+    """Get users filtered by role and district for district management"""
+    # Get filter parameters
+    userlevel = request.query_params.get('userlevel')
+    district = request.query_params.get('district')
+    section = request.query_params.get('section')
+    
+    # Filter only Section Chief, Unit Head, and Monitoring Personnel
+    queryset = User.objects.filter(
+        userlevel__in=["Section Chief", "Unit Head", "Monitoring Personnel"]
+    ).order_by('district', 'section', 'userlevel', 'last_name')
+    
+    # Apply filters if provided
+    if userlevel:
+        queryset = queryset.filter(userlevel=userlevel)
+    if district:
+        queryset = queryset.filter(district=district)
+    if section:
+        queryset = queryset.filter(section=section)
+    
+    serializer = UserSerializer(queryset, many=True)
+    return Response({
+        'results': serializer.data,
+        'count': queryset.count()
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def assign_district(request, pk):
+    """Assign or update district for a user (Admin, Section Chief, or Unit Head only)"""
+    # Check if user is Admin, Section Chief, or Unit Head
+    if request.user.userlevel not in ["Admin", "Section Chief", "Unit Head"]:
+        return Response({
+            'detail': 'Only Admin, Section Chief, or Unit Head can assign districts.'
+        }, status=status.HTTP_403_FORBIDDEN)
+    try:
+        user = User.objects.get(pk=pk)
+        district = request.data.get('district')
+        
+        # Validate user type
+        if user.userlevel not in ["Section Chief", "Unit Head", "Monitoring Personnel"]:
+            return Response({
+                'detail': 'Only Section Chief, Unit Head, and Monitoring Personnel can be assigned to districts.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate district
+        valid_districts = [choice[0] for choice in User.DISTRICT_CHOICES]
+        if district and district not in valid_districts:
+            return Response({
+                'detail': f'Invalid district. Must be one of: {", ".join(valid_districts)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check for existing active user with same role, section, and district
+        if district and user.is_active:
+            existing = User.objects.filter(
+                userlevel=user.userlevel,
+                section=user.section,
+                district=district,
+                is_active=True
+            ).exclude(id=user.id).first()
+            
+            if existing:
+                return Response({
+                    'detail': f'An active {user.userlevel} for {user.section} in {district} already exists: {existing.email}'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update district
+        user.district = district
+        user.updated_at = timezone.now()
+        user.save()
+        
+        log_activity(
+            request.user,
+            "update",
+            f"Assigned district {district} to {user.email}",
+            request=request
+        )
+        
+        return Response({
+            'message': 'District assigned successfully',
+            'user': UserSerializer(user).data
+        }, status=status.HTTP_200_OK)
+        
+    except User.DoesNotExist:
+        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)

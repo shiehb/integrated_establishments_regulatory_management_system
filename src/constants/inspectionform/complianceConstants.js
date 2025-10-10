@@ -15,12 +15,13 @@ export const COMPLIANCE_STATUS = {
 };
 
 export const PREDEFINED_REMARKS = [
-  "Documents Complete",
+  "Compliant",        // only appears when Yes
   "Minor Deficiency",
   "Major Deficiency",
   "For Monitoring",
   "Other",
 ];
+
 
 export const initialComplianceItems = [
   // PD-1586 (9 rows for ECC conditions)

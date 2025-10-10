@@ -1,0 +1,107 @@
+import React, { forwardRef } from "react";
+import { formatInput } from "./utils";
+import SectionHeader from "./SectionHeader";
+
+/* ---------------------------
+   Recommendations
+   ---------------------------*/
+const Recommendations = forwardRef(function Recommendations({ recState, setRecState, errors, isReadOnly = false, canEditRecommendation = false }, ref) {
+  // Import recommendations from constants
+  const recommendations = [
+    {
+      id: "confirmatory_sampling",
+      label: "For confirmatory sampling/further monitoring",
+      category: "Monitoring",
+    },
+    {
+      id: "permit_issuance",
+      label:
+        "For issuance of Temporary/Renewal of permit to operate (POA) and/or Renewal of Discharge Permit (DP)",
+      category: "Permitting",
+    },
+    {
+      id: "pco_accreditation",
+      label:
+        "For accreditation of Pollution Control Office(PCO)/Seminar requirement of Managing Head",
+      category: "Training",
+    },
+    {
+      id: "report_submission",
+      label:
+        "For Submission of Self-Monitoring Report (SMR)/Compliance monitoring Report(CMR)",
+      category: "Reporting",
+    },
+    {
+      id: "violation_notice",
+      label: "For issuance of Notice of Violation(NOV)",
+      category: "Enforcement",
+    },
+    {
+      id: "suspension",
+      label: "For issuance of suspension of ECC/5-day CDO",
+      category: "Enforcement",
+    },
+    {
+      id: "pab_endorsement",
+      label: "For endorsement to Pollution Adjudication Board (PAB)",
+      category: "Enforcement",
+    },
+    {
+      id: "other",
+      label: "Other Recommendations",
+      category: "General",
+    },
+  ];
+
+  const toggle = (label) => {
+    const set = new Set(recState.checked || []);
+    if (set.has(label)) set.delete(label);
+    else set.add(label);
+    setRecState({ ...recState, checked: Array.from(set) });
+  };
+
+  const updateField = (field, value) => {
+    setRecState({ ...recState, [field]: formatInput.upper(value) });
+  };
+
+  return (
+    <section ref={ref} data-section="recommendations" className="min-h-[calc(100vh-220px)] p-4 mb-6 bg-white border border-black scroll-mt-48" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
+      <SectionHeader title="Recommendations" />
+      <div className="space-y-3">
+        {recommendations.map((r) => (
+          <label key={r.id} className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={(recState.checked || []).includes(r.label)}
+              onChange={() => toggle(r.label)}
+              disabled={isReadOnly && !canEditRecommendation}
+              className={`w-4 h-4 ${isReadOnly && !canEditRecommendation ? 'opacity-50 cursor-not-allowed' : ''}`}
+            />
+            <span className={`text-sm text-black ${isReadOnly && !canEditRecommendation ? 'text-gray-500' : ''}`}>{r.label}</span>
+          </label>
+        ))}
+
+        {(recState.checked || []).includes("Other Recommendations") && (
+          <div className="mt-2">
+            <textarea
+              value={recState.otherText || ""}
+              onChange={(e) => updateField("otherText", e.target.value)}
+              placeholder="ENTER OTHER RECOMMENDATION..."
+              disabled={isReadOnly && !canEditRecommendation}
+              className={`w-full border border-black px-2 py-1 min-h-[80px] uppercase ${
+                isReadOnly && !canEditRecommendation 
+                  ? 'bg-gray-100 text-gray-600 cursor-not-allowed' 
+                  : 'bg-white text-black'
+              }`}
+            />
+            {errors.recommendations && (
+              <p className="text-sm text-red-600">{errors.recommendations}</p>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+});
+
+export default Recommendations;

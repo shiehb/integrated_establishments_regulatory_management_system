@@ -81,7 +81,7 @@ export default function ActivityLogTimeline({ activityLog }) {
 
           {filtersOpen && (
             <div
-              className="absolute right-0 z-20 p-3 mt-2 bg-white border rounded shadow w-80"
+              className="absolute right-0 top-full z-20 p-3 mt-2 bg-white border rounded shadow w-80"
               onMouseEnter={() =>
                 filterTimeout.current && clearTimeout(filterTimeout.current)
               }
