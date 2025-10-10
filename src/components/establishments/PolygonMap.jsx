@@ -11,6 +11,8 @@ import {
 import { EditControl } from "react-leaflet-draw";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
+import "leaflet.fullscreen";
+import "leaflet.fullscreen/Control.FullScreen.css";
 import L from "leaflet";
 import { getEstablishments } from "../../services/api";
 import * as turf from "@turf/turf";
@@ -20,7 +22,6 @@ import {
 } from "../../utils/polygonUtils";
 import SnapIndicator from "./map-overlays/SnapIndicator";
 import MarkerSnapZone from "./map-overlays/MarkerSnapZone";
-import { Maximize2, Minimize2 } from "lucide-react";
 
 // Fix Leaflet marker icons - using local assets for offline support
 delete L.Icon.Default.prototype._getIconUrl;
@@ -40,16 +41,12 @@ export default function PolygonMap({
   snapDistance = 10,
 }) {
   const featureGroupRef = useRef();
-  const fullscreenContainerRef = useRef(null);
   
   // Simplified state management
   const [displayPolygon, setDisplayPolygon] = useState(null);
   const [otherPolygons, setOtherPolygons] = useState([]);
   const [infoMessage, setInfoMessage] = useState("");
   const infoTimerRef = useRef(null);
-
-  // Fullscreen state
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Visual feedback state
   const [snapIndicator, setSnapIndicator] = useState({ active: false, distance: 0, type: 'edge' });
@@ -146,66 +143,6 @@ export default function PolygonMap({
       isMounted = false;
     };
   }, [establishment?.id]);
-
-  // Fullscreen functionality
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape' && isFullscreen) {
-        exitFullscreen();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isFullscreen]);
-
-  // Handle fullscreen change events
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
-      setIsFullscreen(isCurrentlyFullscreen);
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('msfullscreenchange', handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
-    };
-  }, []);
-
-  const enterFullscreen = () => {
-    console.log('Entering fullscreen...');
-    const container = fullscreenContainerRef.current;
-    if (container) {
-      if (container.requestFullscreen) {
-        container.requestFullscreen();
-      } else if (container.webkitRequestFullscreen) {
-        container.webkitRequestFullscreen();
-      } else if (container.msRequestFullscreen) {
-        container.msRequestFullscreen();
-      }
-      setIsFullscreen(true);
-    } else {
-      console.error('Container not found');
-    }
-  };
-
-  const exitFullscreen = () => {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
-    } else if (document.msExitFullscreen) {
-      document.msExitFullscreen();
-    }
-    setIsFullscreen(false);
-  };
 
   // Validate that marker is inside polygon
   const validateMarkerInsidePolygon = (polygonLatLngs, markerPos) => {
@@ -501,48 +438,17 @@ export default function PolygonMap({
   const markerPosition = getMarkerPosition();
 
   return (
-    <div 
-      ref={fullscreenContainerRef}
-      className={`${isFullscreen ? 'fixed inset-0 z-50 bg-white' : 'w-full'} transition-all duration-300 ease-in-out`}
-    >
-      {/* Fullscreen Header */}
-      {isFullscreen && (
-        <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-sky-600">
-            Polygon Map - Fullscreen
-          </h1>
-          <button
-            onClick={exitFullscreen}
-            className="flex items-center gap-2 px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors duration-200 shadow-lg"
-            title="Exit Fullscreen (ESC)"
-          >
-            <Minimize2 size={20} />
-            <span className="text-sm font-medium">Exit Fullscreen</span>
-          </button>
-        </div>
-      )}
-
-      {/* Map Container */}
-      <div className={`relative ${isFullscreen ? 'h-[calc(100vh-80px)]' : 'h-[calc(100vh-238px)]'} w-full`}>
-        {/* Fullscreen Toggle Button */}
-        {!isFullscreen && (
-          <button
-            onClick={enterFullscreen}
-            className="absolute top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2 text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors duration-200 shadow-lg border-2 border-white"
-            title="Enter Fullscreen"
-            style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 9999 }}
-          >
-            <Maximize2 size={20} />
-            <span className="text-sm font-medium hidden sm:inline">Fullscreen</span>
-          </button>
-        )}
-
-      <MapContainer
-        center={getCenter()}
-        zoom={18}
-        style={{ height: "100%", width: "100%", zIndex: 0 }}
-        maxZoom={22}
-          className={`${isFullscreen ? 'rounded-none' : 'rounded-lg'}`}
+    <div className="w-full">
+      <div className="relative h-[calc(100vh-238px)] w-full">
+        <MapContainer
+          center={getCenter()}
+          zoom={18}
+          style={{ height: "100%", width: "100%", zIndex: 0 }}
+          maxZoom={22}
+          fullscreenControl={true}
+          fullscreenControlOptions={{
+            position: 'topright'
+          }}
         >
           <LayersControl position="topleft">
           <LayersControl.BaseLayer name="Satellite">
@@ -620,7 +526,7 @@ export default function PolygonMap({
             />
           </FeatureGroup>
         )}
-      </MapContainer>
+        </MapContainer>
 
         {/* Snap Indicator */}
         {snapIndicator.active && (
@@ -634,13 +540,13 @@ export default function PolygonMap({
         )}
 
         {/* Info Message */}
-      {infoMessage && (
+        {infoMessage && (
           <div className={`pointer-events-none absolute left-3 bottom-3 z-[1000] rounded px-3 py-2 text-xs text-white shadow ${
             !isPolygonValid ? 'bg-red-600/90' : 'bg-black/70'
           }`}>
-          {infoMessage}
-        </div>
-      )}
+            {infoMessage}
+          </div>
+        )}
         
         {/* Validation Error Badge */}
         {editMode && !isPolygonValid && validationError && (
