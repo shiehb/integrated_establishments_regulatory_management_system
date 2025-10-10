@@ -9,7 +9,7 @@ import React from 'react';
  * @returns {JSX.Element} Loading skeleton component
  */
 const LoadingSkeleton = () => (
-  <div className="bg-white border-2 rounded-lg p-6 animate-pulse">
+  <div className="bg-white rounded p-6 animate-pulse">
     <div className="flex items-center justify-between mb-4">
       <div className="w-12 h-12 bg-gray-200 rounded-lg"></div>
       <div className="w-16 h-4 bg-gray-200 rounded"></div>

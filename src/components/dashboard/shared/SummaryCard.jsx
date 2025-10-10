@@ -33,21 +33,7 @@ const SummaryCard = ({
   onNavigate 
 }) => {
   if (isLoading) {
-    return (
-      <div className="bg-white border-2 rounded-xl p-5 h-full flex flex-col animate-pulse">
-        <div className="flex items-center justify-between mb-4">
-          <div className="p-3 rounded-xl bg-gray-200 w-12 h-12"></div>
-          <div className="flex items-center gap-1.5">
-            <div className="p-2 rounded-lg bg-gray-200 w-8 h-8"></div>
-            <div className="p-2 rounded-lg bg-gray-200 w-8 h-8"></div>
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col justify-end">
-          <div className="text-4xl font-bold bg-gray-200 h-10 w-16 mb-2 rounded"></div>
-          <div className="text-sm bg-gray-200 h-4 w-24 rounded"></div>
-        </div>
-      </div>
-    );
+    return <LoadingSkeleton />;
   }
 
   const handleCardClick = () => {
@@ -79,7 +65,7 @@ const SummaryCard = ({
 
   return (
     <div 
-      className={`bg-white border-2 rounded-xl p-5 transition-all duration-500 hover:shadow-xl hover:shadow-sky-100/50 hover:-translate-y-1 ${color} group cursor-pointer h-full flex flex-col backdrop-blur-sm hover:border-sky-300/60`}
+      className={`bg-white border rounded p-5 transition-all duration-500 hover:shadow-xl hover:shadow-sky-100/50 hover:-translate-y-1 ${color} group cursor-pointer h-full flex flex-col backdrop-blur-sm hover:border-sky-300/60`}
       onClick={handleCardClick}
       role="button"
       tabIndex={0}
