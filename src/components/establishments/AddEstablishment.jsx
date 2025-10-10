@@ -17,9 +17,12 @@ import {
 import { useNotifications } from "../NotificationManager";
 
 const markerIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
+  iconUrl: "/assets/map/marker-icon.png",
+  iconRetinaUrl: "/assets/map/marker-icon-2x.png",
+  shadowUrl: "/assets/map/marker-shadow.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
+  shadowSize: [41, 41],
 });
 
 
@@ -776,16 +779,17 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
           boundsOptions={{ padding: [20, 20] }}
         >
           <LayersControl position="topright">
-            <LayersControl.BaseLayer checked name="OpenStreetMap">
-              <TileLayer
-                url={osm.maptiler.url}
-                attribution={osm.maptiler.attribution}
-              />
-            </LayersControl.BaseLayer>
             <LayersControl.BaseLayer name="Google Satellite">
               <TileLayer
                 url={osm.googleSatellite.url}
                 attribution={osm.googleSatellite.attribution}
+              />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer checked name="3D Terrain">
+              <TileLayer
+                url="https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=Usuq2JxAdrdQy7GmBVyr"
+                attribution='<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>'
+                maxZoom={22}
               />
             </LayersControl.BaseLayer>
           </LayersControl>

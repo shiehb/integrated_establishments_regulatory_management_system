@@ -77,12 +77,17 @@ export default function EstablishmentDetailsPanel({ establishment }) {
         <h3 className="text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wide">
           Address
         </h3>
-        <div className="space-y-1">
-          <DetailRow 
-            icon={MapPin} 
-            label="Street/Building" 
-            value={establishment.street_building}
-          />
+        <div className="grid grid-cols-2 gap-2">
+          {/* Full width row */}
+          <div className="col-span-2">
+            <DetailRow 
+              icon={MapPin} 
+              label="Street/Building" 
+              value={establishment.street_building}
+            />
+          </div>
+          
+          {/* Two column layout */}
           <DetailRow 
             icon={MapPin} 
             label="Barangay" 

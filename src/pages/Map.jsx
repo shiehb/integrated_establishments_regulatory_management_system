@@ -25,6 +25,8 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 // Fix for default markers in react-leaflet - using local assets for offline support
@@ -86,9 +88,11 @@ function MapFocus({ establishment }) {
 
 export default function MapPage() {
   const mapRef = useRef(null);
+  const fullscreenContainerRef = useRef(null);
   const [allEstablishments, setAllEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [focusedEstablishment, setFocusedEstablishment] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const notifications = useNotifications();
 
   // 🔍 Search state
@@ -158,6 +162,66 @@ export default function MapPage() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [filtersOpen, sortDropdownOpen]);
+
+  // Fullscreen functionality
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        exitFullscreen();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullscreen]);
+
+  const enterFullscreen = () => {
+    console.log('Entering fullscreen...');
+    const container = fullscreenContainerRef.current;
+    if (container) {
+      if (container.requestFullscreen) {
+        container.requestFullscreen();
+      } else if (container.webkitRequestFullscreen) {
+        container.webkitRequestFullscreen();
+      } else if (container.msRequestFullscreen) {
+        container.msRequestFullscreen();
+      }
+      setIsFullscreen(true);
+    } else {
+      console.error('Container not found');
+    }
+  };
+
+  const exitFullscreen = () => {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    } else if (document.msExitFullscreen) {
+      document.msExitFullscreen();
+    }
+    setIsFullscreen(false);
+  };
+
+  // Handle fullscreen change events
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+      setIsFullscreen(isCurrentlyFullscreen);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   // ✅ Sorting handler
   const handleSort = (key) => {
@@ -339,6 +403,9 @@ export default function MapPage() {
     businessTypeFilter.length > 0 ||
     sortConfig.key;
 
+  // Debug log
+  console.log('isFullscreen:', isFullscreen);
+
   // Calculate display range
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(
@@ -350,12 +417,16 @@ export default function MapPage() {
     <>
       <Header />
       <LayoutWithSidebar userLevel="admin">
-        <div className="p-4 bg-white h-[calc(100vh-165px)]">
+        <div 
+          ref={fullscreenContainerRef}
+          className={`${isFullscreen ? 'fixed inset-0 z-50 bg-white' : 'p-4 bg-white h-[calc(100vh-165px)]'} transition-all duration-300 ease-in-out`}
+        >
           {/* Header with Search, Filters, and Sort */}
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <h1 className="text-2xl font-bold text-sky-600">
-              Establishments Map
-            </h1>
+          {!isFullscreen && (
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h1 className="text-2xl font-bold text-sky-600">
+                Establishments Map
+              </h1>
 
             <div className="flex flex-wrap items-center w-full gap-2 sm:w-auto">
               {/* 🔍 Local Search Bar */}
@@ -545,32 +616,66 @@ export default function MapPage() {
               </div>
             </div>
           </div>
+          )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-240px)]">
-            {/* Left: Map with street and satellite layers */}
-            <div className="overflow-hidden rounded shadow">
+          {/* Fullscreen Header */}
+          {isFullscreen && (
+            <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200">
+              <h1 className="text-2xl font-bold text-sky-600">
+                Establishments Map - Fullscreen
+              </h1>
+              <button
+                onClick={exitFullscreen}
+                className="flex items-center gap-2 px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors duration-200 shadow-lg"
+                title="Exit Fullscreen (ESC)"
+              >
+                <Minimize2 size={20} />
+                <span className="text-sm font-medium">Exit Fullscreen</span>
+              </button>
+            </div>
+          )}
+
+          <div className={`${isFullscreen ? 'h-[calc(100vh-80px)]' : 'grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-240px)]'}`}>
+            {/* Map Container */}
+            <div className={`relative ${isFullscreen ? 'w-full h-full' : 'overflow-hidden rounded shadow'}`}>
+              {/* Fullscreen Toggle Button */}
+              {!isFullscreen && (
+                <button
+                  onClick={enterFullscreen}
+                  className="absolute top-4 right-4 z-[9999] flex items-center gap-2 px-4 py-2 text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors duration-200 shadow-lg border-2 border-white"
+                  title="Enter Fullscreen"
+                  style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 9999 }}
+                >
+                  <Maximize2 size={20} />
+                  <span className="text-sm font-medium hidden sm:inline">Fullscreen</span>
+                </button>
+              )}
+
               <MapContainer
                 center={[16.597668, 120.322477]}
                 zoom={8}
                 style={{ width: "100%", height: "100%" }}
                 whenCreated={(mapInstance) => (mapRef.current = mapInstance)}
                 maxZoom={22}
+                className={`${isFullscreen ? 'rounded-none' : 'rounded-lg'}`}
               >
-                <LayersControl position="topright">
+                <LayersControl position="topleft">
                   {/* Base Layers */}
-                  <LayersControl.BaseLayer checked name="Street Map">
-                    <TileLayer
-                      url="https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=Usuq2JxAdrdQy7GmBVyr"
-                      attribution="© MapTiler © OpenStreetMap contributors"
-                    />
-                  </LayersControl.BaseLayer>
-
                   <LayersControl.BaseLayer name="Satellite">
                     <TileLayer
                       url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
                       maxZoom={20}
                       subdomains={["mt1", "mt2", "mt3"]}
                       attribution="© Google"
+                    />
+                  </LayersControl.BaseLayer>
+
+                  {/* 3D Map Layer with Buildings */}
+                  <LayersControl.BaseLayer checked name="3D Terrain">
+                    <TileLayer
+                      url="https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=Usuq2JxAdrdQy7GmBVyr"
+                      attribution='<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>'
+                      maxZoom={22}
                     />
                   </LayersControl.BaseLayer>
                 </LayersControl>
@@ -657,7 +762,8 @@ export default function MapPage() {
             </div>
 
             {/* Right: Establishments Table with Sortable Headers */}
-            <div className="flex flex-col">
+            {!isFullscreen && (
+              <div className="flex flex-col">
               {/* Table Container */}
               <div className="flex-grow overflow-y-auto">
                 <table className="w-full border-b border-gray-300 rounded-lg">
@@ -852,12 +958,13 @@ export default function MapPage() {
                   </div>
                 </div>
               )}
-            </div>
+              </div>
+            )}
 
           </div>
         </div>
       </LayoutWithSidebar>
-      <Footer />
+      {!isFullscreen && <Footer />}
     </>
   );
 }

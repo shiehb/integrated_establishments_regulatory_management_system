@@ -17,9 +17,12 @@ import {
 import { useNotifications } from "../NotificationManager";
 
 const markerIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.7/dist/images/marker-icon.png",
+  iconUrl: "/assets/map/marker-icon.png",
+  iconRetinaUrl: "/assets/map/marker-icon-2x.png",
+  shadowUrl: "/assets/map/marker-shadow.png",
   iconSize: [25, 41],
   iconAnchor: [12, 41],
+  shadowSize: [41, 41],
 });
 
 
@@ -113,40 +116,6 @@ function findBestCityMatch(osmCity, selectedProvince) {
   return "";
 }
 
-// Helper function to find best match for barangay
-function findBestBarangayMatch(osmBarangay, selectedProvince, selectedCity) {
-  if (!osmBarangay || !selectedProvince || !selectedCity) return "";
-  
-  const osmUpper = osmBarangay.toUpperCase();
-  const availableBarangays = BARANGAYS_BY_CITY[selectedProvince]?.[selectedCity] || [];
-  
-  // Direct match
-  if (availableBarangays.includes(osmUpper)) {
-    return osmUpper;
-  }
-  
-  // Fuzzy matching - check if OSM barangay contains or is contained in our barangays
-  for (const barangay of availableBarangays) {
-    if (osmUpper.includes(barangay) || barangay.includes(osmUpper)) {
-      return barangay;
-    }
-  }
-  
-  // Partial word matching for common patterns
-  const osmWords = osmUpper.split(/\s+/);
-  for (const barangay of availableBarangays) {
-    const barangayWords = barangay.split(/\s+/);
-    for (const osmWord of osmWords) {
-      for (const barangayWord of barangayWords) {
-        if (osmWord === barangayWord && osmWord.length > 3) {
-          return barangay;
-        }
-      }
-    }
-  }
-  
-  return ""; // No match found, leave empty
-}
 
 // Reverse geocode: lat/lng -> address
 async function reverseGeocode(lat, lon, setFormData, setMapZoom) {
@@ -817,16 +786,17 @@ export default function EditEstablishment({
           boundsOptions={{ padding: [20, 20] }}
         >
           <LayersControl position="topright">
-            <LayersControl.BaseLayer checked name="OpenStreetMap">
-              <TileLayer
-                url={osm.maptiler.url}
-                attribution={osm.maptiler.attribution}
-              />
-            </LayersControl.BaseLayer>
             <LayersControl.BaseLayer name="Google Satellite">
               <TileLayer
                 url={osm.googleSatellite.url}
                 attribution={osm.googleSatellite.attribution}
+              />
+            </LayersControl.BaseLayer>
+            <LayersControl.BaseLayer checked name="3D Terrain">
+              <TileLayer
+                url="https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=Usuq2JxAdrdQy7GmBVyr"
+                attribution='<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>'
+                maxZoom={22}
               />
             </LayersControl.BaseLayer>
           </LayersControl>
