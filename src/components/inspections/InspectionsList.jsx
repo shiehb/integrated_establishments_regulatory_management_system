@@ -1313,11 +1313,11 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       />
 
       {/* Table Container with Scroll */}
-      <div className="overflow-x-auto border border-gray-300 rounded-lg">
+      <div className="overflow-auto border border-gray-300 rounded-lg h-[calc(100vh-270px)] scroll-smooth">
         <table className="w-full min-w-[800px]">
-          <thead className="bg-sky-700 text-white sticky top-0 z-10">
-            <tr className="text-sm text-left">
-              <th className="w-12 p-3 text-center border-b border-gray-300">
+          <thead>
+            <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
+              <th className="w-6 p-1 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
                   checked={
@@ -1325,33 +1325,19 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     selectedInspections.length === inspections.length
                   }
                   onChange={toggleSelectAll}
-                  className="rounded border-gray-300"
                 />
               </th>
-              {[
-                { key: "code", label: "Code", sortable: true, width: "w-32" },
-                { key: "establishments_detail", label: "Establishments", sortable: false, width: "w-64" },
-                { key: "law", label: "Law", sortable: false, width: "w-32" },
-                { key: "current_status", label: "Status", sortable: false, width: "w-40" },
-                { key: "assigned_to_name", label: "Assigned To", sortable: false, width: "w-48" },
-                { key: "created_at", label: "Created", sortable: true, width: "w-36" },
-              ].map((col) => (
-                <th
-                  key={col.key}
-                  className={`p-3 border-b border-gray-300 ${col.width} ${
-                    col.sortable ? "cursor-pointer hover:bg-sky-600" : ""
-                  }`}
-                  onClick={col.sortable ? () => handleSort(col.key) : undefined}
-                >
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium">{col.label}</span>
-                    {col.sortable && getSortIcon(col.key)}
-                  </div>
-                </th>
-              ))}
-              <th className="p-3 text-center border-b border-gray-300 w-32 font-medium">
-                Actions
+              <th className="p-1 border-b border-gray-300 cursor-pointer" onClick={() => handleSort("code")}>
+                <div className="flex items-center gap-1">Code {getSortIcon("code")}</div>
               </th>
+              <th className="p-1 border-b border-gray-300">Establishments</th>
+              <th className="p-1 border-b border-gray-300">Law</th>
+              <th className="p-1 border-b border-gray-300">Status</th>
+              <th className="p-1 border-b border-gray-300">Assigned To</th>
+              <th className="p-1 text-center border-b border-gray-300 cursor-pointer" onClick={() => handleSort("created_at")}>
+                <div className="flex items-center justify-center gap-1">Created {getSortIcon("created_at")}</div>
+              </th>
+              <th className="p-1 text-center border-b border-gray-300">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -1359,7 +1345,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               <tr>
                 <td
                   colSpan="8"
-                  className="px-4 py-8 text-center"
+                  className="px-2 py-6 text-center text-gray-500 border-b border-gray-300"
                 >
                   <div
                     className="flex flex-col items-center justify-center p-4"
@@ -1375,7 +1361,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               <tr>
                 <td
                   colSpan="8"
-                  className="px-4 py-8 text-center text-gray-500"
+                  className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
                 >
                   {hasActiveFilters ? (
                     <div>
@@ -1399,67 +1385,38 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                 .map((inspection) => (
                 <tr
                   key={inspection.id}
-                  className="text-sm border-b border-gray-200 transition-colors"
+                  className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
                 >
-                  <td className="p-3 text-center">
+                  <td className="p-1 text-center border-b border-gray-300">
                     <input
                       type="checkbox"
                       checked={selectedInspections.includes(inspection.id)}
                       onChange={() => toggleSelect(inspection.id)}
-                      className="rounded border-gray-300"
                     />
                   </td>
-                  <td className="p-3 font-semibold">
-                    <div className="flex items-center">
-                      <FileText className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
-                      <span className="truncate">{inspection.code}</span>
-                    </div>
+                  <td className="p-1 font-semibold border-b border-gray-300">
+                    {inspection.code}
                   </td>
-                  <td className="p-3">
-                    <div className="flex items-start">
-                      <Building className="h-4 w-4 text-gray-400 mr-2 mt-0.5 flex-shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        {inspection.establishments_detail && inspection.establishments_detail.length > 0 ? (
-                          inspection.establishments_detail.map((est, idx) => (
-                            <div key={idx} className="mb-1 last:mb-0">
-                              <div className="text-sm font-medium text-gray-900 truncate" title={est.name}>{est.name}</div>
-                              <div className="text-xs text-gray-500 truncate" title={est.nature_of_business}>{est.nature_of_business}</div>
-                              <div className="text-xs text-gray-400 truncate" title={`${est.city}, ${est.province}`}>{est.city}, {est.province}</div>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-sm text-gray-400">No establishments</span>
-                        )}
-                      </div>
-                    </div>
+                  <td className="p-1 border-b border-gray-300">
+                    {inspection.establishments_detail && inspection.establishments_detail.length > 0
+                      ? inspection.establishments_detail.map(e => e.name).join(', ')
+                      : 'No establishments'}
                   </td>
-                  <td className="p-3">
-                    <div className="text-sm text-gray-600 truncate" title={inspection.law}>{inspection.law}</div>
+                  <td className="p-1 border-b border-gray-300">
+                    {inspection.law}
                   </td>
-                  <td className="p-3">
+                  <td className="p-1 border-b border-gray-300">
                     <StatusBadge 
                       status={inspection.current_status} 
                     />
                   </td>
-                  <td className="p-3">
-                    {inspection.assigned_to_name ? (
-                      <div>
-                        <div className="text-sm font-medium text-gray-900 truncate" title={inspection.assigned_to_name}>{inspection.assigned_to_name}</div>
-                        {inspection.assigned_to_level && (
-                          <div className="text-xs text-gray-500 truncate" title={inspection.assigned_to_level}>{inspection.assigned_to_level}</div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-400">Unassigned</span>
-                    )}
+                  <td className="p-1 border-b border-gray-300">
+                    {inspection.assigned_to_name || 'Unassigned'}
                   </td>
-                  <td className="p-3">
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 text-gray-400 mr-2 flex-shrink-0" />
-                      <div className="text-sm text-gray-600">{formatFullDate(inspection.created_at)}</div>
-                    </div>
+                  <td className="p-1 text-center border-b border-gray-300">
+                    {formatFullDate(inspection.created_at)}
                   </td>
-                  <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                  <td className="p-1 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
                     <InspectionActions 
                       inspection={inspection}
                       availableActions={inspection.available_actions || []}

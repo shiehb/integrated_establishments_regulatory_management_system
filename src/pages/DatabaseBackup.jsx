@@ -1121,10 +1121,10 @@ const DatabaseBackup = () => {
                 )}
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full border border-gray-300 rounded-lg">
+              <div className="overflow-auto h-[calc(100vh-520px)] border border-gray-300 rounded-lg scroll-smooth">
+                <table className="w-full">
                   <thead>
-                    <tr className="text-sm text-left text-white bg-sky-700">
+                    <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
                       <th className="w-6 p-1 text-center border-b border-gray-300">
                         <input
                           type="checkbox"
@@ -1163,7 +1163,7 @@ const DatabaseBackup = () => {
                       <tr>
                         <td
                           colSpan="6"
-                          className="px-2 py-8 text-center border border-gray-300"
+                          className="px-2 py-6 text-center text-gray-500 border-b border-gray-300"
                         >
                           <div className="flex flex-col items-center justify-center p-4">
                             <div className="w-8 h-8 mb-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
@@ -1175,7 +1175,7 @@ const DatabaseBackup = () => {
                       <tr>
                         <td
                           colSpan="6"
-                          className="px-2 py-4 text-center text-gray-500 border border-gray-300"
+                          className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
                         >
                           {hasActiveFilters ? (
                             <div>
@@ -1223,7 +1223,7 @@ const DatabaseBackup = () => {
                               }}
                             />
                           </td>
-                          <td className="px-2 py-3 border-b border-gray-300">
+                          <td className="p-1 border-b border-gray-300">
                             <div className="flex items-center">
                               <div
                                 className={`w-3 h-3 rounded-full mr-3 ${
@@ -1237,7 +1237,7 @@ const DatabaseBackup = () => {
                               </span>
                             </div>
                           </td>
-                          <td className="px-2 py-3 text-center border-b border-gray-300">
+                          <td className="p-1 text-center border-b border-gray-300">
                             <span
                               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                 backup.format === "json"
@@ -1248,13 +1248,13 @@ const DatabaseBackup = () => {
                               {backup.format.toUpperCase()}
                             </span>
                           </td>
-                          <td className="px-2 py-3 text-sm text-gray-500 border-b border-gray-300">
+                          <td className="p-1 text-sm text-gray-500 border-b border-gray-300">
                             {formatFullDate(backup.created)}
                           </td>
-                          <td className="px-2 py-3 text-sm text-gray-500 border-b border-gray-300">
+                          <td className="p-1 text-sm text-gray-500 border-b border-gray-300">
                             {backup.size}
                           </td>
-                          <td className="px-2 py-3 border-b border-gray-300">
+                          <td className="p-1 border-b border-gray-300">
                             <div className="flex justify-center gap-1">
                               <button
                                 onClick={(e) => {

@@ -690,7 +690,7 @@ export default function AdminDashboard() {
 
         {/* Activity Table */}
         {!isActivityCollapsed && (
-          <div className="overflow-x-auto relative">
+          <div className="overflow-auto h-[calc(100vh-400px)] border border-gray-300 rounded-lg scroll-smooth relative">
             {isActivityLoading && (
               <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
                 <div className="flex items-center gap-2 text-gray-600">
@@ -699,9 +699,9 @@ export default function AdminDashboard() {
                 </div>
               </div>
             )}
-            <table className="w-full border border-gray-300 rounded-lg">
+            <table className="w-full">
               <thead>
-                <tr className="text-sm text-left text-white bg-sky-700">
+                <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
                   <th className="p-1 border-b border-gray-300">Date & Time</th>
                   <th className="p-1 border-b border-gray-300 text-center">Action</th>
                   <th className="p-1 border-b border-gray-300">Message</th>
@@ -714,7 +714,7 @@ export default function AdminDashboard() {
                       key={log.id || index}
                       className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
                     >
-                      <td className="px-2 font-semibold border-b border-gray-300">
+                      <td className="p-1 font-semibold border-b border-gray-300">
                         <div className="flex items-center">
                           <RotateCcw size={14} className="text-gray-400 mr-2" />
                           <div>
@@ -731,12 +731,12 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-2 text-center border-b border-gray-300">
+                      <td className="p-1 text-center border-b border-gray-300">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold border rounded bg-gray-100 text-gray-700 border-gray-300">
                           {log.action || 'N/A'}
                         </span>
                       </td>
-                      <td className="px-2 border-b border-gray-300">
+                      <td className="p-1 border-b border-gray-300">
                         <div className="text-gray-900">{log.message || 'No message'}</div>
                       </td>
                     </tr>
@@ -983,7 +983,7 @@ export default function AdminDashboard() {
 
         {/* Inspection Table */}
         {!isInspectionCollapsed && (
-          <div className="overflow-x-auto relative">
+          <div className="overflow-auto h-[calc(100vh-400px)] border border-gray-300 rounded-lg scroll-smooth relative">
             {isInspectionLoading && (
               <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
                 <div className="flex items-center gap-2 text-gray-600">
@@ -992,9 +992,9 @@ export default function AdminDashboard() {
                 </div>
               </div>
             )}
-            <table className="w-full border border-gray-300 rounded-lg">
+            <table className="w-full">
               <thead>
-                <tr className="text-sm text-left text-white bg-sky-700">
+                <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
                   <th className="p-1 border-b border-gray-300">Date & Time</th>
                   <th className="p-1 border-b border-gray-300">Establishment</th>
                   <th className="p-1 border-b border-gray-300">Inspector</th>
@@ -1008,7 +1008,7 @@ export default function AdminDashboard() {
                       key={inspection.id || index}
                       className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
                     >
-                      <td className="px-2 font-semibold border-b border-gray-300">
+                      <td className="p-1 font-semibold border-b border-gray-300">
                         <div className="flex items-center">
                           <ClipboardList size={14} className="text-gray-400 mr-2" />
                           <div>
@@ -1025,7 +1025,7 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-2 border-b border-gray-300">
+                      <td className="p-1 border-b border-gray-300">
                         <div className="font-medium text-gray-900">
                           {inspection.establishments_detail?.[0]?.name || 'N/A'}
                         </div>
@@ -1035,7 +1035,7 @@ export default function AdminDashboard() {
                           </div>
                         )}
                       </td>
-                      <td className="px-2 border-b border-gray-300">
+                      <td className="p-1 border-b border-gray-300">
                         <div className="font-medium text-gray-900">
                           {inspection.assigned_to_name || 'Unassigned'}
                         </div>

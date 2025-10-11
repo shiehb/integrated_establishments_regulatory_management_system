@@ -39,7 +39,7 @@ export default function Establishments() {
   const [, setEstablishments] = useState([]);
 
   // 🔹 loading state
-  const [loading, setLoading] = useState(false);
+  const [ setLoading] = useState(false);
 
   // 🔹 Fetch user profile and establishments on component mount
   useEffect(() => {
@@ -247,8 +247,8 @@ export default function Establishments() {
               <div className="flex items-center justify-between mb-4">
                 <h1 className="text-2xl font-bold text-sky-600">
                   {polygonEditMode
-                    ? `Editing Polygon for ${polygonEstablishment.name}`
-                    : `Viewing Polygon for ${polygonEstablishment.name}`}
+                    ? `Update Polygon Boundary - ${polygonEstablishment.name}`
+                    : `Polygon Boundary - ${polygonEstablishment.name}`}
                 </h1>
                 <div className="flex gap-2">
                   {canEditPolygons() ? (

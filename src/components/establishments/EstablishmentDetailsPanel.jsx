@@ -38,14 +38,9 @@ export default function EstablishmentDetailsPanel({ establishment }) {
   const coordinates = `${parseFloat(establishment.latitude || 0).toFixed(6)}, ${parseFloat(establishment.longitude || 0).toFixed(6)}`;
 
   return (
-    <div className="p-4 bg-white border rounded-lg shadow-sm">
+    <div className="p-4 bg-white rounded shadow-lg">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <Building2 size={20} className="text-sky-600" />
-        <h2 className="text-lg font-bold text-sky-600">
-          Establishment Details
-        </h2>
-      </div>
+     
 
       {/* Basic Information */}
       <div className="mb-4">
@@ -55,7 +50,7 @@ export default function EstablishmentDetailsPanel({ establishment }) {
         <div className="space-y-1">
           <DetailRow 
             icon={Building2} 
-            label="Name" 
+            label="Establishment Name" 
             value={establishment.name}
             className="bg-blue-50"
           />

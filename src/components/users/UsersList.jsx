@@ -727,9 +727,10 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
       )}
 
        {/* Table */}
-       <table className="w-full border border-gray-300 rounded-lg">
-         <thead>
-           <tr className="text-sm text-left text-white bg-sky-700">
+       <div className="overflow-y-auto h-[calc(100vh-270px)] border border-gray-300 rounded-lg scroll-smooth">
+         <table className="w-full">
+           <thead>
+             <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
              <th className="w-6 p-1 text-center border-b border-gray-300">
                <input
                  type="checkbox"
@@ -818,13 +819,13 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                      onChange={() => toggleSelect(u.id)}
                    />
                  </td>
-                 <td className="px-2 font-semibold border-b border-gray-300">
+                 <td className="p-1 font-semibold border-b border-gray-300">
                    {u.first_name} {u.middle_name} {u.last_name}
                  </td>
-                 <td className="px-2 underline border-b border-gray-300">
+                 <td className="p-1 underline border-b border-gray-300">
                    {u.email}
                  </td>
-                 <td className="px-2 border-b border-gray-300">
+                 <td className="p-1 border-b border-gray-300">
                    {getRoleDisplay(u.userlevel, u.section)}
                  </td>
                  <td className="px-2 text-center border-b border-gray-300 w-28">
@@ -840,10 +841,10 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                      </span>
                    )}
                  </td>
-                 <td className="px-2 border-b border-gray-300">
+                 <td className="p-1 border-b border-gray-300">
                    {formatFullDate(u.date_joined)}
                  </td>
-                 <td className="px-2 border-b border-gray-300">
+                 <td className="p-1 border-b border-gray-300">
                    {u.updated_at
                      ? formatFullDate(u.updated_at)
                      : "Never updated"}
@@ -860,7 +861,8 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
              ))
            )}
          </tbody>
-      </table>
+         </table>
+       </div>
 
        {/* Pagination Controls */}
        <PaginationControls

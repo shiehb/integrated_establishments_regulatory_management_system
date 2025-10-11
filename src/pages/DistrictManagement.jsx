@@ -194,7 +194,7 @@ export default function DistrictManagement() {
         const email = (user.email || '').toLowerCase();
         const district = (user.district || '').toLowerCase();
         const section = (user.section || '').toLowerCase();
-        const sectionLabel = sections.find(s => s.value === user.section)?.fullLabel?.toLowerCase() || '';
+        const sectionLabel = (user.section || '').toLowerCase();
         const query = debouncedSearchQuery.toLowerCase();
         
         return fullName.includes(query) || email.includes(query) || district.includes(query) || section.includes(query) || sectionLabel.includes(query);
@@ -678,9 +678,10 @@ export default function DistrictManagement() {
           )}
 
           {/* Table */}
-          <table className="w-full border border-gray-300 rounded-lg">
+          <div className="overflow-y-auto h-[calc(100vh-325px)] border border-gray-300 rounded-lg scroll-smooth">
+            <table className="w-full">
             <thead>
-              <tr className="text-sm text-left text-white bg-sky-700">
+                <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
                 <th className="p-1 border-b border-gray-300">
                   <button
                     onClick={() => handleSort('name')}
@@ -834,6 +835,7 @@ export default function DistrictManagement() {
               )}
             </tbody>
           </table>
+          </div>
 
           {/* Pagination Controls */}
           <PaginationControls

@@ -665,14 +665,14 @@ export default function MapPage() {
             </div>
 
             {/* Right: Establishments Table with Sortable Headers */}
-            <div className="flex flex-col">
+            <div className="flex flex-col h-[calc(100vh-220px)]">
               {/* Table Container */}
-              <div className="flex-grow overflow-y-auto">
+              <div className="flex-1 overflow-y-auto min-h-0">
                 <table className="w-full border-b border-gray-300 rounded-lg">
                   <thead>
-                    <tr className="text-sm text-left text-white bg-sky-700">
+                    <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
                       <th
-                        className="p-2 border-b border-gray-300 cursor-pointer"
+                        className="p-1 border-b border-gray-300 cursor-pointer"
                         onClick={() => handleSort("name")}
                       >
                         <div className="flex items-center gap-1">
@@ -680,14 +680,14 @@ export default function MapPage() {
                         </div>
                       </th>
                       <th
-                        className="p-2 border-b border-gray-300 cursor-pointer"
+                        className="p-1 border-b border-gray-300 cursor-pointer"
                         onClick={() => handleSort("city")}
                       >
                         <div className="flex items-center gap-1">
                           Address {getSortIcon("city")}
                         </div>
                       </th>
-                      <th className="p-2 text-center border-b border-gray-300">
+                      <th className="p-1 text-center border-b border-gray-300">
                         Coordinates
                       </th>
                       {/* <th
@@ -760,13 +760,13 @@ export default function MapPage() {
                           }`}
                           onClick={() => setFocusedEstablishment(e)}
                         >
-                          <td className="p-2 font-semibold border-b border-gray-300">
+                          <td className="p-1 font-semibold border-b border-gray-300">
                             {e.name}
                           </td>
-                          <td className="p-2 text-left border-b border-gray-300">
+                          <td className="p-1 text-left border-b border-gray-300">
                             {`${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}`}
                           </td>
-                          <td className="p-2 text-center border-b border-gray-300">
+                          <td className="p-1 text-center border-b border-gray-300">
                             {`${parseFloat(e.latitude).toFixed(
                               4
                             )}, ${parseFloat(e.longitude).toFixed(4)}`}
@@ -786,7 +786,7 @@ export default function MapPage() {
 
               {/* Pagination Controls */}
               {filteredEstablishments.length > 0 && (
-                <div className="flex items-center justify-between p-2 mt-4 rounded bg-gray-50">
+                <div className="flex-shrink-0 flex items-center justify-between p-2 mt-4 rounded bg-gray-50">
                   <div className="text-sm text-gray-600">
                     Showing {startItem} to {endItem} of{" "}
                     {filteredEstablishments.length} establishment(s)

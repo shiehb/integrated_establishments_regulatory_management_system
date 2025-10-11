@@ -524,10 +524,10 @@ export default function EstablishmentList({
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full border-b border-gray-300 rounded-lg">
+      <div className="overflow-auto h-[calc(100vh-270px)] border border-gray-300 rounded-lg scroll-smooth">
+        <table className="w-full">
           <thead>
-            <tr className="text-sm text-left text-white bg-sky-700">
+            <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
               <th className="w-6 p-1 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
