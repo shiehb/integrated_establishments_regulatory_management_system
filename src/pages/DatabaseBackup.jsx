@@ -387,10 +387,9 @@ const DatabaseBackup = () => {
     );
   };
 
-  // Sort options for dropdown
+  // Sort options for dropdown - Removed Format sort as per plan
   const sortFields = [
     { key: "fileName", label: "File Name" },
-    { key: "format", label: "Format" },
     { key: "created", label: "Created Date" },
     { key: "size", label: "Size" },
   ];
@@ -861,20 +860,17 @@ const DatabaseBackup = () => {
 
                   <div className="flex flex-wrap items-center gap-2">
                     {/* 🔍 Search Bar */}
-                    <div className="relative">
-                      <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
+                    <div className="relative flex-1 min-w-[250px]">
+                      <Search className="absolute w-4 h-4 text-gray-400 left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
-                        placeholder="Search backups..."
+                        placeholder="Search..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full py-0.5 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-lg min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                        className="w-full py-1 pl-10 pr-8 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
                       />
                       {searchQuery && (
-                        <button
-                          onClick={clearSearch}
-                          className="absolute -translate-y-1/2 right-3 top-1/2"
-                        >
+                        <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2">
                           <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
                         </button>
                       )}
@@ -884,24 +880,25 @@ const DatabaseBackup = () => {
                     <div className="relative sort-dropdown">
                       <button
                         onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                        className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
+                        className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
                       >
                         <ArrowUpDown size={14} />
-                        Sort by
+                        Sort
                         <ChevronDown size={14} />
                       </button>
 
                       {sortDropdownOpen && (
-                        <div className="absolute right-0 z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
+                        <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
                           <div className="p-2">
-                            <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            {/* Header */}
+                            <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
                               Sort Options
                             </div>
                             
-                            {/* Sort by Field Section */}
-                            <div className="mb-2">
+                            {/* Sort Fields */}
+                            <div className="mt-2 mb-2">
                               <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                                Sort by Field
+                                Sort by
                               </div>
                               {sortFields.map((field) => (
                                 <button
@@ -916,47 +913,34 @@ const DatabaseBackup = () => {
                                         : "asc"
                                     )
                                   }
-                                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                                  className={`w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
                                     sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
                                   }`}
                                 >
-                                  <div className="flex-1 text-left">
-                                    <div className="font-medium">{field.label}</div>
-                                  </div>
+                                  <span>{field.label}</span>
                                   {sortConfig.key === field.key && (
-                                    <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                                    <div className="flex items-center gap-1">
+                                      {sortConfig.direction === "asc" ? (
+                                        <ArrowUp size={14} className="text-sky-600" />
+                                      ) : (
+                                        <ArrowDown size={14} className="text-sky-600" />
+                                      )}
+                                    </div>
                                   )}
                                 </button>
                               ))}
                             </div>
 
-                            {/* Order Section - Shown if a field is selected */}
+                            {/* Clear Sort */}
                             {sortConfig.key && (
                               <>
                                 <div className="my-1 border-t border-gray-200"></div>
-                                <div>
-                                  <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                                    Sort Order
-                                  </div>
-                                  {sortDirections.map((dir) => (
                                     <button
-                                      key={dir.key}
-                                      onClick={() =>
-                                        handleSortFromDropdown(sortConfig.key, dir.key)
-                                      }
-                                      className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                                        sortConfig.direction === dir.key ? "bg-sky-50 font-medium" : ""
-                                      }`}
-                                    >
-                                      <div className="flex-1 text-left">
-                                        <div className="font-medium">{dir.label}</div>
-                                      </div>
-                                      {sortConfig.direction === dir.key && (
-                                        <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                                      )}
+                                  onClick={() => setSortConfig({ key: null, direction: null })}
+                                  className="w-full px-3 py-2 text-sm text-gray-600 rounded-md hover:bg-gray-100 transition-colors text-left"
+                                >
+                                  Clear Sort
                                     </button>
-                                  ))}
-                                </div>
                               </>
                             )}
                           </div>
@@ -968,22 +952,27 @@ const DatabaseBackup = () => {
                     <div className="relative filter-dropdown">
                       <button
                         onClick={() => setFiltersOpen((prev) => !prev)}
-                        className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
+                        className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
                       >
                         <Filter size={14} />
                         Filters
                         <ChevronDown size={14} />
-                        {activeFilterCount > 0 && ` (${activeFilterCount})`}
+                        {activeFilterCount > 0 && (
+                          <span className="ml-1 px-1.5 py-0.5 text-xs bg-sky-600 text-white rounded-full">
+                            {activeFilterCount}
+                          </span>
+                        )}
                       </button>
 
                       {filtersOpen && (
-                        <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded shadow">
+                        <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto custom-scrollbar">
                           <div className="p-2">
-                            <div className="flex items-center justify-between px-3 py-2 mb-2">
+                            {/* Header with Clear All */}
+                            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
                               <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                                Filter Options
+                                Filters
                               </div>
-                              {formatFilter.length > 0 && (
+                              {activeFilterCount > 0 && (
                                 <button
                                   onClick={() => {
                                     setFormatFilter([]);
@@ -1121,7 +1110,7 @@ const DatabaseBackup = () => {
                 )}
               </div>
 
-              <div className="overflow-auto h-[calc(100vh-520px)] border border-gray-300 rounded-lg scroll-smooth">
+              <div className="overflow-auto h-[calc(100vh-520px)] border border-gray-300 rounded-lg scroll-smooth custom-scrollbar">
                 <table className="w-full">
                   <thead>
                     <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">

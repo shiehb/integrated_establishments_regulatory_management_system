@@ -678,7 +678,7 @@ export default function DistrictManagement() {
           )}
 
           {/* Table */}
-          <div className="overflow-y-auto h-[calc(100vh-325px)] border border-gray-300 rounded-lg scroll-smooth">
+          <div className="overflow-y-auto h-[calc(100vh-325px)] border border-gray-300 rounded-lg scroll-smooth custom-scrollbar">
             <table className="w-full">
             <thead>
                 <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">

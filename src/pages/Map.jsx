@@ -22,11 +22,13 @@ import {
   X,
   Filter,
   ChevronDown,
+  ChevronUp,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
   ChevronLeft,
   ChevronRight,
+  Building2,
 } from "lucide-react";
 
 // Fix for default markers in react-leaflet - using local assets for offline support
@@ -97,18 +99,34 @@ export default function MapPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
-  // 🎚 Filters
+  // 🎚 Filters - Removed all filters as per plan
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [provinceFilter, setProvinceFilter] = useState([]);
-  const [businessTypeFilter, setBusinessTypeFilter] = useState([]);
 
   // ✅ Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
-  // ✅ Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  // ✅ Pagination - Load from localStorage
+  const [currentPage, setCurrentPage] = useState(() => {
+    const saved = localStorage.getItem('map_pagination_page');
+    return saved ? parseInt(saved, 10) : 1;
+  });
+  const [pageSize, setPageSize] = useState(() => {
+    const saved = localStorage.getItem('map_pagination_pageSize');
+    return saved ? parseInt(saved, 10) : 10;
+  });
+
+  // ✅ Details Panel State
+  const [showDetailsPanel, setShowDetailsPanel] = useState(true);
+
+  // Save pagination settings to localStorage
+  useEffect(() => {
+    localStorage.setItem('map_pagination_page', currentPage.toString());
+  }, [currentPage]);
+
+  useEffect(() => {
+    localStorage.setItem('map_pagination_pageSize', pageSize.toString());
+  }, [pageSize]);
 
   // Fetch all establishments from API
   useEffect(() => {
@@ -144,22 +162,20 @@ export default function MapPage() {
   // Add this useEffect to handle clicks outside the dropdowns
   useEffect(() => {
     function handleClickOutside(e) {
-      if (filtersOpen && !e.target.closest(".filter-dropdown")) {
-        setFiltersOpen(false);
-      }
+      // Filter dropdown removed as per plan
       if (sortDropdownOpen && !e.target.closest(".sort-dropdown")) {
         setSortDropdownOpen(false);
       }
     }
 
-    if (filtersOpen || sortDropdownOpen) {
+    if (sortDropdownOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [filtersOpen, sortDropdownOpen]);
+  }, [sortDropdownOpen]);
 
   // ✅ Sorting handler
   const handleSort = (key) => {
@@ -185,9 +201,6 @@ export default function MapPage() {
   // Sort options for dropdown
   const sortFields = [
     { key: "name", label: "Name" },
-    { key: "city", label: "City" },
-    { key: "province", label: "Province" },
-    { key: "nature_of_business", label: "Business Type" },
     { key: "year_established", label: "Year Established" },
   ];
 
@@ -219,16 +232,7 @@ export default function MapPage() {
           String(e.year_established).includes(query)
         : true;
 
-      // Apply province filter
-      const matchesProvince =
-        provinceFilter.length === 0 || provinceFilter.includes(e.province);
-
-      // Apply business type filter
-      const matchesBusinessType =
-        businessTypeFilter.length === 0 ||
-        businessTypeFilter.includes(e.nature_of_business);
-
-      return matchesSearch && matchesProvince && matchesBusinessType;
+      return matchesSearch;
     });
 
     // Apply sorting
@@ -237,12 +241,7 @@ export default function MapPage() {
         let aVal = a[sortConfig.key];
         let bVal = b[sortConfig.key];
 
-        if (
-          sortConfig.key === "name" ||
-          sortConfig.key === "city" ||
-          sortConfig.key === "province" ||
-          sortConfig.key === "nature_of_business"
-        ) {
+        if (sortConfig.key === "name") {
           aVal = aVal ? aVal.toLowerCase() : "";
           bVal = bVal ? bVal.toLowerCase() : "";
         }
@@ -262,8 +261,6 @@ export default function MapPage() {
   }, [
     allEstablishments,
     debouncedSearchQuery,
-    provinceFilter,
-    businessTypeFilter,
     sortConfig,
   ]);
 
@@ -276,50 +273,17 @@ export default function MapPage() {
 
   const totalPages = Math.ceil(filteredEstablishments.length / pageSize);
 
-  // Toggle province filter
-  const toggleProvince = (province) => {
-    setProvinceFilter((prev) =>
-      prev.includes(province)
-        ? prev.filter((p) => p !== province)
-        : [...prev, province]
-    );
-    setCurrentPage(1);
-  };
-
-  // Toggle business type filter
-  const toggleBusinessType = (businessType) => {
-    setBusinessTypeFilter((prev) =>
-      prev.includes(businessType)
-        ? prev.filter((b) => b !== businessType)
-        : [...prev, businessType]
-    );
-    setCurrentPage(1);
-  };
+  // Filter functions removed as per plan
 
   // Clear functions
   const clearSearch = () => setSearchQuery("");
   const clearAllFilters = () => {
     setSearchQuery("");
-    setProvinceFilter([]);
-    setBusinessTypeFilter([]);
     setSortConfig({ key: null, direction: null });
     setCurrentPage(1);
   };
 
-  // Get unique provinces and business types for filters
-  const provinces = useMemo(() => {
-    return [
-      ...new Set(allEstablishments.map((e) => e.province).filter(Boolean)),
-    ].sort();
-  }, [allEstablishments]);
-
-  const businessTypes = useMemo(() => {
-    return [
-      ...new Set(
-        allEstablishments.map((e) => e.nature_of_business).filter(Boolean)
-      ),
-    ].sort();
-  }, [allEstablishments]);
+  // Filter data removed as per plan
 
   // Pagination functions
   const goToPage = (page) => {
@@ -334,12 +298,8 @@ export default function MapPage() {
     setCurrentPage((prev) => Math.min(totalPages, prev + 1));
   };
 
-  const activeFilterCount = provinceFilter.length + businessTypeFilter.length;
-  const hasActiveFilters =
-    searchQuery ||
-    provinceFilter.length > 0 ||
-    businessTypeFilter.length > 0 ||
-    sortConfig.key;
+  const activeFilterCount = 0; // No filters as per plan
+  const hasActiveFilters = searchQuery || sortConfig.key;
 
   // Calculate display range
   const startItem = (currentPage - 1) * pageSize + 1;
@@ -464,93 +424,19 @@ export default function MapPage() {
                 )}
               </div>
 
-              {/* 🎚 Filters dropdown */}
-              <div className="relative filter-dropdown">
-                <button
-                  onClick={() => setFiltersOpen((prev) => !prev)}
-                  className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
-                >
-                  <ArrowUpDown size={14} />
-                  Filters
-                  <ChevronDown size={14} />
-                  {activeFilterCount > 0 && ` (${activeFilterCount})`}
-                </button>
-
-                {filtersOpen && (
-                  <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded shadow max-h-80 overflow-y-auto">
-                    <div className="p-2">
-                      <div className="flex items-center justify-between px-3 py-2 mb-2">
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                          Filter Options
+              {/* 🎚 Filters dropdown - Removed as per plan */}
                         </div>
-                        {(provinceFilter.length > 0 || businessTypeFilter.length > 0) && (
-                          <button
-                            onClick={() => {
-                              setProvinceFilter([]);
-                              setBusinessTypeFilter([]);
-                            }}
-                            className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                          >
-                            Clear All
-                          </button>
-                        )}
                       </div>
                       
-                      {/* Province Section */}
-                      <div className="mb-3">
-                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                          Province
-                        </div>
-                        {provinces.map((province) => (
-                          <button
-                            key={province}
-                            onClick={() => toggleProvince(province)}
-                            className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                              provinceFilter.includes(province) ? "bg-sky-50 font-medium" : ""
-                            }`}
-                          >
-                            <div className="flex-1 text-left">
-                              <div className="font-medium">{province}</div>
-                            </div>
-                            {provinceFilter.includes(province) && (
-                              <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Business Type Section */}
-                      <div className="mb-2">
-                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                          Business Type
-                        </div>
-                        {businessTypes.map((businessType) => (
-                          <button
-                            key={businessType}
-                            onClick={() => toggleBusinessType(businessType)}
-                            className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                              businessTypeFilter.includes(businessType) ? "bg-sky-50 font-medium" : ""
-                            }`}
-                          >
-                            <div className="flex-1 text-left">
-                              <div className="font-medium">{businessType}</div>
-                            </div>
-                            {businessTypeFilter.includes(businessType) && (
-                              <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 h-[calc(100vh-240px)]">
-            {/* Map Container */}
-            <div className="overflow-hidden rounded shadow">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Left Column: Map + Details Panel */}
+            <div className="flex flex-col gap-2 h-[calc(100vh-240px)]">
+              {/* Map Container - Dynamic height */}
+              <div className={`overflow-hidden rounded shadow transition-all duration-300 ${
+                focusedEstablishment && showDetailsPanel 
+                  ? 'h-[calc(100%-180px)]' 
+                  : 'flex-1'
+              }`}>
               <MapContainer
                 center={[16.597668, 120.322477]}
                 zoom={8}
@@ -606,9 +492,14 @@ export default function MapPage() {
                         dashArray: focusedEstablishment?.id === e.id ? "0" : "5 5",
                       }}
                       eventHandlers={{
-                        click: () => setFocusedEstablishment(e),
+                        click: () => {
+                          setFocusedEstablishment(e);
+                          setShowDetailsPanel(true); // Show panel when clicking
+                        },
                       }}
                     >
+                      {/* Only show Popup when details panel is hidden */}
+                      {!showDetailsPanel && (
                       <Popup>
                         <div className="p-2">
                           <strong>{e.name}</strong>
@@ -626,6 +517,7 @@ export default function MapPage() {
                           </span>
                         </div>
                       </Popup>
+                      )}
                     </Polygon>
                   ) : (
                     <Marker
@@ -638,9 +530,14 @@ export default function MapPage() {
                         focusedEstablishment?.id === e.id ? greenIcon : blueIcon
                       }
                       eventHandlers={{
-                        click: () => setFocusedEstablishment(e),
+                        click: () => {
+                          setFocusedEstablishment(e);
+                          setShowDetailsPanel(true); // Show panel when clicking
+                        },
                       }}
                     >
+                      {/* Only show Popup when details panel is hidden */}
+                      {!showDetailsPanel && (
                       <Popup>
                         <div className="p-2">
                           <strong>{e.name}</strong>
@@ -658,16 +555,106 @@ export default function MapPage() {
                           </span>
                         </div>
                       </Popup>
+                      )}
                     </Marker>
                   )
                 )}
               </MapContainer>
             </div>
 
-            {/* Right: Establishments Table with Sortable Headers */}
-            <div className="flex flex-col h-[calc(100vh-220px)]">
+              {/* Compressed Details Panel - Shows when establishment is selected */}
+              {focusedEstablishment && (
+                <div className="bg-white rounded shadow-lg border border-gray-300 transition-all duration-300">
+                  {/* Compact Header with Toggle */}
+                  <div className="flex items-center justify-between p-2 bg-sky-50 border-b border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <Building2 size={18} className="text-sky-600" />
+                      <h3 className="text-sm font-bold text-sky-700">
+                        {focusedEstablishment.name}
+                      </h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowDetailsPanel(!showDetailsPanel)}
+                        className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-sky-600 bg-white border border-sky-300 rounded hover:bg-sky-50 transition-colors"
+                      >
+                        {showDetailsPanel ? (
+                          <>
+                            <ChevronUp size={14} />
+                            Hide
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown size={14} />
+                            Show
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setFocusedEstablishment(null)}
+                        className="text-gray-400 hover:text-gray-600 p-1"
+                        title="Close"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Collapsible Details Content */}
+                  {showDetailsPanel && (
+                    <div className="p-3 max-h-36 overflow-y-auto custom-scrollbar">
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="font-semibold text-gray-600">Business Type:</span>
+                          <p className="text-gray-900">{focusedEstablishment.nature_of_business}</p>
+                        </div>
+                        
+                        <div>
+                          <span className="font-semibold text-gray-600">Year Est.:</span>
+                          <p className="text-gray-900">{focusedEstablishment.year_established}</p>
+                        </div>
+                        
+                        <div className="col-span-2">
+                          <span className="font-semibold text-gray-600">Address:</span>
+                          <p className="text-gray-900">
+                            {focusedEstablishment.street_building}, {focusedEstablishment.barangay}, 
+                            {focusedEstablishment.city}, {focusedEstablishment.province}, 
+                            {focusedEstablishment.postal_code}
+                          </p>
+                        </div>
+                        
+                        <div>
+                          <span className="font-semibold text-gray-600">Coordinates:</span>
+                          <p className="text-gray-900 font-mono text-[10px]">
+                            {parseFloat(focusedEstablishment.latitude).toFixed(6)}, 
+                            {parseFloat(focusedEstablishment.longitude).toFixed(6)}
+                          </p>
+                        </div>
+                        
+                        {focusedEstablishment.contact_number && (
+                          <div>
+                            <span className="font-semibold text-gray-600">Contact:</span>
+                            <p className="text-gray-900">{focusedEstablishment.contact_number}</p>
+                          </div>
+                        )}
+                        
+                        {focusedEstablishment.email && (
+                          <div className="col-span-2">
+                            <span className="font-semibold text-gray-600">Email:</span>
+                            <p className="text-gray-900 truncate">{focusedEstablishment.email}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Table */}
+            <div className="flex flex-col h-[calc(100vh-240px)]">
               {/* Table Container */}
-              <div className="flex-1 overflow-y-auto min-h-0">
+              <div className=" rounded-lg flex-1 overflow-y-auto min-h-0 custom-scrollbar">
                 <table className="w-full border-b border-gray-300 rounded-lg">
                   <thead>
                     <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
@@ -764,7 +751,9 @@ export default function MapPage() {
                             {e.name}
                           </td>
                           <td className="p-1 text-left border-b border-gray-300">
+                            <div className="truncate max-w-xs" title={`${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}`}>
                             {`${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}`}
+                            </div>
                           </td>
                           <td className="p-1 text-center border-b border-gray-300">
                             {`${parseFloat(e.latitude).toFixed(
@@ -854,7 +843,7 @@ export default function MapPage() {
                       <option value="10">10</option>
                       <option value="25">25</option>
                       <option value="50">50</option>
-                      <option value="50">100</option>
+                      <option value="100">100</option>
                     </select>
                     <span>per page</span>
                   </div>

@@ -690,7 +690,7 @@ export default function AdminDashboard() {
 
         {/* Activity Table */}
         {!isActivityCollapsed && (
-          <div className="overflow-auto h-[calc(100vh-400px)] border border-gray-300 rounded-lg scroll-smooth relative">
+          <div className="overflow-auto h-[calc(100vh-400px)] border border-gray-300 rounded-lg scroll-smooth relative custom-scrollbar">
             {isActivityLoading && (
               <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
                 <div className="flex items-center gap-2 text-gray-600">
@@ -983,7 +983,7 @@ export default function AdminDashboard() {
 
         {/* Inspection Table */}
         {!isInspectionCollapsed && (
-          <div className="overflow-auto h-[calc(100vh-400px)] border border-gray-300 rounded-lg scroll-smooth relative">
+          <div className="overflow-auto h-[calc(100vh-400px)] border border-gray-300 rounded-lg scroll-smooth relative custom-scrollbar">
             {isInspectionLoading && (
               <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10">
                 <div className="flex items-center gap-2 text-gray-600">
