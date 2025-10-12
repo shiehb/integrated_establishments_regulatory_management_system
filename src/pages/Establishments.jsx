@@ -39,7 +39,7 @@ export default function Establishments() {
   const [, setEstablishments] = useState([]);
 
   // 🔹 loading state
-  const [ setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // 🔹 Fetch user profile and establishments on component mount
   useEffect(() => {

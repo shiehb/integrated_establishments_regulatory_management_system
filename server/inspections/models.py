@@ -330,9 +330,8 @@ class InspectionForm(models.Model):
         primary_key=True
     )
     
-    # Schedule and notes
+    # Schedule
     scheduled_at = models.DateTimeField(null=True, blank=True)
-    inspection_notes = models.TextField(blank=True)
     
     # Checklist (JSON field)
     checklist = models.JSONField(default=dict, blank=True)
@@ -357,6 +356,16 @@ class InspectionForm(models.Model):
     violations_found = models.TextField(blank=True, help_text='List of violations if non-compliant')
     compliance_plan = models.TextField(blank=True, help_text='Establishment compliance plan')
     compliance_deadline = models.DateField(null=True, blank=True)
+    
+    # Inspector tracking (first fill-out only)
+    inspected_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inspections_inspected',
+        help_text='User who first filled out this inspection form'
+    )
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

@@ -31,26 +31,30 @@ import {
   Building2,
 } from "lucide-react";
 
-// Fix for default markers in react-leaflet - using local assets for offline support
+// Fix for default markers in react-leaflet
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import iconRetina from 'leaflet/dist/images/marker-icon-2x.png';
+
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "/assets/map/marker-icon-2x.png",
-  iconUrl: "/assets/map/marker-icon.png",
-  shadowUrl: "/assets/map/marker-shadow.png",
+  iconRetinaUrl: iconRetina,
+  iconUrl: icon,
+  shadowUrl: iconShadow,
 });
 
 const blueIcon = new L.Icon({
-  iconUrl: "/assets/map/marker-icon.png",
+  iconUrl: icon,
   iconSize: [25, 41],
   iconAnchor: [12, 41],
-  shadowUrl: "/assets/map/marker-shadow.png",
+  shadowUrl: iconShadow,
 });
 
 const greenIcon = new L.Icon({
-  iconUrl: "/assets/map/marker-icon.png", // Using blue icon for now, can be customized later
+  iconUrl: icon, // Using blue icon for now, can be customized later
   iconSize: [25, 41],
   iconAnchor: [12, 41],
-  shadowUrl: "/assets/map/marker-shadow.png",
+  shadowUrl: iconShadow,
   className: "green-marker", // Add CSS class to style as green
 });
 

@@ -18,6 +18,14 @@ from .serializers import (
 User = get_user_model()
 
 
+def capture_inspector_info(form, user):
+    """Capture inspector information on first form fill-out"""
+    if form.inspected_by is None and user:
+        form.inspected_by = user
+        return True  # Indicates this was the first fill-out
+    return False  # Not first fill-out
+
+
 class InspectionViewSet(viewsets.ModelViewSet):
     """
     Complete Inspection ViewSet with workflow state machine
@@ -579,6 +587,17 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'saved_by': user.id
         }
         
+        # Update direct fields from general data
+        general_data = form_data.get('general', {})
+        if general_data.get('findings_summary'):
+            form.findings_summary = general_data['findings_summary']
+        if general_data.get('violations_found'):
+            form.violations_found = general_data['violations_found']
+        if general_data.get('compliance_observations'):
+            form.compliance_decision = general_data['compliance_observations']
+        if general_data.get('recommendations'):
+            form.compliance_plan = general_data['recommendations']
+        
         # Update scheduled_at if provided
         if 'general' in form_data and form_data['general'].get('inspectionDateTime'):
             try:
@@ -586,9 +605,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
             except:
                 pass
         
-        # Update inspection notes if provided
-        if 'general' in form_data and form_data['general'].get('inspectionNotes'):
-            form.inspection_notes = form_data['general']['inspectionNotes']
+        
+        # Capture inspector information if this is the first time
+        is_first_fill = capture_inspector_info(form, user)
         
         form.save()
         
@@ -667,6 +686,17 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'auto_save': True  # Mark as auto-save
         }
         
+        # Update direct fields from general data
+        general_data = form_data.get('general', {})
+        if general_data.get('findings_summary'):
+            form.findings_summary = general_data['findings_summary']
+        if general_data.get('violations_found'):
+            form.violations_found = general_data['violations_found']
+        if general_data.get('compliance_observations'):
+            form.compliance_decision = general_data['compliance_observations']
+        if general_data.get('recommendations'):
+            form.compliance_plan = general_data['recommendations']
+        
         # Update scheduled_at if provided
         if 'general' in form_data and form_data['general'].get('inspection_date_time'):
             try:
@@ -674,9 +704,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
             except:
                 pass
         
-        # Update inspection notes if provided
-        if 'general' in form_data and form_data['general'].get('inspection_notes'):
-            form.inspection_notes = form_data['general']['inspection_notes']
+        
+        # Capture inspector information if this is the first time
+        is_first_fill = capture_inspector_info(form, user)
         
         form.save()
         
@@ -833,6 +863,17 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 'completed_by': user.id
             }
             
+            # Update direct fields from general data
+            general_data = form_data.get('general', {})
+            if general_data.get('findings_summary'):
+                form.findings_summary = general_data['findings_summary']
+            if general_data.get('violations_found'):
+                form.violations_found = general_data['violations_found']
+            if general_data.get('compliance_observations'):
+                form.compliance_decision = general_data['compliance_observations']
+            if general_data.get('recommendations'):
+                form.compliance_plan = general_data['recommendations']
+            
             # Update scheduled_at if provided
             if 'general' in form_data and form_data['general'].get('inspection_date_time'):
                 try:
@@ -841,9 +882,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 except:
                     pass
             
-            # Update inspection notes if provided
-            if 'general' in form_data and form_data['general'].get('inspection_notes'):
-                form.inspection_notes = form_data['general']['inspection_notes']
+            
+            # Capture inspector information if this is the first time
+            is_first_fill = capture_inspector_info(form, user)
             
             form.save()
 

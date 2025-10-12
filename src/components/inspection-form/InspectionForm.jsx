@@ -14,6 +14,7 @@ import ComplianceStatus from "./ComplianceStatus";
 import SummaryOfCompliance from "./SummaryOfCompliance";
 import SummaryOfFindingsAndObservations from "./SummaryOfFindingsAndObservations";
 import Recommendations from "./Recommendations";
+import InspectionPolygonMap from "./InspectionPolygonMap";
 
 /* ---------------------------
    Main Inspection Form Component
@@ -740,7 +741,11 @@ export default function InspectionForm({ inspectionData }) {
     // Check compliance items for violations
     complianceItems.forEach(item => {
       if (item.compliant === "No") {
-        violations.push(`• ${item.item}: ${item.remarksOption || 'Non-compliant'}`);
+        const itemName = item.complianceRequirement || 
+                         (item.conditionNumber ? `Condition ${item.conditionNumber}` : '') ||
+                         item.applicableLaw ||
+                         'Unnamed Item';
+        violations.push(`• ${itemName}: ${item.remarksOption || 'Non-compliant'}`);
       }
     });
     
@@ -765,14 +770,22 @@ export default function InspectionForm({ inspectionData }) {
     if (compliantItems.length > 0) {
       findings.push(`Compliant Items (${compliantItems.length}):`);
       compliantItems.forEach(item => {
-        findings.push(`• ${item.item}: Compliant`);
+        const itemName = item.complianceRequirement || 
+                         (item.conditionNumber ? `Condition ${item.conditionNumber}` : '') ||
+                         item.applicableLaw ||
+                         'Unnamed Item';
+        findings.push(`• ${itemName}: Compliant`);
       });
     }
     
     if (nonCompliantItems.length > 0) {
       findings.push(`Non-Compliant Items (${nonCompliantItems.length}):`);
       nonCompliantItems.forEach(item => {
-        findings.push(`• ${item.item}: ${item.remarksOption || 'Non-compliant'}`);
+        const itemName = item.complianceRequirement || 
+                         (item.conditionNumber ? `Condition ${item.conditionNumber}` : '') ||
+                         item.applicableLaw ||
+                         'Unnamed Item';
+        findings.push(`• ${itemName}: ${item.remarksOption || 'Non-compliant'}`);
       });
     }
     
@@ -1669,6 +1682,14 @@ export default function InspectionForm({ inspectionData }) {
             activeSection={activeSection}
             onTabClick={scrollToSection}
           />
+        }
+        rightSidebar={
+          fullInspectionData && (
+            <InspectionPolygonMap 
+              inspectionData={fullInspectionData}
+              currentUser={currentUser}
+            />
+          )
         }
       >
         <div className="w-full bg-white p-4">

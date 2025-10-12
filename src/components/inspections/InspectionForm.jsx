@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, CheckCircle, AlertTriangle, FileText, Calendar, User, Building } from 'lucide-react';
+import { ArrowLeft, Save, CheckCircle, AlertTriangle, FileText, Calendar, User, Building, MapPin } from 'lucide-react';
 import { getInspection, startInspection, saveInspectionDraft } from '../../services/api';
 import { useNotifications } from '../NotificationManager';
 
@@ -67,7 +67,7 @@ const InspectionForm = () => {
           compliance_observations: data.form.compliance_observations || checklistData.general?.compliance_observations || '',
           violations_found: data.form.violations_found || checklistData.general?.violations_found || '',
           recommendations: data.form.compliance_plan || checklistData.general?.recommendations || '',
-          remarks: data.form.inspection_notes || checklistData.general?.remarks || ''
+          remarks: checklistData.general?.remarks || ''
         });
       }
       
@@ -119,7 +119,7 @@ const InspectionForm = () => {
           compliance_observations: formData.compliance_observations,
           violations_found: formData.violations_found,
           recommendations: formData.recommendations,
-          inspection_notes: formData.remarks
+          remarks: formData.remarks
         }
       };
       
@@ -148,7 +148,7 @@ const InspectionForm = () => {
           compliance_observations: formData.compliance_observations,
           violations_found: formData.violations_found,
           recommendations: formData.recommendations,
-          inspection_notes: formData.remarks
+          remarks: formData.remarks
         }
       };
       
@@ -166,6 +166,7 @@ const InspectionForm = () => {
   const handleBack = () => {
     navigate('/inspections');
   };
+
 
   if (loading) {
     return (
@@ -248,6 +249,60 @@ const InspectionForm = () => {
             </div>
           </div>
         </div>
+
+        {/* Inspector Metadata */}
+        {inspection.form?.inspector_info && (
+          <div className="bg-blue-50 rounded-lg shadow-sm border border-blue-200 p-4 mb-6">
+            <h3 className="text-lg font-semibold text-blue-900 mb-3">Inspection Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="flex items-center space-x-2">
+                <User className="h-4 w-4 text-blue-600" />
+                <div>
+                  <div className="text-xs text-blue-600">Inspected by</div>
+                  <div className="text-sm font-medium text-blue-900">
+                    {inspection.form.inspector_info.name}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <FileText className="h-4 w-4 text-blue-600" />
+                <div>
+                  <div className="text-xs text-blue-600">Position</div>
+                  <div className="text-sm font-medium text-blue-900">
+                    {inspection.form.inspector_info.level}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Building className="h-4 w-4 text-blue-600" />
+                <div>
+                  <div className="text-xs text-blue-600">Section/Unit</div>
+                  <div className="text-sm font-medium text-blue-900">
+                    {inspection.form.inspector_info.section || 'N/A'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <MapPin className="h-4 w-4 text-blue-600" />
+                <div>
+                  <div className="text-xs text-blue-600">District</div>
+                  <div className="text-sm font-medium text-blue-900">
+                    {inspection.form.inspector_info.district || 'N/A'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Calendar className="h-4 w-4 text-blue-600" />
+                <div>
+                  <div className="text-xs text-blue-600">Inspection Date</div>
+                  <div className="text-sm font-medium text-blue-900">
+                    {new Date(inspection.form.inspector_info.inspected_at).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Form */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

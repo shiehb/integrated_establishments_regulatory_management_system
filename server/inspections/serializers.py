@@ -58,16 +58,40 @@ class InspectionDocumentSerializer(serializers.ModelSerializer):
 class InspectionFormSerializer(serializers.ModelSerializer):
     """Serializer for inspection form"""
     documents = InspectionDocumentSerializer(many=True, read_only=True)
+    inspected_by_name = serializers.SerializerMethodField()
+    inspector_info = serializers.SerializerMethodField()
     
     class Meta:
         model = InspectionForm
         fields = [
-            'inspection', 'scheduled_at', 'inspection_notes', 'checklist',
+            'inspection', 'scheduled_at', 'checklist',
             'findings_summary', 'compliance_decision', 'violations_found',
             'compliance_plan', 'compliance_deadline', 'documents',
+            'inspected_by', 'inspected_by_name', 'inspector_info',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = [
+            'created_at', 'updated_at', 'inspected_by'
+        ]
+    
+    def get_inspected_by_name(self, obj):
+        """Get the name of the user who inspected the form"""
+        if obj.inspected_by:
+            return f"{obj.inspected_by.first_name} {obj.inspected_by.last_name}".strip() or obj.inspected_by.email
+        return None
+    
+    def get_inspector_info(self, obj):
+        """Get formatted inspector information for display"""
+        if not obj.inspected_by:
+            return None
+        
+        return {
+            'name': self.get_inspected_by_name(obj),
+            'level': obj.inspected_by.userlevel if obj.inspected_by else None,
+            'section': obj.inspected_by.section if obj.inspected_by else None,
+            'district': obj.inspected_by.district if obj.inspected_by else None,
+            'inspected_at': obj.created_at  # Use form creation time as inspection time
+        }
     
     def validate(self, data):
         """Ensure violations are provided if non-compliant"""
@@ -259,7 +283,6 @@ class InspectionCreateSerializer(serializers.Serializer):
         choices=['PD-1586', 'RA-6969', 'RA-8749', 'RA-9275', 'RA-9003']
     )
     scheduled_at = serializers.DateTimeField(required=False, allow_null=True)
-    inspection_notes = serializers.CharField(required=False, allow_blank=True)
     
     def validate_establishments(self, value):
         """Validate that all establishment IDs exist"""
@@ -275,7 +298,6 @@ class InspectionCreateSerializer(serializers.Serializer):
         """Create inspection with form"""
         establishment_ids = validated_data.pop('establishments')
         scheduled_at = validated_data.pop('scheduled_at', None)
-        inspection_notes = validated_data.pop('inspection_notes', '')
         
         # Get request user
         request = self.context.get('request')
@@ -302,8 +324,7 @@ class InspectionCreateSerializer(serializers.Serializer):
         # Create inspection form
         InspectionForm.objects.create(
             inspection=inspection,
-            scheduled_at=scheduled_at,
-            inspection_notes=inspection_notes
+            scheduled_at=scheduled_at
         )
         
         # Transition to SECTION_ASSIGNED and auto-assign

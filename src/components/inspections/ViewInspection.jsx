@@ -68,6 +68,7 @@ export default function ViewInspection({ inspection, onClose, onEdit }) {
     });
   };
 
+
   const getAvailableActions = () => {
     const actions = [];
 
@@ -315,6 +316,46 @@ export default function ViewInspection({ inspection, onClose, onEdit }) {
         {activeTab === 'compliance' && (
           <div className="space-y-6">
             <h4 className="text-lg font-medium text-gray-900">Compliance Information</h4>
+            
+            {/* Inspector Metadata */}
+            {inspection.form?.inspector_info && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h5 className="text-md font-semibold text-blue-900 mb-3">Inspection Performed By</h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-3">
+                    <Users className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-700">Inspector</p>
+                      <p className="text-sm text-blue-900">{inspection.form.inspector_info.name}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-700">Position</p>
+                      <p className="text-sm text-blue-900">{inspection.form.inspector_info.level}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <Building className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-700">Section/Unit</p>
+                      <p className="text-sm text-blue-900">{inspection.form.inspector_info.section || 'N/A'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <Calendar className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-700">Inspection Date</p>
+                      <p className="text-sm text-blue-900">
+                        {new Date(inspection.form.inspector_info.inspected_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -355,7 +396,7 @@ export default function ViewInspection({ inspection, onClose, onEdit }) {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Findings Summary
                   </label>
-                  <div className="text-sm text-gray-900 bg-gray-50 p-3 rounded-md">
+                  <div className="text-sm text-gray-900 bg-gray-50 p-3 rounded-md whitespace-pre-line">
                     {inspection.form.findings_summary}
                   </div>
                 </div>

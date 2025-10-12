@@ -35,8 +35,8 @@ const useDebounce = (value, delay) => {
 };
 
 const steps = [
-  { id: 1, title: 'Select Establishment', icon: Building },
-  { id: 2, title: 'Select Law', icon: FileText },
+  { id: 1, title: 'Select Law', icon: FileText },
+  { id: 2, title: 'Select Establishment', icon: Building },
   { id: 3, title: 'Preview & Confirm', icon: CheckCircle }
 ];
 
@@ -47,7 +47,7 @@ export default function SimpleInspectionWizard({
   establishments = [],
   establishmentsLoading = false,
   laws = [],
-  userLevel = 'Division Chief',
+  userLevel = 'Division Chief', // eslint-disable-line no-unused-vars
   onRefreshEstablishments,
   onSearchEstablishments
 }) {
@@ -76,7 +76,7 @@ export default function SimpleInspectionWizard({
       previousSearchQuery.current = debouncedSearchQuery;
       onSearchEstablishments(debouncedSearchQuery);
     }
-  }, [debouncedSearchQuery]); // Remove onSearchEstablishments from dependencies to prevent re-calls
+  }, [debouncedSearchQuery, onSearchEstablishments]);
 
   // Update filtered establishments when establishments change
   useEffect(() => {
@@ -88,13 +88,13 @@ export default function SimpleInspectionWizard({
     
     switch (step) {
       case 1:
-        if (!formData.establishment_ids || formData.establishment_ids.length === 0) {
-          newErrors.establishment_ids = 'Please select at least one establishment';
+        if (!formData.law_code) {
+          newErrors.law_code = 'Please select a law';
         }
         break;
       case 2:
-        if (!formData.law_code) {
-          newErrors.law_code = 'Please select a law';
+        if (!formData.establishment_ids || formData.establishment_ids.length === 0) {
+          newErrors.establishment_ids = 'Please select at least one establishment';
         }
         break;
       case 3:
@@ -228,6 +228,20 @@ export default function SimpleInspectionWizard({
              Previous
            </button>
 
+           {/* Centered Step Title with Icon */}
+           <div className="flex items-center">
+             {(() => {
+               const currentStepData = steps.find(step => step.id === currentStep);
+               const Icon = currentStepData?.icon || FileText;
+               return (
+                 <div className="flex items-center">
+                   <Icon className="h-5 w-5 mr-2 text-sky-600" />
+                   <h2 className="text-lg font-semibold text-gray-900">{currentStepData?.title || 'Wizard'}</h2>
+                 </div>
+               );
+             })()}
+           </div>
+
            <div className="flex items-center space-x-3">
              <button
                onClick={onClose}
@@ -258,12 +272,57 @@ export default function SimpleInspectionWizard({
 
         {/* Content */}
         <div className="p-6">
-          {/* Step 1: Establishment Selection */}
+          {/* Step 1: Law Selection */}
           {currentStep === 1 && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Establishment</h3>
-                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                  {laws.map((law) => (
+                    <div
+                      key={law.code}
+                      className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+                        formData.law_code === law.code
+                          ? 'border-sky-500 bg-sky-50'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                      onClick={() => updateFormData('law_code', law.code)}
+                    >
+                      <div className="flex items-start">
+                        <input
+                          type="radio"
+                          name="law"
+                          value={law.code}
+                          checked={formData.law_code === law.code}
+                          onChange={() => updateFormData('law_code', law.code)}
+                          className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 mt-0.5"
+                        />
+                        <div className="ml-3 flex-1">
+                          <div className="text-sm font-medium text-gray-900 mb-1">
+                            {law.code}
+                          </div>
+                          <div className="text-xs text-gray-600 leading-tight">
+                            {law.name}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {errors.law_code && (
+                  <p className="mt-2 text-sm text-red-600 flex items-center">
+                    <AlertTriangle className="h-4 w-4 mr-1" />
+                    {errors.law_code}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Establishment Selection */}
+          {currentStep === 2 && (
+            <div className="space-y-6">
+              <div>
                  {/* Search and Actions */}
                  <div className="mb-4 space-y-3">
                    <div className="flex gap-2">
@@ -435,161 +494,74 @@ export default function SimpleInspectionWizard({
             </div>
           )}
 
-          {/* Step 2: Law Selection */}
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Law/Section</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                  {laws.map((law) => (
-                    <div
-                      key={law.code}
-                      className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-                        formData.law_code === law.code
-                          ? 'border-sky-500 bg-sky-50'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                      onClick={() => updateFormData('law_code', law.code)}
-                    >
-                      <div className="flex items-start">
-                        <input
-                          type="radio"
-                          name="law"
-                          value={law.code}
-                          checked={formData.law_code === law.code}
-                          onChange={() => updateFormData('law_code', law.code)}
-                          className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 mt-0.5"
-                        />
-                        <div className="ml-3 flex-1">
-                          <div className="text-sm font-medium text-gray-900 mb-1">
-                            {law.code}
-                          </div>
-                          <div className="text-xs text-gray-600 leading-tight">
-                            {law.name}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {errors.law_code && (
-                  <p className="mt-2 text-sm text-red-600 flex items-center">
-                    <AlertTriangle className="h-4 w-4 mr-1" />
-                    {errors.law_code}
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Step 3: Preview & Confirmation */}
           {currentStep === 3 && (
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Preview & Confirmation</h3>
-                
-                 {/* Summary Information */}
-                 <div className="bg-sky-50 rounded-lg p-6 mb-6">
-                   <h4 className="text-lg font-semibold text-gray-900 mb-4">Inspection Summary</h4>
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     <div className="bg-white rounded-lg p-4 border border-sky-200">
-                       <div className="flex items-center">
-                         <Building className="h-8 w-8 text-sky-600 mr-3" />
-                         <div>
-                           <p className="text-sm font-medium text-gray-500">Total Establishments</p>
-                           <p className="text-2xl font-bold text-sky-600">{selectedEstablishments.length}</p>
+                {/* Main Layout: Cards on Left, Establishment Details on Right */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left Side: Summary Cards */}
+                  <div className="lg:col-span-1 space-y-6">
+                    {/* Selected Law Card */}
+                    <div className="bg-green-50 rounded-lg p-6 border border-green-200">
+                      <div className="flex items-center mb-4">
+                        <FileText className="h-8 w-8 text-green-600 mr-3" />
+                        <h4 className="text-lg font-semibold text-gray-900">Selected Law/Section</h4>
                          </div>
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-green-600 mb-2">{selectedLaw?.code || 'None'}</p>
+                        <p className="text-sm text-gray-600">{selectedLaw?.name || 'No law selected'}</p>
                        </div>
                      </div>
-                     <div className="bg-white rounded-lg p-4 border border-sky-200">
-                       <div className="flex items-center">
-                         <FileText className="h-8 w-8 text-green-600 mr-3" />
-                         <div>
-                           <p className="text-sm font-medium text-gray-500">Selected Law</p>
-                           <p className="text-lg font-semibold text-green-600">{selectedLaw?.code || 'None'}</p>
-                           <p className="text-sm text-gray-600">{selectedLaw?.name || ''}</p>
+
+                    {/* Establishments Count Card */}
+                    <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+                      <div className="flex items-center mb-4">
+                        <Building className="h-8 w-8 text-blue-600 mr-3" />
+                        <h4 className="text-lg font-semibold text-gray-900">Selected Establishments</h4>
                          </div>
-                       </div>
+                      <div className="text-center">
+                        <p className="text-3xl font-bold text-blue-600 mb-2">{selectedEstablishments.length}</p>
+                        <p className="text-sm text-gray-600">establishments selected for inspection</p>
                      </div>
                    </div>
                  </div>
                 
-
-                {/* Selected Establishments Table */}
+                  {/* Right Side: Establishment Details */}
                 {selectedEstablishments.length > 0 && (
-                  <div className="bg-blue-50 rounded-lg p-4">
-                    <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
+                    <div className="lg:col-span-2 bg-blue-50 rounded-lg p-6">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                       <Building className="h-5 w-5 mr-2 text-blue-600" />
-                      Selected Establishments ({selectedEstablishments.length})
+                        Establishment Details
                     </h4>
                     
-                    <table className="w-full border border-gray-300 rounded-lg">
-                      <thead>
-                        <tr className="text-sm text-left text-white bg-sky-700">
-                          <th className="p-1 border-b border-gray-300">#</th>
-                          <th className="p-1 border-b border-gray-300">Name</th>
-                          <th className="p-1 border-b border-gray-300">Address</th>
-                          <th className="p-1 border-b border-gray-300">Coordinates</th>
-                          <th className="p-1 border-b border-gray-300">Nature of Business</th>
-                          <th className="p-1 border-b border-gray-300">Year Established</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                      <div className="space-y-4">
                         {selectedEstablishments.map((establishment, index) => (
-                          <tr key={establishment.id} className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50">
-                            <td className="px-2 font-semibold border-b border-gray-300">
-                              {index + 1}
-                            </td>
-                            <td className="px-2 border-b border-gray-300">
-                              <div className="flex items-center">
-                                <Building className="h-4 w-4 text-gray-400 mr-2" />
-                                <div>
-                                  <div className="font-medium">{establishment.name}</div>
+                          <div key={establishment.id} className="bg-white rounded-lg p-4 border border-blue-200">
+                            <div className="flex items-start">
+                              <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-4">
+                                <span className="text-sm font-semibold text-blue-600">{index + 1}</span>
+                              </div>
+                              <div className="flex-1">
+                                <h5 className="text-lg font-semibold text-gray-900 mb-2">{establishment.name}</h5>
+                                <div className="space-y-1">
+                                  <div className="flex items-center text-sm text-gray-600">
+                                    <MapPin className="h-4 w-4 mr-2 text-gray-400" />
+                                    <span>{establishment.address}</span>
+                                  </div>
+                                  <div className="flex items-center text-sm text-gray-600">
+                                    <Building className="h-4 w-4 mr-2 text-gray-400" />
+                                    <span>{establishment.nature_of_business}</span>
+                                  </div>
                                 </div>
                               </div>
-                            </td>
-                            <td className="px-2 border-b border-gray-300">
-                              <div className="text-sm text-gray-900">
-                                {establishment.address}
                               </div>
-                            </td>
-                            <td className="px-2 border-b border-gray-300">
-                              <div className="text-sm text-gray-900">
-                                {establishment.coordinates}
                               </div>
-                            </td>
-                            <td className="px-2 border-b border-gray-300">
-                              <div className="text-sm text-gray-900">
-                                {establishment.nature_of_business}
-                              </div>
-                            </td>
-                            <td className="px-2 text-center border-b border-gray-300">
-                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                {establishment.year_established}
-                              </span>
-                            </td>
-                          </tr>
                         ))}
-                      </tbody>
-                    </table>
                   </div>
-                )}
-
-                {/* Selected Law */}
-                {selectedLaw && (
-                  <div className="bg-green-50 rounded-lg p-4">
-                    <h4 className="text-md font-semibold text-gray-900 mb-2 flex items-center">
-                      <FileText className="h-5 w-5 mr-2 text-green-600" />
-                      Selected Law/Section
-                    </h4>
-                    <div className="text-sm text-gray-700">
-                      <p><strong>Code:</strong> {selectedLaw.code}</p>
-                      <p><strong>Name:</strong> {selectedLaw.name}</p>
                     </div>
+                  )}
                   </div>
-                )}
               </div>
             </div>
           )}

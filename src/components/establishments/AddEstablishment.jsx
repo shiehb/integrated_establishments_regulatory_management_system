@@ -16,10 +16,15 @@ import {
 } from "../../constants/establishmentConstants";
 import { useNotifications } from "../NotificationManager";
 
+// Fix Leaflet marker icons
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+import iconRetina from 'leaflet/dist/images/marker-icon-2x.png';
+
 const markerIcon = new L.Icon({
-  iconUrl: "/assets/map/marker-icon.png",
-  iconRetinaUrl: "/assets/map/marker-icon-2x.png",
-  shadowUrl: "/assets/map/marker-shadow.png",
+  iconUrl: icon,
+  iconRetinaUrl: iconRetina,
+  shadowUrl: iconShadow,
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   shadowSize: [41, 41],
