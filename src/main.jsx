@@ -29,13 +29,15 @@ import PublicRoute from "./components/PublicRoute";
 import PrivateRoute from "./components/PrivateRoute";
 import RoleRoute from "./components/RoleRoute";
 import { SearchProvider } from "./contexts/SearchContext";
+import { AuthProvider } from "./contexts/AuthContext";
 import NotificationContainer from "./components/NotificationManager";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      <SearchProvider>
-        <NotificationContainer />
+      <AuthProvider>
+        <SearchProvider>
+          <NotificationContainer />
         <Routes>
           {/* Public routes without notifications */}
           <Route
@@ -134,7 +136,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           {/* 404 Not Found - Catch all undefined routes */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </SearchProvider>
+        </SearchProvider>
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

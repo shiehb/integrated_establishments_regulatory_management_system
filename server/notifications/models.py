@@ -7,6 +7,7 @@ class Notification(models.Model):
         ('new_user', 'New User Registration'),
         ('new_establishment', 'New Establishment Created'),
         ('password_reset', 'Password Reset Request'),
+        ('new_inspection', 'New Inspection Assignment'),
         # Add other types as needed
     ]
     

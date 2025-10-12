@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Key, LogOut } from "lucide-react";
 import ConfirmationDialog from "../common/ConfirmationDialog";
-import api from "../../services/api";
+import { useAuth } from "../../contexts/AuthContext";
 import { useNotifications } from "../NotificationManager";
 
 export default function UserDropdown({ userLevel = "public", userName = "Guest" }) {
@@ -11,32 +11,11 @@ export default function UserDropdown({ userLevel = "public", userName = "Guest" 
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const notifications = useNotifications();
+  const { logout } = useAuth();
 
   const handleLogout = async () => {
-    try {
-      const refresh = localStorage.getItem("refresh");
-      if (refresh) await api.post("auth/logout/", { refresh });
-      notifications.success(
-        "Logged out successfully!",
-        {
-          title: "Logout Successful",
-          duration: 3000
-        }
-      );
-    } catch (err) {
-      console.error("Logout error:", err);
-      notifications.error(
-        "Logout failed!",
-        {
-          title: "Logout Error",
-          duration: 6000
-        }
-      );
-    } finally {
-      localStorage.clear();
-      sessionStorage.clear();
-      navigate("/login");
-    }
+    await logout();
+    navigate("/login");
   };
 
   return (

@@ -116,6 +116,7 @@ class InspectionSerializer(serializers.ModelSerializer):
     created_by_name = serializers.SerializerMethodField()
     assigned_to_name = serializers.SerializerMethodField()
     assigned_to_level = serializers.SerializerMethodField()
+    inspected_by_name = serializers.SerializerMethodField()
     
     # Status helpers
     simplified_status = serializers.SerializerMethodField()
@@ -128,6 +129,7 @@ class InspectionSerializer(serializers.ModelSerializer):
             'id', 'code', 'establishments', 'establishments_detail',
             'law', 'district', 'created_by', 'created_by_name',
             'assigned_to', 'assigned_to_name', 'assigned_to_level',
+            'inspected_by_name',
             'current_status', 'simplified_status',
             'created_at', 'updated_at',
             'form', 'history',
@@ -169,6 +171,13 @@ class InspectionSerializer(serializers.ModelSerializer):
     def get_assigned_to_level(self, obj):
         return obj.assigned_to.userlevel if obj.assigned_to else None
     
+    def get_inspected_by_name(self, obj):
+        """Get the name of the user who inspected this inspection"""
+        if hasattr(obj, 'form') and obj.form and obj.form.inspected_by:
+            inspector = obj.form.inspected_by
+            return f"{inspector.first_name} {inspector.last_name}".strip() or inspector.email
+        return None
+    
     def get_simplified_status(self, obj):
         return obj.get_simplified_status()
     
@@ -189,61 +198,53 @@ class InspectionSerializer(serializers.ModelSerializer):
         status = obj.current_status
         
         
-        # Define actions based on status and user level
+        # Define actions based on status and user level - 5 Button Strategy
         actions_map = {
             # Initial creation - Division Chief can assign to sections
             ('CREATED', 'Division Chief'): ['assign_to_me', 'forward'],
             
-            # Division Chief review actions
-            ('DIVISION_REVIEWED', 'Division Chief'): ['review'],
-            
-            # Actions available to unassigned users (can assign to themselves)
-            ('SECTION_ASSIGNED', 'Section Chief'): ['assign_to_me', 'forward'],
-            ('UNIT_ASSIGNED', 'Unit Head'): ['assign_to_me', 'forward'],
-            ('MONITORING_ASSIGNED', 'Monitoring Personnel'): ['start'],
-            
-            # Actions available to assigned users
+            # Section Chief workflow
+            ('SECTION_ASSIGNED', 'Section Chief'): ['inspect', 'forward'],
             ('SECTION_IN_PROGRESS', 'Section Chief'): ['continue'],
-            ('SECTION_COMPLETED_COMPLIANT', 'Section Chief'): [],  # Auto-forwards to Division Chief
-            ('SECTION_COMPLETED_NON_COMPLIANT', 'Section Chief'): [],  # Auto-forwards to Division Chief
+            ('SECTION_COMPLETED_COMPLIANT', 'Division Chief'): ['review'],  # NO forward, auto-assigned
+            ('SECTION_COMPLETED_NON_COMPLIANT', 'Division Chief'): ['review'],  # NO forward, auto-assigned
             
-            ('UNIT_IN_PROGRESS', 'Unit Head'): ['continue'],
-            ('UNIT_COMPLETED_COMPLIANT', 'Unit Head'): [],  # Auto-forwards to Monitoring Personnel
-            ('UNIT_COMPLETED_NON_COMPLIANT', 'Unit Head'): [],  # Auto-forwards to Monitoring Personnel
+            # Unit Head workflow
+            ('UNIT_ASSIGNED', 'Unit Head'): ['inspect', 'forward'],
+            ('UNIT_IN_PROGRESS', 'Unit Head'): ['continue', 'forward'],
+            ('UNIT_COMPLETED_COMPLIANT', 'Section Chief'): ['review'],  # NO forward, auto-assigned
+            ('UNIT_COMPLETED_NON_COMPLIANT', 'Section Chief'): ['review'],  # NO forward, auto-assigned
             
+            # Monitoring Personnel workflow
+            ('MONITORING_ASSIGNED', 'Monitoring Personnel'): ['inspect'],
             ('MONITORING_IN_PROGRESS', 'Monitoring Personnel'): ['continue'],
-            # Unit Head can review UNIT_REVIEWED inspections (Monitoring Personnel submissions)
-            ('UNIT_REVIEWED', 'Unit Head'): ['review', 'send_to_section'],
-            ('SECTION_REVIEWED', 'Section Chief'): ['review', 'send_to_division'],
-            ('DIVISION_REVIEWED', 'Division Chief'): ['review'],
+            ('MONITORING_COMPLETED_COMPLIANT', 'Unit Head'): ['review'],  # NO forward, auto-assigned
+            ('MONITORING_COMPLETED_NON_COMPLIANT', 'Unit Head'): ['review'],  # NO forward, auto-assigned
             
-            # Legal Unit actions - can review to access form with NOV/NOO buttons
-            ('LEGAL_REVIEW', 'Legal Unit'): ['review'],
-            ('NOV_SENT', 'Legal Unit'): [],
-            ('NOO_SENT', 'Legal Unit'): [],
+            # Review statuses (have Forward button)
+            ('UNIT_REVIEWED', 'Section Chief'): ['review', 'forward'],
+            ('SECTION_REVIEWED', 'Division Chief'): ['review', 'forward'],
+            ('DIVISION_REVIEWED', 'Division Chief'): ['review', 'send_to_legal', 'close'],
+            
+            # Legal Unit actions
+            ('LEGAL_REVIEW', 'Legal Unit'): ['review', 'close'],
+            ('NOV_SENT', 'Legal Unit'): ['review', 'close'],
+            ('NOO_SENT', 'Legal Unit'): ['review', 'close'],
         }
         
         key = (status, user.userlevel)
         available_actions = actions_map.get(key, [])
         
         
-        # Special case: Section Chief with SECTION_ASSIGNED status
-        if status == 'SECTION_ASSIGNED' and user.userlevel == 'Section Chief':
-            if obj.assigned_to == user:
-                # If assigned to user, they can inspect (move to My Inspections) or forward (in Received tab)
-                return ['inspect', 'forward']
-            else:
-                # If not assigned, they can assign to themselves or forward
+        # Special case: Unassigned users can assign to themselves
+        if status in ['SECTION_ASSIGNED', 'UNIT_ASSIGNED'] and obj.assigned_to != user:
+            if (status == 'SECTION_ASSIGNED' and user.userlevel == 'Section Chief') or \
+               (status == 'UNIT_ASSIGNED' and user.userlevel == 'Unit Head'):
                 return ['assign_to_me', 'forward']
         
-        # Special case: Unit Head with UNIT_ASSIGNED status
-        if status == 'UNIT_ASSIGNED' and user.userlevel == 'Unit Head':
-            if obj.assigned_to == user:
-                # If assigned to user, they can inspect (move to My Inspections) or forward (in Received tab)
-                return ['inspect', 'forward']
-            else:
-                # If not assigned, they can assign to themselves or forward
-                return ['assign_to_me', 'forward']
+        # Special case: Monitoring Personnel with MONITORING_ASSIGNED status
+        if status == 'MONITORING_ASSIGNED' and user.userlevel == 'Monitoring Personnel':
+            return ['inspect']
         
         # Special case: Division Chief in "all_inspections" tab should have no actions
         # Check if this is a Division Chief viewing in "all_inspections" tab
@@ -341,6 +342,35 @@ class InspectionCreateSerializer(serializers.Serializer):
                 changed_by=user,
                 remarks='Inspection created and assigned to Section Chief'
             )
+            
+            # Send notifications to assigned Section Chief
+            if inspection.assigned_to:
+                from notifications.models import Notification
+                from .utils import send_inspection_assignment_notification
+                import logging
+                
+                logger = logging.getLogger(__name__)
+                
+                # Get establishment names for notification message
+                establishment_names = [est.name for est in inspection.establishments.all()]
+                establishment_list = ", ".join(establishment_names) if establishment_names else "No establishments"
+                
+                # Create system notification
+                Notification.objects.create(
+                    recipient=inspection.assigned_to,
+                    sender=user,
+                    notification_type='new_inspection',
+                    title='New Inspection Assignment',
+                    message=f'You have been assigned inspection {inspection.code} for {establishment_list} under {inspection.law}. Please review and take action.'
+                )
+                
+                # Send email notification
+                try:
+                    send_inspection_assignment_notification(inspection.assigned_to, inspection)
+                    logger.info(f"Notification sent to {inspection.assigned_to.email} for inspection {inspection.code}")
+                except Exception as e:
+                    # Don't fail inspection creation if email fails
+                    logger.error(f"Failed to send email notification for inspection {inspection.code}: {str(e)}")
         
         return inspection
 

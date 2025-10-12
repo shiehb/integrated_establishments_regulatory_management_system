@@ -48,8 +48,6 @@ class Inspection(models.Model):
         ('NOO_SENT', 'NOO Sent'),
         
         # Final states
-        ('FINALIZED', 'Finalized'),
-        ('CLOSED', 'Closed'),
         ('CLOSED_COMPLIANT', 'Closed - Compliant'),
         ('CLOSED_NON_COMPLIANT', 'Closed - Non-Compliant'),
     ]
@@ -171,10 +169,12 @@ class Inspection(models.Model):
             'SECTION_COMPLETED_COMPLIANT': {
                 'UNIT_ASSIGNED': ['Section Chief'],
                 'MONITORING_ASSIGNED': ['Section Chief'],  # If no unit head
+                'DIVISION_REVIEWED': ['Division Chief'],  # Auto-assign to Division Chief
             },
             'SECTION_COMPLETED_NON_COMPLIANT': {
                 'UNIT_ASSIGNED': ['Section Chief'],
                 'MONITORING_ASSIGNED': ['Section Chief'],  # If no unit head
+                'DIVISION_REVIEWED': ['Division Chief'],  # Auto-assign to Division Chief
             },
             'UNIT_ASSIGNED': {
                 'UNIT_IN_PROGRESS': ['Unit Head'],
@@ -187,21 +187,30 @@ class Inspection(models.Model):
             },
             'UNIT_COMPLETED_COMPLIANT': {
                 'MONITORING_ASSIGNED': ['Unit Head'],
+                'SECTION_REVIEWED': ['Section Chief'],  # Can send to Section
             },
             'UNIT_COMPLETED_NON_COMPLIANT': {
                 'MONITORING_ASSIGNED': ['Unit Head'],
+                'SECTION_REVIEWED': ['Section Chief'],  # Can send to Section
             },
             'MONITORING_ASSIGNED': {
                 'MONITORING_IN_PROGRESS': ['Monitoring Personnel'],
             },
             'MONITORING_IN_PROGRESS': {
-                'UNIT_REVIEWED': ['Monitoring Personnel'],  # Direct submission to Unit Head review
+                'MONITORING_COMPLETED_COMPLIANT': ['Monitoring Personnel'],
+                'MONITORING_COMPLETED_NON_COMPLIANT': ['Monitoring Personnel'],
+            },
+            'MONITORING_COMPLETED_COMPLIANT': {
+                'UNIT_REVIEWED': ['Unit Head'],  # Auto-assign to Unit Head
+            },
+            'MONITORING_COMPLETED_NON_COMPLIANT': {
+                'UNIT_REVIEWED': ['Unit Head'],  # Auto-assign to Unit Head
             },
             'UNIT_REVIEWED': {
-                'SECTION_REVIEWED': ['Unit Head'],
+                'SECTION_REVIEWED': ['Section Chief'],  # Section Chief forwards to Division
             },
             'SECTION_REVIEWED': {
-                'DIVISION_REVIEWED': ['Section Chief'],
+                'DIVISION_REVIEWED': ['Division Chief'],  # Division Chief forwards to finalize
             },
             'DIVISION_REVIEWED': {
                 'CLOSED_COMPLIANT': ['Division Chief'],  # If compliant

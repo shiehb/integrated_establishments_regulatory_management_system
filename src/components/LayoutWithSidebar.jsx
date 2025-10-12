@@ -3,40 +3,10 @@ import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import InternalHeader from "./InternalHeader";
 import Footer from "./Footer";
-import { getProfile } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 
 // Configuration constants
-const PROFILE_CACHE_TTL_MINUTES = 10; // Configurable cache TTL
-const PROFILE_CACHE_KEY = "profile";
 const SIDEBAR_STATE_KEY = "sidebarOpen";
-
-// Helper: set cache with expiry
-function setCache(key, value, ttlMinutes) {
-  const expiry = Date.now() + ttlMinutes * 60 * 1000; // TTL in ms
-  localStorage.setItem(key, JSON.stringify({ value, expiry }));
-}
-
-// Helper: get cache and check expiry
-function getCache(key) {
-  const cached = localStorage.getItem(key);
-  if (!cached) return null;
-
-  try {
-    const { value, expiry } = JSON.parse(cached);
-    if (Date.now() > expiry) {
-      localStorage.removeItem(key); // expired → remove
-      return null;
-    }
-    return value;
-  } catch {
-    return null;
-  }
-}
-
-// Helper: invalidate cache
-function invalidateCache(key) {
-  localStorage.removeItem(key);
-}
 
 export default function LayoutWithSidebar({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -44,11 +14,7 @@ export default function LayoutWithSidebar({ children }) {
     return savedState !== null ? JSON.parse(savedState) : true;
   });
 
-  const [profile, setProfile] = useState(() => {
-    return getCache(PROFILE_CACHE_KEY);
-  });
-
-  const [profileLoading, setProfileLoading] = useState(false);
+  const { user: profile, loading: profileLoading, refreshProfile } = useAuth();
   const [profileError, setProfileError] = useState(null);
 
   // Save sidebar state
@@ -56,52 +22,16 @@ export default function LayoutWithSidebar({ children }) {
     localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(sidebarOpen));
   }, [sidebarOpen]);
 
-  // Fetch profile if not cached or expired
+  // Listen for auth logout events
   useEffect(() => {
-    if (!profile && !profileLoading) {
-      setProfileLoading(true);
-      setProfileError(null);
-      
-      getProfile()
-        .then((data) => {
-          setProfile(data);
-          setCache(PROFILE_CACHE_KEY, data, PROFILE_CACHE_TTL_MINUTES);
-          setProfileError(null);
-        })
-        .catch((error) => {
-          console.error("Failed to fetch profile:", error);
-          setProfileError(error);
-          setProfile(null);
-        })
-        .finally(() => {
-          setProfileLoading(false);
-        });
-    }
-  }, [profile, profileLoading]);
-
-  // Listen for logout events to invalidate profile cache
-  useEffect(() => {
-    const handleLogout = () => {
-      invalidateCache(PROFILE_CACHE_KEY);
-      setProfile(null);
+    const handleAuthLogout = () => {
       setProfileError(null);
     };
 
-    const handleStorageChange = (e) => {
-      if (e.key === "access" && !e.newValue) {
-        // Token removed, invalidate profile
-        handleLogout();
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    
-    // Listen for custom logout event
-    window.addEventListener("userLogout", handleLogout);
+    window.addEventListener("authLogout", handleAuthLogout);
     
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("userLogout", handleLogout);
+      window.removeEventListener("authLogout", handleAuthLogout);
     };
   }, []);
 
@@ -127,11 +57,13 @@ export default function LayoutWithSidebar({ children }) {
             Unable to load your profile. Please check your connection and try again.
           </p>
           <button 
-            onClick={() => {
-              invalidateCache(PROFILE_CACHE_KEY);
-              setProfile(null);
-              setProfileError(null);
-              setProfileLoading(false);
+            onClick={async () => {
+              try {
+                await refreshProfile();
+                setProfileError(null);
+              } catch (error) {
+                setProfileError(error);
+              }
             }} 
             className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors"
           >

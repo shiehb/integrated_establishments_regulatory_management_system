@@ -35,7 +35,7 @@ import {
 import StatusBadge from "./StatusBadge";
 import InspectionTabs from "./InspectionTabs";
 import InspectionActions from "./InspectionActions";
-import { roleTabs, tabDisplayNames } from "../../constants/inspectionConstants";
+import { roleTabs, tabDisplayNames, canUserSeeInspection, shouldShowInTab } from "../../constants/inspectionConstants";
 import ExportDropdown from "../ExportDropdown";
 import PrintPDF from "../PrintPDF";
 import DateRangeDropdown from "../DateRangeDropdown";
@@ -59,6 +59,42 @@ const useDebounce = (value, delay) => {
   }, [value, delay]);
 
   return debouncedValue;
+};
+
+// Helper function to get empty state message based on tab and user level
+const getEmptyStateMessage = (activeTab, userLevel) => {
+  const emptyStateMessages = {
+    'Division Chief': {
+      all_inspections: 'No inspections available. Create a new inspection to get started.',
+      review: 'All caught up! No inspections pending your review.'
+    },
+    'Section Chief': {
+      received: 'No new assignments. Check back later or view forwarded inspections.',
+      my_inspections: 'No inspections currently in progress. Start by assigning yourself to an inspection.',
+      forwarded: 'No inspections forwarded to other personnel.',
+      review: 'All caught up! No inspections pending your review.',
+      compliance: 'No completed inspections to display.'
+    },
+    'Unit Head': {
+      received: 'No new assignments from Section Chief.',
+      my_inspections: 'No inspections currently in progress.',
+      forwarded: 'No inspections forwarded to Monitoring Personnel.',
+      review: 'All caught up! No inspections pending your review.',
+      compliance: 'No completed inspections to display.'
+    },
+    'Monitoring Personnel': {
+      assigned: 'No new assignments waiting to start.',
+      in_progress: 'No inspections currently in progress.',
+      completed: 'No completed inspections to display.'
+    },
+    'Legal Unit': {
+      legal_review: 'No cases assigned for legal review.',
+      nov_sent: 'No Notice of Violation (NOV) cases.',
+      noo_sent: 'No Notice of Order (NOO) cases.'
+    }
+  };
+
+  return emptyStateMessages[userLevel]?.[activeTab] || 'No inspections found.';
 };
 
 // Helper function to create action-specific dialog content
@@ -474,6 +510,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   const [lawFilter, setLawFilter] = useState([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [showOnlyMyAssignments, setShowOnlyMyAssignments] = useState(false);
 
   // 📑 Tab state for role-based tabs with localStorage persistence
   const { loadFromStorage: loadTabFromStorage, saveToStorage: saveTabToStorage } = useLocalStorageTab("inspections_list");
@@ -558,21 +595,33 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   // Client-side filtering and sorting
   const filteredInspections = useMemo(() => {
     let list = inspections.filter((inspection) => {
-    // Law filter - use partial matching
-    const matchesLaw = lawFilter.length === 0 || 
-      lawFilter.some(law => {
-        // Extract just the code part (e.g., "PD-1586" from "PD-1586 (Philippine Environment Code)")
-        const lawCode = law.split(' ')[0];
-        return inspection.law?.includes(lawCode);
-      });
+      // 1. Visibility filter - user can only see relevant inspections
+      const canSee = canUserSeeInspection(inspection.current_status, userLevel);
+      if (!canSee) return false;
       
-      // Date range filter
+      // 2. Tab filter - only show inspections that belong in this tab
+      const belongsInTab = shouldShowInTab(inspection.current_status, userLevel, activeTab);
+      if (!belongsInTab) return false;
+      
+      // 3. Law filter - use partial matching
+      const matchesLaw = lawFilter.length === 0 || 
+        lawFilter.some(law => {
+          // Extract just the code part (e.g., "PD-1586" from "PD-1586 (Philippine Environment Code)")
+          const lawCode = law.split(' ')[0];
+          return inspection.law?.includes(lawCode);
+        });
+        
+      // 4. Date range filter
       const matchesDateFrom = !dateFrom || 
         new Date(inspection.created_at) >= new Date(dateFrom);
       const matchesDateTo = !dateTo || 
         new Date(inspection.created_at) <= new Date(dateTo);
       
-      return matchesLaw && matchesDateFrom && matchesDateTo;
+      // 5. Assignment filter - show only my assignments if enabled
+      const matchesAssignment = !showOnlyMyAssignments || 
+        (currentUser && inspection.assigned_to?.id === currentUser.id);
+      
+      return matchesLaw && matchesDateFrom && matchesDateTo && matchesAssignment;
     });
 
     // Client-side sorting
@@ -600,7 +649,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     }
 
     return list;
-  }, [inspections, lawFilter, dateFrom, dateTo, sortConfig]);
+  }, [inspections, lawFilter, dateFrom, dateTo, sortConfig, userLevel, activeTab, showOnlyMyAssignments, currentUser]);
 
   // Get unique laws from current inspections
   const availableLaws = useMemo(() => {
@@ -613,15 +662,24 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     return Array.from(lawSet).sort();
   }, [inspections]);
 
-  // Calculate tab counts for all tabs
+  // Calculate tab counts based on current inspections
   const calculateTabCounts = useCallback(async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      console.log('calculateTabCounts: No user');
+      setTabCounts({});
+      return;
+    }
 
     try {
       const availableTabs = roleTabs[userLevel] || [];
       const counts = {};
 
-      // Fetch count for each tab
+      console.log('calculateTabCounts: Starting calculation', { 
+        userLevel, 
+        availableTabs
+      });
+
+      // For each tab, fetch the count from the backend
       for (const tab of availableTabs) {
         try {
           const params = {
@@ -632,15 +690,18 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
           const response = await getInspections(params);
           counts[tab] = response.count || 0;
+          console.log(`Tab ${tab}: ${counts[tab]} inspections (from backend)`);
         } catch (error) {
           console.error(`Error fetching count for tab ${tab}:`, error);
           counts[tab] = 0;
         }
       }
 
+      console.log('Final tab counts:', counts);
       setTabCounts(counts);
     } catch (error) {
       console.error('Error calculating tab counts:', error);
+      setTabCounts({});
     }
   }, [currentUser, userLevel]);
 
@@ -666,49 +727,18 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
     console.log('Found inspection:', inspection.code, 'for action:', action);
     
-    // For start action, change status to MONITORING_IN_PROGRESS and open form
-    if (action === 'start') {
-      try {
-        // Always change status to MONITORING_IN_PROGRESS when starting inspection
-        console.log('Starting inspection, changing status to MONITORING_IN_PROGRESS');
-          await handleAction('start', inspectionId);
-          
-          // Show success message
-          notifications.success(
-          `Inspection ${inspection.code} started successfully`, 
-          { title: 'Inspection Started' }
-          );
-        
-        // Navigate to inspection form page
-        window.location.href = `/inspections/${inspectionId}/form`;
-        return;
-      } catch (error) {
-        console.error('Error starting inspection:', error);
-        notifications.error(
-          `Error starting inspection: ${error.message}`, 
-          { title: 'Error' }
-        );
-        return;
-      }
-    }
+    // 5-Button Strategy Implementation
     
-    // For continue action, open the inspection form page (resume inspection)
-    if (action === 'continue') {
-      // Navigate to inspection form page to resume
-      window.location.href = `/inspections/${inspectionId}/form`;
-      return;
-    }
-    
-    // For inspect action, show confirmation dialog for section chiefs and unit heads
+    // 1. "Inspect" button - Start new inspection (changes status to IN_PROGRESS)
     if (action === 'inspect') {
-      // Check if user is Section Chief or Unit Head
+      // Show confirmation dialog for Section Chief and Unit Head
       if (userLevel === 'Section Chief' || userLevel === 'Unit Head') {
-      setActionConfirmation({ 
-        open: true, 
-        inspection, 
-        action 
-      });
-      return;
+        setActionConfirmation({ 
+          open: true, 
+          inspection, 
+          action 
+        });
+        return;
       } else {
         // For other user levels, directly execute the action
         try {
@@ -717,6 +747,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             `Inspection ${inspection.code} assigned to you`, 
             { title: 'Inspection Assigned' }
           );
+          // Navigate to inspection form page
+          window.location.href = `/inspections/${inspectionId}/form`;
         } catch (error) {
           console.error('Error executing inspect action:', error);
           notifications.error(
@@ -728,7 +760,21 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       }
     }
     
-    // For forward action, show confirmation dialog
+    // 2. "Continue" button - Resume editing (no status change, just open form)
+    if (action === 'continue') {
+      // Navigate to inspection form page to resume
+      window.location.href = `/inspections/${inspectionId}/form`;
+      return;
+    }
+    
+    // 3. "Review" button - View completed work (no status change, just open form)
+    if (action === 'review') {
+      // Navigate to inspection form page for review
+      window.location.href = `/inspections/${inspectionId}/form`;
+      return;
+    }
+    
+    // 4. "Forward" button - Delegate/send up (show confirmation dialog)
     if (action === 'forward') {
       setActionConfirmation({ 
         open: true, 
@@ -738,22 +784,30 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       return;
     }
     
-    // For review action, execute the action and then open the form
-    if (action === 'review') {
+    // 5. "Send to Legal" / "Close" buttons - Final actions (show confirmation dialog)
+    if (action === 'send_to_legal' || action === 'close') {
+      setActionConfirmation({ 
+        open: true, 
+        inspection, 
+        action 
+      });
+      return;
+    }
+    
+    // Legacy actions for backward compatibility
+    if (action === 'start') {
       try {
-        await handleAction(action, inspectionId);
+        await handleAction('start', inspectionId);
         notifications.success(
-          `Inspection ${inspection.code} status updated for review`, 
-          { title: 'Review Started' }
+          `Inspection ${inspection.code} started successfully`, 
+          { title: 'Inspection Started' }
         );
-        
-        // Navigate to inspection form page
         window.location.href = `/inspections/${inspectionId}/form`;
         return;
       } catch (error) {
-        console.error('Error executing review action:', error);
+        console.error('Error starting inspection:', error);
         notifications.error(
-          `Error starting review: ${error.message}`, 
+          `Error starting inspection: ${error.message}`, 
           { title: 'Error' }
         );
         return;
@@ -904,6 +958,20 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     fetchAllInspections();
   }, [refreshTrigger, fetchAllInspections, currentUser]);
 
+  // Recalculate tab counts when active tab changes or after fetching inspections
+  useEffect(() => {
+    if (currentUser && inspections.length >= 0) { // >= 0 to handle empty results
+      calculateTabCounts();
+    }
+  }, [activeTab, inspections.length, calculateTabCounts, currentUser]);
+
+  // Debug: Log tab counts when they change
+  useEffect(() => {
+    if (Object.keys(tabCounts).length > 0) {
+      console.log('Tab counts updated:', tabCounts);
+    }
+  }, [tabCounts]);
+
   // Add this useEffect to handle clicks outside the dropdowns
   useEffect(() => {
     function handleClickOutside(e) {
@@ -963,10 +1031,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     { key: "created_at", label: "Created Date" },
   ];
 
-  const sortDirections = [
-    { key: "asc", label: "Ascending" },
-    { key: "desc", label: "Descending" },
-  ];
 
   // Note: Filtering and sorting are now handled client-side
 
@@ -1002,6 +1066,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     setLawFilter([]);
     setDateFrom("");
     setDateTo("");
+    setShowOnlyMyAssignments(false);
     setSortConfig({ key: null, direction: null });
     setCurrentPage(1);
   };
@@ -1027,12 +1092,14 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     lawFilter.length > 0 ||
     dateFrom ||
     dateTo ||
+    showOnlyMyAssignments ||
     sortConfig.key;
   const activeFilterCount =
     sectionFilter.length +
     lawFilter.length +
     (dateFrom ? 1 : 0) +
-    (dateTo ? 1 : 0);
+    (dateTo ? 1 : 0) +
+    (showOnlyMyAssignments ? 1 : 0);
 
   // Calculate display range
   const startItem = (currentPage - 1) * pageSize + 1;
@@ -1175,6 +1242,29 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     )}
                   </div>
 
+                  {/* Assignment Filter */}
+                  {(userLevel === 'Section Chief' || userLevel === 'Unit Head' || userLevel === 'Monitoring Personnel') && (
+                    <div className="mb-2">
+                      <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                        Assignment
+                      </div>
+                      <button
+                        onClick={() => setShowOnlyMyAssignments(!showOnlyMyAssignments)}
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                          showOnlyMyAssignments ? "bg-sky-50 font-medium" : ""
+                        }`}
+                      >
+                        <div className="flex-1 text-left">
+                          <div className="font-medium">My Assignments Only</div>
+                          <div className="text-xs text-gray-500">Show only inspections assigned to me</div>
+                        </div>
+                        {showOnlyMyAssignments && (
+                          <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Law Section */}
                   <div className="mb-2">
                     <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
@@ -1223,7 +1313,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
           <ExportDropdown
             title="Inspections Export Report"
             fileName="inspections_export"
-            columns={["Code", "Establishments", "Law", "Status", "Assigned To", "Created Date"]}
+            columns={["Code", "Establishments", "Law", "Status", "Inspected By", "Created Date"]}
             rows={selectedInspections.length > 0 ? 
               selectedInspections.map(inspection => [
                 inspection.code,
@@ -1232,7 +1322,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   : 'No establishments',
                 inspection.law,
                 inspection.simplified_status || inspection.current_status,
-                inspection.assigned_to_name || 'Unassigned',
+                inspection.inspected_by_name || 'Not Inspected',
                 new Date(inspection.created_at).toLocaleDateString()
               ]) : 
               inspections.map(inspection => [
@@ -1242,7 +1332,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   : 'No establishments',
                 inspection.law,
                 inspection.simplified_status || inspection.current_status,
-                inspection.assigned_to_name || 'Unassigned',
+                inspection.inspected_by_name || 'Not Inspected',
                 new Date(inspection.created_at).toLocaleDateString()
               ])
             }
@@ -1253,7 +1343,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
           <PrintPDF
             title="Inspections Report"
             fileName="inspections_report"
-            columns={["Code", "Establishments", "Law", "Status", "Assigned To", "Created Date"]}
+            columns={["Code", "Establishments", "Law", "Status", "Inspected By", "Created Date"]}
             rows={selectedInspections.length > 0 ? 
               selectedInspections.map(inspection => [
                 inspection.code,
@@ -1262,7 +1352,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   : 'No establishments',
                 inspection.law,
                 inspection.simplified_status || inspection.current_status,
-                inspection.assigned_to_name || 'Unassigned',
+                inspection.inspected_by_name || 'Not Inspected',
                 new Date(inspection.created_at).toLocaleDateString()
               ]) : 
               inspections.map(inspection => [
@@ -1272,7 +1362,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   : 'No establishments',
                 inspection.law,
                 inspection.simplified_status || inspection.current_status,
-                inspection.assigned_to_name || 'Unassigned',
+                inspection.inspected_by_name || 'Not Inspected',
                 new Date(inspection.created_at).toLocaleDateString()
               ])
             }
@@ -1302,7 +1392,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       />
 
       {/* Table Container with Scroll */}
-      <div className="overflow-auto border border-gray-300 rounded-lg h-[calc(100vh-270px)] scroll-smooth custom-scrollbar">
+      <div className="overflow-auto border border-gray-300 rounded-lg h-[calc(100vh-325px)] scroll-smooth custom-scrollbar">
         <table className="w-full min-w-[800px]">
           <thead>
             <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
@@ -1322,7 +1412,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               <th className="p-1 border-b border-gray-300">Establishments</th>
               <th className="p-1 border-b border-gray-300">Law</th>
               <th className="p-1 border-b border-gray-300">Status</th>
-              <th className="p-1 border-b border-gray-300">Assigned To</th>
+              <th className="p-1 border-b border-gray-300">Inspected By</th>
               <th className="p-1 text-center border-b border-gray-300 cursor-pointer" onClick={() => handleSort("created_at")}>
                 <div className="flex items-center justify-center gap-1">Created {getSortIcon("created_at")}</div>
               </th>
@@ -1364,7 +1454,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                       </button>
                     </div>
                   ) : (
-                    "No inspections found."
+                    getEmptyStateMessage(activeTab, userLevel)
                   )}
                 </td>
               </tr>
@@ -1396,11 +1486,14 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   </td>
                   <td className="p-1 border-b border-gray-300">
                     <StatusBadge 
-                      status={inspection.current_status} 
+                      status={inspection.current_status}
+                      inspection={inspection}
+                      userLevel={userLevel}
+                      currentUser={currentUser}
                     />
                   </td>
                   <td className="p-1 border-b border-gray-300">
-                    {inspection.assigned_to_name || 'Unassigned'}
+                    {inspection.inspected_by_name || 'Not Inspected'}
                   </td>
                   <td className="p-1 text-center border-b border-gray-300">
                     {formatFullDate(inspection.created_at)}

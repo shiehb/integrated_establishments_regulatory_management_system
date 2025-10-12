@@ -2,7 +2,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import Layout from "../components/Layout";
 import { useState, useRef, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { loginUser } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 import { useNotifications } from "../components/NotificationManager";
 
 export default function Login() {
@@ -17,6 +17,7 @@ export default function Login() {
   const location = useLocation();
   const passwordInputRef = useRef(null);
   const notifications = useNotifications();
+  const { login } = useAuth();
 
   // Show message from state (e.g., after password change)
   useEffect(() => {
@@ -73,18 +74,9 @@ export default function Login() {
     setErrors({}); // Clear previous errors
     
     try {
-      const loginRes = await loginUser(formData.email, formData.password);
+      const result = await login(formData.email, formData.password);
       
-      // Show success notification
-      notifications.login(
-        "Login successful! Welcome back.",
-        {
-          title: "Login Successful",
-          duration: 3000
-        }
-      );
-      
-      if (loginRes.must_change_password) {
+      if (result.mustChangePassword) {
         navigate("/force-change-password");
       } else {
         navigate("/");

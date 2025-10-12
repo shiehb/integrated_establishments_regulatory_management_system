@@ -895,16 +895,18 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         data = serializer.validated_data
         
-        # Determine next status based on current status
+        # Determine next status based on current status and compliance decision
+        compliance_decision = data.get('compliance_decision', 'COMPLIANT')
+        
         if inspection.current_status == 'SECTION_IN_PROGRESS':
-            # Section Chief submits for Division Chief review
-            next_status = 'DIVISION_REVIEWED'
+            # Section Chief completes inspection
+            next_status = 'SECTION_COMPLETED_COMPLIANT' if compliance_decision == 'COMPLIANT' else 'SECTION_COMPLETED_NON_COMPLIANT'
         elif inspection.current_status == 'UNIT_IN_PROGRESS':
-            # Unit Head submits for Section Chief review  
-            next_status = 'SECTION_REVIEWED'
+            # Unit Head completes inspection
+            next_status = 'UNIT_COMPLETED_COMPLIANT' if compliance_decision == 'COMPLIANT' else 'UNIT_COMPLETED_NON_COMPLIANT'
         elif inspection.current_status == 'MONITORING_IN_PROGRESS':
-            # Monitoring Personnel submits for Unit Head review
-            next_status = 'UNIT_REVIEWED'
+            # Monitoring Personnel completes inspection
+            next_status = 'MONITORING_COMPLETED_COMPLIANT' if compliance_decision == 'COMPLIANT' else 'MONITORING_COMPLETED_NON_COMPLIANT'
         else:
             return Response(
                 {'error': f'Cannot complete from status {inspection.current_status}'},
@@ -932,16 +934,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
             remarks=data.get('remarks', 'Completed inspection')
         )
         
-        # Auto-transition completed inspections to review
-        if next_status == 'UNIT_REVIEWED':
-            # Monitoring Personnel submitted - assign to Unit Head for review
-            self._auto_forward_to_unit_review(inspection, user)
-        elif next_status == 'DIVISION_REVIEWED':
-            # Section Chief submitted - assign to Division Chief for review
-            self._auto_forward_to_division_review(inspection, user)
-        elif next_status == 'SECTION_REVIEWED':
-            # Unit Head submitted - assign to Section Chief for review
-            self._auto_forward_to_section_review(inspection, user)
+        # Auto-assign completed inspections to appropriate reviewers
+        if next_status in ['SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT']:
+            self._auto_assign_to_division_chief(inspection, user)
+        elif next_status in ['UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT']:
+            self._auto_assign_to_section_chief(inspection, user)
+        elif next_status in ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']:
+            self._auto_assign_to_unit_head(inspection, user)
         
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
@@ -1028,6 +1027,74 @@ class InspectionViewSet(viewsets.ModelViewSet):
             changed_by=user,
             remarks='Auto-forwarded to Section Chief for review'
         )
+    
+    def _auto_assign_to_section_chief(self, inspection, user):
+        """Auto-assign to Section Chief for review (status unchanged)"""
+        # Find Section Chief based on law
+        target_section = inspection.law
+        if inspection.law in ['PD-1586', 'RA-8749', 'RA-9275']:
+            target_section = 'PD-1586,RA-8749,RA-9275'
+        
+        section_chief = User.objects.filter(
+            userlevel='Section Chief',
+            section=target_section,
+            is_active=True
+        ).first()
+        
+        if section_chief:
+            inspection.assigned_to = section_chief
+            inspection.save()
+            
+            InspectionHistory.objects.create(
+                inspection=inspection,
+                previous_status=inspection.current_status,
+                new_status=inspection.current_status,
+                changed_by=user,
+                remarks=f'Assigned to Section Chief for review'
+            )
+    
+    def _auto_assign_to_division_chief(self, inspection, user):
+        """Auto-assign to Division Chief for review (status unchanged)"""
+        # Find Division Chief (creator of the inspection)
+        if inspection.created_by:
+            inspection.assigned_to = inspection.created_by
+        else:
+            # Fallback: find any Division Chief
+            division_chief = User.objects.filter(userlevel='Division Chief', is_active=True).first()
+            if division_chief:
+                inspection.assigned_to = division_chief
+        
+        if inspection.assigned_to:
+            inspection.save()
+            
+            InspectionHistory.objects.create(
+                inspection=inspection,
+                previous_status=inspection.current_status,
+                new_status=inspection.current_status,
+                changed_by=user,
+                remarks=f'Assigned to Division Chief for review'
+            )
+    
+    def _auto_assign_to_unit_head(self, inspection, user):
+        """Auto-assign to Unit Head for review (status unchanged)"""
+        # Find Unit Head based on law
+        unit_head = User.objects.filter(
+            userlevel='Unit Head',
+            section=inspection.law,
+            is_active=True
+        ).first()
+        
+        if unit_head:
+            inspection.assigned_to = unit_head
+            inspection.save()
+            
+            InspectionHistory.objects.create(
+                inspection=inspection,
+                previous_status=inspection.current_status,
+                new_status=inspection.current_status,
+                changed_by=user,
+                remarks=f'Assigned to Unit Head for review'
+            )
     
     @action(detail=True, methods=['post'])
     def forward(self, request, pk=None):

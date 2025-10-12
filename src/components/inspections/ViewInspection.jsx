@@ -14,24 +14,26 @@ import {
   AlertTriangle,
   Eye
 } from "lucide-react";
+import { getRoleBasedStatusLabel, statusDisplayMap, getStatusColorClass, getStatusBgColorClass } from "../../constants/inspectionConstants";
 
-export default function ViewInspection({ inspection, onClose, onEdit }) {
+export default function ViewInspection({ inspection, onClose, onEdit, userLevel, currentUser }) {
   const [activeTab, setActiveTab] = useState('details');
 
   const getStatusDisplay = (status) => {
-    const statusMap = {
-      'DIVISION_CREATED': { label: 'Division Created', color: 'bg-blue-100 text-blue-800' },
-      'SECTION_REVIEW': { label: 'Section Review', color: 'bg-yellow-100 text-yellow-800' },
-      'SECTION_INSPECTING': { label: 'Section Inspecting', color: 'bg-orange-100 text-orange-800' },
-      'UNIT_REVIEW': { label: 'Unit Review', color: 'bg-purple-100 text-purple-800' },
-      'UNIT_INSPECTING': { label: 'Unit Inspecting', color: 'bg-indigo-100 text-indigo-800' },
-      'MONITORING_ASSIGN': { label: 'Monitoring Assigned', color: 'bg-pink-100 text-pink-800' },
-      'MONITORING_INSPECTION': { label: 'Monitoring Inspection', color: 'bg-cyan-100 text-cyan-800' },
-      'COMPLETED': { label: 'Completed', color: 'bg-green-100 text-green-800' },
-      'LEGAL_REVIEW': { label: 'Legal Review', color: 'bg-red-100 text-red-800' },
-      'REJECTED': { label: 'Rejected', color: 'bg-gray-100 text-gray-800' }
+    // Use role-based status label if user data provided
+    const label = (inspection && userLevel && currentUser) 
+      ? getRoleBasedStatusLabel(status, userLevel, inspection, currentUser.id)
+      : statusDisplayMap[status]?.label || status;
+    
+    const config = statusDisplayMap[status];
+    if (!config) {
+      return { label, color: 'bg-gray-100 text-gray-800' };
+    }
+    
+    return { 
+      label, 
+      color: `${getStatusBgColorClass(status)} ${getStatusColorClass(status)}`
     };
-    return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-800' };
   };
 
   const getSectionDisplay = (section) => {
