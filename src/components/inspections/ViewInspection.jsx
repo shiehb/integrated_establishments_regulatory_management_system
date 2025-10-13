@@ -14,10 +14,13 @@ import {
   AlertTriangle,
   Eye
 } from "lucide-react";
-import { getRoleBasedStatusLabel, statusDisplayMap, getStatusColorClass, getStatusBgColorClass } from "../../constants/inspectionConstants";
+import { getRoleBasedStatusLabel, statusDisplayMap, getStatusColorClass, getStatusBgColorClass, canUserPerformActions } from "../../constants/inspectionConstants";
+import InspectionTimeline from "./InspectionTimeline";
+import { canViewInspectionTracking } from "../../utils/permissions";
 
 export default function ViewInspection({ inspection, onClose, onEdit, userLevel, currentUser }) {
   const [activeTab, setActiveTab] = useState('details');
+  const [showTimeline, setShowTimeline] = useState(false);
 
   const getStatusDisplay = (status) => {
     // Use role-based status label if user data provided
@@ -72,6 +75,11 @@ export default function ViewInspection({ inspection, onClose, onEdit, userLevel,
 
 
   const getAvailableActions = () => {
+    // Admin users cannot perform any actions
+    if (!canUserPerformActions(userLevel)) {
+      return [];
+    }
+    
     const actions = [];
 
     // Edit button - available for most statuses
@@ -419,6 +427,28 @@ export default function ViewInspection({ inspection, onClose, onEdit, userLevel,
           </div>
         )}
       </div>
+
+      {/* Inspection Tracking Timeline - Admin Only */}
+      {canViewInspectionTracking(userLevel) && inspection.history && inspection.history.length > 0 && (
+        <div className="mt-8 border-t pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Inspection Tracking</h3>
+            <button
+              onClick={() => setShowTimeline(!showTimeline)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-lg hover:bg-sky-700 transition-colors"
+            >
+              <Clock className="h-4 w-4" />
+              {showTimeline ? 'Hide Timeline' : 'Show Timeline'}
+            </button>
+          </div>
+          
+          {showTimeline && (
+            <div className="mt-4">
+              <InspectionTimeline history={inspection.history} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -35,7 +35,7 @@ import {
 import StatusBadge from "./StatusBadge";
 import InspectionTabs from "./InspectionTabs";
 import InspectionActions from "./InspectionActions";
-import { roleTabs, tabDisplayNames, canUserSeeInspection, shouldShowInTab } from "../../constants/inspectionConstants";
+import { roleTabs, tabDisplayNames, canUserSeeInspection, shouldShowInTab, canUserPerformActions } from "../../constants/inspectionConstants";
 import ExportDropdown from "../ExportDropdown";
 import PrintPDF from "../PrintPDF";
 import DateRangeDropdown from "../DateRangeDropdown";
@@ -604,13 +604,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       if (!belongsInTab) return false;
       
       // 3. Law filter - use partial matching
-      const matchesLaw = lawFilter.length === 0 || 
-        lawFilter.some(law => {
-          // Extract just the code part (e.g., "PD-1586" from "PD-1586 (Philippine Environment Code)")
-          const lawCode = law.split(' ')[0];
-          return inspection.law?.includes(lawCode);
-        });
-        
+    const matchesLaw = lawFilter.length === 0 || 
+      lawFilter.some(law => {
+        // Extract just the code part (e.g., "PD-1586" from "PD-1586 (Philippine Environment Code)")
+        const lawCode = law.split(' ')[0];
+        return inspection.law?.includes(lawCode);
+      });
+      
       // 4. Date range filter
       const matchesDateFrom = !dateFrom || 
         new Date(inspection.created_at) >= new Date(dateFrom);
@@ -731,14 +731,14 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     
     // 1. "Inspect" button - Start new inspection (changes status to IN_PROGRESS)
     if (action === 'inspect') {
-      // Show confirmation dialog for Section Chief and Unit Head
-      if (userLevel === 'Section Chief' || userLevel === 'Unit Head') {
-        setActionConfirmation({ 
-          open: true, 
-          inspection, 
-          action 
-        });
-        return;
+      // Show confirmation dialog for Section Chief, Unit Head, and Monitoring Personnel
+      if (userLevel === 'Section Chief' || userLevel === 'Unit Head' || userLevel === 'Monitoring Personnel') {
+      setActionConfirmation({ 
+        open: true, 
+        inspection, 
+        action 
+      });
+      return;
       } else {
         // For other user levels, directly execute the action
         try {
@@ -829,8 +829,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     if (!inspection || !action) return;
 
     try {
-      // For inspect action by Section Chief or Unit Head, execute the action and then open the form
-      if (action === 'inspect' && (userLevel === 'Section Chief' || userLevel === 'Unit Head')) {
+      // For inspect action by Section Chief, Unit Head, or Monitoring Personnel, execute the action and then open the form
+      if (action === 'inspect' && (userLevel === 'Section Chief' || userLevel === 'Unit Head' || userLevel === 'Monitoring Personnel')) {
       await handleAction(action, inspection.id);
         notifications.success(
           `Inspection ${inspection.code} assigned to you`, 
@@ -1486,7 +1486,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   </td>
                   <td className="p-1 border-b border-gray-300">
                     <StatusBadge 
-                      status={inspection.current_status}
+                      status={inspection.current_status} 
                       inspection={inspection}
                       userLevel={userLevel}
                       currentUser={currentUser}
@@ -1499,13 +1499,23 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {formatFullDate(inspection.created_at)}
                   </td>
                   <td className="p-1 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
-                    <InspectionActions 
-                      inspection={inspection}
-                      availableActions={inspection.available_actions || []}
-                      onAction={handleActionClick}
-                      loading={isActionLoading(inspection.id)}
-                      userLevel={userLevel}
-                    />
+                    {canUserPerformActions(userLevel) ? (
+                      <InspectionActions 
+                        inspection={inspection}
+                        availableActions={inspection.available_actions || []}
+                        onAction={handleActionClick}
+                        loading={isActionLoading(inspection.id)}
+                        userLevel={userLevel}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => window.location.href = `/inspections/${inspection.id}/view`}
+                        className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
+                      >
+                        <Eye size={14} />
+                        View Details
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

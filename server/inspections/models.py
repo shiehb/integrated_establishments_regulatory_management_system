@@ -448,12 +448,41 @@ class InspectionHistory(models.Model):
         related_name='inspection_changes'
     )
     
+    # Additional tracking fields
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='inspection_assignments_tracked',
+        help_text='User the inspection was assigned to at this point'
+    )
+    
+    law = models.CharField(
+        max_length=50, 
+        null=True, 
+        blank=True,
+        help_text='Law code at the time of change'
+    )
+    
+    section = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text='Section at the time of change'
+    )
+    
     remarks = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
         ordering = ['-created_at']
         verbose_name_plural = 'Inspection Histories'
+        indexes = [
+            models.Index(fields=['inspection', '-created_at']),  # Fast timeline queries
+            models.Index(fields=['changed_by']),
+            models.Index(fields=['assigned_to']),
+        ]
     
     def __str__(self):
         return f"{self.inspection.code}: {self.previous_status} → {self.new_status}"

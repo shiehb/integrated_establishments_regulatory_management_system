@@ -46,6 +46,7 @@ export const statusDisplayMap = {
 
 // Role-based tabs configuration
 export const roleTabs = {
+  'Admin': ['all_inspections'], // Admin can see all inspections in read-only mode
   'Division Chief': ['all_inspections', 'review'],
   'Section Chief': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
   'Unit Head': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
@@ -168,6 +169,11 @@ export const getActionButtonColorClass = (action) => {
 
 // Check if user can see this inspection based on status
 export const canUserSeeInspection = (status, userLevel) => {
+  // Admin can see all inspections (read-only)
+  if (userLevel === 'Admin') {
+    return true;
+  }
+  
   const visibilityMap = {
     'Section Chief': [
       'SECTION_ASSIGNED', 'SECTION_IN_PROGRESS', 'SECTION_COMPLETED_COMPLIANT', 
@@ -378,6 +384,11 @@ export const tabStatusMapping = {
 
 // Helper function to check if status should appear in tab
 export const shouldShowInTab = (status, userLevel, tab) => {
+  // Admin can see all inspections in all tabs
+  if (userLevel === 'Admin') {
+    return true;
+  }
+  
   const mapping = tabStatusMapping[userLevel];
   if (!mapping) return false;
   
@@ -385,4 +396,10 @@ export const shouldShowInTab = (status, userLevel, tab) => {
   if (!allowedStatuses) return false;
   
   return allowedStatuses.includes(status);
+};
+
+// Check if user can perform actions on inspections
+export const canUserPerformActions = (userLevel) => {
+  // Admin users can view all inspections but cannot perform any actions
+  return userLevel !== 'Admin';
 };

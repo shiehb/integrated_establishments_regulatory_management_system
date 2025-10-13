@@ -413,6 +413,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
             previous_status=prev_status,
             new_status=inspection.current_status,
             changed_by=user,
+            assigned_to=inspection.assigned_to,
+            law=inspection.law,
+            section=user.section,
             remarks='Assigned to self'
         )
         
@@ -421,7 +424,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def inspect(self, request, pk=None):
-        """Move inspection to My Inspections (Section/Unit only)"""
+        """Move inspection to My Inspections (Section Chief/Unit Head/Monitoring Personnel)"""
         inspection = self.get_object()
         user = request.user
         
@@ -433,7 +436,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         
         # Check if inspection is in correct status
-        if inspection.current_status not in ['SECTION_ASSIGNED', 'UNIT_ASSIGNED']:
+        if inspection.current_status not in ['SECTION_ASSIGNED', 'UNIT_ASSIGNED', 'MONITORING_ASSIGNED']:
             return Response(
                 {'error': f'Cannot inspect from status {inspection.current_status}'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -445,6 +448,8 @@ class InspectionViewSet(viewsets.ModelViewSet):
             inspection.current_status = 'SECTION_IN_PROGRESS'
         elif inspection.current_status == 'UNIT_ASSIGNED':
             inspection.current_status = 'UNIT_IN_PROGRESS'
+        elif inspection.current_status == 'MONITORING_ASSIGNED':
+            inspection.current_status = 'MONITORING_IN_PROGRESS'
         
         inspection.save()
         
@@ -455,6 +460,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
             previous_status=prev_status,
             new_status=inspection.current_status,
             changed_by=user,
+            assigned_to=inspection.assigned_to,
+            law=inspection.law,
+            section=user.section,
             remarks=remarks
         )
         
@@ -931,6 +939,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
             previous_status=prev_status,
             new_status=next_status,
             changed_by=user,
+            assigned_to=inspection.assigned_to,
+            law=inspection.law,
+            section=user.section,
             remarks=data.get('remarks', 'Completed inspection')
         )
         
@@ -1050,6 +1061,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 previous_status=inspection.current_status,
                 new_status=inspection.current_status,
                 changed_by=user,
+                assigned_to=inspection.assigned_to,
+                law=inspection.law,
+                section=user.section,
                 remarks=f'Assigned to Section Chief for review'
             )
     
@@ -1230,6 +1244,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
             previous_status=prev_status,
             new_status=next_status,
             changed_by=user,
+            assigned_to=inspection.assigned_to,
+            law=inspection.law,
+            section=user.section,
             remarks=remarks
         )
         

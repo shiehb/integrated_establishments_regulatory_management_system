@@ -15,6 +15,7 @@ import Dashboard from "./pages/Dashboard";
 import Users from "./pages/Users";
 import Establishments from "./pages/Establishments";
 import Inspections from "./pages/Inspections";
+import InspectionView from "./pages/InspectionView";
 import Billing from "./pages/Billing";
 import Map from "./pages/Map";
 import Layout from "./Layout";
@@ -95,6 +96,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/map" element={<Map />} />
             <Route path="/establishments" element={<Establishments />} />
             <Route path="/inspections" element={<Inspections />} />
+            <Route path="/inspections/:id/view" element={<InspectionView />} />
             <Route path="/inspections/:id/form" element={<InspectionForm />} />
             <Route path="/debug-actions" element={<DebugActions />} />
 

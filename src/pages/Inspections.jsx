@@ -4,7 +4,6 @@ import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
 import InspectionsList from "../components/inspections/InspectionsList";
 import SimpleInspectionWizard from "../components/inspections/SimpleInspectionWizard";
-import ViewInspection from "../components/inspections/ViewInspection";
 import { 
   getProfile, 
   getEstablishments,
@@ -30,7 +29,6 @@ import NOOModal from "../components/inspections/modals/NOOModal";
 
 export default function Inspections() {
   const [showAdd, setShowAdd] = useState(false);
-  const [viewInspection, setViewInspection] = useState(null);
   const [workflowInspection, setWorkflowInspection] = useState(null);
   const [complianceModal, setComplianceModal] = useState({ open: false, inspection: null });
   const [legalUnitModal, setLegalUnitModal] = useState({ open: false, inspection: null });
@@ -391,23 +389,11 @@ export default function Inspections() {
           <InspectionsList
             userLevel={userLevel}
             onAdd={() => setShowAdd(true)}
-            onView={(inspection) => setViewInspection(inspection)}
             onWorkflow={(inspection, actionType) => setWorkflowInspection({...inspection, actionType})}
             onCompliance={(inspection) => setComplianceModal({ open: true, inspection })}
             onLegalUnit={(inspection) => setLegalUnitModal({ open: true, inspection })}
             refreshTrigger={refreshTrigger}
           />
-
-
-          {/* View Inspection Modal */}
-          {viewInspection && (
-            <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
-              <ViewInspection
-                inspection={viewInspection}
-                onClose={() => setViewInspection(null)}
-              />
-            </div>
-          )}
 
           {/* Simple Workflow Modal */}
           {workflowInspection && (

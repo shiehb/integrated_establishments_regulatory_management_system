@@ -10,13 +10,16 @@ class InspectionHistorySerializer(serializers.ModelSerializer):
     """Serializer for inspection history"""
     changed_by_name = serializers.SerializerMethodField()
     changed_by_level = serializers.SerializerMethodField()
+    assigned_to_name = serializers.SerializerMethodField()
+    assigned_to_level = serializers.SerializerMethodField()
     
     class Meta:
         model = InspectionHistory
         fields = [
             'id', 'inspection', 'previous_status', 'new_status',
             'changed_by', 'changed_by_name', 'changed_by_level',
-            'remarks', 'created_at'
+            'assigned_to', 'assigned_to_name', 'assigned_to_level',
+            'law', 'section', 'remarks', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
     
@@ -27,6 +30,14 @@ class InspectionHistorySerializer(serializers.ModelSerializer):
     
     def get_changed_by_level(self, obj):
         return obj.changed_by.userlevel if obj.changed_by else None
+    
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to:
+            return f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip() or obj.assigned_to.email
+        return None
+    
+    def get_assigned_to_level(self, obj):
+        return obj.assigned_to.userlevel if obj.assigned_to else None
 
 
 class InspectionDocumentSerializer(serializers.ModelSerializer):
