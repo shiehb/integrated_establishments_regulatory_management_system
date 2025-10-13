@@ -1,8 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard } from "lucide-react";
+import { LayoutDashboard, HelpCircle } from "lucide-react";
 import { filterMenuByRole, groupMenuByCategory } from "../constants/menuConfig";
 
-export default function Sidebar({ userLevel = "public", isOpen = true }) {
+export default function Sidebar({ userLevel = "public", isOpen = true, onHelpClick }) {
   const location = useLocation();
 
   // Get filtered menu items based on user role
@@ -73,6 +73,27 @@ export default function Sidebar({ userLevel = "public", isOpen = true }) {
             })}
           </ul>
         </nav>
+        
+        {/* Help Button at Bottom */}
+        {onHelpClick && (
+          <div className="p-2 border-t border-gray-200">
+            <button
+              onClick={onHelpClick}
+              className="flex items-center px-4 py-3 w-full rounded-lg transition-colors group text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+              title={!isOpen ? "Help Center" : undefined}
+            >
+              <HelpCircle 
+                size={20} 
+                className="flex-shrink-0 transition-colors text-gray-500 group-hover:text-gray-700" 
+              />
+              {isOpen && (
+                <span className="ml-3 text-sm font-medium truncate">
+                  Help Center
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -99,6 +120,27 @@ export default function Sidebar({ userLevel = "public", isOpen = true }) {
           )}
         </div>
       </nav>
+      
+      {/* Help Button at Bottom */}
+      {onHelpClick && (
+        <div className="p-2 border-t border-gray-200">
+          <button
+            onClick={onHelpClick}
+            className="flex items-center px-4 py-3 w-full rounded-lg transition-colors group text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+            title={!isOpen ? "Help Center" : undefined}
+          >
+            <HelpCircle 
+              size={20} 
+              className="flex-shrink-0 transition-colors text-gray-500 group-hover:text-gray-700" 
+            />
+            {isOpen && (
+              <span className="ml-3 text-sm font-medium truncate">
+                Help Center
+              </span>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

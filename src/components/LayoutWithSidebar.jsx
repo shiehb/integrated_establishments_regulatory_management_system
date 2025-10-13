@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Sidebar from "./Sidebar";
 import InternalHeader from "./InternalHeader";
 import Footer from "./Footer";
+import HelpModal from "./header/HelpModal";
 import { useAuth } from "../contexts/AuthContext";
 
 // Configuration constants
@@ -13,6 +14,7 @@ export default function LayoutWithSidebar({ children }) {
     const savedState = localStorage.getItem(SIDEBAR_STATE_KEY);
     return savedState !== null ? JSON.parse(savedState) : true;
   });
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
 
   const { user: profile, loading: profileLoading, refreshProfile } = useAuth();
   const [profileError, setProfileError] = useState(null);
@@ -85,6 +87,7 @@ export default function LayoutWithSidebar({ children }) {
         userLevel={userLevel}
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onHelpClick={() => setHelpModalOpen(true)}
       />
       <div className="flex flex-col flex-1 min-w-0 transition-all duration-300">
         <InternalHeader
@@ -97,6 +100,13 @@ export default function LayoutWithSidebar({ children }) {
           </div>
         </main>
       </div>
+      
+      {/* Help Modal */}
+      <HelpModal 
+        userLevel={userLevel} 
+        isOpen={helpModalOpen} 
+        onClose={() => setHelpModalOpen(false)} 
+      />
     </div>
   );
 }

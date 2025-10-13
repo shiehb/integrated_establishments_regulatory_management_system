@@ -5,9 +5,8 @@ import { Search, HelpCircle, X } from "lucide-react";
 import { helpTopics } from "../../data/helpData";
 import { filterTopicsByUserLevel, normalizeUserLevel } from "../../utils/helpUtils";
 
-export default function HelpModal({ userLevel = "public" }) {
+export default function HelpModal({ userLevel = "public", isOpen = false, onClose }) {
   const navigate = useNavigate();
-  const [showHelpModal, setShowHelpModal] = useState(false);
   const [helpSearchQuery, setHelpSearchQuery] = useState("");
 
   const handleHelpSearch = (e) => setHelpSearchQuery(e.target.value);
@@ -24,23 +23,16 @@ export default function HelpModal({ userLevel = "public" }) {
   );
 
   const handleHelpSuggestionClick = (topicTitle) => {
-    setShowHelpModal(false);
+    onClose();
     navigate(`/help?query=${encodeURIComponent(topicTitle)}`);
   };
 
+  if (!isOpen) return null;
+
   return (
     <>
-      {/* Floating Help Bubble (bottom-right) */}
-      <button
-        onClick={() => setShowHelpModal(true)}
-        className="fixed z-40 flex items-center justify-center w-8 h-8 transition-all duration-200 rounded-full shadow-lg bottom-4 right-4 bg-sky-600 hover:bg-sky-700 hover:scale-105"
-        title="Help"
-      >
-        <HelpCircle className="text-white w-7 h-7" />
-      </button>
-
       {/* Help Modal (bottom-right widget) */}
-      {showHelpModal && (
+      {isOpen && (
         <div className="fixed z-50 bottom-4 right-4">
           <div className="w-100 max-h-[60vh] min-h-[50vh] flex flex-col p-2 bg-white rounded border border-gray-500 relative">
             {/* Header */}
@@ -50,7 +42,7 @@ export default function HelpModal({ userLevel = "public" }) {
                 Help Center
               </h2>
               <button
-                onClick={() => setShowHelpModal(false)}
+                onClick={onClose}
                 className="p-1 transition-colors rounded-full hover:bg-gray-200"
               >
                 <X className="w-5 h-5 text-gray-600" />
@@ -108,7 +100,7 @@ export default function HelpModal({ userLevel = "public" }) {
             <div className="pt-2 border-t border-gray-200">
               <button
                 onClick={() => {
-                  setShowHelpModal(false);
+                  onClose();
                   navigate("/help");
                 }}
                 className="flex items-center justify-center w-full py-2 text-sm font-medium transition-colors rounded-lg text-sky-600 hover:text-sky-700 hover:bg-sky-50"
