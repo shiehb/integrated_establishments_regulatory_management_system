@@ -7,11 +7,12 @@ from .models import User
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from django.conf import settings
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from .utils.otp_utils import generate_otp, verify_otp, send_otp_email
 from django.core.cache import cache
 from django.utils import timezone
 from django.db.models import Q
+from django.utils.dateparse import parse_datetime
 
 # Import from system_config for password generation
 # from system_config.models import SystemConfiguration  # No longer needed in views
@@ -23,6 +24,102 @@ from notifications.models import Notification
 from audit.utils import log_activity
 
 User = get_user_model()
+
+
+# ---------------------------
+# Authentication
+# ---------------------------
+class LoginView(APIView):
+    """
+    Custom login view with account lockout error handling
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        password = request.data.get('password')
+
+        if not email or not password:
+            return Response({
+                'error': 'Email and password are required.',
+                'error_code': 'MISSING_CREDENTIALS'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+            
+            # Check if account is locked
+            if user.is_account_currently_locked():
+                remaining_time = self._get_remaining_lockout_time(user)
+                return Response({
+                    'error': f'Account locked. Try again in {remaining_time} minutes.',
+                    'error_code': 'ACCOUNT_LOCKED',
+                    'details': {'remaining_minutes': remaining_time}
+                }, status=status.HTTP_423_LOCKED)
+            
+            # Authenticate user
+            user = authenticate(request, email=email, password=password)
+            
+            if user is None:
+                # Wrong password - increment failed attempts
+                try:
+                    db_user = User.objects.get(email=email)
+                    db_user.increment_failed_login()
+                except User.DoesNotExist:
+                    pass
+                
+                return Response({
+                    'error': 'Invalid email or password.',
+                    'error_code': 'INVALID_CREDENTIALS'
+                }, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Check if user is active
+            if not user.is_active:
+                return Response({
+                    'error': 'Account deactivated. Contact administrator.',
+                    'error_code': 'ACCOUNT_DEACTIVATED'
+                }, status=status.HTTP_403_FORBIDDEN)
+            
+            # Reset failed login attempts on successful login
+            user.reset_failed_logins()
+            
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(user)
+            access_token = refresh.access_token
+            
+            return Response({
+                'success': True,
+                'message': 'Login successful',
+                'user': UserSerializer(user).data,
+                'tokens': {
+                    'refresh': str(refresh),
+                    'access': str(access_token),
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({
+                'error': 'Invalid email or password.',
+                'error_code': 'INVALID_CREDENTIALS'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        except Exception as e:
+            return Response({
+                'error': 'Login failed. Please try again.',
+                'error_code': 'LOGIN_ERROR'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def _get_remaining_lockout_time(self, user):
+        """Calculate remaining lockout time in minutes"""
+        if not user.account_locked_until:
+            return 0
+        
+        now = timezone.now()
+        if now >= user.account_locked_until:
+            return 0
+        
+        delta = user.account_locked_until - now
+        return int(delta.total_seconds() / 60)
 
 
 # ---------------------------
@@ -403,8 +500,11 @@ def send_otp(request):
     except User.DoesNotExist:
         return Response({'detail': 'User with this email does not exist.'}, status=404)
 
+    # Get client IP address
+    ip_address = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', 'Unknown'))
+    
     otp = generate_otp(email)
-    if send_otp_email(email, otp):
+    if send_otp_email(email, otp, user=user, ip_address=ip_address):
         return Response({'detail': 'OTP sent to your email.'}, status=200)
     return Response({'detail': 'Failed to send OTP email.'}, status=500)
 

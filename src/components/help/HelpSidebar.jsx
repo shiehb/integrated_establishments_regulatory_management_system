@@ -29,17 +29,12 @@ export default function HelpSidebar({
   };
 
   return (
-    <aside
-      className="
-        w-64 bg-white border-r border-gray-200
-        sticky top-20
-        flex flex-col
-        max-h-[calc(100vh-5rem)]
-      "
-    >
-      <div className="flex-1 p-4 overflow-y-auto">
-        <h2 className="mb-4 text-lg font-semibold text-sky-700">Categories</h2>
-
+    <aside className="w-72 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+      <div className="bg-gradient-to-r from-sky-600 to-sky-700 px-4 py-3">
+        <h2 className="text-lg font-bold text-white">Quick Navigation</h2>
+      </div>
+      
+      <div className="p-4 max-h-[calc(100vh-12rem)] overflow-y-auto custom-scrollbar">
         <ul className="space-y-2">
           {/* Show All Button */}
           <li>
@@ -48,42 +43,44 @@ export default function HelpSidebar({
                 onShowAll();
                 setOpenCategory(null);
               }}
-              className="w-full px-2 py-2 font-medium text-left rounded bg-sky-50 text-sky-700 hover:bg-sky-100"
+              className="w-full px-3 py-2.5 font-medium text-left rounded-lg bg-sky-50 text-sky-700 hover:bg-sky-100 transition-colors shadow-sm"
             >
-              Show All Topics
+              📚 Show All Topics
             </button>
           </li>
 
+          {/* Categories */}
           {categories.map((cat) => (
             <li key={cat.name}>
               <button
-                className="flex items-center justify-between w-full px-2 py-2 text-left rounded hover:bg-gray-100"
+                className="flex items-center justify-between w-full px-3 py-2.5 text-left rounded-lg hover:bg-gray-50 transition-colors group"
                 onClick={() => toggleCategory(cat.name)}
               >
-                <span className="font-medium text-gray-700">
-                  {cat.name}{" "}
-                  <span className="ml-1 text-xs text-gray-500">
-                    ({cat.items.length})
+                <span className="font-semibold text-gray-800 group-hover:text-sky-700">
+                  {cat.name}
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-sky-100 text-sky-700 rounded-full">
+                    {cat.items.length}
                   </span>
                 </span>
                 {openCategory === cat.name ? (
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                  <ChevronDown className="w-4 h-4 text-sky-600" />
                 ) : (
-                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
                 )}
               </button>
 
+              {/* Category Topics */}
               {openCategory === cat.name && (
-                <ul className="mt-2 ml-4 space-y-1">
+                <ul className="mt-2 ml-4 space-y-1.5 border-l-2 border-sky-200 pl-3">
                   {cat.items.map((item) => (
                     <li key={item.id}>
                       <button
                         ref={activeId === item.id ? activeRef : null}
                         onClick={() => onSelect(item)}
-                        className={`text-sm hover:text-sky-600 hover:underline ${
+                        className={`text-sm text-left w-full px-2 py-1.5 rounded transition-colors ${
                           activeId === item.id
-                            ? "font-semibold text-sky-700"
-                            : "text-gray-600"
+                            ? "font-semibold text-sky-700 bg-sky-50"
+                            : "text-gray-600 hover:text-sky-600 hover:bg-gray-50"
                         }`}
                       >
                         {item.title}
@@ -95,6 +92,14 @@ export default function HelpSidebar({
             </li>
           ))}
         </ul>
+
+        {/* Quick Stats */}
+        <div className="mt-6 p-3 bg-gradient-to-br from-sky-50 to-blue-50 rounded-lg border border-sky-200">
+          <p className="text-xs font-medium text-sky-700 mb-1">📊 Help Stats</p>
+          <p className="text-xs text-gray-600">
+            {categories.reduce((sum, cat) => sum + cat.items.length, 0)} total topics across {categories.length} categories
+          </p>
+        </div>
       </div>
     </aside>
   );

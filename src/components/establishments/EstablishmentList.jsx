@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Pencil,
   Map,
@@ -49,6 +50,11 @@ export default function EstablishmentList({
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const notifications = useNotifications();
+
+  // 🎯 Search highlighting
+  const location = useLocation();
+  const [highlightedEstId, setHighlightedEstId] = useState(null);
+  const highlightedRowRef = useRef(null);
 
   // ✅ Pagination with localStorage
   const savedPagination = useLocalStoragePagination("establishments_list");
@@ -142,6 +148,28 @@ export default function EstablishmentList({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [filtersOpen, sortDropdownOpen]);
+
+  // Handle highlighting from search navigation
+  useEffect(() => {
+    console.log('EstablishmentList - Location state:', location.state);
+    if (location.state?.highlightId && location.state?.entityType === 'establishment') {
+      console.log('Highlighting establishment:', location.state.highlightId);
+      setHighlightedEstId(location.state.highlightId);
+      
+      // Scroll to highlighted row after render
+      setTimeout(() => {
+        if (highlightedRowRef.current) {
+          console.log('Scrolling to highlighted establishment');
+          highlightedRowRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+        } else {
+          console.log('Highlighted row ref not found yet');
+        }
+      }, 500);
+    }
+  }, [location.state]);
 
   // Sorting handler
   const handleSort = (key) => {
@@ -664,7 +692,11 @@ export default function EstablishmentList({
               filteredEstablishments.map((e) => (
                 <tr
                   key={e.id}
-                  className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
+                  ref={e.id === highlightedEstId ? highlightedRowRef : null}
+                  className={`p-1 text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors ${
+                    e.id === highlightedEstId ? 'search-highlight-persist' : ''
+                  }`}
+                  onClick={() => setHighlightedEstId(e.id)}
                 >
                   <td className="text-center border-b border-gray-300">
                     <input

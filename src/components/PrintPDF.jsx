@@ -1,208 +1,172 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Printer } from "lucide-react";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import { useNotifications } from "./NotificationManager";
-import ConfirmationDialog from "./common/ConfirmationDialog";
-
-// Helper function to load images as base64
-const loadImageAsBase64 = async (imagePath) => {
-  try {
-    const response = await fetch(imagePath);
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-  } catch (error) {
-    console.error('Error loading image:', error);
-    return null;
-  }
-};
 
 export default function PrintPDF({
   title,
   columns,
   rows,
-  customPdfGenerator,
   className = "",
-  disabled = false,
-  selectedCount = 0
+  disabled = false
 }) {
   const [isPrinting, setIsPrinting] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const notifications = useNotifications();
 
-  // Print functionality using existing PDF
-  const handlePrintConfirm = () => {
-    setShowConfirm(true);
-  };
-
-  const handlePrint = async () => {
+  const handlePrint = useCallback(() => {
     try {
-      setIsPrinting(true);
-      const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: [330.2, 215.9],
-      });
-
-      if (customPdfGenerator) {
-        customPdfGenerator(doc, columns, rows);
-      } else {
-        // Use same PDF generation as export
-        doc.setFont("times", "normal");
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const safeDate = new Date().toISOString().split("T")[0];
-        const exportId = `RPT-${Date.now()}`;
-        
-        doc.setFontSize(8);
-        doc.setFont("times", "bold");
-        doc.text(`${exportId}`, pageWidth - 15, 12, { align: "right" });
-        doc.text(`${safeDate}`, pageWidth - 15, 16, { align: "right" });
-        doc.setFont("times", "normal");
-
-        // Load and add logos
-        const logo1Data = await loadImageAsBase64('/assets/document/logo1.png');
-        const logo2Data = await loadImageAsBase64('/assets/document/logo2.png');
-        
-        const logoWidth = 15; // mm
-        const logoHeight = 15; // mm
-        const logoY = 24; // Y position for logos
-        
-        // Calculate title text width to position logos closer
-        const titleText = "Integrated Establishment Regulatory Management System";
-        const titleTextWidth = doc.getTextWidth(titleText);
-        
-        // Position logos with more spacing from the title text
-        const leftLogoX = (pageWidth / 2) - (titleTextWidth / 2) - logoWidth - 20; // 10mm gap
-        const rightLogoX = (pageWidth / 2) + (titleTextWidth / 2) + 20; // 10mm gap
-        
-        // Add logo1 on the left (closer to title)
-        if (logo1Data) {
-          doc.addImage(logo1Data, 'PNG', leftLogoX, logoY, logoWidth, logoHeight);
-        }
-        
-        // Add logo2 on the right (closer to title)
-        if (logo2Data) {
-          doc.addImage(logo2Data, 'PNG', rightLogoX, logoY, logoWidth, logoHeight);
-        }
-
-        doc.setFontSize(12);
-        doc.setTextColor(0, 0, 0);
-        doc.text(
-          "Integrated Establishment Regulatory Management System",
-          pageWidth / 2,
-          28,
-          { align: "center" }
+      // Validate data before printing
+      if (!rows || rows.length === 0) {
+        notifications.warning(
+          "No data available to print.",
+          {
+            title: "⚠️ No Data",
+            duration: 3000
+          }
         );
-        doc.text(
-          "Department of Environmental and Natural Resources",
-          pageWidth / 2,
-          33,
-          { align: "center" }
-        );
-        doc.text(
-          "Environmental Management Bureau Region I",
-          pageWidth / 2,
-          38,
-          { align: "center" }
-        );
+        return;
+      }
 
-        doc.setFont("times", "bold");
-        doc.setFontSize(12);
-        const titleUpper = title.toUpperCase();
-        doc.text(titleUpper, pageWidth / 2, 46, { align: "center" });
-        const titleWidth = doc.getTextWidth(titleUpper);
-        doc.line(
-          pageWidth / 2 - titleWidth / 2,
-          48,
-          pageWidth / 2 + titleWidth / 2,
-          48
+      // Show confirmation for large datasets
+      if (rows.length > 100) {
+        const confirmed = window.confirm(
+          `This will print ${rows.length} records. Continue?`
         );
-        doc.setFont("times", "normal");
-
-        autoTable(doc, {
-          head: [columns],
-          body: rows,
-          startY: 52,
-          styles: {
-            fontSize: 8,
-            font: "times",
-            cellPadding: 1,
-            lineWidth: 0.2,
-            lineColor: [0, 0, 0],
-            textColor: [0, 0, 0],
-            fillColor: [255, 255, 255],
-          },
-          headStyles: {
-            fillColor: [255, 255, 255],
-            textColor: [0, 0, 0],
-            fontSize: 10,
-            font: "times",
-            cellPadding: 1,
-            fontStyle: "bold",
-            lineWidth: 0.5,
-            lineColor: [0, 0, 0],
-          },
-          margin: { left: 10, right: 10 },
-          tableLineWidth: 0.5,
-          tableLineColor: [0, 0, 0],
-        });
-
-        const pageCount = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= pageCount; i++) {
-          doc.setPage(i);
-          doc.setFontSize(10);
-          doc.text(`Page ${i} of ${pageCount}`, pageWidth - 15, 325, {
-            align: "right",
-          });
+        if (!confirmed) {
+          notifications.info(
+            "Print cancelled by user.",
+            {
+              title: "⏹️ Print Cancelled",
+              duration: 2000
+            }
+          );
+          return;
         }
       }
 
-      // Open PDF in new tab and trigger print
-      const blobUrl = doc.output("bloburl");
-      const printWindow = window.open(blobUrl, "_blank");
+      setIsPrinting(true);
       
-      // Wait for PDF to load then trigger print
-      setTimeout(() => {
-        if (printWindow) {
-          printWindow.print();
+      // Hybrid detection approach: Media query + time-based
+      const dialogStartTime = Date.now();
+      let printModeDetected = false;
+      
+      // Monitor print mode using media query (most reliable)
+      const printMedia = window.matchMedia('print');
+      const checkPrintMode = setInterval(() => {
+        if (printMedia.matches) {
+          printModeDetected = true;
         }
-      }, 1000);
-
-      notifications.success(
-        "Print dialog opened successfully!",
+      }, 100);
+      
+      // Show initial notification
+      notifications.info(
+        `Opening print dialog for ${title}...`,
         {
-          title: "Print Ready",
-          duration: 4000
+          title: "🖨️ Print Ready",
+          duration: 2000
         }
       );
-     } catch {
-      notifications.error(
-        "Failed to open print dialog",
-        {
-          title: "Print Failed",
-          duration: 6000
+      
+      // Set up afterprint event handler with hybrid detection
+      const afterPrintHandler = () => {
+        clearInterval(checkPrintMode);
+        
+        // Remove the event listener
+        window.removeEventListener('afterprint', afterPrintHandler);
+        setIsPrinting(false);
+        
+        const dialogDuration = Date.now() - dialogStartTime;
+        
+        // Hybrid detection logic:
+        // 1. Primary: Check if print mode was actually activated (most reliable)
+        // 2. Fallback: Use time-based detection for edge cases
+        
+        if (printModeDetected) {
+          // Print mode was activated = user actually printed
+          notifications.success(
+            `${title} has been sent to your printer successfully!`,
+            {
+              title: "✅ Print Complete",
+              duration: 3000
+            }
+          );
+        } else if (dialogDuration < 500) {
+          // Very quick close = definitely cancelled
+          notifications.warning(
+            `Print ${title} was cancelled. You can try again anytime.`,
+            {
+              title: "⏹️ Print Cancelled",
+              duration: 4000
+            }
+          );
+        } else {
+          // Longer duration but no print mode detected = cancelled after review
+          notifications.info(
+            `Print dialog closed. If you printed, check your printer output.`,
+            {
+              title: "ℹ️ Print Dialog Closed",
+              duration: 4000
+            }
+          );
         }
-      );
-    } finally {
+      };
+      
+      // Add the afterprint event listener
+      window.addEventListener('afterprint', afterPrintHandler);
+      
+      // Open print dialog
+      window.print();
+      
+     } catch (error) {
       setIsPrinting(false);
-      setShowConfirm(false);
+      
+      // More specific error handling
+      let errorMessage = `Unable to open print dialog for ${title}.`;
+      let errorTitle = "❌ Print Error";
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage = "Print blocked by browser. Please allow popups and try again.";
+        errorTitle = "🚫 Print Blocked";
+      } else if (error.name === 'SecurityError') {
+        errorMessage = "Print not allowed in current context. Please refresh the page and try again.";
+        errorTitle = "🔒 Security Error";
+      } else {
+        errorMessage = "Print failed. Please check your browser settings or try refreshing the page.";
+      }
+      
+      notifications.error(errorMessage, {
+        title: errorTitle,
+        duration: 6000
+      });
     }
-  };
+  }, [title, rows, notifications]);
 
-  const handleCancel = () => {
-    setShowConfirm(false);
-  };
+  // Add keyboard shortcut support (Ctrl+P)
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.ctrlKey && e.key === 'p' && !disabled && rows.length > 0) {
+        e.preventDefault();
+        handlePrint();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [disabled, rows.length, handlePrint]);
+
+
+  const currentDate = new Date().toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  const reportId = `RPT-${Date.now()}`;
 
   return (
     <>
       <button
-        onClick={handlePrintConfirm}
-        disabled={disabled || isPrinting}
+        onClick={handlePrint}
+        disabled={disabled || isPrinting || rows.length === 0}
+        title={rows.length === 0 ? 'No data to print' : `Print ${title} report (Ctrl+P)`}
         className={`
           flex items-center px-3 py-1 text-sm font-medium rounded
           text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:bg-gray-400 disabled:cursor-not-allowed
@@ -212,45 +176,67 @@ export default function PrintPDF({
         `}
       >
         <Printer size={16} />
-        {isPrinting ? 'Printing...' : 'Print'}
+        {isPrinting ? 'Preparing...' : 'Print'}
       </button>
 
-      <ConfirmationDialog
-        open={showConfirm}
-        title="Print Report"
-        message={
-          <div className="space-y-3">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-sky-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Printer size={24} className="text-sky-600" />
+      {/* Hidden Print Template - Compact Structure */}
+      <div id="print-template" className="hidden print:block">
+        {/* Professional Data Table with Integrated Header */}
+        <table className="report-table">
+          <thead>
+            {/* Header Row with Logos and Title - Repeats on each page! */}
+            <tr className="report-header-row">
+              <th colSpan={columns.length} className="print-header-cell">
+                {/* Report Meta Info - Ultra-compact positioning */}
+                <div className="print-meta-info" data-print-time={new Date().toLocaleString()}>
+                  <div className="font-bold">{reportId}</div>
+                  <div>{currentDate}</div>
+                </div>
+                {/* Main Header Content */}
+                <div className="print-header-content">
+                  <img src="/assets/document/logo1.png" alt="Logo 1" className="print-logo-img" />
+                  <div className="print-title-text">
+                    <div className="print-main-title">Integrated Establishment Regulatory Management System</div>
+                    <div className="print-subtitle">Department of Environmental and Natural Resources</div>
+                    <div className="print-subtitle">Environmental Management Bureau Region I</div>
+                    <div className="print-report-title">{title.toUpperCase()}</div>
               </div>
-              <h3 className="font-semibold text-gray-900 text-lg">Print {title}</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Generate PDF and open print dialog
-              </p>
+                  <img src="/assets/document/logo2.png" alt="Logo 2" className="print-logo-img" />
             </div>
+              </th>
+            </tr>
             
-            <div className="bg-sky-50 rounded-lg p-3 border border-sky-200">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Records to print:</span>
-                {selectedCount > 0 ? (
-                  <span className="font-semibold text-sky-600">{selectedCount} selected</span>
-                ) : rows.length > 0 ? (
-                  <span className="font-semibold text-gray-700">{rows.length} total</span>
-                ) : (
-                  <span className="font-semibold text-gray-500">No data</span>
-                )}
+            {/* Column Headers Row */}
+            <tr className="data-columns-row">
+              {columns.map((col, idx) => (
+                <th key={idx} className="data-column-header">{col}</th>
+              ))}
+            </tr>
+          </thead>
+          
+          <tbody>
+            {rows.map((row, rowIdx) => (
+              <tr key={rowIdx}>
+                {row.map((cell, cellIdx) => (
+                  <td key={cellIdx}>{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+          
+          <tfoot>
+            <tr>
+              <td colSpan={columns.length} className="print-footer-cell">
+                <div className="print-footer-content">
+                  <p className="font-bold">*** End of Report ***</p>
+                  <p>Generated on {currentDate}</p>
               </div>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
             </div>
-          </div>
-        }
-        loading={isPrinting}
-        onCancel={handleCancel}
-        onConfirm={handlePrint}
-        confirmText={isPrinting ? "Generating..." : "Print"}
-        cancelText="Cancel"
-        confirmColor="sky"
-      />
+
     </>
   );
 }

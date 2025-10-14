@@ -8,68 +8,123 @@ from inspections.models import Inspection
 from establishments.serializers import EstablishmentSerializer
 from inspections.serializers import InspectionSerializer
 from users.serializers import UserSerializer
+from Levenshtein import distance as levenshtein_distance
 
 User = get_user_model()
+
+def fuzzy_match(query, text, threshold=2):
+    """
+    Returns True if query fuzzy matches text within threshold edits.
+    threshold: max character differences allowed (insertions/deletions/substitutions)
+    Examples:
+      - "sainff" matches "saint" (distance=2)
+      - "restrant" matches "restaurant" (distance=2)
+    """
+    if not query or not text:
+        return False
+        
+    query_lower = query.lower()
+    text_lower = text.lower()
+    
+    # Exact substring match
+    if query_lower in text_lower:
+        return True
+    
+    # Check each word in text for fuzzy match
+    for word in text_lower.split():
+        if levenshtein_distance(query_lower, word) <= threshold:
+            return True
+        
+        # Also check if query is close to beginning of word
+        if len(word) >= len(query_lower):
+            word_prefix = word[:len(query_lower)]
+            if levenshtein_distance(query_lower, word_prefix) <= threshold:
+                return True
+    
+    return False
 
 class GlobalSearchView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        q = request.query_params.get("q", "").strip()
+        try:
+            q = request.query_params.get("q", "").strip()
+            
+            # If no search query, return empty results
+            if not q:
+                return Response({
+                    "establishments": [],
+                    "users": [],
+                    "inspections": [],
+                    "suggestions": []
+                })
+
+            # Establishments query
+            try:
+                est_qs = Establishment.objects.all()
+                if q:
+                    est_qs = est_qs.filter(
+                        Q(name__icontains=q)
+                        | Q(nature_of_business__icontains=q)
+                        | Q(province__icontains=q)
+                        | Q(city__icontains=q)
+                        | Q(barangay__icontains=q)
+                    )
+                establishments = EstablishmentSerializer(est_qs[:10], many=True).data
+            except Exception as e:
+                print(f"Establishment search error: {e}")
+                establishments = []
+
+            # Users query
+            try:
+                user_qs = User.objects.all()
+                if q:
+                    user_qs = user_qs.filter(
+                        Q(first_name__icontains=q)
+                        | Q(last_name__icontains=q)
+                        | Q(email__icontains=q)
+                        | Q(userlevel__icontains=q)
+                    )
+                users = UserSerializer(user_qs[:10], many=True).data
+            except Exception as e:
+                print(f"User search error: {e}")
+                users = []
+
+            # Inspections query - Handle ManyToMany relationship
+            try:
+                insp_qs = Inspection.objects.prefetch_related("establishments").all()
+                if q:
+                    insp_qs = insp_qs.filter(
+                        Q(code__icontains=q) |
+                        Q(law__icontains=q) |
+                        Q(establishments__name__icontains=q)
+                    ).distinct()
+                inspections = InspectionSerializer(insp_qs[:10], many=True).data
+            except Exception as e:
+                print(f"Inspection search error: {e}")
+                inspections = []
+
+            # Generate search suggestions
+            suggestions = self.generate_search_suggestions(q, establishments, users, inspections)
+
+            return Response({
+                "establishments": establishments,
+                "users": users,
+                "inspections": inspections,
+                "suggestions": suggestions
+            })
         
-        # If no search query, return empty results
-        if not q:
+        except Exception as e:
+            print(f"Global search error: {e}")
+            import traceback
+            traceback.print_exc()
             return Response({
                 "establishments": [],
                 "users": [],
                 "inspections": [],
-                "suggestions": []
-            })
-
-        # Establishments query
-        est_qs = Establishment.objects.all()
-        if q:
-            est_qs = est_qs.filter(
-                Q(name__icontains=q)
-                | Q(nature_of_business__icontains=q)
-                | Q(province__icontains=q)
-                | Q(city__icontains=q)
-                | Q(barangay__icontains=q)
-            )
-
-        establishments = EstablishmentSerializer(est_qs[:10], many=True).data
-
-        # Users query
-        user_qs = User.objects.all()
-        if q:
-            user_qs = user_qs.filter(
-                Q(first_name__icontains=q)
-                | Q(last_name__icontains=q)
-                | Q(email__icontains=q)
-                | Q(userlevel__icontains=q)
-            )
-        users = UserSerializer(user_qs[:10], many=True).data
-
-        # Inspections query
-        insp_qs = Inspection.objects.select_related("establishment").all()
-        if q:
-            insp_qs = insp_qs.filter(
-                Q(code__icontains=q)
-                | Q(section__icontains=q)  # FIXED: Removed parentheses
-                | Q(establishment__name__icontains=q)
-            )
-
-        inspections = InspectionSerializer(insp_qs[:10], many=True).data
-
-        # Generate search suggestions
-        suggestions = self.generate_search_suggestions(q, establishments, users, inspections)
-
-        return Response({
-            "establishments": establishments,
-            "users": users,
-            "inspections": inspections,
-            "suggestions": suggestions
-        })
+                "suggestions": [],
+                "error": str(e)
+            }, status=500)
 
     def generate_search_suggestions(self, query, establishments, users, inspections):
         suggestions = []
@@ -98,7 +153,15 @@ class GlobalSearchView(APIView):
         
         # Add inspection suggestions
         for insp in inspections[:3]:
-            establishment_name = insp.get('establishment', {}).get('name', '') if isinstance(insp.get('establishment'), dict) else ''
+            # Handle ManyToMany establishments field
+            establishments_data = insp.get('establishments', [])
+            if isinstance(establishments_data, list) and len(establishments_data) > 0:
+                establishment_name = establishments_data[0].get('name', 'Unknown') if isinstance(establishments_data[0], dict) else str(establishments_data[0])
+            elif isinstance(establishments_data, dict):
+                establishment_name = establishments_data.get('name', 'Unknown')
+            else:
+                establishment_name = 'Unknown'
+                
             suggestions.append({
                 "type": "inspection",
                 "name": f"Inspection {insp.get('code', '')}",
@@ -124,78 +187,171 @@ class SearchSuggestionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        q = request.query_params.get("q", "").strip()
+        try:
+            # Handle both q and q[q] params (axios sometimes nests objects)
+            q = request.query_params.get("q", "")
+            if not q:
+                # Try to get from nested param
+                q_dict = request.query_params.get("q[q]", "")
+                if q_dict:
+                    q = q_dict
+            q = q.strip()
+            
+            role = request.query_params.get("role", "public")
+            if not role:
+                role = request.query_params.get("role[role]", "public")
+            
+            if not q or len(q) < 2:
+                return Response({"suggestions": []})
+
+            suggestions = []
+
+            # User suggestions with fuzzy matching (Admin only)
+            if role == 'Admin':
+                all_users = User.objects.exclude(is_active=False)
+                matching_users = []
+                
+                for user in all_users:
+                    full_name = f"{user.first_name} {user.last_name}"
+                    if (fuzzy_match(q, user.first_name or '', threshold=2) or
+                        fuzzy_match(q, user.last_name or '', threshold=2) or
+                        fuzzy_match(q, full_name, threshold=2) or
+                        fuzzy_match(q, user.email or '', threshold=2)):
+                        matching_users.append(user)
+                        
+                        if len(matching_users) >= 5:
+                            break
+                
+                for user in matching_users:
+                    suggestions.append({
+                        "type": "user",
+                        "id": user.id,
+                        "name": f"{user.first_name} {user.last_name}",
+                        "description": f"{user.email} • {user.userlevel}",
+                        "category": "Users",
+                        "updated_at": user.updated_at.isoformat() if hasattr(user, 'updated_at') else None,
+                        "path": "/users"
+                    })
+
+            # Establishment suggestions with fuzzy matching
+            all_establishments = Establishment.objects.all()
+            matching_establishments = []
+
+            for est in all_establishments:
+                # Check name, nature, and city with fuzzy matching
+                if (fuzzy_match(q, est.name, threshold=2) or 
+                    fuzzy_match(q, est.nature_of_business or '', threshold=2) or
+                    fuzzy_match(q, est.city or '', threshold=2)):
+                    matching_establishments.append(est)
+                    
+                    if len(matching_establishments) >= 5:
+                        break
+
+            for est in matching_establishments:
+                suggestions.append({
+                    "type": "establishment",
+                    "id": est.id,
+                    "name": est.name,
+                    "description": f"{est.city}",
+                    "category": "Establishments",
+                    "updated_at": est.updated_at.isoformat() if hasattr(est, 'updated_at') else None,
+                    "path": "/establishments"
+                })
+
+            # Inspection suggestions with fuzzy matching
+            all_inspections = Inspection.objects.prefetch_related('establishments').all()
+            matching_inspections = []
+
+            for insp in all_inspections:
+                # Check code and establishment names
+                establishment_names = [e.name for e in insp.establishments.all()]
+                
+                code_match = fuzzy_match(q, insp.code or '', threshold=2)
+                law_match = fuzzy_match(q, insp.law or '', threshold=2)
+                est_match = any(fuzzy_match(q, name, threshold=2) for name in establishment_names)
+                
+                if code_match or law_match or est_match:
+                    matching_inspections.append(insp)
+                    
+                    if len(matching_inspections) >= 5:
+                        break
+
+            for insp in matching_inspections:
+                establishment_names = [e.name for e in insp.establishments.all()[:1]]
+                establishment_name = establishment_names[0] if establishment_names else 'Unknown'
+                status = insp.current_status if hasattr(insp, 'current_status') else 'CREATED'
+                
+                suggestions.append({
+                    "type": "inspection",
+                    "id": insp.id,
+                    "name": f"Inspection {insp.code}",
+                    "description": f"{establishment_name} • {status}",
+                    "category": "Inspections",
+                    "updated_at": insp.updated_at.isoformat() if hasattr(insp, 'updated_at') else None,
+                    "path": f"/inspection/{insp.id}"
+                })
+
+            # Add navigation with role-based permissions
+            navigation_items = [
+                {'name': 'Dashboard', 'path': '/', 'type': 'navigation', 'roles': ['all']},
+                {'name': 'Map', 'path': '/map', 'type': 'navigation', 'roles': ['all']},
+                {'name': 'Establishments', 'path': '/establishments', 'type': 'navigation', 'roles': ['all']},
+                {'name': 'Inspections', 'path': '/inspections', 'type': 'navigation', 'roles': ['all']},
+                {'name': 'Users', 'path': '/users', 'type': 'navigation', 'roles': ['Admin']},
+                {'name': 'District Management', 'path': '/district-management', 'type': 'navigation', 'roles': ['Admin', 'Section Chief', 'Unit Head']},
+                {'name': 'Billing Records', 'path': '/billing', 'type': 'navigation', 'roles': ['Legal Unit']},
+                {'name': 'System Configuration', 'path': '/system-config', 'type': 'navigation', 'roles': ['Admin']},
+                {'name': 'Database Backup', 'path': '/database-backup', 'type': 'navigation', 'roles': ['Admin']},
+                {'name': 'Help Center', 'path': '/help', 'type': 'navigation', 'roles': ['all']},
+                {'name': 'Notifications', 'path': '/notifications', 'type': 'navigation', 'roles': ['all']},
+            ]
+
+            # Filter navigation with fuzzy matching and role-based permissions
+            matching_nav = [
+                {
+                    **item, 
+                    'id': None,
+                    'category': 'Navigation', 
+                    'description': f'Go to {item["name"]} page',
+                    'updated_at': None
+                }
+                for item in navigation_items 
+                if fuzzy_match(q, item['name'], threshold=2)
+                and ('all' in item['roles'] or role in item['roles'])
+            ]
+            
+            suggestions.extend(matching_nav[:3])
+
+            # Sort by relevance (exact matches first, then partial matches)
+            def get_relevance_score(suggestion):
+                name_lower = suggestion['name'].lower()
+                query_lower = q.lower()
+                
+                # Exact match
+                if name_lower == query_lower:
+                    return 0
+                # Starts with query
+                elif name_lower.startswith(query_lower):
+                    return 1
+                # Contains query at word boundary
+                elif f" {query_lower}" in f" {name_lower}":
+                    return 2
+                # Contains query anywhere
+                elif query_lower in name_lower:
+                    return 3
+                # Partial match in description
+                else:
+                    return 4
+            
+            suggestions.sort(key=get_relevance_score)
+
+            return Response({"suggestions": suggestions[:15]})
         
-        if not q or len(q) < 2:
-            return Response({"suggestions": []})
-
-        suggestions = []
-
-        # Establishment suggestions
-        establishment_suggestions = Establishment.objects.filter(
-            Q(name__icontains=q) |
-            Q(nature_of_business__icontains=q) |
-            Q(city__icontains=q)
-        )[:5]
-        
-        for est in establishment_suggestions:
-            suggestions.append({
-                "type": "establishment",
-                "id": est.id,
-                "name": est.name,
-                "description": f"Establishment in {est.city}",
-                "category": "Business",
-                "icon": "🏢"
-            })
-
-        # User suggestions
-        user_suggestions = User.objects.filter(
-            Q(first_name__icontains=q) |
-            Q(last_name__icontains=q) |
-            Q(email__icontains=q)
-        )[:5]
-        
-        for user in user_suggestions:
-            suggestions.append({
-                "type": "user",
-                "id": user.id,
-                "name": f"{user.first_name} {user.last_name}",
-                "description": f"User - {user.userlevel}",
-                "category": "People",
-                "icon": "👤"
-            })
-
-        # Inspection suggestions - FIXED THE SYNTAX ERROR HERE
-        inspection_suggestions = Inspection.objects.filter(
-            Q(code__icontains=q) |
-            Q(section__icontains=q)  # FIXED: Removed the incorrect parentheses
-        ).select_related('establishment')[:5]
-        
-        for insp in inspection_suggestions:
-            establishment_name = insp.establishment.name if insp.establishment else 'Unknown'
-            suggestions.append({
-                "type": "inspection",
-                "id": insp.id,
-                "name": f"Inspection {insp.code}",
-                "description": f"Inspection for {establishment_name}",
-                "category": "Inspections",
-                "icon": "📋"
-            })
-
-        # Popular search terms
-        popular_terms = ["restaurant", "hotel", "factory", "shop", "office", "mall", "school", "hospital"]
-        matching_terms = [term for term in popular_terms if q.lower() in term.lower()]
-        
-        for term in matching_terms[:2]:
-            suggestions.append({
-                "type": "popular",
-                "name": term,
-                "description": "Popular search term",
-                "category": "Popular",
-                "icon": "🔥"
-            })
-
-        return Response({"suggestions": suggestions})
+        except Exception as e:
+            print(f"Search suggestions error: {e}")
+            import traceback
+            traceback.print_exc()
+            return Response({"suggestions": [], "error": str(e)}, status=500)
 
 
 class SearchFilterOptionsView(APIView):

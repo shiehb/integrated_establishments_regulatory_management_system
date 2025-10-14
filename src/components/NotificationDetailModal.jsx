@@ -79,16 +79,16 @@ export default function NotificationDetailModal({
     <div className="fixed inset-0 z-[9999] flex items-center justify-center">
       {/* Backdrop with blur */}
       <div 
-        className="absolute inset-0 bg-transparent backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50 backdrop-blur-md"
         onClick={onClose}
       />
       
       {/* Modal - Centered Single Column */}
-      <div className="relative w-full max-w-3xl mx-4 bg-white rounded-lg shadow-xl">
+      <div className="relative w-full max-w-3xl mx-4 bg-white rounded-xl shadow-2xl notification-modal-enter">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between z-10 rounded-t-xl">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg ${getNotificationTypeColor(notification.notification_type)}`}>
+            <div className={`p-2.5 rounded-lg ${getNotificationTypeColor(notification.notification_type)}`}>
               {getNotificationIcon(notification.notification_type)}
             </div>
             <div>
@@ -102,14 +102,14 @@ export default function NotificationDetailModal({
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 rounded-lg hover:text-gray-600 hover:bg-gray-100"
+            className="p-2 text-gray-400 rounded-lg hover:text-gray-600 hover:bg-gray-100 transition-colors"
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Content - Single Column Layout */}
-        <div className="p-6">
+        <div className="p-6 max-h-[calc(90vh-140px)] overflow-y-auto scrollbar-thin">
           <div className="max-w-2xl mx-auto space-y-6">
             {/* Status and Type Badge */}
             <div className="flex items-center justify-between">

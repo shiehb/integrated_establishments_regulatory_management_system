@@ -1,60 +1,152 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Password Reset Verification Code - IERMS</title>
-    <style>
-      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f8fafc; }
-      .container { max-width: 500px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-      .header { background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); padding: 25px 20px; text-align: center; color: white; }
-      .header h1 { margin: 0; font-size: 20px; font-weight: 600; }
-      .header p { margin: 5px 0 0 0; font-size: 13px; opacity: 0.9; }
-      .content { padding: 25px 20px; background-color: #fff; text-align: center; }
-      .otp-container { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 2px solid #0ea5e9; border-radius: 12px; padding: 25px; margin: 20px 0; }
-      .otp-code { font-family: 'Courier New', monospace; font-size: 32px; font-weight: 700; color: #0c4a6e; letter-spacing: 8px; margin: 10px 0; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
-      .otp-label { font-size: 14px; color: #0c4a6e; font-weight: 600; margin-bottom: 10px; }
-      .expiry-notice { background-color: #fef3c7; border: 1px solid #f59e0b; padding: 12px; border-radius: 8px; margin: 20px 0; font-size: 13px; color: #92400e; }
-      .security-warning { background-color: #fef2f2; border: 1px solid #fca5a5; padding: 12px; border-radius: 8px; margin: 20px 0; font-size: 13px; color: #991b1b; }
-      .instructions { font-size: 14px; color: #374151; margin: 15px 0; line-height: 1.5; }
-      .footer { padding: 20px; text-align: center; font-size: 12px; color: #6b7280; background-color: #f9fafb; border-top: 1px solid #e5e7eb; }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      {% include 'emails/partials/header.html' with title='Password Reset Code' subtitle='Integrated Establishments Regulatory Management System' %}
+<head>
+  <meta charset="utf-8" />
+  <title>Password Reset Verification - IERMS</title>
+  <style>
+    body { font-family: 'Arial', 'Helvetica', sans-serif; line-height: 1.5; color: #1f2937; margin: 0; padding: 20px; background-color: #f3f4f6; }
+    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #d1d5db; }
+    
+    /* Content */
+    .content { padding: 30px; }
+    
+    /* OTP Box - Professional Style */
+    .otp-box { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 3px solid #0284c7; border-radius: 12px; padding: 30px; margin: 25px 0; text-align: center; }
+    .otp-label { font-size: 13px; color: #0c4a6e; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; }
+    .otp-code { font-family: 'Courier New', monospace; font-size: 42px; font-weight: 900; color: #0c4a6e; letter-spacing: 12px; margin: 15px 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); background: white; padding: 15px; border-radius: 8px; border: 2px dashed #0284c7; }
+    .otp-validity { font-size: 12px; color: #0369a1; margin-top: 12px; }
+    
+    /* Alert boxes */
+    .alert-warning { background-color: #fef3c7; border: 2px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    .alert-danger { background-color: #fef2f2; border: 2px solid #dc2626; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    .alert-info { background-color: #f0f9ff; border: 2px solid #0284c7; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    
+    /* Step instructions */
+    .steps-container { margin: 25px 0; }
+    .step-item { display: table; width: 100%; margin-bottom: 15px; }
+    .step-number { background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; width: 32px; height: 32px; border-radius: 50%; display: table-cell; vertical-align: top; text-align: center; font-weight: 700; font-size: 16px; line-height: 32px; width: 32px; }
+    .step-content { display: table-cell; vertical-align: top; padding-left: 15px; }
+    .step-title { font-weight: 700; font-size: 14px; color: #1f2937; margin-bottom: 6px; }
+    .step-desc { font-size: 12px; color: #6b7280; line-height: 1.5; }
+    
+    /* Support info box */
+    .support-box { background-color: #f9fafb; border: 1px dashed #d1d5db; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .support-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #374151; font-weight: 700; }
+    .support-box p { margin: 5px 0; font-size: 12px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    {% include 'emails/partials/header.html' with title='PASSWORD RESET VERIFICATION' subtitle='Security Authentication Required' document_type='OTP' %}
 
-      <div class="content">
-        <div class="instructions">
-          <p>You requested a password reset for your IERMS account.</p>
-          <p>Use the verification code below to reset your password:</p>
-        </div>
+    <div class="content">
+      <!-- Reference & Timestamp -->
+      <div style="text-align: right; font-size: 11px; color: #6b7280; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
+        <strong>Transaction ID:</strong> OTP-{{ user.id }}-{% now "YmdHis" %}<br/>
+        <strong>Generated:</strong> {% now "F j, Y, g:i A" %}<br/>
+        <strong>IP Address:</strong> {{ ip_address|default:'Not available' }}
+      </div>
 
-        <div class="otp-container">
-          <div class="otp-label">Your Verification Code</div>
-          <div class="otp-code">{{ otp_code }}</div>
-        </div>
+       <!-- Salutation -->
+       <p style="font-size: 14px; margin-bottom: 20px;">
+         <strong>Dear {% if user.first_name and user.last_name %}{{ user.first_name }} {{ user.last_name }}{% elif user.first_name %}{{ user.first_name }}{% else %}{{ user.email }}{% endif %},</strong>
+       </p>
 
-        <div class="expiry-notice">
-          <strong>⏰ Code Expires in 10 Minutes</strong><br />
-          This code will expire in 10 minutes for security reasons.
-        </div>
+      <!-- Notice -->
+      <div class="alert-info">
+        <p style="margin: 0; font-size: 13px; color: #0c4a6e;">
+          A password reset request has been initiated for your IERMS account (<strong>{{ user.email }}</strong>). 
+          Please use the One-Time Password (OTP) below to proceed with resetting your password.
+        </p>
+      </div>
 
-        <div class="security-warning">
-          <strong>🔒 Security Notice</strong><br />
-          If you didn't request this password reset, please ignore this email. Your account remains secure.
-        </div>
-
-        <div class="instructions">
-          <p><strong>Next Steps:</strong></p>
-          <p>1. Return to the password reset page</p>
-          <p>2. Enter the 6-digit code above</p>
-          <p>3. Create your new password</p>
+      <!-- OTP Code Box -->
+      <div class="otp-box">
+        <div class="otp-label">🔐 One-Time Password (OTP)</div>
+        <div class="otp-code">{{ otp_code }}</div>
+        <div class="otp-validity">
+          <strong>⏰ Valid for 10 minutes only</strong><br/>
+          Expires at: {% now "g:i A" as current_time %}{{ current_time }}
         </div>
       </div>
 
-      {% include 'emails/partials/footer.html' %}
+      <!-- Step-by-Step Instructions -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 15px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        PASSWORD RESET INSTRUCTIONS
+      </h3>
+      <div class="steps-container">
+        <div class="step-item">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <div class="step-title">Return to Password Reset Page</div>
+            <div class="step-desc">Go back to the IERMS password reset verification page in your browser</div>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <div class="step-title">Enter Verification Code</div>
+            <div class="step-desc">Type or paste the 6-digit OTP code displayed above</div>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <div class="step-title">Create New Password</div>
+            <div class="step-desc">Choose a strong password (min. 8 characters: uppercase, lowercase, numbers, special chars)</div>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <div class="step-title">Confirm and Complete</div>
+            <div class="step-desc">Re-enter your new password to confirm and submit the form</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Expiration Warning -->
+      <div class="alert-warning">
+        <p style="margin: 0; font-size: 12px; color: #92400e;">
+          <strong>⏰ TIME-SENSITIVE:</strong> This OTP code will expire in <strong>10 minutes</strong> from the time of this email. 
+          If the code has expired, please request a new password reset.
+        </p>
+      </div>
+
+      <!-- Security Notice -->
+      <div class="alert-danger">
+        <p style="margin: 0 0 10px 0; font-size: 12px; color: #991b1b;">
+          <strong>🔒 SECURITY ALERT</strong>
+        </p>
+        <p style="margin: 0; font-size: 11px; color: #991b1b; line-height: 1.6;">
+          <strong>If you did NOT request this password reset:</strong>
+        </p>
+        <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 11px; color: #991b1b;">
+          <li>DO NOT use this OTP code</li>
+          <li>Delete this email immediately</li>
+          <li>Contact IT Security: security@ierms.denr.gov.ph</li>
+          <li>Your account remains secure - no action was taken</li>
+        </ul>
+      </div>
+
+      <!-- Support Information -->
+      <div class="support-box">
+        <h4>📞 NEED ASSISTANCE?</h4>
+        <p><strong>IT Help Desk:</strong> support@ierms.denr.gov.ph</p>
+        <p><strong>Phone:</strong> (02) 8888-IERMS (4376)</p>
+        <p><strong>Hours:</strong> Monday - Friday, 8:00 AM - 5:00 PM</p>
+      </div>
+
+      <!-- Legal Disclaimer -->
+      <div style="font-size: 10px; color: #9ca3af; margin-top: 25px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: justify;">
+        <p style="margin: 0;">
+          This email contains sensitive security information. Handle with care and in accordance with 
+          DENR Information Security policies and the Data Privacy Act of 2012 (R.A. 10173).
+        </p>
+      </div>
     </div>
-  </body>
+
+    {% include 'emails/partials/footer.html' %}
+  </div>
+</body>
 </html>
-
-

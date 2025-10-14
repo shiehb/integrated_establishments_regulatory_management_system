@@ -27,13 +27,21 @@ export default function Notifications() {
     try {
       setIsLoading(true);
       const notificationsData = await getNotifications();
-      setNotifications(notificationsData);
+      
+      // Handle both array and object responses
+      const notifArray = Array.isArray(notificationsData) 
+        ? notificationsData 
+        : (notificationsData.results || []);
+      
+      setNotifications(notifArray);
 
       // Count unread notifications
-      const unread = notificationsData.filter((notif) => !notif.is_read).length;
+      const unread = notifArray.filter((notif) => !notif.is_read).length;
       setUnreadCount(unread);
     } catch (error) {
       console.error("Error fetching notifications:", error);
+      setNotifications([]);
+      setUnreadCount(0);
     } finally {
       setIsLoading(false);
     }
@@ -264,7 +272,7 @@ export default function Notifications() {
             </div>
           </div>
 
-          <div className="overflow-y-auto max-h-96">
+          <div className="overflow-y-auto max-h-80 scrollbar-thin notification-list">
             {isLoading ? (
               <div className="p-6 text-center">
                 <div className="inline-block w-8 h-8 border-2 border-sky-200 border-t-sky-600 rounded-full animate-spin"></div>

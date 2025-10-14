@@ -85,6 +85,7 @@ class Inspection(models.Model):
     class Meta:
         ordering = ['-created_at']
         indexes = [
+            models.Index(fields=['code']),
             models.Index(fields=['current_status']),
             models.Index(fields=['assigned_to']),
             models.Index(fields=['created_by']),

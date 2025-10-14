@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Plus,
   ArrowUpDown,
@@ -499,6 +500,10 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   const [currentUser, setCurrentUser] = useState(null);
   const [tabCounts, setTabCounts] = useState({});
 
+  // 🎯 Search highlighting
+  const location = useLocation();
+  const [highlightedInspId, setHighlightedInspId] = useState(null);
+  const highlightedRowRef = useRef(null);
 
   // 🔍 Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -992,6 +997,28 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     };
   }, [filtersOpen, sortDropdownOpen]);
 
+  // Handle highlighting from search navigation
+  useEffect(() => {
+    console.log('InspectionsList - Location state:', location.state);
+    if (location.state?.highlightId && location.state?.entityType === 'inspection') {
+      console.log('Highlighting inspection:', location.state.highlightId);
+      setHighlightedInspId(location.state.highlightId);
+      
+      // Scroll to highlighted row after render
+      setTimeout(() => {
+        if (highlightedRowRef.current) {
+          console.log('Scrolling to highlighted inspection');
+          highlightedRowRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+        } else {
+          console.log('Highlighted row ref not found yet');
+        }
+      }, 500);
+    }
+  }, [location.state]);
+
   const formatFullDate = (dateString) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -1464,7 +1491,11 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                 .map((inspection) => (
                 <tr
                   key={inspection.id}
-                  className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
+                  ref={inspection.id === highlightedInspId ? highlightedRowRef : null}
+                  className={`p-1 text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors ${
+                    inspection.id === highlightedInspId ? 'search-highlight-persist' : ''
+                  }`}
+                  onClick={() => setHighlightedInspId(inspection.id)}
                 >
                   <td className="p-1 text-center border-b border-gray-300">
                     <input

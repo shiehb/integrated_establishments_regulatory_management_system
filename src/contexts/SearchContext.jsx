@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   globalSearch,
   getSearchOptions,
@@ -33,13 +33,25 @@ export const SearchProvider = ({ children }) => {
     risk_levels: [],
   });
   const [loading, setLoading] = useState(false);
+  const [searchHistory, setSearchHistory] = useState([]);
+  const [selectedSearchResult, setSelectedSearchResult] = useState(null);
+  const [savedSearches, setSavedSearches] = useState([]);
+  const [error, setError] = useState(null);
 
   const searchDebounceRef = useRef(null);
   const suggestionsDebounceRef = useRef(null);
+  const searchCacheRef = useRef(new Map());
+  const abortControllerRef = useRef(null);
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // Clear search when navigating to different pages
+  // Clear search when navigating to different pages (but not when coming from search)
   useEffect(() => {
+    // Don't clear if we're navigating from search with highlight state
+    if (location.state?.highlightId && location.state?.fromSearch) {
+      return;
+    }
+    
     setSearchQuery("");
     setSearchResults({
       establishments: [],
@@ -50,9 +62,9 @@ export const SearchProvider = ({ children }) => {
     setSearchSuggestions([]);
     setShowSuggestions(false);
     setIsSearching(false);
-  }, [location.pathname]);
+  }, [location.pathname, location.state]);
 
-  // Load filter options only when user is authenticated
+  // Load filter options, search history, and saved searches
   useEffect(() => {
     const fetchSearchOptions = async () => {
       const token = localStorage.getItem("access");
@@ -66,20 +78,84 @@ export const SearchProvider = ({ children }) => {
       }
     };
 
+    // Load search history from localStorage
+    const savedHistory = localStorage.getItem('searchHistory');
+    if (savedHistory) {
+      try {
+        setSearchHistory(JSON.parse(savedHistory));
+      } catch (error) {
+        console.error("Failed to parse search history:", error);
+      }
+    }
+
+    // Load saved searches from localStorage
+    const saved = localStorage.getItem('savedSearches');
+    if (saved) {
+      try {
+        setSavedSearches(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load saved searches:', e);
+      }
+    }
+
     fetchSearchOptions();
   }, []);
 
-  const fetchSuggestions = async (query) => {
+  const fetchSuggestions = async (query, userLevel = "public") => {
     if (!query || query.length < 2) {
       setSearchSuggestions([]);
       return;
     }
 
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    // Check cache first
+    const cacheKey = `${query}-${userLevel}`;
+    if (searchCacheRef.current.has(cacheKey)) {
+      setSearchSuggestions(searchCacheRef.current.get(cacheKey));
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await getSearchSuggestions(query);
+      setError(null);
+      
+      // Add role-based filtering to suggestions
+      const suggestionParams = { q: query };
+      if (userLevel !== "public") {
+        suggestionParams.role = userLevel;
+      }
+      
+      const data = await getSearchSuggestions(suggestionParams);
+      
+      // Cache results
+      searchCacheRef.current.set(cacheKey, data.suggestions || []);
+      
+      // Limit cache size to 50 entries
+      if (searchCacheRef.current.size > 50) {
+        const firstKey = searchCacheRef.current.keys().next().value;
+        searchCacheRef.current.delete(firstKey);
+      }
+      
       setSearchSuggestions(data.suggestions || []);
     } catch (error) {
+      if (error.name === 'AbortError') {
+        return; // Request was cancelled
+      }
+      
+      if (error.response?.status === 429) {
+        setError('Too many searches. Please wait a moment.');
+      } else if (!navigator.onLine) {
+        setError('No internet connection.');
+      } else {
+        setError('Search failed. Please try again.');
+      }
+      
       console.error("Failed to fetch search suggestions:", error);
       setSearchSuggestions([]);
     } finally {
@@ -87,7 +163,17 @@ export const SearchProvider = ({ children }) => {
     }
   };
 
-  const updateSearchQuery = (query) => {
+  // Add query to search history
+  const addToHistory = (query) => {
+    if (query && query.trim().length > 0) {
+      const trimmedQuery = query.trim();
+      const newHistory = [trimmedQuery, ...searchHistory.filter(item => item !== trimmedQuery)].slice(0, 10);
+      setSearchHistory(newHistory);
+      localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+    }
+  };
+
+  const updateSearchQuery = (query, userLevel = "public") => {
     setSearchQuery(query);
     const active = query.length > 0;
     setIsSearching(active);
@@ -102,7 +188,7 @@ export const SearchProvider = ({ children }) => {
       setShowSuggestions(true);
       // Debounce suggestions API (300ms)
       suggestionsDebounceRef.current = setTimeout(() => {
-        fetchSuggestions(query);
+        fetchSuggestions(query, userLevel); // Pass userLevel
       }, 300);
     } else {
       setShowSuggestions(false);
@@ -124,7 +210,9 @@ export const SearchProvider = ({ children }) => {
     // Debounce main search API (500ms) - only if query is long enough
     if (query.length >= 2) {
       searchDebounceRef.current = setTimeout(() => {
-        runSearch(query);
+        runSearch(query, userLevel); // Pass userLevel
+        // Add to history when performing search
+        addToHistory(query);
       }, 500);
     }
   };
@@ -160,13 +248,46 @@ export const SearchProvider = ({ children }) => {
   };
 
   const selectSuggestion = (suggestion) => {
+    console.log('Selecting suggestion:', suggestion);
     const searchText = suggestion.name || suggestion.text || "";
     setSearchQuery(searchText);
 
-    // Small delay before hiding to ensure the click is registered
-    setTimeout(() => {
+    // Determine navigation path based on suggestion type
+    const path = suggestion.path || (
+      suggestion.type === 'user' ? '/users' :
+      suggestion.type === 'establishment' ? '/establishments' :
+      suggestion.type === 'inspection' ? `/inspection/${suggestion.id}` : '/'
+    );
+    
+    // For navigation items, just navigate without highlight
+    if (suggestion.type === 'navigation') {
+      console.log('Navigating to page:', path);
+      navigate(path);
       setShowSuggestions(false);
-    }, 100);
+      return;
+    }
+    
+    console.log('Navigating to:', path, 'with state:', {
+      highlightId: suggestion.id,
+      entityType: suggestion.type,
+      fromSearch: true
+    });
+    
+    // Set selected result for tracking
+    setSelectedSearchResult(suggestion);
+    
+    // Navigate with state for highlighting
+    navigate(path, { 
+      state: { 
+        highlightId: suggestion.id,
+        entityType: suggestion.type,
+        fromSearch: true // Add flag to prevent search clearing
+      },
+      replace: false
+    });
+    
+    // Hide suggestions
+    setShowSuggestions(false);
 
     // Trigger search with the selected suggestion
     if (searchText) {
@@ -174,7 +295,7 @@ export const SearchProvider = ({ children }) => {
     }
   };
 
-  const runSearch = async (query) => {
+  const runSearch = async (query, userLevel = "public") => {
     const token = localStorage.getItem("access");
     if (!token || !query) {
       return;
@@ -182,7 +303,22 @@ export const SearchProvider = ({ children }) => {
 
     try {
       setLoading(true);
-      const data = await globalSearch({ q: query });
+      
+      // Add role-based filtering to search parameters
+      const searchParams = { q: query };
+      
+      // Add role-specific filters
+      if (userLevel !== "public") {
+        searchParams.role = userLevel;
+      }
+      
+      // Filter search based on user permissions
+      if (["public", "Inspector"].includes(userLevel)) {
+        // Limited search for public and inspector users
+        searchParams.scope = "limited";
+      }
+      
+      const data = await globalSearch(searchParams);
       setSearchResults(data);
     } catch (error) {
       console.error("Search failed:", error);
@@ -203,10 +339,48 @@ export const SearchProvider = ({ children }) => {
     setOptions(newOptions);
   };
 
+  // Clear search history
+  const clearHistory = () => {
+    setSearchHistory([]);
+    localStorage.removeItem('searchHistory');
+  };
+
+  // Saved searches functions
+  const saveSearch = (query, name = '') => {
+    if (!query) return;
+    
+    const newSearch = {
+      id: Date.now(),
+      name: name || query,
+      query,
+      timestamp: new Date().toISOString()
+    };
+    
+    const updated = [newSearch, ...savedSearches.filter(s => s.query !== query)].slice(0, 20);
+    setSavedSearches(updated);
+    localStorage.setItem('savedSearches', JSON.stringify(updated));
+    
+    return newSearch;
+  };
+
+  const deleteSavedSearch = (id) => {
+    const updated = savedSearches.filter(s => s.id !== id);
+    setSavedSearches(updated);
+    localStorage.setItem('savedSearches', JSON.stringify(updated));
+  };
+
+  const loadSavedSearch = (search) => {
+    updateSearchQuery(search.query);
+  };
+
   const value = {
     searchQuery,
     searchResults,
     searchSuggestions,
+    searchHistory,
+    savedSearches,
+    selectedSearchResult,
+    error,
     isSearching,
     showSuggestions,
     loading,
@@ -215,8 +389,12 @@ export const SearchProvider = ({ children }) => {
     updateSearchResults,
     updateOptions,
     clearSearch,
+    clearHistory,
     hideSuggestions,
     selectSuggestion,
+    saveSearch,
+    deleteSavedSearch,
+    loadSavedSearch,
   };
 
   return (

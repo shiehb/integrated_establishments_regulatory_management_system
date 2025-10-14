@@ -73,10 +73,15 @@ export default api;
 // Authentication
 // -------------------------------------------------
 export const loginUser = async (email, password) => {
-  const res = await api.post("auth/token/", { email, password });
-  localStorage.setItem("access", res.data.access);
-  localStorage.setItem("refresh", res.data.refresh);
-  return res.data;
+  const res = await api.post("auth/login/", { email, password });
+  localStorage.setItem("access", res.data.tokens.access);
+  localStorage.setItem("refresh", res.data.tokens.refresh);
+  return {
+    ...res.data,
+    access: res.data.tokens.access,
+    refresh: res.data.tokens.refresh,
+    must_change_password: res.data.user?.must_change_password || false
+  };
 };
 
 export const registerUser = async (userData) => {
@@ -713,15 +718,21 @@ export const globalSearch = async (params) => {
   return res.data;
 };
 
-export const getSearchSuggestions = async (query) => {
+export const getSearchSuggestions = async (params) => {
   const token = localStorage.getItem("access");
   if (!token) {
     throw new Error("User not authenticated");
   }
-  if (!query || query.length < 2) {
+  
+  // Handle both string and object params for backward compatibility
+  const searchParams = typeof params === 'string' ? { q: params } : params;
+  const q = searchParams.q;
+  
+  if (!q || q.length < 2) {
     return { suggestions: [] };
   }
-  const res = await api.get("search/suggestions/", { params: { q: query } });
+  
+  const res = await api.get("search/suggestions/", { params: searchParams });
   return res.data;
 };
 

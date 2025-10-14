@@ -1,113 +1,191 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Welcome to Integrated Establishments Regulatory Management System</title>
-    <style>
-      body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        line-height: 1.6;
-        color: #333;
-        margin: 0;
-        padding: 0;
-        background-color: #f8fafc;
-      }
-      .container {
-        max-width: 600px;
-        margin: 0 auto;
-        background-color: #ffffff;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      }
-      .header {
-        background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-        padding: 30px 20px;
-        text-align: center;
-        color: white;
-      }
-      .header h1 {
-        margin: 0;
-        font-size: 24px;
-        font-weight: 600;
-      }
-      .header p { margin: 8px 0 0 0; font-size: 14px; opacity: 0.9; }
-      .content { padding: 30px 20px; background-color: #fff; }
-      .welcome-message { font-size: 16px; margin-bottom: 20px; color: #1f2937; }
-      .credentials-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0; }
-      .credential-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
-      .credential-item:last-child { border-bottom: none; }
-      .credential-label { font-weight: 600; color: #374151; font-size: 14px; }
-      .credential-value { font-family: 'Courier New', monospace; background-color: #1f2937; color: #10b981; padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: 600; }
-      .password-warning { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 1px solid #f59e0b; padding: 16px; border-radius: 8px; margin: 20px 0; text-align: center; }
-      .password-warning strong { color: #92400e; font-size: 14px; }
-      .password-warning p { margin: 8px 0 0 0; color: #92400e; font-size: 13px; }
-      .login-button { display: inline-block; background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; margin: 20px 0; text-align: center; transition: transform 0.2s; }
-      .login-button:hover { transform: translateY(-1px); }
-      .system-info { background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0; }
-      .system-info h3 { margin: 0 0 8px 0; color: #0c4a6e; font-size: 16px; }
-      .system-info p { margin: 0; color: #0c4a6e; font-size: 14px; }
-      .footer { padding: 20px; text-align: center; font-size: 12px; color: #6b7280; background-color: #f9fafb; border-top: 1px solid #e5e7eb; }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      {% include 'emails/partials/header.html' with title='Welcome to IERMS' subtitle='Integrated Establishments Regulatory Management System' %}
+<head>
+  <meta charset="utf-8" />
+  <title>Account Activation - Integrated Establishments Regulatory Management System</title>
+  <style>
+    body { font-family: 'Arial', 'Helvetica', sans-serif; line-height: 1.5; color: #1f2937; margin: 0; padding: 20px; background-color: #f3f4f6; }
+    .container { max-width: 650px; margin: 0 auto; background-color: #ffffff; border: 1px solid #d1d5db; }
+    
+    /* Main content */
+    .content { padding: 30px; }
+    
+    /* Professional table styling */
+    .credentials-table { width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #d1d5db; }
+    .credentials-table th { background-color: #f3f4f6; padding: 10px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #374151; border-bottom: 2px solid #d1d5db; }
+    .credentials-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
+    .credentials-table td:first-child { font-weight: 600; color: #374151; width: 180px; }
+    .credentials-table td:last-child { font-family: 'Courier New', monospace; background-color: #f9fafb; color: #0c4a6e; font-weight: 600; }
+    
+    /* Instructions box */
+    .instructions-box { background-color: #f0f9ff; border-left: 4px solid #0284c7; padding: 20px; margin: 25px 0; }
+    .instructions-box h3 { margin: 0 0 12px 0; color: #0c4a6e; font-size: 15px; font-weight: 700; }
+    .instructions-box ol { margin: 0; padding-left: 20px; }
+    .instructions-box li { margin-bottom: 8px; font-size: 13px; color: #0c4a6e; }
+    
+    /* Security notice */
+    .security-box { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; padding: 18px; margin: 20px 0; border-radius: 8px; }
+    .security-box strong { display: block; margin-bottom: 8px; color: #92400e; font-size: 14px; }
+    .security-box p { margin: 0; font-size: 12px; color: #92400e; line-height: 1.6; }
+    
+    /* CTA Button */
+    .cta-button { display: inline-block; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 14px; margin: 20px 0; box-shadow: 0 4px 6px rgba(2, 132, 199, 0.3); }
+    
+    /* Support info box */
+    .support-box { background-color: #f9fafb; border: 1px dashed #d1d5db; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .support-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #374151; font-weight: 700; }
+    .support-box p { margin: 5px 0; font-size: 12px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    {% include 'emails/partials/header.html' with title='ACCOUNT ACTIVATION NOTICE' subtitle='Integrated Establishments Regulatory Management System' document_type='WELCOME' %}
 
-      <div class="content">
-        <div class="welcome-message">
-          <p>
-            Hello <strong>{% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}{{ user.email }}{% endif %}</strong>,
-          </p>
-          <p>
-            Your account has been successfully created in the Integrated Establishments Regulatory Management System. 
-            You can now access the system using your login credentials below.
-          </p>
-        </div>
+    <div class="content">
+      <!-- Reference Number -->
+      <div style="text-align: right; font-size: 11px; color: #6b7280; margin-bottom: 15px;">
+        Reference No: IERMS-USER-{{ user.id }}-{% now "YmdHis" %}<br/>
+        Date Issued: {% now "F j, Y" %}
+      </div>
 
-        <div class="credentials-box">
-          <div class="credential-item">
-            <span class="credential-label">Email Address:</span>
-            <span class="credential-value">{{ user.email }}</span>
-          </div>
-          <div class="credential-item">
-            <span class="credential-label">Temporary Password:</span>
-            <span class="credential-value">{{ default_password }}</span>
-          </div>
-          <div class="credential-item">
-            <span class="credential-label">User Level:</span>
-            <span class="credential-value">{{ user.userlevel }}</span>
-          </div>
-          {% if user.section %}
-          <div class="credential-item">
-            <span class="credential-label">Section:</span>
-            <span class="credential-value">{{ user.section }}</span>
-          </div>
-          {% endif %}
-        </div>
+      <!-- Salutation -->
+      <p style="font-size: 14px; margin-bottom: 20px;">
+        <strong>Dear {% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}User{% endif %},</strong>
+      </p>
 
-        <div class="password-warning">
-          <strong>🔒 Security Notice</strong>
-          <p>For your security, please change your password immediately after your first login.</p>
-        </div>
-
-        <div class="system-info">
-          <h3>📋 System Access</h3>
-          <p>Click the button below to access the system, or copy and paste the URL into your browser.</p>
-        </div>
-
-        <div style="text-align: center;">
-          <a href="{{ login_url }}" class="login-button">Access IERMS System</a>
-        </div>
-
-        <p style="font-size: 14px; color: #6b7280; margin-top: 20px;">
-          If you have any questions or need assistance, please contact your system administrator or the IT support team.
+      <!-- Official Notice -->
+      <div style="background-color: #eff6ff; border: 1px solid #3b82f6; padding: 15px; margin-bottom: 20px; border-radius: 6px;">
+        <p style="margin: 0; font-size: 13px; color: #1e40af; text-align: justify;">
+          This is to formally notify you that your account has been successfully activated in the 
+          <strong>Integrated Establishments Regulatory Management System (IERMS)</strong> under the 
+          Department of Environment and Natural Resources (DENR) - Region 1.
         </p>
       </div>
 
-      {% include 'emails/partials/footer.html' %}
+      <!-- Account Details Table -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        ACCOUNT CREDENTIALS
+      </h3>
+      <table class="credentials-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Full Name</td>
+            <td>{{ user.first_name }} {% if user.middle_name %}{{ user.middle_name }}{% endif %} {{ user.last_name }}</td>
+          </tr>
+          <tr>
+            <td>Email Address (Username)</td>
+            <td>{{ user.email }}</td>
+          </tr>
+          <tr>
+            <td>Temporary Password</td>
+            <td style="color: #dc2626; font-weight: 700;">{{ default_password }}</td>
+          </tr>
+          <tr>
+            <td>User Level/Role</td>
+            <td>{{ user.userlevel }}</td>
+          </tr>
+          {% if user.section %}
+          <tr>
+            <td>Assigned Section</td>
+            <td>{{ user.section }}</td>
+          </tr>
+          {% endif %}
+          {% if user.district %}
+          <tr>
+            <td>Assigned District</td>
+            <td>{{ user.district }}</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <!-- Security Warning -->
+      <div class="security-box">
+        <strong>🔒 MANDATORY SECURITY REQUIREMENT</strong>
+        <p>
+          For compliance with DENR IT Security Policy and Data Privacy Act of 2012 (R.A. 10173), 
+          you are <strong>REQUIRED</strong> to change your temporary password upon first login. 
+          The system will automatically prompt you to create a new secure password.
+        </p>
+      </div>
+
+      <!-- Step-by-step Instructions -->
+      <div class="instructions-box">
+        <h3>📋 ACCOUNT ACTIVATION INSTRUCTIONS</h3>
+        <ol>
+          <li><strong>Access the System:</strong> Click the "Access IERMS" button below or navigate to the login page</li>
+          <li><strong>Login Credentials:</strong> Use your email address and the temporary password provided above</li>
+          <li><strong>Change Password:</strong> You will be prompted to create a new strong password (minimum 8 characters, including uppercase, lowercase, numbers, and special characters)</li>
+          <li><strong>Complete Profile:</strong> Review and update your profile information as needed</li>
+          <li><strong>Explore Features:</strong> Access the Help Center for comprehensive system guides and tutorials</li>
+        </ol>
+      </div>
+
+      <!-- CTA Button -->
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="{{ login_url }}" class="cta-button">ACCESS IERMS SYSTEM</a>
+        <p style="font-size: 11px; color: #6b7280; margin-top: 10px;">
+          Or copy and paste this URL: <span style="color: #0284c7; word-break: break-all;">{{ login_url }}</span>
+        </p>
+      </div>
+
+      <!-- System Features Overview -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        SYSTEM FEATURES & CAPABILITIES
+      </h3>
+      <table style="width: 100%; font-size: 12px; margin-bottom: 20px;">
+        <tr>
+          <td style="padding: 8px; width: 50%; vertical-align: top;">
+            <strong style="color: #0c4a6e;">✓ Establishment Management</strong><br/>
+            <span style="color: #6b7280; font-size: 11px;">Register and track establishments</span>
+          </td>
+          <td style="padding: 8px; width: 50%; vertical-align: top;">
+            <strong style="color: #0c4a6e;">✓ Inspection Workflow</strong><br/>
+            <span style="color: #6b7280; font-size: 11px;">Manage inspection processes</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 8px;">
+            <strong style="color: #0c4a6e;">✓ Geographic Mapping</strong><br/>
+            <span style="color: #6b7280; font-size: 11px;">Interactive establishment location maps</span>
+          </td>
+          <td style="padding: 8px;">
+            <strong style="color: #0c4a6e;">✓ Report Generation</strong><br/>
+            <span style="color: #6b7280; font-size: 11px;">Automated reports and analytics</span>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Support Information -->
+      <div class="support-box">
+        <h4>📞 TECHNICAL SUPPORT & ASSISTANCE</h4>
+        <p><strong>IT Help Desk:</strong> support@ierms.denr.gov.ph | Tel: (02) 8888-4376</p>
+        <p><strong>Office Hours:</strong> Monday - Friday, 8:00 AM - 5:00 PM (Philippine Time)</p>
+        <p><strong>Emergency Support:</strong> For urgent system issues, contact your System Administrator</p>
+      </div>
+
+      <!-- Important Notes -->
+      <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0; font-size: 12px; color: #991b1b;">
+          <strong>⚠️ IMPORTANT SECURITY REMINDERS:</strong>
+        </p>
+        <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 11px; color: #991b1b;">
+          <li>Never share your password with anyone</li>
+          <li>Do not use the same password for multiple accounts</li>
+          <li>Enable two-factor authentication when available</li>
+          <li>Report suspicious activities immediately</li>
+          <li>Log out when using shared computers</li>
+        </ul>
+      </div>
     </div>
-  </body>
-  </html>
 
-
+    {% include 'emails/partials/footer.html' %}
+  </div>
+</body>
+</html>

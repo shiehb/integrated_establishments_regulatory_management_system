@@ -22,8 +22,36 @@ def verify_otp(email, otp):
     stored_otp = cache.get(f"otp_{email}")
     return stored_otp == otp
 
-def send_otp_email(user_email, otp):
-    """Send OTP email to user"""
+def send_otp_email(user_email, otp, user=None, ip_address=None):
+    """Send OTP email to user using enhanced email service"""
+    try:
+        # Use the new enhanced email service
+        from .email_utils import send_otp_email as enhanced_send_otp_email
+        
+        # Create user object if not provided
+        if user is None:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                user = User.objects.get(email=user_email)
+            except User.DoesNotExist:
+                # Create a minimal user object for email template
+                user = type('User', (), {
+                    'email': user_email,
+                    'first_name': '',
+                    'last_name': ''
+                })()
+        
+        return enhanced_send_otp_email(user, otp, ip_address=ip_address)
+        
+    except Exception as e:
+        print(f"Error sending OTP email: {e}")
+        # Fallback to original method if enhanced service fails
+        return _send_otp_email_fallback(user_email, otp, user, ip_address)
+
+
+def _send_otp_email_fallback(user_email, otp, user=None, ip_address=None):
+    """Fallback OTP email method"""
     subject = 'Password Reset OTP'
     
     # Try to get the template path
@@ -33,7 +61,9 @@ def send_otp_email(user_email, otp):
     if os.path.exists(template_path):
         html_message = render_to_string('emails/otp_email.html', {
             'otp_code': otp,
+            'user': user,
             'email': user_email,
+            'ip_address': ip_address,
             'logo_url': getattr(settings, 'EMAIL_HEADER_LOGO_URL', None),
             'logo_alt': getattr(settings, 'EMAIL_HEADER_LOGO_ALT', 'IERMS Logo'),
         })

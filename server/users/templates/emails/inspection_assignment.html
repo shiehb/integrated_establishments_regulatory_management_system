@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Inspection Assignment - IERMS</title>
+  <style>
+    body { font-family: 'Arial', 'Helvetica', sans-serif; line-height: 1.5; color: #1f2937; margin: 0; padding: 20px; background-color: #f3f4f6; }
+    .container { max-width: 650px; margin: 0 auto; background-color: #ffffff; border: 1px solid #d1d5db; }
+    
+    /* Content */
+    .content { padding: 30px; }
+    
+    /* Assignment details table */
+    .assignment-table { width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #d1d5db; }
+    .assignment-table th { background-color: #f3f4f6; padding: 10px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #374151; border-bottom: 2px solid #d1d5db; }
+    .assignment-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
+    .assignment-table td:first-child { font-weight: 600; color: #374151; width: 180px; }
+    .assignment-table td:last-child { font-family: 'Arial', sans-serif; background-color: #f9fafb; color: #0c4a6e; font-weight: 600; }
+    
+    /* Alert boxes */
+    .alert-info { background-color: #f0f9ff; border: 2px solid #0284c7; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    .alert-warning { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    .alert-success { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    
+    /* CTA Button */
+    .cta-button { display: inline-block; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 14px; margin: 20px 0; box-shadow: 0 4px 6px rgba(2, 132, 199, 0.3); }
+    .cta-button.secondary { background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); }
+    
+    /* Priority indicators */
+    .priority-high { color: #dc2626; font-weight: 700; }
+    .priority-medium { color: #f59e0b; font-weight: 700; }
+    .priority-low { color: #16a34a; font-weight: 700; }
+    
+    /* Support info box */
+    .support-box { background-color: #f9fafb; border: 1px dashed #d1d5db; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .support-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #374151; font-weight: 700; }
+    .support-box p { margin: 5px 0; font-size: 12px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    {% include 'emails/partials/header.html' with title='INSPECTION ASSIGNMENT' subtitle='New Inspection Task Assigned' document_type='INSPECTION' %}
+
+    <div class="content">
+      <!-- Reference & Timestamp -->
+      <div style="text-align: right; font-size: 11px; color: #6b7280; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
+        <strong>Assignment ID:</strong> INS-{{ inspection.id|default:'NEW' }}-{% now "YmdHis" %}<br/>
+        <strong>Generated:</strong> {% now "F j, Y, g:i A" %}<br/>
+        <strong>Priority:</strong> <span class="priority-{{ inspection.priority|default:'medium' }}">{{ inspection.priority|default:'Medium'|upper }}</span>
+      </div>
+
+      <!-- Salutation -->
+      <p style="font-size: 14px; margin-bottom: 20px;">
+        <strong>Dear {% if inspector.first_name and inspector.last_name %}{{ inspector.first_name }} {{ inspector.last_name }}{% elif inspector.first_name %}{{ inspector.first_name }}{% else %}{{ inspector.email }}{% endif %},</strong>
+      </p>
+
+      <!-- Assignment Notice -->
+      <div class="alert-info">
+        <p style="margin: 0; font-size: 13px; color: #0c4a6e;">
+          You have been assigned a new inspection task in the Integrated Establishments Regulatory Management System (IERMS). 
+          Please review the details below and prepare for the scheduled inspection.
+        </p>
+      </div>
+
+      <!-- Assignment Details -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        INSPECTION ASSIGNMENT DETAILS
+      </h3>
+      <table class="assignment-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Inspection Code</td>
+            <td>{{ inspection.code|default:'Pending Assignment' }}</td>
+          </tr>
+          <tr>
+            <td>Establishment Name</td>
+            <td>{{ establishment.name|default:'To be determined' }}</td>
+          </tr>
+          <tr>
+            <td>Establishment Type</td>
+            <td>{{ establishment.establishment_type|default:'Not specified' }}</td>
+          </tr>
+          <tr>
+            <td>Inspection Type</td>
+            <td>{{ inspection.inspection_type|default:'Regular Inspection' }}</td>
+          </tr>
+          <tr>
+            <td>Scheduled Date</td>
+            <td>{{ inspection.scheduled_date|default:'To be scheduled'|date:"F j, Y" }}</td>
+          </tr>
+          <tr>
+            <td>Scheduled Time</td>
+            <td>{{ inspection.scheduled_time|default:'To be determined' }}</td>
+          </tr>
+          <tr>
+            <td>Location</td>
+            <td>{{ establishment.address|default:'Address to be provided' }}</td>
+          </tr>
+          <tr>
+            <td>Assigned By</td>
+            <td>{{ assigned_by.name|default:'System Administrator' }}</td>
+          </tr>
+          <tr>
+            <td>Priority Level</td>
+            <td class="priority-{{ inspection.priority|default:'medium' }}">{{ inspection.priority|default:'Medium'|upper }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Special Instructions -->
+      {% if inspection.notes or inspection.special_instructions %}
+      <div class="alert-warning">
+        <p style="margin: 0 0 10px 0; font-size: 13px; color: #92400e; font-weight: 700;">
+          📋 SPECIAL INSTRUCTIONS
+        </p>
+        <p style="margin: 0; font-size: 12px; color: #92400e; line-height: 1.6;">
+          {{ inspection.notes|default:inspection.special_instructions|default:'No special instructions provided.' }}
+        </p>
+      </div>
+      {% endif %}
+
+      <!-- Required Actions -->
+      <div class="alert-success">
+        <p style="margin: 0 0 10px 0; font-size: 13px; color: #166534; font-weight: 700;">
+          ✅ REQUIRED ACTIONS
+        </p>
+        <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 12px; color: #166534; line-height: 1.6;">
+          <li>Review establishment details and inspection requirements</li>
+          <li>Prepare inspection checklist and necessary equipment</li>
+          <li>Confirm inspection schedule with establishment contact</li>
+          <li>Conduct inspection according to DENR guidelines</li>
+          <li>Submit inspection report within 24 hours of completion</li>
+        </ol>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="{{ inspection_url }}" class="cta-button">VIEW INSPECTION DETAILS</a>
+        <a href="{{ establishment_url }}" class="cta-button secondary">VIEW ESTABLISHMENT INFO</a>
+      </div>
+
+      <!-- Important Reminders -->
+      <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0 0 10px 0; font-size: 12px; color: #991b1b; font-weight: 700;">
+          ⚠️ IMPORTANT REMINDERS:
+        </p>
+        <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 11px; color: #991b1b; line-height: 1.6;">
+          <li>Bring official DENR identification and inspection credentials</li>
+          <li>Follow all safety protocols during the inspection</li>
+          <li>Document all findings with photographs when necessary</li>
+          <li>Maintain professional conduct at all times</li>
+          <li>Report any issues or concerns immediately to your supervisor</li>
+        </ul>
+      </div>
+
+      <!-- Support Information -->
+      <div class="support-box">
+        <h4>📞 INSPECTION SUPPORT</h4>
+        <p><strong>Supervisor:</strong> {{ supervisor.name|default:'To be assigned' }}</p>
+        <p><strong>Contact:</strong> {{ supervisor.phone|default:'Contact via IERMS system' }}</p>
+        <p><strong>IT Support:</strong> support@ierms.denr.gov.ph | (02) 8888-4376</p>
+        <p><strong>Emergency:</strong> For urgent inspection issues, contact your immediate supervisor</p>
+      </div>
+
+      <!-- Legal Disclaimer -->
+      <div style="font-size: 10px; color: #9ca3af; margin-top: 25px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: justify;">
+        <p style="margin: 0;">
+          This inspection assignment is generated by the IERMS system in accordance with DENR inspection protocols. 
+          All inspection activities must comply with DENR regulations and the Data Privacy Act of 2012 (R.A. 10173).
+        </p>
+      </div>
+    </div>
+
+    {% include 'emails/partials/footer.html' %}
+  </div>
+</body>
+</html>

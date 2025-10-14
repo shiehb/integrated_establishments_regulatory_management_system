@@ -19,7 +19,7 @@ load_dotenv()
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-rw-#y=jvoa+u33e(!5-f!q%)0fud1%ra3mxt)(q@f&95nequ!0")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "True") == "False"
+DEBUG = os.getenv("DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "").split(",") if os.getenv("ALLOWED_HOSTS") else []
 
@@ -148,14 +148,40 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+EMAIL_TIMEOUT = 30
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_HOST_USER")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "noreply@ierms.denr.gov.ph")
+
+# Email Security & Headers
+EMAIL_SUBJECT_PREFIX = '[IERMS] '
+EMAIL_HEADERS = {
+    'X-Mailer': 'IERMS System v1.0',
+    'X-Priority': '3',
+    'X-MSMail-Priority': 'Normal',
+}
+
+# Email Retry Configuration
+EMAIL_RETRY_ATTEMPTS = 3
+EMAIL_RETRY_DELAY = 5  # seconds
+
+# Email Verification
+EMAIL_VERIFICATION_REQUIRED = True
 
 # If email credentials are not set, fall back to console backend
 if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    print("⚠️  Gmail credentials not found. Using console email backend for development.")
+    print("⚠️  EMAIL CREDENTIALS NOT SET - Using console backend for development")
+    print("   To enable email sending, set these environment variables:")
+    print("   - EMAIL_HOST_USER (your Gmail address)")
+    print("   - EMAIL_HOST_PASSWORD (your Gmail app password)")
+    print("   - DEFAULT_FROM_EMAIL (sender email address)")
+    print("   Emails will be printed to console instead of sent.")
+else:
+    print("✅ Email configuration loaded successfully")
+    print(f"   SMTP Host: {EMAIL_HOST}:{EMAIL_PORT}")
+    print(f"   From Email: {DEFAULT_FROM_EMAIL}")
 
 TEMPLATES = [
     {
@@ -224,6 +250,7 @@ USE_TZ = True
 
 # Static files
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Media files (for future use if needed)
 MEDIA_URL = '/media/'
@@ -240,3 +267,4 @@ os.makedirs(DEFAULT_BACKUP_DIR, exist_ok=True)
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+

@@ -13,3 +13,4 @@ sqlparse==0.5.3
 tzdata==2025.2
 shapely==2.0.6
 pymysql==1.1.1
+python-Levenshtein==0.25.1

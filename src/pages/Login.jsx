@@ -71,7 +71,7 @@ export default function Login() {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    setErrors({}); // Clear previous errors
+    setErrors({});
     
     try {
       const result = await login(formData.email, formData.password);
@@ -82,62 +82,27 @@ export default function Login() {
         navigate("/");
       }
     } catch (err) {
-      // Check for different types of errors
-      if (err.code === 'NETWORK_ERROR' || err.message?.includes('Network Error') || !navigator.onLine) {
-        // Network error - show general error message
-        setErrors({ general: "No internet connection. Please check your network and try again." });
-        notifications.error(
-          "No internet connection. Please check your network and try again.",
-          {
-            title: "Connection Error",
-            duration: 8000
-          }
-        );
-      } else if (err.response?.status === 401) {
-        // Invalid credentials - clear password only and show specific error
+      const errorData = err.response?.data;
+      const errorCode = errorData?.error_code;
+      
+      if (errorCode === 'ACCOUNT_LOCKED') {
+        const remainingMinutes = errorData.details?.remaining_minutes || 0;
+        const message = `Account locked. Try again in ${remainingMinutes} minutes.`;
+        setErrors({ general: message });
+        notifications.error(message, { title: "Account Locked", duration: 8000 });
+      } else if (errorCode === 'INVALID_CREDENTIALS') {
         setFormData(prev => ({ ...prev, password: "" }));
-        setErrors({ password: "Invalid password. Please try again." });
-        // Focus the password field after clearing it
-        setTimeout(() => {
-          passwordInputRef.current?.focus();
-        }, 100);
-        notifications.error(
-          "Invalid password. Please try again.",
-          {
-            title: "Login Failed",
-            duration: 6000
-          }
-        );
-      } else if (err.response?.status === 0 || err.message?.includes('fetch')) {
-        // Server connection error - show general error message
-        setErrors({ general: "Unable to connect to server. Please check your connection and try again." });
-        notifications.error(
-          "Unable to connect to server. Please check your connection and try again.",
-          {
-            title: "Server Error",
-            duration: 8000
-          }
-        );
-      } else if (err.response?.data?.detail) {
-        // Other server errors - show specific error message
-        setErrors({ general: err.response.data.detail });
-        notifications.error(
-          err.response.data.detail,
-          {
-            title: "Login Error",
-            duration: 8000
-          }
-        );
+        setErrors({ password: "Invalid email or password." });
+        notifications.error("Invalid email or password.", { title: "Login Failed" });
+      } else if (errorCode === 'ACCOUNT_DEACTIVATED') {
+        setErrors({ general: "Account deactivated. Contact administrator." });
+        notifications.error("Account deactivated. Contact administrator.", { title: "Account Deactivated" });
+      } else if (!navigator.onLine) {
+        setErrors({ general: "No internet connection." });
+        notifications.error("No internet connection.", { title: "Connection Error" });
       } else {
-        // Generic error
-        setErrors({ general: "An error occurred. Please try again." });
-        notifications.error(
-          "An error occurred. Please try again.",
-          {
-            title: "Login Error",
-            duration: 8000
-          }
-        );
+        setErrors({ general: "Login failed. Please try again." });
+        notifications.error("Login failed. Please try again.", { title: "Login Error" });
       }
     } finally {
       setIsSubmitting(false);
@@ -161,7 +126,7 @@ export default function Login() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-700">
-                Email
+                Email *
               </label>
               {errors.email && (
                 <p className="text-xs text-red-500">{errors.email}</p>
@@ -173,6 +138,7 @@ export default function Login() {
               placeholder="Enter your email"
               value={formData.email}
               onChange={handleChange}
+              required
               className={`w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
                 errors.email ? "border-red-500" : "border-gray-300"
               }`}
@@ -182,7 +148,7 @@ export default function Login() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-700">
-                Password
+                Password *
               </label>
             </div>
             <div className="relative">
@@ -193,6 +159,7 @@ export default function Login() {
                 placeholder="Enter your password"
                 value={formData.password}
                 onChange={handleChange}
+                required
                 className={`w-full border rounded-lg px-4 py-2 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
                   errors.password ? "border-red-500" : "border-gray-300"
                 }`}

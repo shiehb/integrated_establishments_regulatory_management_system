@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Security Alert - IERMS</title>
+  <style>
+    body { font-family: 'Arial', 'Helvetica', sans-serif; line-height: 1.5; color: #1f2937; margin: 0; padding: 20px; background-color: #f3f4f6; }
+    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #d1d5db; }
+    
+    /* Content */
+    .content { padding: 30px; }
+    
+    /* Alert boxes */
+    .alert-danger { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border: 3px solid #dc2626; padding: 20px; margin: 20px 0; border-radius: 8px; }
+    .alert-warning { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    .alert-info { background-color: #f0f9ff; border: 2px solid #0284c7; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    
+    /* Security details table */
+    .security-table { width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #d1d5db; }
+    .security-table th { background-color: #f3f4f6; padding: 10px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #374151; border-bottom: 2px solid #d1d5db; }
+    .security-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
+    .security-table td:first-child { font-weight: 600; color: #374151; width: 180px; }
+    .security-table td:last-child { font-family: 'Courier New', monospace; background-color: #f9fafb; color: #dc2626; font-weight: 600; }
+    
+    /* Action buttons */
+    .action-button { display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: 700; font-size: 13px; margin: 10px 5px; }
+    .action-button.primary { background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); }
+    
+    /* Support info box */
+    .support-box { background-color: #f9fafb; border: 1px dashed #d1d5db; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .support-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #374151; font-weight: 700; }
+    .support-box p { margin: 5px 0; font-size: 12px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    {% include 'emails/partials/header.html' with title='SECURITY ALERT' subtitle='Account Security Notification' document_type='SECURITY' %}
+
+    <div class="content">
+      <!-- Reference & Timestamp -->
+      <div style="text-align: right; font-size: 11px; color: #6b7280; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
+        <strong>Alert ID:</strong> SEC-{{ user.id }}-{% now "YmdHis" %}<br/>
+        <strong>Generated:</strong> {% now "F j, Y, g:i A" %}<br/>
+        <strong>Severity:</strong> {% if alert_type == 'failed_login' %}HIGH{% elif alert_type == 'account_lockout' %}CRITICAL{% else %}MEDIUM{% endif %}
+      </div>
+
+      <!-- Salutation -->
+      <p style="font-size: 14px; margin-bottom: 20px;">
+        <strong>Dear {% if user.first_name and user.last_name %}{{ user.first_name }} {{ user.last_name }}{% elif user.first_name %}{{ user.first_name }}{% else %}{{ user.email }}{% endif %},</strong>
+      </p>
+
+      <!-- Security Alert Notice -->
+      <div class="alert-danger">
+        <p style="margin: 0 0 10px 0; font-size: 14px; color: #991b1b; font-weight: 700;">
+          🚨 {% if alert_type == 'failed_login' %}FAILED LOGIN ATTEMPTS DETECTED{% elif alert_type == 'account_lockout' %}ACCOUNT TEMPORARILY LOCKED{% elif alert_type == 'password_change' %}PASSWORD SUCCESSFULLY CHANGED{% else %}SECURITY EVENT DETECTED{% endif %}
+        </p>
+        <p style="margin: 0; font-size: 13px; color: #991b1b; line-height: 1.6;">
+          {% if alert_type == 'failed_login' %}
+            Multiple failed login attempts have been detected on your IERMS account. This may indicate an unauthorized access attempt.
+          {% elif alert_type == 'account_lockout' %}
+            Your account has been temporarily locked due to multiple failed login attempts. This is a security measure to protect your account.
+          {% elif alert_type == 'password_change' %}
+            Your password has been successfully changed. If you did not make this change, please contact IT Security immediately.
+          {% else %}
+            A security event has been detected on your account that requires your attention.
+          {% endif %}
+        </p>
+      </div>
+
+      <!-- Security Details -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        SECURITY EVENT DETAILS
+      </h3>
+      <table class="security-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Account Email</td>
+            <td>{{ user.email }}</td>
+          </tr>
+          <tr>
+            <td>Event Type</td>
+            <td>{% if alert_type == 'failed_login' %}Failed Login Attempts{% elif alert_type == 'account_lockout' %}Account Lockout{% elif alert_type == 'password_change' %}Password Change{% else %}Security Event{% endif %}</td>
+          </tr>
+          <tr>
+            <td>IP Address</td>
+            <td>{{ ip_address|default:'Not available' }}</td>
+          </tr>
+          <tr>
+            <td>User Agent</td>
+            <td>{{ user_agent|default:'Not available' }}</td>
+          </tr>
+          <tr>
+            <td>Location</td>
+            <td>{{ location|default:'Unknown' }}</td>
+          </tr>
+          {% if failed_attempts %}
+          <tr>
+            <td>Failed Attempts</td>
+            <td>{{ failed_attempts }} attempts</td>
+          </tr>
+          {% endif %}
+          {% if lockout_duration %}
+          <tr>
+            <td>Lockout Duration</td>
+            <td>{{ lockout_duration }} minutes</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <!-- Action Required -->
+      {% if alert_type == 'failed_login' or alert_type == 'account_lockout' %}
+      <div class="alert-warning">
+        <p style="margin: 0 0 10px 0; font-size: 13px; color: #92400e; font-weight: 700;">
+          ⚠️ IMMEDIATE ACTION REQUIRED
+        </p>
+        <p style="margin: 0; font-size: 12px; color: #92400e; line-height: 1.6;">
+          {% if alert_type == 'failed_login' %}
+            If this was you attempting to log in, please ensure you're using the correct password. If you've forgotten your password, use the password reset function.
+          {% elif alert_type == 'account_lockout' %}
+            Your account will be automatically unlocked in {{ lockout_duration|default:'15' }} minutes. To unlock immediately, contact IT Support.
+          {% endif %}
+        </p>
+      </div>
+      {% endif %}
+
+      <!-- Security Recommendations -->
+      <div class="alert-info">
+        <p style="margin: 0 0 10px 0; font-size: 13px; color: #0c4a6e; font-weight: 700;">
+          🔒 SECURITY RECOMMENDATIONS
+        </p>
+        <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 12px; color: #0c4a6e; line-height: 1.6;">
+          <li>Change your password if you suspect unauthorized access</li>
+          <li>Enable two-factor authentication when available</li>
+          <li>Log out from all devices and log in again</li>
+          <li>Review your account activity regularly</li>
+          <li>Report any suspicious activity immediately</li>
+        </ul>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="text-align: center; margin: 30px 0;">
+        {% if alert_type == 'failed_login' or alert_type == 'account_lockout' %}
+        <a href="{{ reset_password_url }}" class="action-button primary">RESET PASSWORD</a>
+        {% endif %}
+        <a href="{{ login_url }}" class="action-button">ACCESS ACCOUNT</a>
+      </div>
+
+      <!-- Support Information -->
+      <div class="support-box">
+        <h4>🚨 URGENT SECURITY SUPPORT</h4>
+        <p><strong>IT Security Team:</strong> security@ierms.denr.gov.ph</p>
+        <p><strong>Emergency Hotline:</strong> (02) 8888-IERMS (4376)</p>
+        <p><strong>Available:</strong> 24/7 for security incidents</p>
+        <p><strong>If you did NOT attempt to access your account:</strong> Contact IT Security immediately</p>
+      </div>
+
+      <!-- Legal Disclaimer -->
+      <div style="font-size: 10px; color: #9ca3af; margin-top: 25px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: justify;">
+        <p style="margin: 0;">
+          This security alert is automatically generated by the IERMS system. Handle this information in accordance with 
+          DENR Information Security policies and the Data Privacy Act of 2012 (R.A. 10173). Unauthorized access attempts 
+          are logged and may be reported to appropriate authorities.
+        </p>
+      </div>
+    </div>
+
+    {% include 'emails/partials/footer.html' %}
+  </div>
+</body>
+</html>

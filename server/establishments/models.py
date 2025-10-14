@@ -42,3 +42,9 @@ class Establishment(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['name']),
+            models.Index(fields=['nature_of_business']),
+            models.Index(fields=['city']),
+            models.Index(fields=['barangay']),
+        ]

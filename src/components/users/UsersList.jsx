@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   Pencil,
   UserCheck,
@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import api, { toggleUserActive } from "../../services/api";
 import ExportDropdown from "../ExportDropdown";
 import PrintPDF from "../PrintPDF";
@@ -133,6 +134,11 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
+  // 🎯 Search highlighting
+  const location = useLocation();
+  const [highlightedUserId, setHighlightedUserId] = useState(null);
+  const highlightedRowRef = useRef(null);
+
   // 🎚 Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [roleFilter, setRoleFilter] = useState([]);
@@ -219,6 +225,28 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [filtersOpen, sortDropdownOpen]);
+
+  // Handle highlighting from search navigation
+  useEffect(() => {
+    console.log('UsersList - Location state:', location.state);
+    if (location.state?.highlightId && location.state?.entityType === 'user') {
+      console.log('Highlighting user:', location.state.highlightId);
+      setHighlightedUserId(location.state.highlightId);
+      
+      // Scroll to highlighted row after render
+      setTimeout(() => {
+        if (highlightedRowRef.current) {
+          console.log('Scrolling to highlighted user');
+          highlightedRowRef.current.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+        } else {
+          console.log('Highlighted row ref not found yet');
+        }
+      }, 500);
+    }
+  }, [location.state]);
 
   const formatFullDate = (dateString) => {
     if (!dateString) return "";
@@ -796,12 +824,16 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                  )}
                </td>
              </tr>
-           ) : (
-             users.map((u) => (
-               <tr
-                 key={u.id}
-                 className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
-               >
+          ) : (
+            users.map((u) => (
+              <tr
+                key={u.id}
+                ref={u.id === highlightedUserId ? highlightedRowRef : null}
+                className={`p-1 text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors ${
+                  u.id === highlightedUserId ? 'search-highlight-persist' : ''
+                }`}
+                onClick={() => setHighlightedUserId(u.id)}
+              >
                  <td className="text-center border-b border-gray-300">
                    <input
                      type="checkbox"

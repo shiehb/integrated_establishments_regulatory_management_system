@@ -37,6 +37,37 @@ export default function LayoutWithSidebar({ children }) {
     };
   }, []);
 
+  // Keyboard shortcuts for Help Center (F1 or ?)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // F1 key
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setHelpModalOpen(true);
+      }
+      // ? key (Shift + /)
+      if (e.key === '?' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        // Don't trigger if user is typing in an input field
+        const activeElement = document.activeElement;
+        const isInputField = activeElement && (
+          activeElement.tagName === 'INPUT' || 
+          activeElement.tagName === 'TEXTAREA' ||
+          activeElement.isContentEditable
+        );
+        if (!isInputField) {
+          e.preventDefault();
+          setHelpModalOpen(true);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   // Show loading state while fetching profile
   if (profileLoading && !profile) {
     return (
