@@ -1096,12 +1096,22 @@ export default function InspectionForm({ inspectionData }) {
     // Automatically determine compliance status based on collected data
     const autoCompliance = determineComplianceStatus();
     
-    // Show completion confirmation dialog with auto-determined compliance
-    setCompleteConfirmation({ 
-      open: true, 
-      compliance: autoCompliance, 
-      violations: '', 
-      findings: '' 
+    // Navigate to review page in preview mode
+    navigate(`/inspections/${inspectionId}/review?mode=preview`, {
+      state: {
+        formData: {
+          general,
+          purpose,
+          permits,
+          complianceItems,
+          systems,
+          recommendationState,
+          findingImages,
+          generalFindings
+        },
+        inspectionData: fullInspectionData,
+        compliance: autoCompliance
+      }
     });
   };
 
