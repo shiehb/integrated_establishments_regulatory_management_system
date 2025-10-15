@@ -207,3 +207,90 @@ def get_current_settings(request):
             {'error': f'Failed to retrieve current settings: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def validate_email_config(request):
+    """Validate email configuration for user creation"""
+    import socket
+    import smtplib
+    
+    errors = []
+    configured = False
+    connectivity = False
+    
+    try:
+        # Check if system configuration exists
+        config = SystemConfiguration.get_active_config()
+        
+        # Check if email settings are configured
+        if not config.email_host:
+            errors.append("Email host not configured.")
+        if not config.email_port:
+            errors.append("Email port not configured.")
+        if not config.email_host_user:
+            errors.append("Email username not configured.")
+        if not config.email_host_password:
+            errors.append("Email password not configured.")
+        if not config.default_from_email:
+            errors.append("Default from email not configured.")
+        
+        if not errors:
+            configured = True
+            
+            # Test internet connectivity by attempting SMTP connection
+            try:
+                # Check internet connectivity first
+                socket.create_connection(("8.8.8.8", 53), timeout=3)
+                
+                # Try to connect to SMTP server
+                smtp_connection = smtplib.SMTP(config.email_host, config.email_port, timeout=10)
+                if config.email_use_tls:
+                    smtp_connection.starttls()
+                smtp_connection.login(config.email_host_user, config.email_host_password)
+                smtp_connection.quit()
+                
+                connectivity = True
+            except socket.gaierror:
+                errors.append("No internet connection. Please check your network.")
+                connectivity = False
+            except socket.timeout:
+                errors.append("Connection timeout. Please check your internet connection.")
+                connectivity = False
+            except smtplib.SMTPAuthenticationError:
+                errors.append("Email authentication failed. Please check your email credentials.")
+                connectivity = False
+            except smtplib.SMTPException as e:
+                errors.append(f"Email server error: {str(e)}")
+                connectivity = False
+            except Exception as e:
+                errors.append(f"Connection error: {str(e)}")
+                connectivity = False
+        
+        valid = configured and connectivity
+        
+        if valid:
+            message = "Email configuration is valid and ready for user creation."
+        elif configured and not connectivity:
+            message = "Email is configured but cannot connect to server. Please check internet connection."
+        elif not configured:
+            message = "Email configuration is incomplete. Please configure email settings in System Configuration."
+        else:
+            message = "Email validation failed."
+        
+        return Response({
+            'valid': valid,
+            'configured': configured,
+            'connectivity': connectivity,
+            'errors': errors,
+            'message': message
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return Response({
+            'valid': False,
+            'configured': False,
+            'connectivity': False,
+            'errors': [f'Validation error: {str(e)}'],
+            'message': 'Email configuration validation failed.'
+        }, status=status.HTTP_200_OK)

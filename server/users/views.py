@@ -129,6 +129,25 @@ class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        # Validate email configuration before creating user
+        from system_config.models import SystemConfiguration
+        
+        try:
+            config = SystemConfiguration.get_active_config()
+            
+            # Check if email settings are configured
+            if not all([config.email_host, config.email_port, config.email_host_user, 
+                       config.email_host_password, config.default_from_email]):
+                return Response({
+                    'detail': 'Email configuration is incomplete. Please configure email settings in System Configuration before creating users.',
+                    'error_code': 'EMAIL_NOT_CONFIGURED'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'detail': 'System configuration not found. Please set up email configuration first.',
+                'error_code': 'CONFIG_NOT_FOUND'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         data = request.data.copy()
         if "password" in data:
             data.pop("password")  # prevent frontend from setting password

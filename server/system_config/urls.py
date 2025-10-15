@@ -6,4 +6,5 @@ urlpatterns = [
     path('config/update/', views.update_system_configuration, name='update_system_configuration'),
     path('config/test-email/', views.test_email_configuration, name='test_email_configuration'),
     path('config/current-settings/', views.get_current_settings, name='get_current_settings'),
+    path('config/validate-email/', views.validate_email_config, name='validate_email_config'),
 ]

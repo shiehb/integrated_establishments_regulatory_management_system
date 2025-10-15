@@ -43,6 +43,12 @@ const SystemConfiguration = () => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [emailStatus, setEmailStatus] = useState({
+    loading: false,
+    valid: false,
+    configured: false,
+    message: ""
+  });
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -72,7 +78,29 @@ const SystemConfiguration = () => {
 
   useEffect(() => {
     fetchConfiguration();
+    checkEmailStatus();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  
+  const checkEmailStatus = async () => {
+    try {
+      setEmailStatus(prev => ({ ...prev, loading: true }));
+      const response = await api.get("system/config/validate-email/");
+      setEmailStatus({
+        loading: false,
+        valid: response.data.valid,
+        configured: response.data.configured,
+        message: response.data.message
+      });
+    } catch (error) {
+      console.error("Email status check error:", error);
+      setEmailStatus({
+        loading: false,
+        valid: false,
+        configured: false,
+        message: "Unable to check email status"
+      });
+    }
+  };
 
   // Add beforeunload event listener for page navigation
   useEffect(() => {
@@ -186,6 +214,9 @@ const SystemConfiguration = () => {
         setInitialConfig(returned);
         setConfig(returned);
         setHasUnsavedChanges(false);
+        
+        // Re-check email status after saving
+        checkEmailStatus();
       }
     } catch (error) {
       console.error("Error saving configuration:", error);
@@ -231,10 +262,16 @@ const SystemConfiguration = () => {
         test_email: testEmail,
       });
       showMessage(response.data.message, "success");
+      
+      // Re-check email status after successful test
+      checkEmailStatus();
     } catch (error) {
       console.error("Error testing email:", error);
       const errorMsg = error.response?.data?.error || "Email test failed";
       showMessage(errorMsg, "error");
+      
+      // Re-check status even on failure to update the indicator
+      checkEmailStatus();
     } finally {
       setTesting(false);
     }
@@ -334,9 +371,33 @@ const SystemConfiguration = () => {
             {/* Email Configuration Section */}
             <div className="xl:col-span-2">
               <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow">
-                <h2 className="mb-2 text-lg font-semibold text-sky-600">
-                  Email Configuration
-                </h2>
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-lg font-semibold text-sky-600">
+                    Email Configuration
+                  </h2>
+                  {!emailStatus.loading && (
+                    <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                      emailStatus.valid 
+                        ? 'bg-green-100 text-green-700' 
+                        : emailStatus.configured 
+                        ? 'bg-yellow-100 text-yellow-700' 
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        emailStatus.valid 
+                          ? 'bg-green-500' 
+                          : emailStatus.configured 
+                          ? 'bg-yellow-500' 
+                          : 'bg-red-500'
+                      }`}></div>
+                      {emailStatus.valid 
+                        ? 'Connected' 
+                        : emailStatus.configured 
+                        ? 'Not Connected' 
+                        : 'Not Configured'}
+                    </div>
+                  )}
+                </div>
                 <div className="flex-1 space-y-6">
 
                   {/* Email Configuration Form */}
