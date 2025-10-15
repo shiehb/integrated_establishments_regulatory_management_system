@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
-import { saveInspectionDraft, completeInspection, getInspection, updateInspection, reviewInspection, forwardToLegal, sendToSection, sendToDivision, closeInspection, sendNOV, sendNOO } from "../../services/api";
+import { saveInspectionDraft, completeInspection, getInspection, updateInspection, reviewInspection, forwardToLegal, sendToSection, sendToDivision, closeInspection, sendNOV, sendNOO, uploadFindingDocument } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 
@@ -15,6 +15,7 @@ import SummaryOfCompliance from "./SummaryOfCompliance";
 import SummaryOfFindingsAndObservations from "./SummaryOfFindingsAndObservations";
 import Recommendations from "./Recommendations";
 import InspectionPolygonMap from "./InspectionPolygonMap";
+import ValidationSummary from "./ValidationSummary";
 
 /* ---------------------------
    Main Inspection Form Component
@@ -88,6 +89,16 @@ export default function InspectionForm({ inspectionData }) {
   );
 
   const [lawFilter, setLawFilter] = useState(savedData?.lawFilter || []);
+  
+  // Finding images state - stores images for each finding system
+  const [findingImages, setFindingImages] = useState(
+    savedData?.findingImages || {}
+  );
+  
+  // General findings documents state
+  const [generalFindings, setGeneralFindings] = useState(
+    savedData?.generalFindings || []
+  );
   const [lastSaveTime, setLastSaveTime] = useState(
     savedData?.lastSaved || null
   );
@@ -271,6 +282,8 @@ export default function InspectionForm({ inspectionData }) {
       systems,
       recommendationState,
       lawFilter,
+      findingImages,
+      generalFindings,
       lastSaved: lastSaveTime || new Date().toISOString(),
     };
     try {
@@ -287,6 +300,8 @@ export default function InspectionForm({ inspectionData }) {
     systems,
     recommendationState,
     lawFilter,
+    findingImages,
+    generalFindings,
     storageKey,
     lastSaveTime,
   ]);
@@ -361,6 +376,14 @@ export default function InspectionForm({ inspectionData }) {
           
           if (checklistData.lawFilter) {
             setLawFilter(checklistData.lawFilter);
+          }
+          
+          if (checklistData.findingImages) {
+            setFindingImages(checklistData.findingImages);
+          }
+          
+          if (checklistData.generalFindings) {
+            setGeneralFindings(checklistData.generalFindings);
           }
           
           // Update last save time from checklist
@@ -454,7 +477,9 @@ export default function InspectionForm({ inspectionData }) {
           permits,
           complianceItems,
           systems,
-          recommendationState
+          recommendationState,
+          findingImages,
+          generalFindings
         };
         
         await saveInspectionDraft(inspectionId, { form_data: formDataToSave });
@@ -470,7 +495,7 @@ export default function InspectionForm({ inspectionData }) {
     }, 3000); // 3 second debounce
     
     return () => clearTimeout(timer);
-  }, [general, purpose, permits, complianceItems, systems, recommendationState, inspectionStatus, inspectionId, hasFormChanges]);
+  }, [general, purpose, permits, complianceItems, systems, recommendationState, findingImages, generalFindings, inspectionStatus, inspectionId, hasFormChanges]);
 
   // Scroll detection for tab navigation
   useEffect(() => {
@@ -518,23 +543,34 @@ export default function InspectionForm({ inspectionData }) {
     };
   }, [sectionRefs]);
 
-  // Scroll to section handler
+  // Scroll to section handler - Enhanced for sticky tabs
   const scrollToSection = (sectionId) => {
     const ref = sectionRefs[sectionId];
-    const mainContainer = document.getElementById('inspection-form-container');
     
-    if (ref && ref.current && mainContainer) {
-      // Get the section's position relative to the container
-      const sectionTop = ref.current.offsetTop;
-      // Account for the padding-top of the container (192px: 72px top-18 + 120px header)
-      const containerPaddingTop = 192;
-      const scrollPosition = sectionTop - containerPaddingTop;
-      
-      mainContainer.scrollTo({
-        top: scrollPosition,
-        behavior: 'smooth'
+    if (ref && ref.current) {
+      // Use scrollIntoView which respects scroll-margin-top CSS
+      ref.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+        inline: 'nearest'
       });
+      
+      // Update active section immediately for better UX
+      setActiveSection(sectionId);
     }
+  };
+
+  // Determine if form is compliant, non-compliant, or mixed
+  const determineOverallCompliance = () => {
+    const hasNonCompliantItems = complianceItems.some(item => item.compliant === "No");
+    const hasNonCompliantSystems = systems.some(system => system.nonCompliant);
+    
+    return {
+      isCompliant: !hasNonCompliantItems && !hasNonCompliantSystems,
+      isNonCompliant: hasNonCompliantItems || hasNonCompliantSystems,
+      hasCompliantItems: complianceItems.some(item => item.compliant === "Yes") || systems.some(system => system.compliant === "Yes"),
+      hasNonCompliantItems: hasNonCompliantItems || hasNonCompliantSystems
+    };
   };
 
   /* ======================
@@ -633,13 +669,33 @@ export default function InspectionForm({ inspectionData }) {
       errs.environmental_laws = "At least one environmental law must be selected.";
     }
 
-    // Compliance - only validate items for selected environmental laws
+    // DENR Permits Validation - At least one permit must be filled
     const selectedLaws = general.environmental_laws || [];
+    const permitsForSelectedLaws = permits.filter(p => selectedLaws.includes(p.lawId));
+    const hasAtLeastOnePermitFilled = permitsForSelectedLaws.some(
+      p => p.permitNumber && p.permitNumber.trim() !== ""
+    );
+    
+    if (selectedLaws.length > 0 && !hasAtLeastOnePermitFilled) {
+      errs.permits = "At least one DENR Permit, License, or Clearance is required.";
+    }
+
+    // Summary of Compliance Validation - At least one compliance item must be filled
+    const complianceItemsForSelectedLaws = complianceItems.filter(item => selectedLaws.includes(item.lawId));
+    const hasAtLeastOneComplianceItemFilled = complianceItemsForSelectedLaws.some(
+      item => item.compliant && item.compliant.trim() !== ""
+    );
+    
+    if (selectedLaws.length > 0 && complianceItemsForSelectedLaws.length > 0 && !hasAtLeastOneComplianceItemFilled) {
+      errs.compliance_items = "At least one compliance item must be evaluated.";
+    }
+
+    // Compliance - validate individual items for selected environmental laws
     complianceItems.forEach((c, i) => {
       // Only validate if the compliance item's law is selected
       if (selectedLaws.includes(c.lawId)) {
       if (!c.compliant) errs[`compliant-${i}`] = "Select compliance status.";
-      if (c.compliant === "Non-Compliant") {
+      if (c.compliant === "No") {
         if (!c.remarksOption) errs[`remarks-${i}`] = "Select a remark option.";
         if (c.remarksOption === "Other" && !c.remarks)
           errs[`remarks-${i}`] = "Enter custom remarks.";
@@ -656,15 +712,21 @@ export default function InspectionForm({ inspectionData }) {
       if (!s.compliant && !s.nonCompliant)
         errs[`systemStatus-${i}`] = `Select status for "${s.system}".`;
       if (s.nonCompliant) {
-        if (!s.remarksOption)
-          errs[`sysRemarks-${i}`] = "Select a remark option.";
-        if (s.remarksOption === "Other" && !s.remarks)
-          errs[`sysRemarks-${i}`] = "Enter custom remarks.";
+        if (!s.remarks || s.remarks.trim() === "")
+          errs[`sysRemarks-${i}`] = "Enter findings summary.";
         }
       }
     });
 
-    // Recommendations - no validation required
+    // Recommendations - Conditional validation based on compliance status
+    const complianceStatus = determineOverallCompliance();
+    if (complianceStatus.isNonCompliant) {
+      // If non-compliant, at least one recommendation is required
+      const hasRecommendation = recommendationState.checked && recommendationState.checked.length > 0;
+      if (!hasRecommendation) {
+        errs.recommendations = "At least one recommendation is required for non-compliant inspections.";
+      }
+    }
 
     setErrors(errs);
     
@@ -868,6 +930,8 @@ export default function InspectionForm({ inspectionData }) {
       systems,
       recommendationState,
       lawFilter,
+      findingImages,
+      generalFindings,
     };
 
     try {
@@ -964,6 +1028,8 @@ export default function InspectionForm({ inspectionData }) {
       systems,
       recommendationState,
       lawFilter,
+      findingImages,
+      generalFindings,
     };
 
     try {
@@ -1385,6 +1451,8 @@ export default function InspectionForm({ inspectionData }) {
       complianceItems,
       systems,
       recommendationState,
+      findingImages,
+      generalFindings,
     };
 
     try {
@@ -1639,6 +1707,80 @@ export default function InspectionForm({ inspectionData }) {
     navigate("/inspections");
   };
 
+  // Generate validation status for tabs - only show when user has interacted or saving
+  const getValidationStatus = () => {
+    const validationStatus = {};
+    
+    // Only show validation indicators if user has made changes or is saving
+    const hasUserInteraction = hasFormChanges || Object.keys(errors).length > 0;
+    
+    if (!hasUserInteraction) {
+      // Return empty status when no user interaction
+      return {
+        general: { hasErrors: false, isIncomplete: false },
+        purpose: { hasErrors: false, isIncomplete: false },
+        'compliance-status': { hasErrors: false, isIncomplete: false },
+        'summary-compliance': { hasErrors: false, isIncomplete: false },
+        findings: { hasErrors: false, isIncomplete: false },
+        recommendations: { hasErrors: false, isIncomplete: false }
+      };
+    }
+    
+    // Check General Information - only show critical field errors
+    const criticalGeneralErrors = [
+      'establishment_name', 'environmental_laws', 'inspection_date_time'
+    ].some(field => errors[field]);
+    validationStatus.general = {
+      hasErrors: criticalGeneralErrors,
+      isIncomplete: !general.establishment_name || !general.environmental_laws?.length
+    };
+    
+    // Check Purpose of Inspection - only show if no purpose selected
+    const purposeErrors = [
+      'verify_accuracy', 'determine_compliance', 'investigate_complaints',
+      'check_commitment_status', 'other_purpose'
+    ].some(field => errors[field]);
+    validationStatus.purpose = {
+      hasErrors: purposeErrors,
+      isIncomplete: !purpose.verify_accuracy && !purpose.determine_compliance && 
+                   !purpose.investigate_complaints && !purpose.check_commitment_status && 
+                   !purpose.other_purpose
+    };
+    
+    // Check Compliance Status - only show permit errors when user has selected laws
+    const complianceErrors = Object.keys(errors).some(key => key.startsWith('permits'));
+    validationStatus['compliance-status'] = {
+      hasErrors: complianceErrors && general.environmental_laws?.length > 0,
+      isIncomplete: false
+    };
+    
+    // Check Summary of Compliance - only show when user has interacted with compliance items
+    const summaryErrors = Object.keys(errors).some(key => key.startsWith('remarks-') || key === 'compliance_items');
+    validationStatus['summary-compliance'] = {
+      hasErrors: summaryErrors,
+      isIncomplete: false
+    };
+    
+    // Check Summary of Findings - only show when user has made compliance decisions
+    const findingsErrors = Object.keys(errors).some(key => key.startsWith('sysRemarks-') || key.startsWith('systemStatus-'));
+    validationStatus.findings = {
+      hasErrors: findingsErrors,
+      isIncomplete: false
+    };
+    
+    // Check Recommendations - only show when non-compliant and user should add recommendations
+    const recommendationsErrors = Object.keys(errors).some(key => key.startsWith('recommendation-'));
+    const complianceStatus = determineOverallCompliance();
+    validationStatus.recommendations = {
+      hasErrors: recommendationsErrors,
+      isIncomplete: complianceStatus.isNonCompliant && 
+                   !recommendationState.recommendations?.length &&
+                   (complianceItems.some(item => item.compliant === "No") || hasUserInteraction)
+    };
+    
+    return validationStatus;
+  };
+
   /* ======================
      Render
      ====================== */
@@ -1681,6 +1823,7 @@ export default function InspectionForm({ inspectionData }) {
             isDraft={fullInspectionData?.form?.checklist?.is_draft || false}
             activeSection={activeSection}
             onTabClick={scrollToSection}
+            validationStatus={getValidationStatus()}
           />
         }
         rightSidebar={
@@ -1692,8 +1835,15 @@ export default function InspectionForm({ inspectionData }) {
           )
         }
       >
-        <div className="w-full bg-white p-4">
+        <div className="w-full bg-gray-50">
 
+        {/* Validation Summary - Only show when user has made changes and there are errors */}
+        {hasFormChanges && Object.keys(errors).length > 0 && (
+          <ValidationSummary 
+            errors={errors} 
+            onScrollToSection={scrollToSection}
+          />
+        )}
             
         <GeneralInformation
           ref={sectionRefs.general}
@@ -1744,6 +1894,23 @@ export default function InspectionForm({ inspectionData }) {
               lawFilter={lawFilter}
               errors={errors}
               isReadOnly={buttonVisibility.isReadOnly}
+              systems={systems}
+              setSystems={(newSystems) => {
+                setSystems(newSystems);
+                setHasFormChanges(true);
+              }}
+              onComplianceChange={(updatedItems) => {
+                // This callback triggers when compliance changes
+                // Used to update recommendations visibility
+                console.log('🔄 Compliance changed, checking recommendations visibility');
+              }}
+              showSyncNotification={(message, type) => {
+                // Show toast notification for auto-sync
+                notifications.info(message, {
+                  title: '🔄 Auto-Sync',
+                  duration: 3000
+                });
+              }}
             />
             <SummaryOfFindingsAndObservations
               ref={sectionRefs.findings}
@@ -1755,21 +1922,126 @@ export default function InspectionForm({ inspectionData }) {
               lawFilter={lawFilter}
               errors={errors}
               isReadOnly={buttonVisibility.isReadOnly}
+              findingImages={findingImages}
+              setFindingImages={(newImages) => {
+                setFindingImages(newImages);
+                setHasFormChanges(true);
+              }}
+              generalFindings={generalFindings}
+              setGeneralFindings={(newGeneralFindings) => {
+                setGeneralFindings(newGeneralFindings);
+                setHasFormChanges(true);
+              }}
+              onUploadFinding={async (systemId, imagesToUpload) => {
+                // Upload handler with actual API integration
+                console.log('Uploading images for system:', systemId, imagesToUpload);
+                
+                try {
+                  for (const image of imagesToUpload) {
+                    // Update progress to show uploading
+                    const updateProgress = (progress) => {
+                      if (systemId === 'general') {
+                        setGeneralFindings(prev => prev.map(img => 
+                          img.id === image.id ? { ...img, uploadProgress: progress } : img
+                        ));
+                      } else {
+                        setFindingImages(prev => ({
+                          ...prev,
+                          [systemId]: (prev[systemId] || []).map(img =>
+                            img.id === image.id ? { ...img, uploadProgress: progress } : img
+                          )
+                        }));
+                      }
+                    };
+
+                    updateProgress(30);
+
+                    // Upload to backend
+                    const findingType = systemId === 'general' ? 'general' : 'individual';
+                    const response = await uploadFindingDocument(
+                      inspectionId,
+                      systemId,
+                      image.file,
+                      image.caption || '',
+                      findingType
+                    );
+
+                    updateProgress(100);
+
+                    // Update with backend URL and mark as uploaded
+                    if (systemId === 'general') {
+                      setGeneralFindings(prev => prev.map(img => 
+                        img.id === image.id 
+                          ? { ...img, uploaded: true, uploadProgress: 100, backendId: response.id, url: response.file_url || img.url }
+                          : img
+                      ));
+                    } else {
+                      setFindingImages(prev => ({
+                        ...prev,
+                        [systemId]: (prev[systemId] || []).map(img =>
+                          img.id === image.id 
+                            ? { ...img, uploaded: true, uploadProgress: 100, backendId: response.id, url: response.file_url || img.url }
+                            : img
+                        )
+                      }));
+                    }
+
+                    console.log('✅ Image uploaded successfully:', response);
+                  }
+                  
+                  notifications.success('Documents uploaded successfully!', {
+                    title: 'Upload Complete'
+                  });
+                } catch (error) {
+                  console.error('Upload failed:', error);
+                  
+                  // Mark images as failed
+                  imagesToUpload.forEach(image => {
+                    if (systemId === 'general') {
+                      setGeneralFindings(prev => prev.map(img => 
+                        img.id === image.id ? { ...img, error: error.message, uploadProgress: 0 } : img
+                      ));
+                    } else {
+                      setFindingImages(prev => ({
+                        ...prev,
+                        [systemId]: (prev[systemId] || []).map(img =>
+                          img.id === image.id ? { ...img, error: error.message, uploadProgress: 0 } : img
+                        )
+                      }));
+                    }
+                  });
+                  
+                  notifications.error(`Upload failed: ${error.message}`, {
+                    title: 'Upload Error'
+                  });
+                }
+              }}
             />
           </>
         )}
 
-        <Recommendations
-          ref={sectionRefs.recommendations}
-          recState={recommendationState}
-          setRecState={(newState) => {
-            setRecommendationState(newState);
-            setHasFormChanges(true);
-          }}
-          errors={errors}
-          isReadOnly={buttonVisibility.isReadOnly}
-          canEditRecommendation={buttonVisibility.canEditRecommendation}
-        />
+        {/* Conditionally display Recommendations based on compliance status */}
+        {(() => {
+          const complianceStatus = determineOverallCompliance();
+          // Show recommendations only if non-compliant
+          if (complianceStatus.isNonCompliant) {
+            return (
+              <Recommendations
+                ref={sectionRefs.recommendations}
+                recState={recommendationState}
+                setRecState={(newState) => {
+                  setRecommendationState(newState);
+                  setHasFormChanges(true);
+                }}
+                errors={errors}
+                isReadOnly={buttonVisibility.isReadOnly}
+                canEditRecommendation={buttonVisibility.canEditRecommendation}
+              />
+            );
+          }
+          // If compliant, hide recommendations section
+          return null;
+        })()}
         </div>
 
     {/* Completion Confirmation Dialog */}

@@ -1,5 +1,5 @@
 import React from "react";
-import TabNavigation from "./TabNavigation";
+import { Info, Target, ClipboardCheck, CheckSquare, AlertCircle, Lightbulb } from "lucide-react";
 
 /* ---------------------------
    Unified Inspection Header
@@ -44,12 +44,36 @@ export default function UnifiedInspectionHeader({
   
   // Tab Navigation props
   activeSection,
-  onTabClick
+  onTabClick,
+  validationStatus = {}
 }) {
+  const tabs = [
+    { id: 'general', label: 'General Information', icon: Info, required: true },
+    { id: 'purpose', label: 'Purpose of Inspection', icon: Target, required: true },
+    { id: 'compliance-status', label: 'Compliance Status', icon: ClipboardCheck, required: true },
+    { id: 'summary-compliance', label: 'Summary of Compliance', icon: CheckSquare, required: true },
+    { id: 'findings', label: 'Summary of Findings and Observations', icon: AlertCircle, required: true },
+    { id: 'recommendations', label: 'Recommendations', icon: Lightbulb, required: false }
+  ];
+
+  // Function to check if a tab has validation errors or is incomplete
+  const getTabStatus = (tabId) => {
+    const hasErrors = validationStatus[tabId]?.hasErrors || false;
+    const isIncomplete = validationStatus[tabId]?.isIncomplete || false;
+    const isRequired = tabs.find(tab => tab.id === tabId)?.required || false;
+    
+    return {
+      hasErrors,
+      isIncomplete,
+      isRequired,
+      needsAttention: isRequired && (hasErrors || isIncomplete)
+    };
+  };
+
   return (
-    <div className="bg-white shadow-lg">
+    <div className="bg-white">
       {/* Internal Header Section */}
-      <header className="flex items-center justify-between w-full px-6 py-3 bg-white border-b border-gray-200">
+      <header className="flex items-center justify-between w-full px-6 py-3 bg-white border-b border-gray-200 relative z-50">
         <div className="flex items-center gap-4">
           <div className="text-xl font-bold text-sky-700">Inspection Form</div>
           
@@ -251,35 +275,59 @@ export default function UnifiedInspectionHeader({
         </div>
       </header>
 
-      {/* Tab Navigation Section */}
-      <div className="bg-white border-b border-gray-200 shadow-sm">
+      {/* Tab Navigation Section - Sticky */}
+      <div className="sticky top-[60px] z-40 bg-white border-b border-gray-200 shadow-sm">
         <div className="px-4">
-          <nav className="flex space-x-8 overflow-x-auto">
-            {[
-              { id: 'general', label: 'General Information' },
-              { id: 'purpose', label: 'Purpose of Inspection' },
-              { id: 'compliance-status', label: 'Compliance Status' },
-              { id: 'summary-compliance', label: 'Summary of Compliance' },
-              { id: 'findings', label: 'Summary of Findings and Observations' },
-              { id: 'recommendations', label: 'Recommendations' }
-            ].map((tab) => (
+          <nav className="flex space-x-6 overflow-x-auto scrollbar-hide">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeSection === tab.id;
+              const tabStatus = getTabStatus(tab.id);
+              return (
               <button
                 key={tab.id}
-                onClick={() => onTabClick(tab.id)}
+                  onClick={() => {
+                    console.log('🎯 Tab clicked:', tab.id);
+                    onTabClick(tab.id);
+                  }}
                 className={`
-                  relative px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors duration-200
-                  ${activeSection === tab.id
+                    relative px-3 py-3 text-sm font-medium whitespace-nowrap transition-all duration-200 flex items-center gap-2
+                    ${isActive
                     ? 'text-sky-700 border-b-2 border-sky-700 bg-sky-50'
-                    : 'text-gray-600 hover:text-gray-800 hover:border-b-2 hover:border-gray-300'
-                  }
-                `}
-              >
-                {tab.label}
-                {activeSection === tab.id && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-700" />
+                      : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                    }
+                    focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2
+                  `}
+                  title={`Jump to ${tab.label}${tabStatus.needsAttention ? ' (Required - Needs Attention)' : tab.required ? ' (Required)' : ''}`}
+                  aria-label={`Navigate to ${tab.label} section`}
+                  aria-current={isActive ? 'true' : 'false'}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-sky-700' : 'text-gray-500'}`} />
+                  <span>{tab.label}</span>
+                  
+                  {/* Required indicator */}
+                  {tab.required && (
+                    <span className={`text-xs font-bold ${tabStatus.needsAttention ? 'text-red-600' : 'text-gray-400'}`}>
+                      *
+                    </span>
+                  )}
+                  
+                  {/* Error indicator */}
+                  {tabStatus.hasErrors && (
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  )}
+                  
+                  {/* Incomplete indicator */}
+                  {tabStatus.isIncomplete && !tabStatus.hasErrors && (
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full" />
+                  )}
+                  
+                  {isActive && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-700 animate-pulse" />
                 )}
               </button>
-            ))}
+              );
+            })}
           </nav>
         </div>
       </div>

@@ -12,6 +12,11 @@ class UserManager(BaseUserManager):
         if not password:
             # Use auto-generated password from system_config
             password = SystemConfiguration.generate_default_password()
+        
+        # Set must_change_password=True by default for new users (unless explicitly set)
+        if 'must_change_password' not in extra_fields:
+            extra_fields['must_change_password'] = True
+        
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)

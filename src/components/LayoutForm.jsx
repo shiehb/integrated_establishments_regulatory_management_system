@@ -19,16 +19,16 @@ export default function LayoutForm({ children, inspectionHeader, rightSidebar })
       {/* Main content area with grid layout for sidebar support */}
       <main 
         id="inspection-form-container"
-        className="flex flex-1 w-full min-h-0 pb-20 overflow-hidden"
+        className="flex flex-1 w-full min-h-0 pb-4 overflow-hidden"
         style={{ 
-          paddingTop: inspectionHeader ? 'calc(6rem + 120px)' : '6rem'
+          paddingTop: inspectionHeader ? 'calc(6rem + 78px)' : '6rem'
         }}
       >
         {/* Grid container for main content and sidebar */}
         <div className="flex w-full">
           {/* Main content area */}
           <div className="flex-1 overflow-y-auto scroll-smooth" style={{ scrollSnapType: 'y proximity', scrollBehavior: 'smooth' }}>
-            <div className="flex justify-center w-full max-w-7xl mx-auto px-4">
+            <div className="flex justify-center w-full max-w-7xl mx-auto px-2 pt-2 pb-4">
               <div className="w-full">
                 {children}
               </div>

@@ -22,6 +22,80 @@ export const PREDEFINED_REMARKS = [
   "Other",
 ];
 
+// DENR-specific remark options by compliance category
+export const DENR_REMARKS_BY_CATEGORY = {
+  Documentation: [
+    "Document not available",
+    "Document expired",
+    "Document incomplete",
+    "Document not properly displayed",
+    "Documentation not updated",
+    "Missing supporting documents",
+    "Document not authenticated",
+    "Other"
+  ],
+  Certification: [
+    "Certificate not available",
+    "Certificate expired",
+    "Certificate invalid",
+    "Certificate not displayed",
+    "Certificate not properly issued",
+    "Missing required certification",
+    "Certificate under review",
+    "Other"
+  ],
+  Reporting: [
+    "Report not submitted",
+    "Report submitted late",
+    "Report incomplete",
+    "Report not in required format",
+    "Missing required data",
+    "Report not authenticated",
+    "Report under review",
+    "Other"
+  ],
+  Permitting: [
+    "Permit not available",
+    "Permit expired",
+    "Permit invalid",
+    "Permit not displayed",
+    "Permit conditions violated",
+    "Permit under review",
+    "Permit application pending",
+    "Other"
+  ],
+  Operational: [
+    "Facility not operational",
+    "Equipment not functioning",
+    "Procedures not followed",
+    "Safety measures not implemented",
+    "Operational standards not met",
+    "Facility under maintenance",
+    "Equipment needs repair",
+    "Other"
+  ],
+  Monitoring: [
+    "Monitoring not conducted",
+    "Monitoring equipment not working",
+    "Monitoring data incomplete",
+    "Monitoring not in compliance",
+    "Monitoring reports missing",
+    "Monitoring system needs calibration",
+    "Monitoring under review",
+    "Other"
+  ],
+  Training: [
+    "Training not completed",
+    "Training certificate expired",
+    "Training not documented",
+    "Training not updated",
+    "Training records missing",
+    "Training under review",
+    "Training needs renewal",
+    "Other"
+  ]
+};
+
 
 export const initialComplianceItems = [
   // PD-1586 (9 rows for ECC conditions)

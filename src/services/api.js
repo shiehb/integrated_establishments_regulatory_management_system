@@ -570,6 +570,42 @@ export const uploadInspectionDocument = async (id, formData) => {
   return res.data;
 };
 
+// Upload finding document with system association
+export const uploadFindingDocument = async (inspectionId, systemId, file, caption = '', findingType = 'individual') => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('system_id', systemId);
+  formData.append('caption', caption);
+  formData.append('finding_type', findingType);
+  
+  const res = await api.post(`inspections/${inspectionId}/findings/documents/`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return res.data;
+};
+
+// Delete finding document
+export const deleteFindingDocument = async (inspectionId, documentId) => {
+  const res = await api.delete(`inspections/${inspectionId}/documents/${documentId}/`);
+  return res.data;
+};
+
+// Update document caption
+export const updateDocumentCaption = async (inspectionId, documentId, caption) => {
+  const res = await api.patch(`inspections/${inspectionId}/documents/${documentId}/`, {
+    caption
+  });
+  return res.data;
+};
+
+// Get finding documents for an inspection
+export const getFindingDocuments = async (inspectionId) => {
+  const res = await api.get(`inspections/${inspectionId}/findings/documents/`);
+  return res.data;
+};
+
 // Get available actions for an inspection
 export const getAvailableActions = async (id) => {
   const res = await api.get(`inspections/${id}/available_actions/`);

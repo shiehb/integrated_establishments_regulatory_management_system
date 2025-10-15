@@ -130,29 +130,29 @@ const PurposeOfInspection = forwardRef(function PurposeOfInspection({ state, set
     setState({ ...state, [field]: formatter(value) });
 
   return (
-    <section ref={ref} data-section="purpose" className="min-h-[calc(100vh-220px)] p-4 mb-6 bg-white border border-black scroll-mt-48" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
+    <section ref={ref} data-section="purpose" className="p-3 mb-4 bg-white rounded-lg shadow-sm border border-gray-300 scroll-mt-[120px]" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
       <SectionHeader title="Purpose of Inspection" />
-      <div className="space-y-4">
+      <div className="space-y-2.5">
         {purposes.map((p) => (
           <div key={p.id} className="flex items-start gap-3">
-            <input
+              <input
               type="checkbox"
               checked={state[p.id] || false}
               onChange={() => togglePurpose(p.id)}
-              className="w-4 h-4 mt-1 border-black"
+              className="w-4 h-4 mt-1 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
               disabled={isReadOnly}
             />
             <div className="flex-1">
-              <div className="text-black">{p.label}</div>
+              <div className="text-sm text-gray-900">{p.label}</div>
 
               {p.id === "verify_accuracy" &&
                 state.verify_accuracy && (
-                  <div className={`p-3 mt-3 ml-6 border rounded ${
+                  <div className={`p-2.5 mt-2 ml-6 border rounded-md ${
                     accuracyDetailsValidation.isValid === false 
                       ? "border-red-500 bg-red-50" 
-                      : "border-gray-300"
+                      : "border-gray-200 bg-gray-50"
                   }`}>
-                    <label className="block mb-2 text-sm font-medium text-black">
+                    <label className="block mb-2 text-sm font-medium text-gray-700">
                       Verify accuracy of (select all that apply):
                       <span className="text-red-600">*</span>
                     </label>
@@ -160,13 +160,13 @@ const PurposeOfInspection = forwardRef(function PurposeOfInspection({ state, set
                       {accuracyDetailsOptions.map((item) => (
                         <div key={item.id} className="space-y-2">
                           <label className="flex items-center gap-2">
-                            <input
+                              <input
                               type="checkbox"
                               checked={(state.verify_accuracy_details || []).includes(
                                 item.id
                               )}
                               onChange={() => toggleAccuracyDetail(item.id)}
-                              className="w-4 h-4 border-black"
+                              className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
                               disabled={isReadOnly}
                             />
                             <span className="text-sm text-black">
@@ -189,7 +189,7 @@ const PurposeOfInspection = forwardRef(function PurposeOfInspection({ state, set
                                     )
                                   }
                                   placeholder="PLEASE SPECIFY..."
-                                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-gray-900 min-h-[60px] uppercase focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                                   disabled={isReadOnly}
                                 />
                               </div>
@@ -210,10 +210,10 @@ const PurposeOfInspection = forwardRef(function PurposeOfInspection({ state, set
 
               {p.id === "check_commitment_status" &&
                 state.check_commitment_status && (
-                  <div className={`p-3 mt-3 ml-6 border rounded ${
+                  <div className={`p-2.5 mt-2 ml-6 border rounded-md ${
                     commitmentDetailsValidation.isValid === false 
                       ? "border-red-500 bg-red-50" 
-                      : "border-gray-300"
+                      : "border-gray-200 bg-gray-50"
                   }`}>
                     <label className="block mb-2 text-sm font-medium text-black">
                       Check status of (select all that apply):
@@ -229,7 +229,7 @@ const PurposeOfInspection = forwardRef(function PurposeOfInspection({ state, set
                                 state.commitment_status_details || []
                               ).includes(item.id)}
                               onChange={() => toggleCommitmentStatus(item.id)}
-                              className="w-4 h-4 border-black"
+                              className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
                               disabled={isReadOnly}
                             />
                             <span className="text-sm text-black">
@@ -254,7 +254,7 @@ const PurposeOfInspection = forwardRef(function PurposeOfInspection({ state, set
                                     )
                                   }
                                   placeholder="PLEASE SPECIFY..."
-                                  className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-gray-900 min-h-[60px] uppercase focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                                   disabled={isReadOnly}
                                 />
                               </div>
@@ -274,8 +274,8 @@ const PurposeOfInspection = forwardRef(function PurposeOfInspection({ state, set
                 )}
 
               {p.id === "other_purpose" && state.other_purpose && (
-                <div className="mt-3 ml-6">
-                  <label className="block mb-1 text-sm text-black">
+                <div className="mt-2 ml-6">
+                  <label className="block mb-1 text-sm font-medium text-gray-700">
                     Specify other purpose:
                     <span className="text-red-600">*</span>
                   </label>
@@ -285,7 +285,7 @@ const PurposeOfInspection = forwardRef(function PurposeOfInspection({ state, set
                       updateField("other_purpose_specify", e.target.value)
                     }
                     placeholder="PLEASE SPECIFY..."
-                    className="w-full border border-black px-2 py-1 bg-white text-black min-h-[80px] uppercase"
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-gray-900 min-h-[60px] uppercase focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
                     disabled={isReadOnly}
                   />
                   {/* Validation message for other purpose */}

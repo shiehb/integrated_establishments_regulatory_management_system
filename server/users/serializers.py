@@ -138,6 +138,8 @@ class UserSerializer(serializers.ModelSerializer):
             'date_joined',
             'updated_at',  # NEW: Include updated_at field
             'is_active',
+            'must_change_password',  # Required for forced password change on first login
+            'is_first_login',  # Track if user has logged in before
         )
 
     def validate(self, data):

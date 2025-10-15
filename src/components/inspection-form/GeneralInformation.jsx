@@ -21,6 +21,13 @@ const GeneralInformation = forwardRef(function GeneralInformation({
   const [emailValidation, setEmailValidation] = useState({ isValid: false, message: "" });
   // State for date/time validation
   const [dateTimeValidation, setDateTimeValidation] = useState({ isValid: false, message: "" });
+  // State for confirmation modal
+  const [confirmationModal, setConfirmationModal] = useState({ 
+    isOpen: false, 
+    lawId: null, 
+    action: null, 
+    lawName: null 
+  });
   
   // Ref to track if we've already processed inspection data
   const hasProcessedInspectionData = useRef(false);
@@ -149,9 +156,13 @@ const GeneralInformation = forwardRef(function GeneralInformation({
     // Clear error when user changes the value
     if (clearError) clearError("phone_fax_no");
     
-    // Validate the phone/fax number
-    const validation = validatePhoneOrFax(formattedValue);
-    setPhoneValidation(validation);
+    // Only validate if user has entered something (not on initial load)
+    if (formattedValue.trim() !== "") {
+      const validation = validatePhoneOrFax(formattedValue);
+      setPhoneValidation(validation);
+    } else {
+      setPhoneValidation({ isValid: false, message: "" });
+    }
   };
 
   // Handle email validation
@@ -162,9 +173,13 @@ const GeneralInformation = forwardRef(function GeneralInformation({
     // Clear error when user changes the value
     if (clearError) clearError("email_address");
     
-    // Validate the email address
-    const validation = validateEmailAddress(formattedValue);
-    setEmailValidation(validation);
+    // Only validate if user has entered something (not on initial load)
+    if (formattedValue.trim() !== "") {
+      const validation = validateEmailAddress(formattedValue);
+      setEmailValidation(validation);
+    } else {
+      setEmailValidation({ isValid: false, message: "" });
+    }
   };
 
   // Handle date/time validation
@@ -174,53 +189,130 @@ const GeneralInformation = forwardRef(function GeneralInformation({
     // Clear error when user changes the value
     if (clearError) clearError("inspection_date_time");
     
-    // Validate the date/time
-    const validation = validateInspectionDateTime(value, inspectionData?.created_at);
-    setDateTimeValidation(validation);
+    // Only validate if user has entered something (not on initial load)
+    if (value.trim() !== "") {
+      const validation = validateInspectionDateTime(value, inspectionData?.created_at);
+      setDateTimeValidation(validation);
+    } else {
+      setDateTimeValidation({ isValid: false, message: "" });
+    }
   };
 
 
   const toggleLaw = (lawId) => {
     const selected = data.environmental_laws || [];
     const isInitialLaw = inspectionData && inspectionData.law === lawId;
-    // Don't allow unchecking the initial law (required law)
+    const isPD1586Inspection = inspectionData && inspectionData.law === 'PD-1586';
+    
+    // Don't allow any changes if this is a PD-1586 inspection (all checkboxes locked)
+    if (isPD1586Inspection) return;
+    
+    // Don't allow unchecking the initial law (required law) for other inspections
     if (isInitialLaw && selected.includes(lawId)) return;
-    const updated = selected.includes(lawId)
-      ? selected.filter((l) => l !== lawId)
-      : [...selected, lawId];
+    
+    // Show confirmation modal before making changes
+    const lawName = InspectionConstants.LAWS.find(law => law.id === lawId)?.label || lawId;
+    const action = selected.includes(lawId) ? 'remove' : 'add';
+    
+    setConfirmationModal({
+      isOpen: true,
+      lawId,
+      action,
+      lawName
+    });
+  };
+
+  // Handle confirmed law toggle
+  const confirmToggleLaw = () => {
+    const { lawId, action } = confirmationModal;
+    const selected = data.environmental_laws || [];
+    
+    const updated = action === 'add'
+      ? [...selected, lawId]
+      : selected.filter((l) => l !== lawId);
+    
     setData({ ...data, environmental_laws: updated });
     
     // Clear environmental laws error when user makes a selection
     if (clearError) clearError("environmental_laws");
     
     if (onLawFilterChange) onLawFilterChange(updated);
+    
+    // Close modal
+    setConfirmationModal({ isOpen: false, lawId: null, action: null, lawName: null });
   };
 
+  // Handle cancel confirmation
+  const cancelToggleLaw = () => {
+    setConfirmationModal({ isOpen: false, lawId: null, action: null, lawName: null });
+  };
+
+  // Auto-fill inspection date/time when component mounts (only if not already set)
+  useEffect(() => {
+    if (!data.inspection_date_time && inspectionData) {
+      const now = new Date();
+      const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16);
+      setData(prev => ({ ...prev, inspection_date_time: localDateTime }));
+    }
+  }, [inspectionData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-check PD-1586 when inspection law is PD-1586
+  useEffect(() => {
+    if (inspectionData && inspectionData.law === 'PD-1586') {
+      const currentLaws = data.environmental_laws || [];
+      if (!currentLaws.includes('PD-1586')) {
+        setData(prev => ({ 
+          ...prev, 
+          environmental_laws: ['PD-1586'] 
+        }));
+        
+        // Update law filter
+        if (onLawFilterChange) {
+          onLawFilterChange(['PD-1586']);
+        }
+      }
+    }
+  }, [inspectionData, data.environmental_laws, onLawFilterChange]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <section ref={ref} data-section="general" className="min-h-[calc(100vh-220px)] p-4 mb-6 bg-white border border-black scroll-mt-48" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
+    <section ref={ref} data-section="general" className="p-3 mb-4 bg-white rounded-lg shadow-sm border border-gray-300 scroll-mt-[120px]" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
       <SectionHeader title="General Information" />
-      <div className="mt-4">
-        <label className="block mb-2 text-black">
+      <div className="mt-3">
+        <label className="block mb-2 text-sm font-medium text-gray-700">
           Applicable Environmental Laws (check all that apply)
           <span className="text-red-600">*</span>
         </label>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
           {InspectionConstants.LAWS.map((law) => {
             const isInitialLaw =
               inspectionData && inspectionData.law === law.id;
             const isChecked = (data.environmental_laws || []).includes(law.id);
+            const isPD1586Inspection = inspectionData && inspectionData.law === 'PD-1586';
+            const isPD1586Law = law.id === 'PD-1586';
+            
             return (
               <label key={law.id} className="flex items-center space-x-2">
                 <input
                   type="checkbox"
                   checked={isChecked}
                   onChange={() => toggleLaw(law.id)}
-                  className="w-4 h-4 border-black"
-                  disabled={(isInitialLaw && isChecked) || isReadOnly}
+                  className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
+                  disabled={
+                    (isInitialLaw && isChecked) || 
+                    isReadOnly || 
+                    isPD1586Inspection
+                  }
                 />
-                <span className="text-black">{law.label}</span>
+                <span className={`text-sm ${isPD1586Inspection ? 'text-gray-600' : 'text-gray-900'}`}>
+                  {law.label}
+                </span>
                 {isInitialLaw && isChecked && (
                   <span className="text-xs text-gray-500">(Required)</span>
+                )}
+                {isPD1586Inspection && isPD1586Law && isChecked && (
+                  <span className="text-xs text-blue-600 font-medium">(Locked)</span>
                 )}
               </label>
             );
@@ -231,12 +323,14 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         )}
       </div>
 
-      <div className="mt-4">
-        <label className="block mb-1 text-sm text-black">
+      {/* Basic Details Card */}
+      <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
+      <div>
+        <label className="block mb-1 text-sm font-medium text-gray-700">
           Name of Establishment<span className="text-red-600">*</span>
         </label>
         <input
-          className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
+          className="w-full px-3 py-2 text-gray-900 uppercase bg-gray-100 border border-gray-300 rounded-md"
           value={data.establishment_name || ""}
           readOnly
           title="Auto-filled from inspection data"
@@ -246,13 +340,13 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mt-4">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block mb-1 text-sm text-black">
+          <label className="block mb-1 text-sm font-medium text-gray-700">
             Address<span className="text-red-600">*</span>
           </label>
           <input
-            className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
+            className="w-full px-3 py-2 text-gray-900 uppercase bg-gray-100 border border-gray-300 rounded-md"
             value={data.address || ""}
             readOnly
             title="Auto-filled from inspection data"
@@ -262,11 +356,11 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           )}
         </div>
         <div>
-          <label className="block mb-1 text-sm text-black">
+          <label className="block mb-1 text-sm font-medium text-gray-700">
             Coordinates (Decimal)<span className="text-red-600">*</span>
           </label>
           <input
-            className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
+            className="w-full px-3 py-2 text-gray-900 uppercase bg-gray-100 border border-gray-300 rounded-md"
             value={data.coordinates || ""}
             readOnly
             title="Auto-filled from inspection data"
@@ -277,12 +371,12 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         </div>
       </div>
 
-      <div className="mt-4">
-        <label className="block mb-1 text-sm text-black">
+      <div>
+        <label className="block mb-1 text-sm font-medium text-gray-700">
           Nature of Business<span className="text-red-600">*</span>
         </label>
         <input
-          className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
+          className="w-full px-3 py-2 text-gray-900 uppercase bg-gray-100 border border-gray-300 rounded-md"
           value={data.nature_of_business || ""}
           readOnly
           title="Auto-filled from inspection data"
@@ -292,14 +386,14 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mt-4">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block mb-1 text-sm text-black">
+          <label className="block mb-1 text-sm font-medium text-gray-700">
             Year Established<span className="text-red-600">*</span>
           </label>
           <input
             type="number"
-            className="w-full px-2 py-1 text-black uppercase bg-gray-100 border border-black"
+            className="w-full px-3 py-2 text-gray-900 uppercase bg-gray-100 border border-gray-300 rounded-md"
             value={data.year_established || ""}
             readOnly
             title="Auto-filled from inspection data"
@@ -309,18 +403,18 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           )}
         </div>
         <div>
-          <label className="block mb-1 text-sm text-black">
+          <label className="block mb-1 text-sm font-medium text-gray-700">
             Inspection Date & Time<span className="text-red-600">*</span>
           </label>
           <div className="relative">
           <input
             type="datetime-local"
-              className={`w-full px-2 py-1 text-black bg-white border ${
+              className={`w-full px-3 py-2 text-gray-900 bg-white border rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
                 data.inspection_date_time && data.inspection_date_time.trim() !== ""
                   ? dateTimeValidation.isValid
-                    ? "border-black"
+                    ? "border-gray-300"
                     : "border-red-500"
-                  : "border-black"
+                  : "border-gray-300"
               }`}
             value={data.inspection_date_time || ""}
               onChange={(e) => handleDateTimeChange(e.target.value)}
@@ -343,17 +437,20 @@ const GeneralInformation = forwardRef(function GeneralInformation({
             <p className="text-sm text-red-600">{errors.inspection_date_time}</p>
           )}
         </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mt-4">
+      {/* Operating Details Card */}
+      <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
+      <div className="grid grid-cols-3 gap-3">
         <div>
-          <label className="block mb-1 text-sm text-black">
+          <label className="block mb-1 text-sm font-medium text-gray-700">
             Operating Hours<span className="text-red-600">*</span>
           </label>
 
           {/* Dropdown */}
           <select
-            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
+            className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
             value={
               data.operating_hours === "" 
                 ? "" 
@@ -389,7 +486,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
               type="number"
               min="1"
               max="24"
-              className="w-full mt-2 px-2 py-1 text-black bg-white border border-black"
+              className="w-full mt-2 px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
               placeholder="Enter custom hours (1–24)"
               value={typeof data.operating_hours === "number" ? data.operating_hours : ""}
               onChange={(e) => {
@@ -414,13 +511,13 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         </div>
 
         <div>
-          <label className="block mb-1 text-sm text-black">
+          <label className="block mb-1 text-sm font-medium text-gray-700">
             Operating Days/Week<span className="text-red-600">*</span>
           </label>
 
           {/* Dropdown */}
           <select
-            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
+            className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
             value={
               data.operating_days_per_week === "" 
                 ? "" 
@@ -457,7 +554,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
               type="number"
               min="1"
               max="7"
-              className="w-full mt-2 px-2 py-1 text-black bg-white border border-black"
+              className="w-full mt-2 px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
               placeholder="Enter custom days (1–7)"
               value={typeof data.operating_days_per_week === "number" ? data.operating_days_per_week : ""}
               onChange={(e) => {
@@ -482,13 +579,13 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           )}
         </div>
         <div>
-          <label className="block mb-1 text-sm text-black">
+          <label className="block mb-1 text-sm font-medium text-gray-700">
             Operating Days/Year<span className="text-red-600">*</span>
           </label>
 
           {/* Dropdown */}
           <select
-            className="w-full px-2 py-1 text-black uppercase bg-white border border-black"
+            className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
             value={
               data.operating_days_per_year === "" 
                 ? "" 
@@ -524,7 +621,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
               type="number"
               min="1"
               max="365"
-              className="w-full mt-2 px-2 py-1 text-black bg-white border border-black"
+              className="w-full mt-2 px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
               placeholder="Enter custom days (1–365)"
               value={typeof data.operating_days_per_year === "number" ? data.operating_days_per_year : ""}
               onChange={(e) => {
@@ -548,23 +645,24 @@ const GeneralInformation = forwardRef(function GeneralInformation({
             </p>
           )}
         </div>
+        </div>
       </div>
 
-      <div className="my-4 border-t border-black" />
-
-      <div className="grid grid-cols-2 gap-4 mt-4">
+      {/* Contact Information Card */}
+      <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block mb-1 text-sm text-black">
+          <label className="block mb-1 text-sm font-medium text-gray-700">
             Phone/ Fax No.<span className="text-red-600">*</span>
           </label>
           <div className="relative">
           <input
-              className={`w-full px-2 py-1 text-black bg-white border ${
+              className={`w-full px-3 py-2 text-gray-900 bg-white border rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
                 data.phone_fax_no && data.phone_fax_no.trim() !== ""
                   ? phoneValidation.isValid
                     ? "border-green-500"
                     : "border-red-500"
-                  : "border-black"
+                  : "border-gray-300"
               }`}
             value={data.phone_fax_no || ""}
               onChange={(e) => handlePhoneFaxChange(e.target.value)}
@@ -588,20 +686,20 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           )}
         </div>
         <div>
-          <label className="block mb-1 text-sm text-black">
+          <label className="block mb-1 text-sm font-medium text-gray-700">
             Email Address<span className="text-red-600">*</span>
           </label>
           <div className="relative">
           <input
             type="email"
-              className={`w-full px-2 py-1 text-black lowercase bg-white border ${
+              className={`w-full px-3 py-2 text-gray-900 lowercase bg-white border rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
                 data.email_address && data.email_address.trim() !== ""
                   ? emailValidation.isValid
                     ? emailValidation.warning
                       ? "border-yellow-500"
                       : "border-green-500"
                     : "border-red-500"
-                  : "border-black"
+                  : "border-gray-300"
               }`}
             value={data.email_address || ""}
               onChange={(e) => handleEmailChange(e.target.value)}
@@ -628,7 +726,65 @@ const GeneralInformation = forwardRef(function GeneralInformation({
             <p className="text-sm text-red-600">{errors.email_address}</p>
           )}
         </div>
+        </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {confirmationModal.isOpen && (
+        <div className="fixed inset-0  bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="flex-shrink-0">
+                  <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Confirm Environmental Law Change
+                  </h3>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-sm text-gray-600">
+                  Are you sure you want to {confirmationModal.action === 'add' ? 'add' : 'remove'} the following environmental law?
+                </p>
+                <div className="mt-2 p-3 bg-gray-50 rounded-md">
+                  <p className="font-medium text-gray-900">{confirmationModal.lawName}</p>
+                </div>
+                {confirmationModal.action === 'remove' && (
+                  <p className="text-xs text-red-600 mt-2">
+                    ⚠️ Removing this law will clear all related compliance items and findings.
+                  </p>
+                )}
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={cancelToggleLaw}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmToggleLaw}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                    confirmationModal.action === 'add'
+                      ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
+                      : 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
+                  }`}
+                >
+                  {confirmationModal.action === 'add' ? 'Add Law' : 'Remove Law'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 });

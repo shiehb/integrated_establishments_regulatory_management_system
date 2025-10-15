@@ -65,9 +65,17 @@ const Recommendations = forwardRef(function Recommendations({ recState, setRecSt
   };
 
   return (
-    <section ref={ref} data-section="recommendations" className="min-h-[calc(100vh-220px)] p-4 mb-6 bg-white border border-black scroll-mt-48" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
+    <section ref={ref} data-section="recommendations" className="p-3 mb-4 bg-white rounded-lg shadow-sm border border-gray-300 scroll-mt-[120px]" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
       <SectionHeader title="Recommendations" />
-      <div className="space-y-3">
+      {errors.recommendations && (
+        <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-sm text-red-600 flex items-center gap-2">
+            <span className="text-lg">⚠️</span>
+            {errors.recommendations}
+          </p>
+        </div>
+      )}
+      <div className="space-y-2.5">
         {recommendations.map((r) => (
           <label key={r.id} className="flex items-center gap-2">
             <input
@@ -75,9 +83,9 @@ const Recommendations = forwardRef(function Recommendations({ recState, setRecSt
               checked={(recState.checked || []).includes(r.label)}
               onChange={() => toggle(r.label)}
               disabled={isReadOnly && !canEditRecommendation}
-              className={`w-4 h-4 ${isReadOnly && !canEditRecommendation ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500 ${isReadOnly && !canEditRecommendation ? 'opacity-50 cursor-not-allowed' : ''}`}
             />
-            <span className={`text-sm text-black ${isReadOnly && !canEditRecommendation ? 'text-gray-500' : ''}`}>{r.label}</span>
+            <span className={`text-sm ${isReadOnly && !canEditRecommendation ? 'text-gray-500' : 'text-gray-900'}`}>{r.label}</span>
           </label>
         ))}
 
@@ -88,10 +96,10 @@ const Recommendations = forwardRef(function Recommendations({ recState, setRecSt
               onChange={(e) => updateField("otherText", e.target.value)}
               placeholder="ENTER OTHER RECOMMENDATION..."
               disabled={isReadOnly && !canEditRecommendation}
-              className={`w-full border border-black px-2 py-1 min-h-[80px] uppercase ${
+              className={`w-full border border-gray-300 rounded-md px-3 py-2 min-h-[60px] uppercase focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
                 isReadOnly && !canEditRecommendation 
                   ? 'bg-gray-100 text-gray-600 cursor-not-allowed' 
-                  : 'bg-white text-black'
+                  : 'bg-white text-gray-900'
               }`}
             />
             {errors.recommendations && (
