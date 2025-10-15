@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
-import PolygonMap from "../establishments/PolygonMap";
+import InspectionMap from "./InspectionMap";
 import { setEstablishmentPolygon } from "../../services/api";
 import { useNotifications } from "../NotificationManager";
+import { X } from "lucide-react";
 
-export default function InspectionPolygonMap({ inspectionData, currentUser }) {
+export default function InspectionPolygonMap({ inspectionData, currentUser, onClose }) {
   const notifications = useNotifications();
   const [loading, setLoading] = useState(false);
   const [establishment, setEstablishment] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [mapKey, setMapKey] = useState(0);
 
   // Check if user can edit polygons (exclude Division Chief)
   const canEditPolygon = () => {
@@ -27,13 +29,37 @@ export default function InspectionPolygonMap({ inspectionData, currentUser }) {
   useEffect(() => {
     if (inspectionData?.establishments_detail?.[0]) {
       const establishmentData = inspectionData.establishments_detail[0];
+      console.log('🗺️ Map Debug - Establishment Data:', {
+        id: establishmentData.id,
+        name: establishmentData.name,
+        latitude: establishmentData.latitude,
+        longitude: establishmentData.longitude,
+        polygon: establishmentData.polygon,
+        hasPolygon: !!establishmentData.polygon,
+        polygonLength: establishmentData.polygon?.length,
+        polygonType: typeof establishmentData.polygon,
+        isArray: Array.isArray(establishmentData.polygon)
+      });
+      
+      // Ensure polygon is always an array
+      let polygonData = establishmentData.polygon;
+      if (!Array.isArray(polygonData)) {
+        console.warn('⚠️ Polygon data is not an array:', polygonData);
+        polygonData = [];
+      }
+      
       setEstablishment({
         id: establishmentData.id,
         name: establishmentData.name,
         latitude: establishmentData.latitude,
         longitude: establishmentData.longitude,
-        polygon: establishmentData.polygon || []
+        polygon: polygonData
       });
+      
+      // Force map refresh when establishment changes
+      setMapKey(prev => prev + 1);
+    } else {
+      console.log('🗺️ Map Debug - No establishment data found:', inspectionData);
     }
   }, [inspectionData]);
 
@@ -115,33 +141,42 @@ export default function InspectionPolygonMap({ inspectionData, currentUser }) {
           <h3 className="text-lg font-semibold text-gray-800">
             Establishment Boundary
           </h3>
-          {canEditPolygon() && (
+          <div className="flex items-center gap-2">
+            {canEditPolygon() && (
+              <button
+                onClick={() => setIsEditMode(!isEditMode)}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  isEditMode
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {isEditMode ? (
+                  <>
+                    <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    View Mode
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit Mode
+                  </>
+                )}
+              </button>
+            )}
             <button
-              onClick={() => setIsEditMode(!isEditMode)}
-              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                isEditMode
-                  ? 'bg-green-600 text-white hover:bg-green-700'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
+              onClick={onClose}
+              className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+              title="Close map"
             >
-              {isEditMode ? (
-                <>
-                  <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  View Mode
-                </>
-              ) : (
-                <>
-                  <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Edit Mode
-                </>
-              )}
+              <X className="w-5 h-5" />
             </button>
-          )}
+          </div>
         </div>
         <p className="text-sm text-gray-600">
           {establishment.name}
@@ -150,7 +185,7 @@ export default function InspectionPolygonMap({ inspectionData, currentUser }) {
           <p className={`text-xs mt-1 ${
             isEditMode ? 'text-orange-600' : 'text-green-600'
           }`}>
-            {isEditMode ? '✏️ Edit mode active - Draw or modify polygon' : '✓ Ready to edit polygon boundary'}
+            {isEditMode ? '✏️ Edit mode active - Draw or modify polygon' : '✓ Click "Edit Mode" to modify boundary'}
           </p>
         )}
         {!canEditPolygon() && currentUser?.userlevel && (
@@ -171,56 +206,37 @@ export default function InspectionPolygonMap({ inspectionData, currentUser }) {
       )}
 
       {/* Map container */}
-      <div className="flex-1 relative">
-        <PolygonMap
-          establishment={establishment}
-          onSave={handlePolygonSave}
-          userRole={currentUser?.userlevel}
-          editMode={canEditPolygon() && isEditMode}
-          showOtherPolygons={true}
-          snapEnabled={true}
-          snapDistance={10}
-        />
+      <div className="flex-1 relative min-h-[400px]">
+        {console.log('🗺️ Rendering InspectionMap with:', {
+          establishment,
+          hasPolygon: !!establishment.polygon,
+          polygonLength: establishment.polygon?.length,
+          polygonData: establishment.polygon,
+          editMode: canEditPolygon() && isEditMode,
+          userRole: currentUser?.userlevel,
+          establishmentId: establishment.id,
+          mapKey
+        })}
+        {establishment ? (
+          <InspectionMap
+            key={`inspection-map-${establishment.id}-${isEditMode ? 'edit' : 'view'}-${mapKey}`}
+            establishment={establishment}
+            onSave={handlePolygonSave}
+            userRole={currentUser?.userlevel}
+            editMode={canEditPolygon() && isEditMode}
+            showOtherPolygons={true}
+            snapEnabled={true}
+            snapDistance={10}
+          />
+        ) : (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center text-gray-500">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <p className="text-sm">Loading map...</p>
+            </div>
+          </div>
+        )}
       </div>
-
-      {/* Debug info */}
-      <div className="mt-2 p-2 bg-gray-100 text-xs text-gray-600 rounded">
-        <p><strong>Debug Info:</strong></p>
-        <p>User Level: {currentUser?.userlevel || 'Not loaded'}</p>
-        <p>Can Edit: {canEditPolygon() ? 'Yes' : 'No'}</p>
-        <p>Edit Mode: {isEditMode ? 'Active' : 'Inactive'}</p>
-        <p>Establishment ID: {establishment?.id || 'Not found'}</p>
-      </div>
-
-      {/* Instructions */}
-      {canEditPolygon() && (
-        <div className={`mt-4 p-3 border rounded-md ${
-          isEditMode 
-            ? 'bg-orange-50 border-orange-200' 
-            : 'bg-blue-50 border-blue-200'
-        }`}>
-          <h4 className={`text-sm font-medium mb-1 ${
-            isEditMode ? 'text-orange-800' : 'text-blue-800'
-          }`}>
-            {isEditMode ? 'Edit Instructions:' : 'Ready to Edit:'}
-          </h4>
-          {isEditMode ? (
-            <ul className="text-xs text-orange-700 space-y-1">
-              <li>• Click the polygon tool in the map to draw or edit</li>
-              <li>• Drag vertices to modify existing boundaries</li>
-              <li>• Polygon will snap to nearby edges automatically</li>
-              <li>• Establishment marker must be inside the polygon</li>
-              <li>• Changes are saved automatically when valid</li>
-            </ul>
-          ) : (
-            <ul className="text-xs text-blue-700 space-y-1">
-              <li>• Click "Edit Mode" to start drawing or editing</li>
-              <li>• You can create new polygons or modify existing ones</li>
-              <li>• All changes will be saved to the establishment</li>
-            </ul>
-          )}
-        </div>
-      )}
     </div>
   );
 }

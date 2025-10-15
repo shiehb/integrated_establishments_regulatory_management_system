@@ -1,7 +1,21 @@
 import Header from "./Header";
 import Footer from "./Footer";
 
-export default function LayoutForm({ children, inspectionHeader, rightSidebar }) {
+export default function LayoutForm({ children, inspectionHeader, rightSidebar, headerHeight = 'default' }) {
+  // Calculate paddingTop based on header type
+  const getPaddingTop = () => {
+    if (!inspectionHeader) return '3rem'; // Just main header (96px)
+    
+    switch(headerHeight) {
+      case 'large':  // For inspection form with buttons
+        return 'calc(6rem + 76px)'; // ~128px (main header + large inspection header)
+      case 'medium': // For review page
+        return 'calc(6rem + 45px)'; // ~98px (main header + medium review header)
+      default:
+        return 'calc(3rem + 60px)'; // ~108px (default)
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-white">
       {/* Fixed Main Header */}
@@ -21,14 +35,14 @@ export default function LayoutForm({ children, inspectionHeader, rightSidebar })
         id="inspection-form-container"
         className="flex flex-1 w-full min-h-0 pb-4 overflow-hidden"
         style={{ 
-          paddingTop: inspectionHeader ? 'calc(6rem + 78px)' : '6rem'
+          paddingTop: getPaddingTop()
         }}
       >
         {/* Grid container for main content and sidebar */}
         <div className="flex w-full">
           {/* Main content area */}
           <div className="flex-1 overflow-y-auto scroll-smooth" style={{ scrollSnapType: 'y proximity', scrollBehavior: 'smooth' }}>
-            <div className="flex justify-center w-full max-w-7xl mx-auto px-2 pt-2 pb-4">
+            <div className="flex justify-center w-full max-w-7xl mx-auto px-1 pt-1 pb-2">
               <div className="w-full">
                 {children}
               </div>

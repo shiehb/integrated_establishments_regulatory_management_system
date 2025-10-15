@@ -167,6 +167,7 @@ class InspectionSerializer(serializers.ModelSerializer):
             'postal_code': est.postal_code,
             'latitude': str(est.latitude),
             'longitude': str(est.longitude),
+            'polygon': est.polygon,  # Add polygon data
         } for est in establishments]
     
     def get_created_by_name(self, obj):

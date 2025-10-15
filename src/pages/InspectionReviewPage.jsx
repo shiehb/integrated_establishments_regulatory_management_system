@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../components/NotificationManager';
@@ -22,6 +22,48 @@ const InspectionReviewPage = () => {
   const [remarks, setRemarks] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
   const [actionType, setActionType] = useState('');
+
+  // Process compliance items for merged law citations (moved to top level)
+  const processedComplianceItems = useMemo(() => {
+    if (!formData?.complianceItems || formData.complianceItems.length === 0) {
+      return [];
+    }
+
+    // Get selected environmental laws from general information
+    const selectedEnvironmentalLaws = formData.general?.environmental_laws || [];
+    
+    // Filter compliance items to only show those matching selected environmental laws
+    const filteredComplianceItems = formData.complianceItems.filter(item => {
+      const itemLawId = item.lawId || item.law_id || item.law;
+      return selectedEnvironmentalLaws.includes(itemLawId);
+    });
+
+    // Group filtered items by law citation
+    const groupedByLaw = filteredComplianceItems.reduce((acc, item) => {
+      const lawCitation = item.lawCitation || item.law_citation || item.lawId || '-';
+      if (!acc[lawCitation]) {
+        acc[lawCitation] = [];
+      }
+      acc[lawCitation].push(item);
+      return acc;
+    }, {});
+
+    // Flatten back to array with merge information
+    const result = [];
+    Object.keys(groupedByLaw).forEach(lawCitation => {
+      const itemsInGroup = groupedByLaw[lawCitation];
+      itemsInGroup.forEach((item, index) => {
+        result.push({
+          ...item,
+          lawCitation,
+          isFirstInGroup: index === 0,
+          rowspan: index === 0 ? itemsInGroup.length : 0
+        });
+      });
+    });
+
+    return result;
+  }, [formData?.complianceItems, formData?.general?.environmental_laws]);
 
   // Load data based on mode
   useEffect(() => {
@@ -178,6 +220,18 @@ const InspectionReviewPage = () => {
   const systems = formData.systems || [];
   const recommendations = formData.recommendationState || {};
 
+  // Debug logging
+  console.log('🔍 Review Page Debug:', {
+    mode,
+    complianceItems,
+    complianceItemsLength: complianceItems.length,
+    processedItemsLength: processedComplianceItems.length,
+    firstItem: complianceItems[0],
+    firstItemKeys: complianceItems[0] ? Object.keys(complianceItems[0]) : 'No items',
+    formDataKeys: Object.keys(formData),
+    sampleItem: complianceItems.slice(0, 3) // Show first 3 items for debugging
+  });
+
   // Custom header for review page
   const reviewHeader = (
     <div className="bg-white border-b border-gray-300 shadow-sm print:hidden">
@@ -323,55 +377,37 @@ const InspectionReviewPage = () => {
   );
 
   return (
-    <LayoutForm inspectionHeader={reviewHeader}>
-      <div className="max-w-[1200px] mx-auto print:max-w-none">
+    <LayoutForm headerHeight="medium" inspectionHeader={reviewHeader}>
+      <div className="w-full">
         {/* PDF Document Container */}
-        <div className="bg-white shadow-lg print:shadow-none" style={{ padding: '60px' }}>
+        <div className="bg-white shadow-lg print:shadow-none" style={{ padding: '10px' }}>
           
-          {/* Official Header */}
-          <div className="text-center border-t-4 border-b-4 border-gray-800 py-4 mb-8">
-            <h1 className="text-xl font-bold uppercase tracking-wide">
-              DEPARTMENT OF ENVIRONMENT AND NATURAL RESOURCES
-            </h1>
-            <h2 className="text-lg font-semibold mt-1">
-              Environmental Management Bureau
-            </h2>
-            <h3 className="text-base font-semibold mt-2 uppercase">
-              Inspection Report Summary
-            </h3>
-          </div>
-
           {/* Document Info */}
-          <div className="mb-6 text-sm">
+          <div className="mb-6 text-sm relative">
+            <div className="text-center mb-6 relative">
+              <h3 className="text-base font-semibold uppercase">
+                Inspection Report Summary
+              </h3>
+              
+              {/* Overall Status Badge - Top Right Watermark */}
+              <div className={`absolute top-0 right-0 px-3 py-1 rounded text-sm font-semibold opacity-80 ${
+                complianceStatus === 'COMPLIANT' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-red-100 text-red-800'
+              }`}>
+                {complianceStatus === 'COMPLIANT' ? 'COMPLIANT' : 'NON-COMPLIANT'}
+              </div>
+            </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="font-semibold">Inspection Reference No.:</p>
-                <p className="text-gray-700">{inspectionData.custom_id || inspectionData.id}</p>
+                <p className="text-gray-700">EIA-2025-0001</p>
               </div>
               <div className="text-right">
                 <p className="font-semibold">Date Generated:</p>
                 <p className="text-gray-700">{formatDate(new Date())}</p>
               </div>
-            </div>
-            
-            {/* Overall Status Badge */}
-            <div className="mt-4">
-              <div className={`inline-flex items-center px-4 py-2 rounded-md font-semibold ${
-                complianceStatus === 'COMPLIANT' 
-                  ? 'bg-green-100 text-green-800 border border-green-200' 
-                  : 'bg-red-100 text-red-800 border border-red-200'
-              }`}>
-                {complianceStatus === 'COMPLIANT' ? (
-                  <><CheckCircle className="w-5 h-5 mr-2" /> COMPLIANT</>
-                ) : (
-                  <><XCircle className="w-5 h-5 mr-2" /> NON-COMPLIANT</>
-                )}
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-1">
-              <p><span className="font-semibold">Establishment:</span> {general.establishment_name || inspectionData.establishments_detail?.[0]?.name}</p>
-              <p><span className="font-semibold">Address:</span> {general.address || inspectionData.establishments_detail?.[0]?.full_address}</p>
             </div>
           </div>
 
@@ -435,7 +471,7 @@ const InspectionReviewPage = () => {
                 <div className="ml-4 space-y-1">
                   {general.environmental_laws && general.environmental_laws.length > 0 ? (
                     general.environmental_laws.map(law => (
-                      <p key={law}>☑ {law} {inspectionData.law === law ? '(Required)' : ''}</p>
+                      <p key={law}>☑ {law}</p>
                     ))
                   ) : (
                     <p className="text-gray-500">No laws selected</p>
@@ -564,34 +600,78 @@ const InspectionReviewPage = () => {
               <table className="w-full border-collapse border border-gray-300 text-sm">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Compliance Item</th>
-                    <th className="border border-gray-300 px-3 py-2 text-center font-semibold w-24">Status</th>
+                    <th className="border border-gray-300 px-3 py-2 text-left font-semibold w-1/4">Applicable Laws and Citations</th>
+                    <th className="border border-gray-300 px-3 py-2 text-left font-semibold w-1/3">Compliance Requirement</th>
+                    <th className="border border-gray-300 px-3 py-2 text-center font-semibold w-20">Status</th>
                     <th className="border border-gray-300 px-3 py-2 text-left font-semibold">Remarks</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {complianceItems && complianceItems.length > 0 ? (
-                    complianceItems.map((item, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="border border-gray-300 px-3 py-2">{item.item || item.title}</td>
-                        <td className="border border-gray-300 px-3 py-2 text-center">
-                          {item.compliant === 'Yes' && <span className="text-green-600 font-semibold">✅ Yes</span>}
-                          {item.compliant === 'No' && <span className="text-red-600 font-semibold">❌ No</span>}
-                          {item.compliant === 'N/A' && <span className="text-gray-500 font-semibold">⊝ N/A</span>}
-                          {!item.compliant && <span className="text-gray-400">-</span>}
-                        </td>
-                        <td className="border border-gray-300 px-3 py-2">
-                          {item.compliant === 'No' ? (
-                            <span className="text-red-700">{item.remarks || item.remarksOption || '-'}</span>
-                          ) : (
-                            <span>{item.remarks || '-'}</span>
+                  {processedComplianceItems && processedComplianceItems.length > 0 ? (
+                    processedComplianceItems.map((item, idx) => {
+                      // Get the compliance requirement text - this should show the actual requirement
+                      const complianceRequirement = item.complianceRequirement || 
+                                                   item.compliance_requirement ||
+                                                   item.item || 
+                                                   item.title || 
+                                                   item.compliance_item || 
+                                                   item.name || 
+                                                   item.requirement ||
+                                                   item.description ||
+                                                   item.text ||
+                                                   `Compliance Item ${idx + 1}`;
+                      
+                      return (
+                        <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          {/* Only render law citation cell for first item in group */}
+                          {item.isFirstInGroup && (
+                            <td 
+                              className="border border-gray-300 px-3 py-2 font-medium text-xs align-top" 
+                              rowSpan={item.rowspan}
+                            >
+                              {item.lawCitation}
+                            </td>
                           )}
-                        </td>
-                      </tr>
-                    ))
+                          <td className="border border-gray-300 px-3 py-2">
+                            {complianceRequirement}
+                          </td>
+                          <td className="border border-gray-300 px-3 py-2 text-center">
+                            <span className="text-black font-medium">
+                              {item.compliant === 'Yes' && 'Yes'}
+                              {item.compliant === 'No' && 'No'}
+                              {item.compliant === 'N/A' && 'N/A'}
+                              {!item.compliant && '-'}
+                            </span>
+                          </td>
+                          <td className="border border-gray-300 px-3 py-2">
+                            {item.compliant === 'No' ? (
+                              <div className="space-y-1">
+                                {item.remarksOption && (
+                                  <div className="text-black">
+                                    {item.remarksOption}
+                                  </div>
+                                )}
+                                {item.remarks && item.remarks.trim() && (
+                                  <div className="text-black text-sm">
+                                    <span className="font-medium">Details: </span>{item.remarks}
+                                  </div>
+                                )}
+                                {!item.remarksOption && !item.remarks && (
+                                  <span className="text-black">Non-compliant</span>
+                                )}
+                              </div>
+                            ) : item.compliant === 'Yes' ? (
+                              <span className="text-black">Compliant</span>
+                            ) : (
+                              <span className="text-black">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan="3" className="border border-gray-300 px-3 py-4 text-center text-gray-500">
+                      <td colSpan="4" className="border border-gray-300 px-3 py-4 text-center text-gray-500">
                         No compliance items recorded
                       </td>
                     </tr>
@@ -609,30 +689,47 @@ const InspectionReviewPage = () => {
             
             <div className="space-y-4 text-sm">
               {systems && systems.filter(s => s.compliant || s.nonCompliant).length > 0 ? (
-                systems.filter(s => s.compliant || s.nonCompliant).map((system, idx) => (
-                  <div key={idx} className="border-l-4 border-gray-300 pl-4">
-                    <div className="flex items-start justify-between">
-                      <p className="font-semibold">{idx + 1}. {system.system}</p>
-                      <span className={`ml-4 px-2 py-1 rounded text-xs font-semibold whitespace-nowrap ${
-                        system.compliant ? 'bg-green-100 text-green-800' : 
-                        system.nonCompliant ? 'bg-red-100 text-red-800' : 
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {system.compliant ? '✅ Compliant' : system.nonCompliant ? '❌ Non-Compliant' : 'N/A'}
-                      </span>
+                systems.filter(s => s.compliant || s.nonCompliant).map((system, idx) => {
+                  // Check for non-compliant items within this system's scope
+                  const systemNonCompliantItems = complianceItems.filter(item => 
+                    item.lawId === system.lawId && item.compliant === 'No'
+                  );
+                  const hasNonCompliantItems = systemNonCompliantItems.length > 0;
+                  const isNonCompliant = system.nonCompliant || hasNonCompliantItems;
+                  const isCompliant = !isNonCompliant && (system.compliant || system.compliant === 'Yes');
+
+
+                  return (
+                    <div key={idx} className="border-l-4 border-gray-300 pl-4">
+                      <div className="flex items-start justify-between">
+                        <p className="font-semibold">{idx + 1}. {system.system}</p>
+                        <span className={`ml-4 px-2 py-1 rounded text-xs font-semibold whitespace-nowrap ${
+                          isNonCompliant ? 'bg-red-100 text-red-800' : 
+                          isCompliant ? 'bg-green-100 text-green-800' : 
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {isNonCompliant ? '❌ Non-Compliant' : isCompliant ? '✅ Compliant' : 'N/A'}
+                        </span>
+                      </div>
+                      {isNonCompliant && system.remarks && (
+                        <div className="mt-2">
+                          <p className="text-gray-700 font-semibold mb-2">Finding:</p>
+                          <div className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-900 min-h-[120px] font-mono text-sm whitespace-pre-wrap">
+                            {system.remarks}
+                          </div>
+                        </div>
+                      )}
+                      {isCompliant && !isNonCompliant && system.remarks && (
+                        <div className="mt-2">
+                          <p className="text-gray-700 font-semibold mb-2">Observation:</p>
+                          <div className="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-900 min-h-[120px] font-mono text-sm whitespace-pre-wrap">
+                            {system.remarks}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {system.nonCompliant && system.remarks && (
-                      <div className="mt-2">
-                        <p className="text-gray-700"><span className="font-semibold">Finding:</span> {system.remarks}</p>
-                      </div>
-                    )}
-                    {system.compliant && system.remarks && (
-                      <div className="mt-2">
-                        <p className="text-gray-700"><span className="font-semibold">Observation:</span> {system.remarks}</p>
-                      </div>
-                    )}
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <p className="text-gray-500">No findings recorded</p>
               )}
@@ -693,7 +790,7 @@ const InspectionReviewPage = () => {
                   <p className={`text-lg font-bold ${
                     complianceStatus === 'COMPLIANT' ? 'text-green-700' : 'text-red-700'
                   }`}>
-                    {complianceStatus === 'COMPLIANT' ? '✅ COMPLIANT' : '❌ NON-COMPLIANT'}
+                    {complianceStatus === 'COMPLIANT' ? 'COMPLIANT' : 'NON-COMPLIANT'}
                   </p>
                 </div>
 
@@ -775,7 +872,7 @@ const InspectionReviewPage = () => {
       </div>
 
       {/* Print Styles */}
-      <style jsx>{`
+      <style>{`
         @media print {
           @page {
             size: A4;

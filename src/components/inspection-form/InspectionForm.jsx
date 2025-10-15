@@ -129,6 +129,7 @@ export default function InspectionForm({ inspectionData }) {
   
   // Tab navigation state and refs
   const [activeSection, setActiveSection] = useState('general');
+  const [isMapPanelOpen, setIsMapPanelOpen] = useState(false);
   const generalRef = useRef(null);
   const purposeRef = useRef(null);
   const complianceStatusRef = useRef(null);
@@ -545,6 +546,12 @@ export default function InspectionForm({ inspectionData }) {
 
   // Scroll to section handler - Enhanced for sticky tabs
   const scrollToSection = (sectionId) => {
+    // Handle map tab specially - toggle map panel instead of scrolling
+    if (sectionId === 'map') {
+      setIsMapPanelOpen(true);
+      return;
+    }
+    
     const ref = sectionRefs[sectionId];
     
     if (ref && ref.current) {
@@ -1794,57 +1801,61 @@ export default function InspectionForm({ inspectionData }) {
   /* ======================
      Render
      ====================== */
-    return (
-      <LayoutForm
-        inspectionHeader={
-          <UnifiedInspectionHeader
-            onSave={handleSave}
-            onDraft={handleDraft}
-            onClose={handleClose}
-            onComplete={handleComplete}
-            onSendToSection={handleSendToSection}
-            onSendToDivision={handleSendToDivision}
-            onSendToNextLevel={handleSendToNextLevel}
-            onFinalize={handleFinalize}
-            onReview={handleReview}
-            onForwardToLegal={handleForwardToLegal}
-            onSendNOV={handleSendNOV}
-            onSendNOO={handleSendNOO}
-            onSaveRecommendation={handleSaveRecommendation}
-            onMarkAsCompliant={handleMarkAsCompliant}
-            lastSaveTime={lastSaveTime}
-            autoSaveStatus={autoSaveStatus}
-            showCompleteButton={buttonVisibility.showCompleteButton}
-            showSubmitForReviewButton={buttonVisibility.showSubmitForReviewButton}
-            showSendToSectionButton={buttonVisibility.showSendToSectionButton}
-            showSendToDivisionButton={buttonVisibility.showSendToDivisionButton}
-            showSendToNextLevelButton={buttonVisibility.showSendToNextLevelButton}
-            nextLevelName={buttonVisibility.getNextLevelName()}
-            showFinalizeButton={buttonVisibility.showFinalizeButton}
-            showReviewButton={buttonVisibility.showReviewButton}
-            showForwardToLegalButton={buttonVisibility.showForwardToLegalButton}
-            showSendNOVButton={buttonVisibility.showSendNOVButton}
-            showSendNOOButton={buttonVisibility.showSendNOOButton}
-            showSaveRecommendationButton={buttonVisibility.showSaveRecommendationButton}
-            showMarkAsCompliantButton={buttonVisibility.showMarkAsCompliantButton}
-            showDraftButton={buttonVisibility.showDraftButton}
-            showSubmitButton={buttonVisibility.showSubmitButton}
-            showCloseButton={buttonVisibility.showCloseButton}
-            isDraft={fullInspectionData?.form?.checklist?.is_draft || false}
-            activeSection={activeSection}
-            onTabClick={scrollToSection}
-            validationStatus={getValidationStatus()}
-          />
-        }
-        rightSidebar={
-          fullInspectionData && (
-            <InspectionPolygonMap 
-              inspectionData={fullInspectionData}
-              currentUser={currentUser}
-            />
-          )
-        }
-      >
+   return (
+     <LayoutForm
+       headerHeight="large"
+       inspectionHeader={
+         <UnifiedInspectionHeader
+           onSave={handleSave}
+           onDraft={handleDraft}
+           onClose={handleClose}
+           onComplete={handleComplete}
+           onSendToSection={handleSendToSection}
+           onSendToDivision={handleSendToDivision}
+           onSendToNextLevel={handleSendToNextLevel}
+           onFinalize={handleFinalize}
+           onReview={handleReview}
+           onForwardToLegal={handleForwardToLegal}
+           onSendNOV={handleSendNOV}
+           onSendNOO={handleSendNOO}
+           onSaveRecommendation={handleSaveRecommendation}
+           onMarkAsCompliant={handleMarkAsCompliant}
+           lastSaveTime={lastSaveTime}
+           autoSaveStatus={autoSaveStatus}
+           showCompleteButton={buttonVisibility.showCompleteButton}
+           showSubmitForReviewButton={buttonVisibility.showSubmitForReviewButton}
+           showSendToSectionButton={buttonVisibility.showSendToSectionButton}
+           showSendToDivisionButton={buttonVisibility.showSendToDivisionButton}
+           showSendToNextLevelButton={buttonVisibility.showSendToNextLevelButton}
+           nextLevelName={buttonVisibility.getNextLevelName()}
+           showFinalizeButton={buttonVisibility.showFinalizeButton}
+           showReviewButton={buttonVisibility.showReviewButton}
+           showForwardToLegalButton={buttonVisibility.showForwardToLegalButton}
+           showSendNOVButton={buttonVisibility.showSendNOVButton}
+           showSendNOOButton={buttonVisibility.showSendNOOButton}
+           showSaveRecommendationButton={buttonVisibility.showSaveRecommendationButton}
+           showMarkAsCompliantButton={buttonVisibility.showMarkAsCompliantButton}
+           showDraftButton={buttonVisibility.showDraftButton}
+           showSubmitButton={buttonVisibility.showSubmitButton}
+           showCloseButton={buttonVisibility.showCloseButton}
+           isDraft={fullInspectionData?.form?.checklist?.is_draft || false}
+           activeSection={activeSection}
+           onTabClick={scrollToSection}
+           validationStatus={getValidationStatus()}
+           isMapPanelOpen={isMapPanelOpen}
+           hasMapData={!!fullInspectionData}
+         />
+       }
+       rightSidebar={
+         isMapPanelOpen && fullInspectionData && (
+           <InspectionPolygonMap 
+             inspectionData={fullInspectionData}
+             currentUser={currentUser}
+             onClose={() => setIsMapPanelOpen(false)}
+           />
+         )
+       }
+     >
         <div className="w-full bg-gray-50">
 
         {/* Validation Summary - Only show when user has made changes and there are errors */}
