@@ -204,41 +204,52 @@ class SearchSuggestionsView(APIView):
             if not q or len(q) < 2:
                 return Response({"suggestions": []})
 
+            # Get current user's profile for role-based filtering
+            current_user = request.user
+            user_section = getattr(current_user, 'section', None)
+            
             suggestions = []
 
-            # User suggestions with fuzzy matching (Admin only)
+            # ============ USER SUGGESTIONS ============
+            # Role-based user search filtering - Only Admin can search users
             if role == 'Admin':
-                all_users = User.objects.exclude(is_active=False)
-                matching_users = []
-                
-                for user in all_users:
-                    full_name = f"{user.first_name} {user.last_name}"
-                    if (fuzzy_match(q, user.first_name or '', threshold=2) or
-                        fuzzy_match(q, user.last_name or '', threshold=2) or
-                        fuzzy_match(q, full_name, threshold=2) or
-                        fuzzy_match(q, user.email or '', threshold=2)):
-                        matching_users.append(user)
-                        
-                        if len(matching_users) >= 5:
-                            break
-                
-                for user in matching_users:
-                    suggestions.append({
-                        "type": "user",
-                        "id": user.id,
-                        "name": f"{user.first_name} {user.last_name}",
-                        "description": f"{user.email} • {user.userlevel}",
-                        "category": "Users",
-                        "updated_at": user.updated_at.isoformat() if hasattr(user, 'updated_at') else None,
-                        "path": "/users"
-                    })
+                # Admin: See all users except admin accounts
+                all_users = User.objects.exclude(is_active=False).exclude(is_superuser=True).exclude(userlevel='Admin')
+            else:
+                # All other roles: No user search access
+                all_users = User.objects.none()
 
-            # Establishment suggestions with fuzzy matching
+            # Fuzzy match users
+            matching_users = []
+            for user in all_users:
+                full_name = f"{user.first_name} {user.last_name}"
+                if (fuzzy_match(q, user.first_name or '', threshold=2) or
+                    fuzzy_match(q, user.last_name or '', threshold=2) or
+                    fuzzy_match(q, full_name, threshold=2) or
+                    fuzzy_match(q, user.email or '', threshold=2)):
+                    matching_users.append(user)
+                    
+                    if len(matching_users) >= 5:
+                        break
+            
+            for user in matching_users:
+                suggestions.append({
+                    "type": "user",
+                    "id": user.id,
+                    "name": f"{user.first_name} {user.last_name}",
+                    "description": f"{user.email} • {user.userlevel}",
+                    "category": "Users",
+                    "updated_at": user.updated_at.isoformat() if hasattr(user, 'updated_at') else None,
+                    "path": "/users"
+                })
+
+            # ============ ESTABLISHMENT SUGGESTIONS ============
+            # All roles can see all establishments (public information)
             all_establishments = Establishment.objects.all()
-            matching_establishments = []
 
+            # Fuzzy match establishments
+            matching_establishments = []
             for est in all_establishments:
-                # Check name, nature, and city with fuzzy matching
                 if (fuzzy_match(q, est.name, threshold=2) or 
                     fuzzy_match(q, est.nature_of_business or '', threshold=2) or
                     fuzzy_match(q, est.city or '', threshold=2)):
@@ -258,12 +269,46 @@ class SearchSuggestionsView(APIView):
                     "path": "/establishments"
                 })
 
-            # Inspection suggestions with fuzzy matching
-            all_inspections = Inspection.objects.prefetch_related('establishments').all()
-            matching_inspections = []
+            # ============ INSPECTION SUGGESTIONS ============
+            # Role-based inspection filtering
+            if role in ['Admin', 'Division Chief']:
+                # Admin/Division Chief: See all inspections
+                all_inspections = Inspection.objects.prefetch_related('establishments').all()
+            elif role == 'Section Chief':
+                # Section Chief: See inspections in their section
+                if user_section:
+                    # Split section by comma and strip whitespace from each law
+                    section_laws = [law.strip() for law in user_section.split(',')]
+                    all_inspections = Inspection.objects.prefetch_related('establishments').filter(
+                        law__in=section_laws
+                    )
+                else:
+                    all_inspections = Inspection.objects.none()
+            elif role == 'Unit Head':
+                # Unit Head: See inspections in their unit
+                if user_section:
+                    all_inspections = Inspection.objects.prefetch_related('establishments').filter(
+                        law=user_section
+                    )
+                else:
+                    all_inspections = Inspection.objects.none()
+            elif role == 'Monitoring Personnel':
+                # Monitoring Personnel: See assigned inspections
+                all_inspections = Inspection.objects.prefetch_related('establishments').filter(
+                    assigned_to=current_user
+                )
+            elif role == 'Legal Unit':
+                # Legal Unit: See inspections in legal review
+                all_inspections = Inspection.objects.prefetch_related('establishments').filter(
+                    current_status__in=['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
+                )
+            else:
+                # Public, Inspector: No inspection search access
+                all_inspections = Inspection.objects.none()
 
+            # Fuzzy match inspections
+            matching_inspections = []
             for insp in all_inspections:
-                # Check code and establishment names
                 establishment_names = [e.name for e in insp.establishments.all()]
                 
                 code_match = fuzzy_match(q, insp.code or '', threshold=2)
@@ -288,7 +333,7 @@ class SearchSuggestionsView(APIView):
                     "description": f"{establishment_name} • {status}",
                     "category": "Inspections",
                     "updated_at": insp.updated_at.isoformat() if hasattr(insp, 'updated_at') else None,
-                    "path": f"/inspection/{insp.id}"
+                    "path": "/inspections"
                 })
 
             # Add navigation with role-based permissions

@@ -1881,6 +1881,7 @@ export default function InspectionForm({ inspectionData }) {
               permits={permits}
               setPermits={setPermits}
               lawFilter={lawFilter}
+              natureOfBusiness={general.nature_of_business}
               errors={errors}
               isReadOnly={buttonVisibility.isReadOnly}
             />

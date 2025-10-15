@@ -2,12 +2,13 @@ import React, { useMemo, useState, useEffect, forwardRef } from "react";
 import { formatInput, validateDateIssued, validateExpiryDate, validatePermitDates } from "./utils";
 import SectionHeader from "./SectionHeader";
 import { validatePermitNumber, getPermitExample } from "./permitValidation";
+import { filterPermitsByBusiness } from "../../constants/inspectionform/permitsConstants";
 
 /* ---------------------------
    Compliance Status (Permits)
    - includes date validation & formatting
    ---------------------------*/
-const ComplianceStatus = forwardRef(function ComplianceStatus({ permits, setPermits, lawFilter, errors = {}, isReadOnly = false }, ref) {
+const ComplianceStatus = forwardRef(function ComplianceStatus({ permits, setPermits, lawFilter, natureOfBusiness, errors = {}, isReadOnly = false }, ref) {
   // State for validation
   const [dateValidations, setDateValidations] = useState({});
   const [permitNumberValidations, setPermitNumberValidations] = useState({});
@@ -51,11 +52,19 @@ const ComplianceStatus = forwardRef(function ComplianceStatus({ permits, setPerm
     setPermitNumberValidations(validations);
   }, [permits]);
 
-  // Filter permits by selected laws
+  // Filter permits by selected laws and nature of business
   const filtered = useMemo(() => {
-    if (!lawFilter || lawFilter.length === 0) return permits;
-    return permits.filter((p) => lawFilter.includes(p.lawId));
-  }, [permits, lawFilter]);
+    // First filter by law
+    let result = permits;
+    if (lawFilter && lawFilter.length > 0) {
+      result = permits.filter((p) => lawFilter.includes(p.lawId));
+    }
+    
+    // Then filter by nature of business
+    result = filterPermitsByBusiness(result, natureOfBusiness);
+    
+    return result;
+  }, [permits, lawFilter, natureOfBusiness]);
 
   // Group permits by lawId
   const grouped = useMemo(() => {

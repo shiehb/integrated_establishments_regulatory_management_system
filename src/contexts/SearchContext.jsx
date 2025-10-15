@@ -256,7 +256,7 @@ export const SearchProvider = ({ children }) => {
     const path = suggestion.path || (
       suggestion.type === 'user' ? '/users' :
       suggestion.type === 'establishment' ? '/establishments' :
-      suggestion.type === 'inspection' ? `/inspection/${suggestion.id}` : '/'
+      suggestion.type === 'inspection' ? '/inspections' : '/'
     );
     
     // For navigation items, just navigate without highlight

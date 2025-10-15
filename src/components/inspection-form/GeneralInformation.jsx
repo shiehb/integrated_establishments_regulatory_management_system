@@ -202,12 +202,8 @@ const GeneralInformation = forwardRef(function GeneralInformation({
   const toggleLaw = (lawId) => {
     const selected = data.environmental_laws || [];
     const isInitialLaw = inspectionData && inspectionData.law === lawId;
-    const isPD1586Inspection = inspectionData && inspectionData.law === 'PD-1586';
     
-    // Don't allow any changes if this is a PD-1586 inspection (all checkboxes locked)
-    if (isPD1586Inspection) return;
-    
-    // Don't allow unchecking the initial law (required law) for other inspections
+    // Don't allow unchecking the initial law (required law)
     if (isInitialLaw && selected.includes(lawId)) return;
     
     // Show confirmation modal before making changes
@@ -258,23 +254,6 @@ const GeneralInformation = forwardRef(function GeneralInformation({
     }
   }, [inspectionData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-check PD-1586 when inspection law is PD-1586
-  useEffect(() => {
-    if (inspectionData && inspectionData.law === 'PD-1586') {
-      const currentLaws = data.environmental_laws || [];
-      if (!currentLaws.includes('PD-1586')) {
-        setData(prev => ({ 
-          ...prev, 
-          environmental_laws: ['PD-1586'] 
-        }));
-        
-        // Update law filter
-        if (onLawFilterChange) {
-          onLawFilterChange(['PD-1586']);
-        }
-      }
-    }
-  }, [inspectionData, data.environmental_laws, onLawFilterChange]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <section ref={ref} data-section="general" className="p-3 mb-4 bg-white rounded-lg shadow-sm border border-gray-300 scroll-mt-[120px]" style={{ scrollSnapAlign: 'start', scrollSnapStop: 'always' }}>
@@ -286,11 +265,8 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         </label>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
           {InspectionConstants.LAWS.map((law) => {
-            const isInitialLaw =
-              inspectionData && inspectionData.law === law.id;
+            const isInitialLaw = inspectionData && inspectionData.law === law.id;
             const isChecked = (data.environmental_laws || []).includes(law.id);
-            const isPD1586Inspection = inspectionData && inspectionData.law === 'PD-1586';
-            const isPD1586Law = law.id === 'PD-1586';
             
             return (
               <label key={law.id} className="flex items-center space-x-2">
@@ -299,20 +275,13 @@ const GeneralInformation = forwardRef(function GeneralInformation({
                   checked={isChecked}
                   onChange={() => toggleLaw(law.id)}
                   className="w-4 h-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500"
-                  disabled={
-                    (isInitialLaw && isChecked) || 
-                    isReadOnly || 
-                    isPD1586Inspection
-                  }
+                  disabled={isReadOnly || (isInitialLaw && isChecked)}
                 />
-                <span className={`text-sm ${isPD1586Inspection ? 'text-gray-600' : 'text-gray-900'}`}>
+                <span className="text-sm text-gray-900">
                   {law.label}
                 </span>
                 {isInitialLaw && isChecked && (
                   <span className="text-xs text-gray-500">(Required)</span>
-                )}
-                {isPD1586Inspection && isPD1586Law && isChecked && (
-                  <span className="text-xs text-blue-600 font-medium">(Locked)</span>
                 )}
               </label>
             );
