@@ -397,15 +397,7 @@ export default function InspectionForm({ inspectionData }) {
           // Show notification that checklist data was loaded (only once)
           if (!draftNotificationShown.current) {
             const isDraft = checklistData.is_draft;
-            const message = isDraft 
-              ? "Draft inspection form loaded successfully. You can continue editing where you left off."
-              : "Completed inspection data loaded successfully. You can review the inspection details.";
-            const title = isDraft ? 'Draft Loaded' : 'Inspection Data Loaded';
-            
-            notifications.info(message, {
-              title: title,
-              duration: 5000
-            });
+            // Notification removed as requested
             draftNotificationShown.current = true;
           }
         } else {

@@ -102,40 +102,7 @@ export default function UnifiedInspectionHeader({
             </div>
           )}
           
-          {/* Auto-Save Status */}
-          <div className="flex items-center gap-2">
-            <div className={`text-sm flex items-center gap-1 ${
-              autoSaveStatus === 'saving' ? 'text-blue-600' :
-              autoSaveStatus === 'saved' ? 'text-green-600' :
-              autoSaveStatus === 'error' ? 'text-red-600' : 'text-gray-600'
-            }`}>
-              {autoSaveStatus === 'saving' && (
-                <>
-                  <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                  <span>Saving...</span>
-                </>
-              )}
-              {autoSaveStatus === 'saved' && (
-                <>
-                  <span>✅</span>
-                  <span>Saved</span>
-                </>
-              )}
-              {autoSaveStatus === 'error' && (
-                <>
-                  <span>❌</span>
-                  <span>Save failed</span>
-                </>
-              )}
-            </div>
-            
-            {/* Last Save Time */}
-            <div className="text-sm text-gray-600">
-              {lastSaveTime
-                ? `Last saved: ${new Date(lastSaveTime).toLocaleString()}`
-                : "Not saved yet"}
-            </div>
-          </div>
+          {/* Auto-Save Status - Removed as requested */}
           
           {/* Action Buttons */}
           <div className="flex items-center gap-2">

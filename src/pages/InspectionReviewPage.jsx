@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../components/NotificationManager';
 import api from '../services/api';
-import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck, Printer } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck } from 'lucide-react';
 import LayoutForm from '../components/LayoutForm';
 
 const InspectionReviewPage = () => {
@@ -65,6 +65,20 @@ const InspectionReviewPage = () => {
     return result;
   }, [formData?.complianceItems, formData?.general?.environmental_laws]);
 
+  const fetchInspectionData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/api/inspections/${id}/`);
+      setInspectionData(response.data);
+      setFormData(response.data.form?.checklist || {});
+    } catch (error) {
+      console.error('Error fetching inspection:', error);
+      notifications.error('Failed to load inspection data');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, notifications]);
+
   // Load data based on mode
   useEffect(() => {
     if (mode === 'preview') {
@@ -80,21 +94,7 @@ const InspectionReviewPage = () => {
       // Review mode: fetch from API
       fetchInspectionData();
     }
-  }, [mode, id]);
-
-  const fetchInspectionData = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get(`/api/inspections/${id}/`);
-      setInspectionData(response.data);
-      setFormData(response.data.form?.checklist || {});
-    } catch (error) {
-      console.error('Error fetching inspection:', error);
-      notifications.error('Failed to load inspection data');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [mode, id, location.state, navigate, notifications, fetchInspectionData]);
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -153,19 +153,15 @@ const InspectionReviewPage = () => {
   };
 
   const handlePreviewSubmit = async () => {
-    try {
-      const payload = {
-        ...formData,
-        is_draft: false,
-        completed_at: new Date().toISOString()
-      };
+    const payload = {
+      ...formData,
+      is_draft: false,
+      completed_at: new Date().toISOString()
+    };
 
-      await api.post(`/api/inspections/${id}/complete/`, payload);
-      notifications.success('Inspection submitted successfully!');
-      navigate('/inspections');
-    } catch (error) {
-      throw error;
-    }
+    await api.post(`/api/inspections/${id}/complete/`, payload);
+    notifications.success('Inspection submitted successfully!');
+    navigate('/inspections');
   };
 
   const handleReviewAction = async () => {
@@ -220,17 +216,6 @@ const InspectionReviewPage = () => {
   const systems = formData.systems || [];
   const recommendations = formData.recommendationState || {};
 
-  // Debug logging
-  console.log('🔍 Review Page Debug:', {
-    mode,
-    complianceItems,
-    complianceItemsLength: complianceItems.length,
-    processedItemsLength: processedComplianceItems.length,
-    firstItem: complianceItems[0],
-    firstItemKeys: complianceItems[0] ? Object.keys(complianceItems[0]) : 'No items',
-    formDataKeys: Object.keys(formData),
-    sampleItem: complianceItems.slice(0, 3) // Show first 3 items for debugging
-  });
 
   // Custom header for review page
   const reviewHeader = (
@@ -260,14 +245,6 @@ const InspectionReviewPage = () => {
 
           {/* Right: Action Buttons */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => window.print()}
-              className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-            >
-              <Printer className="w-4 h-4 mr-2" />
-              Print
-            </button>
-
             {mode === 'preview' ? (
               <button
                 onClick={() => handleActionClick('submit')}
