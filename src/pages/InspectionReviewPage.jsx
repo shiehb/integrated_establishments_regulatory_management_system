@@ -5,6 +5,7 @@ import { useNotifications } from '../components/NotificationManager';
 import api from '../services/api';
 import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck } from 'lucide-react';
 import LayoutForm from '../components/LayoutForm';
+import ConfirmationDialog from '../components/common/ConfirmationDialog';
 
 const InspectionReviewPage = () => {
   const { id } = useParams();
@@ -122,6 +123,27 @@ const InspectionReviewPage = () => {
     if (mode === 'preview' && location.state?.compliance) {
       return location.state.compliance;
     }
+    
+    // Determine compliance from form data
+    if (formData) {
+      const complianceItems = formData.complianceItems || [];
+      const systems = formData.systems || [];
+      
+      const hasNonCompliantItems = complianceItems.some(item => item.compliant === 'No');
+      const hasNonCompliantSystems = systems.some(system => system.nonCompliant);
+      
+      if (hasNonCompliantItems || hasNonCompliantSystems) {
+        return 'NON_COMPLIANT';
+      }
+      
+      const hasCompliantItems = complianceItems.some(item => item.compliant === 'Yes');
+      const hasCompliantSystems = systems.some(system => system.compliant);
+      
+      if (hasCompliantItems || hasCompliantSystems) {
+        return 'COMPLIANT';
+      }
+    }
+    
     return formData?.compliance_status || 'PENDING';
   };
 
@@ -153,14 +175,19 @@ const InspectionReviewPage = () => {
   };
 
   const handlePreviewSubmit = async () => {
+    const complianceStatus = getComplianceStatus();
+    
     const payload = {
-      ...formData,
-      is_draft: false,
-      completed_at: new Date().toISOString()
+      form_data: {
+        ...formData,
+        is_draft: false,
+        completed_at: new Date().toISOString()
+      },
+      compliance_decision: complianceStatus === 'COMPLIANT' ? 'COMPLIANT' : 'NON_COMPLIANT'
     };
 
     await api.post(`/api/inspections/${id}/complete/`, payload);
-    notifications.success('Inspection submitted successfully!');
+    notifications.success(`Inspection submitted as ${complianceStatus === 'COMPLIANT' ? 'Compliant' : 'Non-Compliant'}!`);
     navigate('/inspections');
   };
 
@@ -172,14 +199,25 @@ const InspectionReviewPage = () => {
       forward_legal: `/api/inspections/${id}/forward-to-legal/`,
       send_nov: `/api/inspections/${id}/send-nov/`,
       send_noo: `/api/inspections/${id}/send-noo/`,
-      reject: `/api/inspections/${id}/return/`,
+      reject: `/api/inspections/${id}/return-inspection/`,
       mark_compliant: `/api/inspections/${id}/mark-as-compliant/`
     };
 
     const endpoint = endpoints[actionType];
     if (!endpoint) return;
 
-    await api.post(endpoint, { remarks: remarks.trim() });
+    // Prepare payload with compliance status and recommendations
+    const payload = { 
+      remarks: remarks.trim(),
+      compliance_status: complianceStatus,
+    };
+    
+    // Include recommendations for non-compliant inspections
+    if (complianceStatus === 'NON_COMPLIANT' && recommendations.checked) {
+      payload.recommendations = recommendations.checked;
+    }
+
+    await api.post(endpoint, payload);
     notifications.success('Action completed successfully!');
     navigate('/inspections');
   };
@@ -215,6 +253,110 @@ const InspectionReviewPage = () => {
   const complianceItems = formData.complianceItems || [];
   const systems = formData.systems || [];
   const recommendations = formData.recommendationState || {};
+
+  // Build confirmation message
+  const getConfirmationMessage = () => {
+    if (mode === 'preview') {
+      return (
+        <div className="space-y-3">
+          <p>Are you sure you want to submit this inspection for review?</p>
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded">
+            <p className="font-medium mb-2">Compliance Status:</p>
+            <p className={`font-bold ${complianceStatus === 'COMPLIANT' ? 'text-green-700' : 'text-red-700'}`}>
+              {complianceStatus === 'COMPLIANT' ? '✅ COMPLIANT' : '❌ NON-COMPLIANT'}
+            </p>
+          </div>
+          {complianceStatus === 'NON_COMPLIANT' && recommendations.checked && recommendations.checked.length > 0 && (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
+              <p className="font-medium text-yellow-900 mb-2">Recommendations:</p>
+              <ul className="list-disc list-inside text-sm text-yellow-800 space-y-1">
+                {recommendations.checked.map((rec, idx) => (
+                  <li key={idx}>{rec}</li>
+                ))}
+              </ul>
+              {recommendations.otherText && (
+                <p className="text-sm text-yellow-800 mt-2">
+                  <span className="font-medium">Additional: </span>
+                  {recommendations.otherText}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Review mode messages
+    let actionMessage = '';
+    if (actionType === 'approve_unit') {
+      actionMessage = complianceStatus === 'COMPLIANT' 
+        ? 'This will mark the inspection as Unit Completed - Compliant and send to Section Chief for review.'
+        : 'This will mark the inspection as Unit Completed - Non-Compliant and send to Section Chief for review.';
+    } else if (actionType === 'approve_section') {
+      actionMessage = complianceStatus === 'COMPLIANT'
+        ? 'This will mark the inspection as Section Completed - Compliant and send to Division Chief.'
+        : 'This will mark the inspection as Section Completed - Non-Compliant and send to Division Chief.';
+    } else if (actionType === 'approve_division') {
+      actionMessage = 'This will close the inspection and finalize it.';
+    } else if (actionType === 'mark_compliant') {
+      actionMessage = 'This will mark the inspection as Closed - Compliant and finalize it.';
+    } else if (actionType === 'forward_legal') {
+      actionMessage = 'This will forward the case to Legal Unit for further action.';
+    } else if (actionType === 'reject') {
+      actionMessage = 'This will return the inspection to the previous level for revision.';
+    } else if (actionType === 'send_nov') {
+      actionMessage = 'This will send a Notice of Violation to the establishment.';
+    } else if (actionType === 'send_noo') {
+      actionMessage = 'This will send a Notice of Order to the establishment.';
+    }
+
+    return (
+      <div className="space-y-3">
+        <div className="p-3 bg-gray-50 border border-gray-200 rounded">
+          <p className="font-medium mb-2">Action Summary:</p>
+          <p className="text-gray-700">{actionMessage}</p>
+        </div>
+        
+        <div className="p-3 bg-gray-50 border border-gray-200 rounded">
+          <p className="font-medium mb-2">Compliance Status:</p>
+          <p className={`font-bold ${complianceStatus === 'COMPLIANT' ? 'text-green-700' : 'text-red-700'}`}>
+            {complianceStatus === 'COMPLIANT' ? '✅ COMPLIANT' : '❌ NON-COMPLIANT'}
+          </p>
+        </div>
+
+        {complianceStatus === 'NON_COMPLIANT' && recommendations.checked && recommendations.checked.length > 0 && (
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
+            <p className="font-medium text-yellow-900 mb-2">Recommendations:</p>
+            <ul className="list-disc list-inside text-sm text-yellow-800 space-y-1">
+              {recommendations.checked.map((rec, idx) => (
+                <li key={idx}>{rec}</li>
+              ))}
+            </ul>
+            {recommendations.otherText && (
+              <p className="text-sm text-yellow-800 mt-2">
+                <span className="font-medium">Additional: </span>
+                {recommendations.otherText}
+              </p>
+            )}
+          </div>
+        )}
+
+        {mode !== 'preview' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Remarks (required):</label>
+            <textarea
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              rows="4"
+              placeholder="Enter your remarks here..."
+              required
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
 
 
   // Custom header for review page
@@ -395,64 +537,132 @@ const InspectionReviewPage = () => {
             </h2>
             
             <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="font-semibold text-gray-700">Name of Establishment:</p>
-                  <p className="text-gray-900">{general.establishment_name || '-'}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-700">Nature of Business:</p>
-                  <p className="text-gray-900">{general.nature_of_business || '-'}</p>
-                </div>
-              </div>
-
+              {/* Applicable Environmental Laws */}
               <div>
-                <p className="font-semibold text-gray-700">Address:</p>
-                <p className="text-gray-900">{general.address || '-'}</p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <p className="font-semibold text-gray-700">Coordinates:</p>
-                  <p className="text-gray-900">{general.coordinates || '-'}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-700">Year Established:</p>
-                  <p className="text-gray-900">{general.year_established || '-'}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-700">Inspection Date & Time:</p>
-                  <p className="text-gray-900">{general.inspection_date_time ? formatDate(general.inspection_date_time) : '-'}</p>
-                </div>
-              </div>
-
-              <div>
-                <p className="font-semibold text-gray-700 mb-2">Operating Schedule:</p>
-                <div className="ml-4 space-y-1">
-                  <p>• Operating Hours: {general.operating_hours || '-'} hours/day</p>
-                  <p>• Operating Days per Week: {general.operating_days_per_week || '-'} days</p>
-                  <p>• Operating Days per Year: {general.operating_days_per_year || '-'} days</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="font-semibold text-gray-700">Contact Information:</p>
-                  <p>• Phone/Fax: {general.phone_fax_no || '-'}</p>
-                  <p>• Email: {general.email_address || '-'}</p>
-                </div>
-              </div>
-
-              <div>
-                <p className="font-semibold text-gray-700 mb-2">Applicable Environmental Laws:</p>
-                <div className="ml-4 space-y-1">
+                <p className="font-semibold text-gray-700 mb-2">
+                  Applicable Environmental Laws (check all that apply)
+                </p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                   {general.environmental_laws && general.environmental_laws.length > 0 ? (
                     general.environmental_laws.map(law => (
-                      <p key={law}>☑ {law}</p>
+                      <p key={law} className="text-gray-900">☑ {law}</p>
                     ))
                   ) : (
                     <p className="text-gray-500">No laws selected</p>
                   )}
+                </div>
+              </div>
+
+              {/* Basic Details Card */}
+              <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
+                <div>
+                  <p className="font-semibold text-gray-700">Name of Establishment</p>
+                  <p className="text-gray-900 mt-1">{general.establishment_name || '-'}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-700">Address</p>
+                    <p className="text-gray-900 mt-1">{general.address || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Coordinates (Decimal)</p>
+                    <p className="text-gray-900 mt-1">{general.coordinates || '-'}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-gray-700">Nature of Business</p>
+                  <p className="text-gray-900 mt-1">{general.nature_of_business || '-'}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-700">Year Established</p>
+                    <p className="text-gray-900 mt-1">{general.year_established || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Inspection Date & Time</p>
+                    <p className="text-gray-900 mt-1">{general.inspection_date_time ? formatDate(general.inspection_date_time) : '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Operating Details Card */}
+              <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200">
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-700">Operating Hours</p>
+                    <p className="text-gray-900 mt-1">{general.operating_hours || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Operating Days/Week</p>
+                    <p className="text-gray-900 mt-1">{general.operating_days_per_week || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Operating Days/Year</p>
+                    <p className="text-gray-900 mt-1">{general.operating_days_per_year || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Lines and Production Rates Card */}
+              <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Product Lines and Production Rates</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-700">Product Lines</p>
+                    <p className="text-gray-900 mt-1">{general.productLine || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Production Rate as Declared in The ECC (Unit/day)</p>
+                    <p className="text-gray-900 mt-1">{general.declaredProductionRate || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Actual Production Rate (Unit/day)</p>
+                    <p className="text-gray-900 mt-1">{general.actualProductionRate || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Contact Information Card */}
+              <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
+                <div>
+                  <p className="font-semibold text-gray-700">Name of Managing Head</p>
+                  <p className="text-gray-900 mt-1">{general.managing_head || '-'}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-700">Name of PCO</p>
+                    <p className="text-gray-900 mt-1">{general.pco_name || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Name of Person Interviewed, Designation</p>
+                    <p className="text-gray-900 mt-1">{general.person_interviewed || '-'}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-700">PCO Accreditation No.</p>
+                    <p className="text-gray-900 mt-1">{general.pco_accreditation_no || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Date of Effectivity</p>
+                    <p className="text-gray-900 mt-1">{general.pco_date_effectivity ? formatDateOnly(general.pco_date_effectivity) : '-'}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="font-semibold text-gray-700">Phone/ Fax No.</p>
+                    <p className="text-gray-900 mt-1">{general.phone_fax_no || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-700">Email Address</p>
+                    <p className="text-gray-900 mt-1">{general.email_address || '-'}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -623,22 +833,20 @@ const InspectionReviewPage = () => {
                           <td className="border border-gray-300 px-3 py-2">
                             {item.compliant === 'No' ? (
                               <div className="space-y-1">
-                                {item.remarksOption && (
+                                {item.remarks && item.remarks.trim() ? (
                                   <div className="text-black">
-                                    {item.remarksOption}
+                                    {item.remarks}
                                   </div>
-                                )}
-                                {item.remarks && item.remarks.trim() && (
-                                  <div className="text-black text-sm">
-                                    <span className="font-medium">Details: </span>{item.remarks}
-                                  </div>
-                                )}
-                                {!item.remarksOption && !item.remarks && (
+                                ) : (
                                   <span className="text-black">Non-compliant</span>
                                 )}
                               </div>
                             ) : item.compliant === 'Yes' ? (
-                              <span className="text-black">Compliant</span>
+                              <div className="text-black">
+                                {item.remarks && item.remarks.trim() ? item.remarks : 'Compliant'}
+                              </div>
+                            ) : item.compliant === 'N/A' ? (
+                              <span className="text-black">NOT APPLICABLE</span>
                             ) : (
                               <span className="text-black">-</span>
                             )}
@@ -750,97 +958,100 @@ const InspectionReviewPage = () => {
             </section>
           )}
 
-          {/* VII. OVERALL ASSESSMENT */}
-          <section className="mb-8">
-            <div className={`border-4 p-6 rounded ${
-              complianceStatus === 'COMPLIANT' 
-                ? 'border-green-600 bg-green-50' 
-                : 'border-red-600 bg-red-50'
-            }`}>
-              <h2 className="text-lg font-bold uppercase text-center mb-4">
-                OVERALL ASSESSMENT
+          {/* PHOTO DOCUMENTATION - LAST SECTION */}
+          {formData.generalFindings && formData.generalFindings.length > 0 && (
+            <section className="mb-8 page-break-before">
+              <h2 className="text-lg font-bold uppercase border-b-2 border-gray-800 pb-2 mb-4">
+                {complianceStatus !== 'COMPLIANT' && recommendations.checked && recommendations.checked.length > 0 
+                  ? 'VII. PHOTO DOCUMENTATION' 
+                  : 'VI. PHOTO DOCUMENTATION'}
               </h2>
               
-              <div className="space-y-3 text-sm">
-                <div>
-                  <p className="font-semibold">Compliance Status:</p>
-                  <p className={`text-lg font-bold ${
-                    complianceStatus === 'COMPLIANT' ? 'text-green-700' : 'text-red-700'
-                  }`}>
-                    {complianceStatus === 'COMPLIANT' ? 'COMPLIANT' : 'NON-COMPLIANT'}
-                  </p>
-                </div>
-
-                {complianceStatus !== 'COMPLIANT' && (
-                  <>
-                    <div>
-                      <p className="font-semibold">Violations Found:</p>
-                      <ul className="list-disc ml-6 mt-1 space-y-1">
-                        {systems.filter(s => s.nonCompliant).map((system, idx) => (
-                          <li key={idx} className="text-gray-700">{system.system}</li>
-                        ))}
-                        {complianceItems.filter(item => item.compliant === 'No').map((item, idx) => (
-                          <li key={`ci-${idx}`} className="text-gray-700">{item.item || item.title}</li>
-                        ))}
-                      </ul>
+              <div className="grid grid-cols-2 gap-4">
+                {formData.generalFindings.map((photo, idx) => (
+                  <div key={idx} className="border border-gray-300 rounded-md overflow-hidden bg-white shadow-sm">
+                    {/* Photo Image */}
+                    <div className="bg-gray-100 flex items-center justify-center" style={{ minHeight: '200px' }}>
+                      {photo.preview || photo.url ? (
+                        <img 
+                          src={photo.preview || photo.url} 
+                          alt={photo.caption || `Photo ${idx + 1}`}
+                          className="w-full h-auto object-contain"
+                          style={{ maxHeight: '300px' }}
+                        />
+                      ) : (
+                        <div className="text-gray-400 text-center p-4">
+                          <p className="text-sm font-semibold">Photo {idx + 1}</p>
+                          <p className="text-xs mt-1">{photo.name}</p>
+                        </div>
+                      )}
                     </div>
-
-                    <div>
-                      <p className="font-semibold">Required Actions:</p>
-                      <p className="text-gray-700 mt-1">
-                        The establishment must submit a corrective action plan and implement necessary improvements within the specified timeframe.
+                    
+                    {/* Photo Caption/Description */}
+                    <div className="p-3 bg-gray-50 border-t border-gray-200">
+                      <p className="text-xs font-semibold text-gray-700 mb-1">Description:</p>
+                      <p className="text-sm text-gray-900 whitespace-pre-wrap">
+                        {photo.caption || photo.description || 'No description provided'}
                       </p>
                     </div>
-                  </>
-                )}
+                  </div>
+                ))}
               </div>
-            </div>
-          </section>
+            </section>
+          )}
 
         </div>
 
-        {/* Confirmation Modal */}
+        {/* Confirmation Dialog */}
         {showConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 print:hidden">
-            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
-              <h3 className="text-lg font-semibold mb-4">
-                {mode === 'preview' ? 'Confirm Submission' : 'Confirm Action'}
-              </h3>
+          <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm print:hidden">
+            <div className="w-full max-w-2xl bg-white rounded-lg shadow-xl mx-4 overflow-hidden max-h-[90vh] flex flex-col">
+              {/* Header */}
+              <div className="px-6 py-4 bg-sky-50 border-b border-sky-200">
+                <div className="flex items-center gap-3">
+                  {mode === 'preview' ? (
+                    <Send className="w-6 h-6 text-sky-600" />
+                  ) : (
+                    <FileCheck className="w-6 h-6 text-sky-600" />
+                  )}
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    {mode === 'preview' ? 'Confirm Submission' : 'Confirm Action'}
+                  </h3>
+                </div>
+              </div>
               
-              {mode === 'preview' ? (
-                <p className="text-gray-700 mb-4">
-                  Are you sure you want to submit this inspection for review? Please ensure all information is correct.
-                </p>
-              ) : (
-                <>
-                  <p className="text-gray-700 mb-4">
-                    Please provide remarks for this action:
-                  </p>
-                  <textarea
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                    rows="4"
-                    placeholder="Enter your remarks here..."
-                    required
-                  />
-                </>
-              )}
-
-              <div className="flex justify-end gap-3 mt-6">
+              {/* Content - scrollable */}
+              <div className="p-6 overflow-y-auto flex-1">
+                {getConfirmationMessage()}
+              </div>
+              
+              {/* Footer with buttons */}
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
                 <button
-                  onClick={() => setShowConfirm(false)}
-                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  onClick={() => {
+                    setShowConfirm(false);
+                    setRemarks('');
+                  }}
+                  className="px-6 py-2.5 text-gray-700 transition-colors bg-gray-200 rounded-lg hover:bg-gray-300 disabled:opacity-50 font-medium"
                   disabled={loading}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmit}
-                  className="px-4 py-2 text-white bg-sky-600 rounded-md hover:bg-sky-700 font-semibold"
+                  className={`px-6 py-2.5 text-white rounded-lg transition-colors flex items-center justify-center min-w-[100px] font-medium disabled:opacity-50 ${
+                    complianceStatus === 'COMPLIANT' ? 'bg-green-600 hover:bg-green-700' : 'bg-sky-600 hover:bg-sky-700'
+                  }`}
                   disabled={loading || (mode !== 'preview' && !remarks.trim())}
                 >
-                  {loading ? 'Processing...' : 'Confirm'}
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-white mr-2"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    'Confirm'
+                  )}
                 </button>
               </div>
             </div>

@@ -6,6 +6,7 @@ import { changePassword, logoutUser } from "../services/api";
 import { useNavigate } from "react-router-dom";
 import ConfirmationDialog from "../components/common/ConfirmationDialog";
 import { useNotifications } from "../components/NotificationManager";
+import PasswordRequirements from "../components/common/PasswordRequirements";
 
 export default function ChangePassword() {
   const [showOldPassword, setShowOldPassword] = useState(false);
@@ -282,18 +283,11 @@ export default function ChangePassword() {
           </div>
         </form>
 
-        <div className="p-3 mt-5 rounded-lg bg-gray-50">
-          <h3 className="mb-1 text-xs font-medium text-gray-700">
-            Password Requirements:
-          </h3>
-          <ul className="text-xs text-gray-600">
-            <li>• Minimum 8 characters</li>
-            <li>• At least one uppercase letter (A-Z)</li>
-            <li>• At least one lowercase letter (a-z)</li>
-            <li>• At least one number (0-9)</li>
-            <li>• At least one special character (@$!%*?&)</li>
-          </ul>
-        </div>
+        <PasswordRequirements 
+          password={formData.newPassword}
+          showMatchRequirement={true}
+          passwordsMatch={formData.newPassword && formData.confirmPassword && formData.newPassword === formData.confirmPassword}
+        />
       </div>
 
       <ConfirmationDialog

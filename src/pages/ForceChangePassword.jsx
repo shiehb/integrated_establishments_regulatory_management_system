@@ -5,6 +5,7 @@ import { Eye, EyeOff } from "lucide-react";
 import Layout from "../components/Layout";
 import { changePassword, firstTimeChangePassword, logoutUser } from "../services/api";
 import { useNotifications } from "../components/NotificationManager";
+import PasswordRequirements from "../components/common/PasswordRequirements";
 
 export default function ForceChangePassword() {
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -221,18 +222,11 @@ export default function ForceChangePassword() {
           </button>
         </form>
 
-        <div className="p-3 mt-5 rounded-lg bg-gray-50">
-          <h3 className="mb-1 text-xs font-medium text-gray-700">
-            Password Requirements:
-          </h3>
-          <ul className="text-xs text-gray-600">
-            <li>• Minimum 8 characters</li>
-            <li>• At least one uppercase letter (A-Z)</li>
-            <li>• At least one lowercase letter (a-z)</li>
-            <li>• At least one number (0-9)</li>
-            <li>• At least one special character (@$!%*?&)</li>
-          </ul>
-        </div>
+        <PasswordRequirements 
+          password={formData.newPassword}
+          showMatchRequirement={true}
+          passwordsMatch={formData.newPassword && formData.confirmPassword && formData.newPassword === formData.confirmPassword}
+        />
       </div>
     </Layout>
   );
