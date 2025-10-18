@@ -5,16 +5,11 @@ import {
   getInspections,
 } from "../../services/api";
 import {
-  Users, 
-  Building2, 
   ClipboardList, 
   RefreshCw,
   ChevronDown,
   ChevronUp,
   RotateCcw,
-  Plus,
-  UserPlus,
-  FileText,
   Loader2,
   Search,
   Filter,
@@ -34,8 +29,6 @@ import {
 } from 'chart.js';
 import { useDashboardData } from "./shared/useDashboardData";
 import { useComplianceChart } from "./shared/useComplianceChart";
-import LoadingSkeleton from "./shared/LoadingSkeleton";
-import SummaryCard from "./shared/SummaryCard";
 import ComplianceCard from "./shared/ComplianceCard";
 import QuarterlyComparisonCard from "./shared/QuarterlyComparisonCard";
 import ComplianceByLawCard from "./shared/ComplianceByLawCard";
@@ -440,63 +433,17 @@ export default function AdminDashboard() {
   return (
     <div className="p-4 bg-gray-50">
       {/* Main Grid - 5 Column Layout */}
-      <div className="grid grid-cols-5 grid-rows-2 gap-2 mb-6">
-        {/* Cell 1: Establishments Card */}
-        <div>
-          <SummaryCard
-            title="Establishments"
-            value={stats.totalEstablishments}
-            icon={<Building2 size={24} className="text-sky-700" />}
-            color="bg-sky-50 border-sky-200"
-            route="/establishments"
-            quickAction={{
-              icon: <Plus size={16} className="text-sky-700" />,
-              route: "/establishments/add",
-              tooltip: "Add New Establishment"
-            }}
-            isLoading={isLoading}
-            onNavigate={handleViewAll}
+      <div className="grid grid-cols-5 grid-rows-3 gap-2 mb-6">
+        {/* Compliance by Law (spans 3 columns, 2 rows) */}
+        <div className="col-span-3 row-span-2">
+          <ComplianceByLawCard
+            userRole={null} // Admin sees all data
+            onViewAll={handleViewAll}
           />
         </div>
 
-        {/* Cell 2: Users Card */}
-        <div>
-          <SummaryCard
-            title="Users"
-            value={stats.totalUsers}
-            icon={<Users size={24} className="text-sky-600" />}
-            color="bg-sky-50 border-sky-200"
-            route="/users"
-            quickAction={{
-              icon: <UserPlus size={16} className="text-sky-600" />,
-              route: "/users/add",
-              tooltip: "Add New User"
-            }}
-            isLoading={isLoading}
-            onNavigate={handleViewAll}
-          />
-        </div>
-
-        {/* Cell 3: Total Inspections in Current Quarter Year */}
-        <div>
-          <SummaryCard
-            title="Compliance Monitoring"
-            value={quarterlyData.current_quarter?.total_finished || 0}
-            icon={<ClipboardList size={24} className="text-sky-800" />}
-            color="bg-sky-50 border-sky-200"
-            route="/inspections"
-            quickAction={{
-              icon: <FileText size={16} className="text-sky-800" />,
-              route: "/inspections/add",
-              tooltip: "Add New Inspection"
-            }}
-            isLoading={isLoading}
-            onNavigate={handleViewAll}
-          />
-        </div>
-
-        {/* Cell 4: Quarterly Trend (spans 3 columns in row 2) */}
-        <div className="col-span-3 col-start-1 row-start-2">
+        {/* Quarterly Trend (spans 3 columns, starts at row 3) */}
+        <div className="col-span-3 col-start-1 row-start-3">
           <QuarterlyComparisonCard
             data={quarterlyData}
             isLoading={isLoading}
@@ -504,8 +451,8 @@ export default function AdminDashboard() {
           />
         </div>
 
-        {/* Cell 5: Compliance Status (spans 2 rows, starts at column 4) */}
-        <div className="col-span-2 row-span-2 col-start-4 row-start-1">
+        {/* Compliance Status (spans 2 columns, 3 rows, starts at column 4, row 1) */}
+        <div className="col-span-2 row-span-3 col-start-4 row-start-1">
           <ComplianceCard
             stats={complianceStats}
             chartData={complianceData}
@@ -513,14 +460,6 @@ export default function AdminDashboard() {
             onViewAll={handleViewAll}
           />
         </div>
-      </div>
-
-      {/* Third Row - Compliance by Law Chart */}
-      <div className="mb-6">
-        <ComplianceByLawCard
-          userRole={null} // Admin sees all data
-          onViewAll={handleViewAll}
-        />
       </div>
       
       {/* Second Grid - Activity and Inspection Panels */}

@@ -225,6 +225,22 @@ export default function Establishments() {
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  // 🔹 handle polygon creation redirect
+  const handlePolygonCreate = (establishment) => {
+    // Close modals
+    setShowAdd(false);
+    setEditEstablishment(null);
+    
+    // Navigate to polygon view with edit mode enabled
+    setPolygonEstablishment({
+      ...establishment,
+      originalPolygon: establishment.polygon ? [...establishment.polygon] : [],
+    });
+    setCurrentView("polygon");
+    setPolygonEditMode(true);
+    setHasPolygonChanges(false);
+  };
+
 
   return (
     <>
@@ -347,6 +363,7 @@ export default function Establishments() {
           <AddEstablishment
             onClose={() => setShowAdd(false)}
             onEstablishmentAdded={handleEstablishmentChanged}
+            onPolygonCreate={handlePolygonCreate}
           />
         </div>
       )}
@@ -358,6 +375,7 @@ export default function Establishments() {
             establishmentData={editEstablishment}
             onClose={() => setEditEstablishment(null)}
             onEstablishmentUpdated={handleEstablishmentChanged}
+            onPolygonCreate={handlePolygonCreate}
           />
         </div>
       )}

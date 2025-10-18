@@ -1,61 +1,246 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Multiple Law Assignments</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #2c5aa0; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; background-color: #f9f9f9; }
-        .laws-summary { background-color: white; padding: 15px; border-left: 4px solid #2c5aa0; margin: 15px 0; }
-        .law-item { padding: 8px; border-bottom: 1px solid #eee; }
-        .law-item:last-child { border-bottom: none; }
-        .establishment-info { background-color: white; padding: 15px; border-left: 4px solid #28a745; margin: 15px 0; }
-        .button { display: inline-block; padding: 10px 20px; background-color: #2c5aa0; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
-        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-        .highlight { background-color: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0; }
-    </style>
+  <meta charset="utf-8" />
+  <title>Multiple Law Assignments - IERMS</title>
+  <style>
+    body { font-family: 'Arial', 'Helvetica', sans-serif; line-height: 1.5; color: #1f2937; margin: 0; padding: 20px; background-color: #f3f4f6; }
+    .container { max-width: 650px; margin: 0 auto; background-color: #ffffff; border: 1px solid #d1d5db; }
+    
+    /* Content */
+    .content { padding: 30px; }
+    
+    /* Assignment details table */
+    .assignment-table { width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #d1d5db; }
+    .assignment-table th { background-color: #f3f4f6; padding: 10px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #374151; border-bottom: 2px solid #d1d5db; }
+    .assignment-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
+    .assignment-table td:first-child { font-weight: 600; color: #374151; width: 180px; }
+    .assignment-table td:last-child { font-family: 'Arial', sans-serif; background-color: #f9fafb; color: #0c4a6e; font-weight: 600; }
+    
+    /* Alert boxes */
+    .alert-info { background-color: #f0f9ff; border: 2px solid #0284c7; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    .alert-warning { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; padding: 18px; margin: 20px 0; border-radius: 8px; }
+    
+    /* CTA Button */
+    .cta-button { display: inline-block; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 14px; margin: 20px 0; box-shadow: 0 4px 6px rgba(2, 132, 199, 0.3); }
+    
+    /* Support info box */
+    .support-box { background-color: #f9fafb; border: 1px dashed #d1d5db; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .support-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #374151; font-weight: 700; }
+    .support-box p { margin: 5px 0; font-size: 12px; color: #6b7280; }
+    
+    /* Laws list box */
+    .laws-box { background-color: #eff6ff; border: 2px solid #3b82f6; padding: 20px; margin: 20px 0; border-radius: 8px; }
+    .laws-box h3 { margin: 0 0 15px 0; font-size: 14px; color: #1e40af; font-weight: 700; text-align: center; }
+    .law-item { padding: 12px; border-bottom: 1px solid #dbeafe; background-color: white; margin-bottom: 8px; border-radius: 6px; }
+    .law-item:last-child { margin-bottom: 0; }
+    .law-item p { margin: 0; font-size: 12px; color: #1e40af; }
+    .law-item strong { font-size: 13px; color: #0c4a6e; }
+    
+    /* Highlight box */
+    .highlight-box { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center; }
+    .highlight-box p { margin: 0; font-size: 14px; color: #92400e; font-weight: 700; }
+    .highlight-box .count { font-size: 32px; font-weight: 900; color: #92400e; display: block; margin: 10px 0; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Multiple Law Assignments</h1>
-        </div>
-        
-        <div class="content">
-            <p>Dear {{ section_chief.first_name|default:section_chief.email }},</p>
-            
-            <div class="highlight">
-                <p><strong>You have been assigned {{ assigned_laws|length }} environmental laws for a single inspection:</strong></p>
-            </div>
-            
-            <div class="laws-summary">
-                <h3>Assigned Laws</h3>
-                {% for law in assigned_laws %}
-                <div class="law-item">
-                    <p><strong>{{ law.law_code }}:</strong> {{ law.law_name }}</p>
-                </div>
-                {% endfor %}
-            </div>
-            
-            <div class="establishment-info">
-                <h3>Establishment Details</h3>
-                <p><strong>Name:</strong> {{ establishment.name }}</p>
-                <p><strong>Location:</strong> {{ establishment.city }}, {{ establishment.province }}</p>
-                <p><strong>Inspection Code:</strong> {{ inspection.code }}</p>
-            </div>
-            
-            <p>As the EIA, Air & Water Section Chief, you are responsible for overseeing all these environmental laws for this establishment. Please review the inspection details and coordinate with your team as needed.</p>
-            
-            <a href="{{ site_url }}/inspections/{{ inspection.id }}" class="button">View Inspection Details</a>
-        </div>
-        
-        <div class="footer">
-            <p>This is an automated notification from the Integrated Establishments Regulatory Management System.</p>
-            <p>Please do not reply to this email.</p>
-        </div>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding: 20px; background: linear-gradient(135deg, #0c4a6e 0%, #0369a1 100%);">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td width="80">
+                  {% if logo_url %}
+                  <img src="{{ logo_url }}" alt="IERMS Logo" style="height:60px; width:auto;" />
+                  {% endif %}
+                </td>
+                <td style="padding-left: 15px; color: white;">
+                  <h1 style="margin:0; font-size:20px; font-weight:700; color:white;">MULTIPLE LAW ASSIGNMENTS</h1>
+                  <p style="margin:3px 0 0 0; font-size:11px; opacity:0.9; color:#e0f2fe;">Multi-Law Inspection Assignment</p>
+                  <p style="margin:2px 0 0 0; font-size:10px; opacity:0.8; color:#bae6fd;">Document No: IERMS-MULTILAW-{% now "YmdHis" %}</p>
+                </td>
+                <td width="100" style="text-align: right; color: white; font-size: 10px;">
+                  <div style="border: 1px solid rgba(255,255,255,0.3); padding: 8px; border-radius: 6px;">
+                    <div style="font-weight: 600; color: #bae6fd;">OFFICIAL</div>
+                    <div style="margin-top: 2px; color: #e0f2fe;">SYSTEM EMAIL</div>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
     </div>
+
+    <div class="content">
+      <!-- Reference & Timestamp -->
+      <div style="text-align: right; font-size: 11px; color: #6b7280; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
+        <strong>Assignment ID:</strong> MULTI-{{ inspection.id|default:'NEW' }}-{% now "YmdHis" %}<br/>
+        <strong>Generated:</strong> {% now "F j, Y, g:i A" %}
+      </div>
+
+      <!-- Salutation -->
+      <p style="font-size: 14px; margin-bottom: 20px;">
+        <strong>Dear {% if section_chief.first_name %}{{ section_chief.first_name }} {{ section_chief.last_name }}{% else %}{{ section_chief.email }}{% endif %},</strong>
+      </p>
+
+      <!-- Assignment Notice -->
+      <div class="alert-info">
+        <p style="margin: 0; font-size: 13px; color: #0c4a6e;">
+          You have been assigned multiple environmental laws for a single inspection in the <strong>Integrated Establishments Regulatory Management System (IERMS)</strong>. 
+          Please review all assigned laws and coordinate with your team accordingly.
+        </p>
+      </div>
+
+      <!-- Highlight Count -->
+      <div class="highlight-box">
+        <p>📋 TOTAL LAWS ASSIGNED</p>
+        <span class="count">{{ assigned_laws|length }}</span>
+        <p style="font-size: 12px; margin-top: 10px;">Environmental Laws for Single Inspection</p>
+      </div>
+
+      <!-- Assigned Laws List -->
+      <div class="laws-box">
+        <h3>ASSIGNED ENVIRONMENTAL LAWS</h3>
+        {% for law in assigned_laws %}
+        <div class="law-item">
+          <p><strong>{{ law.law_code }}:</strong> {{ law.law_name }}</p>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Establishment Details -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        ESTABLISHMENT DETAILS
+      </h3>
+      <table class="assignment-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Establishment Name</td>
+            <td>{{ establishment.name }}</td>
+          </tr>
+          <tr>
+            <td>Location</td>
+            <td>{{ establishment.city }}, {{ establishment.province }}</td>
+          </tr>
+          {% if establishment.address %}
+          <tr>
+            <td>Address</td>
+            <td>{{ establishment.address }}</td>
+          </tr>
+          {% endif %}
+          <tr>
+            <td>Inspection Code</td>
+            <td>{{ inspection.code }}</td>
+          </tr>
+          {% if inspection.district %}
+          <tr>
+            <td>District</td>
+            <td>{{ inspection.district }}</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <!-- Coordination Notice -->
+      <div class="alert-warning">
+        <p style="margin: 0 0 10px 0; font-size: 13px; color: #92400e; font-weight: 700;">
+          👥 COORDINATION REQUIRED
+        </p>
+        <p style="margin: 0; font-size: 12px; color: #92400e; line-height: 1.6;">
+          As the Section Chief, you are responsible for overseeing all assigned environmental laws for this establishment. 
+          Please coordinate with your team members and ensure comprehensive coverage of all regulatory requirements.
+        </p>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="{{ site_url }}/inspections/{{ inspection.id }}" class="cta-button">VIEW INSPECTION DETAILS</a>
+        <p style="font-size: 11px; color: #6b7280; margin-top: 10px;">
+          Or copy and paste this URL: <span style="color: #0284c7; word-break: break-all;">{{ site_url }}/inspections/{{ inspection.id }}</span>
+        </p>
+      </div>
+
+      <!-- Important Reminders -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        IMPORTANT REMINDERS
+      </h3>
+      <ul style="font-size: 12px; color: #374151; line-height: 1.8; padding-left: 20px;">
+        <li>Review all assigned laws and their specific requirements</li>
+        <li>Assign team members to handle different laws as needed</li>
+        <li>Coordinate inspection schedules to cover all regulatory aspects</li>
+        <li>Ensure comprehensive documentation for each law</li>
+        <li>Submit consolidated inspection reports for all assigned laws</li>
+      </ul>
+
+      <!-- Support Information -->
+      <div class="support-box">
+        <h4>📞 TECHNICAL SUPPORT & ASSISTANCE</h4>
+        <p><strong>IT Help Desk:</strong> support@ierms.denr.gov.ph | Tel: (02) 8888-4376</p>
+        <p><strong>Office Hours:</strong> Monday - Friday, 8:00 AM - 5:00 PM (Philippine Time)</p>
+        <p><strong>Emergency Support:</strong> For urgent issues, contact your supervisor</p>
+      </div>
+
+      <!-- Legal Disclaimer -->
+      <div style="font-size: 10px; color: #9ca3af; margin-top: 25px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: justify;">
+        <p style="margin: 0;">
+          This multi-law assignment is generated by the IERMS system in accordance with DENR inspection protocols. 
+          All inspection activities must comply with DENR regulations and the Data Privacy Act of 2012 (R.A. 10173).
+        </p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding: 20px; background-color: #f9fafb; border-top: 2px solid #e5e7eb;">
+            <!-- Contact Information -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 15px;">
+              <tr>
+                <td style="text-align: center; font-size: 11px; color: #374151;">
+                  <strong style="display: block; margin-bottom: 8px; font-size: 12px; color: #1f2937;">INTEGRATED ESTABLISHMENTS REGULATORY MANAGEMENT SYSTEM</strong>
+                  <div style="margin-bottom: 4px;">📧 Email: support@ierms.gov.ph | ☎️ Hotline: (02) 8888-IERMS (4376)</div>
+                  <div style="margin-bottom: 4px;">🏢 Address: DENR Region 1, San Fernando City, La Union, Philippines</div>
+                  <div>🌐 Website: www.ierms.denr.gov.ph</div>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Legal Disclaimer -->
+            <div style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 12px; border-radius: 6px; margin-bottom: 15px;">
+              <p style="margin: 0; font-size: 10px; color: #92400e; text-align: center;">
+                <strong>CONFIDENTIALITY NOTICE:</strong> This email and any attachments are confidential and intended solely for the addressee. 
+                If you are not the intended recipient, please delete this email and notify the sender immediately. 
+                Unauthorized use, disclosure, or distribution is strictly prohibited.
+              </p>
+            </div>
+
+            <!-- Copyright and Links -->
+            <div style="text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px;">
+              <p style="margin: 0 0 8px 0;">
+                <a href="#" style="color: #0369a1; text-decoration: none;">Help Center</a> | 
+                <a href="#" style="color: #0369a1; text-decoration: none;">Privacy Policy</a> | 
+                <a href="#" style="color: #0369a1; text-decoration: none;">Terms of Use</a>
+              </p>
+              <p style="margin: 0; color: #9ca3af;">© 2025 DENR Region 1 - IERMS. All rights reserved.</p>
+              <p style="margin: 4px 0 0 0; font-size: 9px; color: #d1d5db;">
+                This is an automated system-generated email. Please do not reply directly to this message.
+              </p>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
 </body>
 </html>
-

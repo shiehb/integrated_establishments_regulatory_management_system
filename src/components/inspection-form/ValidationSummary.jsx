@@ -64,52 +64,56 @@ export default function ValidationSummary({ errors, onScrollToSection }) {
   }
 
   return (
-    <div className="mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
-      <div className="flex items-start gap-3">
-        <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
-        <div className="flex-1">
-          <h3 className="text-base font-bold text-red-800 mb-2">
+    <div className="h-full bg-white border-l border-gray-200 flex flex-col">
+      {/* Header */}
+      <div className="p-4 border-b border-gray-200 bg-red-50">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-5 h-5 text-red-600" />
+          <h3 className="text-base font-bold text-red-800">
             {totalErrors} Validation Error{totalErrors !== 1 ? 's' : ''} Found
           </h3>
-          <p className="text-sm text-red-700 mb-3">
-            Please fix the following errors before submitting:
-          </p>
-          
-          <div className="space-y-3">
-            {sectionsWithErrors.map((section) => (
-              <div key={section.id} className="bg-white rounded-md p-3 border border-red-200">
-                <button
-                  onClick={() => onScrollToSection && onScrollToSection(section.id)}
-                  className="text-left w-full group"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-sm font-semibold text-red-800 group-hover:text-red-900">
-                      {section.name}
-                    </h4>
-                    <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-medium">
-                      {section.errors.length} error{section.errors.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <ul className="space-y-1">
-                    {section.errors.slice(0, 3).map((error, idx) => (
-                      <li key={idx} className="text-xs text-red-700 flex items-start gap-1.5">
-                        <span className="text-red-500 mt-0.5">•</span>
-                        <span>{error.message}</span>
-                      </li>
-                    ))}
-                    {section.errors.length > 3 && (
-                      <li className="text-xs text-red-600 italic">
-                        + {section.errors.length - 3} more error{section.errors.length - 3 !== 1 ? 's' : ''}
-                      </li>
-                    )}
-                  </ul>
-                  <p className="text-xs text-sky-600 mt-2 group-hover:underline">
-                    Click to jump to section →
-                  </p>
-                </button>
-              </div>
-            ))}
-          </div>
+        </div>
+        <p className="text-sm text-red-700 mt-1">
+          Please fix the following errors before submitting:
+        </p>
+      </div>
+      
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="space-y-3">
+          {sectionsWithErrors.map((section) => (
+            <div key={section.id} className="bg-white rounded-md p-3 border border-red-200 shadow-sm">
+              <button
+                onClick={() => onScrollToSection && onScrollToSection(section.id)}
+                className="text-left w-full group"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-red-800 group-hover:text-red-900">
+                    {section.name}
+                  </h4>
+                  <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full font-medium">
+                    {section.errors.length} error{section.errors.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <ul className="space-y-1">
+                  {section.errors.slice(0, 3).map((error, idx) => (
+                    <li key={idx} className="text-xs text-red-700 flex items-start gap-1.5">
+                      <span className="text-red-500 mt-0.5">•</span>
+                      <span>{error.message}</span>
+                    </li>
+                  ))}
+                  {section.errors.length > 3 && (
+                    <li className="text-xs text-red-600 italic">
+                      + {section.errors.length - 3} more error{section.errors.length - 3 !== 1 ? 's' : ''}
+                    </li>
+                  )}
+                </ul>
+                <p className="text-xs text-sky-600 mt-2 group-hover:underline">
+                  Click to jump to section →
+                </p>
+              </button>
+            </div>
+          ))}
         </div>
       </div>
     </div>

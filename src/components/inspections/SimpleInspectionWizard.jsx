@@ -65,6 +65,7 @@ export default function SimpleInspectionWizard({
   const [errors, setErrors] = useState({});
   const [filteredEstablishments, setFilteredEstablishments] = useState(establishments);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [loading, setLoading] = useState(false);
   
   // Debounced search query
   const debouncedSearchQuery = useDebounce(formData.establishment_search, 500);
@@ -123,6 +124,8 @@ export default function SimpleInspectionWizard({
   };
 
   const confirmSubmit = async () => {
+    setLoading(true);
+    
     const selectedEstablishments = establishments.filter(est => 
       formData.establishment_ids.includes(est.id.toString())
     );
@@ -139,8 +142,6 @@ export default function SimpleInspectionWizard({
       userlevel: userProfile?.userlevel || 'Division Chief'
     };
     
-    setShowConfirmation(false);
-    
     try {
       await onSave(inspectionData);
       // Show success notification after inspection is created
@@ -148,12 +149,16 @@ export default function SimpleInspectionWizard({
         title: 'Inspection Created',
         duration: 6000
       });
+      setShowConfirmation(false);
     } catch (error) {
       // Show error notification if creation fails
       notifications.error(`Failed to create inspection: ${error.message}`, {
         title: 'Creation Failed',
         duration: 8000
       });
+      setShowConfirmation(false);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -580,6 +585,7 @@ export default function SimpleInspectionWizard({
         cancelText="Cancel"
         confirmColor="sky"
         size="md"
+        loading={loading}
         onCancel={() => setShowConfirmation(false)}
         onConfirm={confirmSubmit}
       />

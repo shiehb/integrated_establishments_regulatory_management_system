@@ -49,7 +49,10 @@ export default function UnifiedInspectionHeader({
   
   // Map panel props
   isMapPanelOpen = false,
-  hasMapData = false
+  hasMapData = false,
+  
+  // Recommendations tab visibility
+  showRecommendationsTab = true
 }) {
   const tabs = [
     { id: 'general', label: 'General Information', icon: Info, required: true },
@@ -80,7 +83,7 @@ export default function UnifiedInspectionHeader({
       {/* Internal Header Section */}
       <header className="flex items-center justify-between w-full px-6 py-3 bg-white border-b border-gray-200 relative z-50">
         <div className="flex items-center gap-4">
-          <div className="text-xl font-bold text-sky-700">Inspection Form</div>
+          <div className="text-xl font-bold text-sky-700">Integrated Compliance Inspection Report</div>
           
           {/* Compliance Status Badge */}
           {complianceStatus && (
@@ -151,7 +154,7 @@ export default function UnifiedInspectionHeader({
             {showDraftButton && (
               <button
                 onClick={onDraft}
-                className="px-3 py-1 text-sm text-white bg-yellow-600 rounded hover:bg-yellow-700"
+                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
                 Draft
               </button>
@@ -171,7 +174,7 @@ export default function UnifiedInspectionHeader({
                 onClick={onComplete}
                 className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
               >
-                Submit for Review
+                Submit
               </button>
             )}
             
@@ -180,14 +183,14 @@ export default function UnifiedInspectionHeader({
                 onClick={onComplete}
                 className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
               >
-                Submit for Review
+                Submit
               </button>
             )}
             
             {showSendToSectionButton && (
               <button
                 onClick={onSendToSection}
-                className="px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700"
+                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
                 Send to Section
               </button>
@@ -196,7 +199,7 @@ export default function UnifiedInspectionHeader({
             {showSendToDivisionButton && (
               <button
                 onClick={onSendToDivision}
-                className="px-3 py-1 text-sm text-white bg-purple-600 rounded hover:bg-purple-700"
+                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
                 Send to Division
               </button>
@@ -205,7 +208,7 @@ export default function UnifiedInspectionHeader({
             {showReviewButton && (
               <button
                 onClick={onReview}
-                className="px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700"
+                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
                 Review Form
               </button>
@@ -214,7 +217,7 @@ export default function UnifiedInspectionHeader({
             {showSendToNextLevelButton && (
               <button
                 onClick={onSendToNextLevel}
-                className="px-3 py-1 text-sm text-white bg-purple-600 rounded hover:bg-purple-700"
+                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
                 Send to {nextLevelName}
               </button>
@@ -223,7 +226,7 @@ export default function UnifiedInspectionHeader({
             {showForwardToLegalButton && (
               <button
                 onClick={onForwardToLegal}
-                className="px-3 py-1 text-sm text-white bg-orange-600 rounded hover:bg-orange-700"
+                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
                 Send to Legal
               </button>
@@ -232,7 +235,7 @@ export default function UnifiedInspectionHeader({
             {showFinalizeButton && (
               <button
                 onClick={onFinalize}
-                className="px-3 py-1 text-sm text-white bg-gray-800 rounded hover:bg-gray-900"
+                className="px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
               >
                 Close Form
               </button>
@@ -241,7 +244,7 @@ export default function UnifiedInspectionHeader({
             {showSendNOVButton && (
               <button
                 onClick={onSendNOV}
-                className="px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700"
+                className="px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
               >
                 Send NOV
               </button>
@@ -250,7 +253,7 @@ export default function UnifiedInspectionHeader({
             {showSendNOOButton && (
               <button
                 onClick={onSendNOO}
-                className="px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700"
+                className="px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
               >
                 Send NOO
               </button>
@@ -289,6 +292,9 @@ export default function UnifiedInspectionHeader({
               {tabs.map((tab) => {
                 // Skip map tab in main navigation
                 if (tab.isMapTab) return null;
+                
+                // Skip recommendations tab if not shown
+                if (tab.id === 'recommendations' && !showRecommendationsTab) return null;
                 
                 const Icon = tab.icon;
                 const isActive = activeSection === tab.id;

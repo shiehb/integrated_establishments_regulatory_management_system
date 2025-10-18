@@ -14,6 +14,7 @@ from .serializers import (
     InspectionHistorySerializer, InspectionDocumentSerializer,
     InspectionActionSerializer, NOVSerializer, NOOSerializer
 )
+from .utils import send_inspection_forward_notification, create_forward_notification
 
 User = get_user_model()
 
@@ -1110,6 +1111,44 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 remarks=f'Assigned to Unit Head for review'
             )
     
+    @action(detail=True, methods=['get'])
+    def available_monitoring_personnel(self, request, pk=None):
+        """Get available monitoring personnel for an inspection"""
+        inspection = self.get_object()
+        
+        # Get all monitoring personnel for the inspection's law
+        monitoring_personnel = User.objects.filter(
+            userlevel='Monitoring Personnel',
+            section=inspection.law,
+            is_active=True
+        ).order_by('district', 'first_name', 'last_name')
+        
+        # Separate district-based and other personnel
+        district_personnel = []
+        other_personnel = []
+        
+        for person in monitoring_personnel:
+            person_data = {
+                'id': person.id,
+                'first_name': person.first_name,
+                'last_name': person.last_name,
+                'email': person.email,
+                'district': person.district,
+                'is_district_match': person.district == inspection.district
+            }
+            
+            if person.district == inspection.district:
+                district_personnel.append(person_data)
+            else:
+                other_personnel.append(person_data)
+        
+        return Response({
+            'district_personnel': district_personnel,
+            'other_personnel': other_personnel,
+            'inspection_district': inspection.district,
+            'inspection_law': inspection.law
+        })
+
     @action(detail=True, methods=['post'])
     def forward(self, request, pk=None):
         """Forward inspection to next level"""
@@ -1190,23 +1229,39 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 is_active=True
             )
             
-            # Prefer same district if available
-            if inspection.district:
-                next_assignee = monitoring_query.filter(district=inspection.district).first()
-                if not next_assignee:
-                    # No Monitoring Personnel found - return error instead of changing status
+            # Check if specific monitoring personnel is provided in request
+            assigned_monitoring_id = request.data.get('assigned_monitoring_id')
+            if assigned_monitoring_id:
+                try:
+                    next_assignee = monitoring_query.get(id=assigned_monitoring_id)
+                except User.DoesNotExist:
                     return Response(
-                        {'error': f'No Monitoring Personnel found for {inspection.law} in district {inspection.district}. Please assign Monitoring Personnel before forwarding.'},
+                        {'error': f'Invalid monitoring personnel ID: {assigned_monitoring_id}'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
             else:
-                next_assignee = monitoring_query.first()
-                if not next_assignee:
-                    # No Monitoring Personnel found - return error instead of changing status
-                    return Response(
-                        {'error': f'No Monitoring Personnel found for {inspection.law}. Please assign Monitoring Personnel before forwarding.'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                # Auto-assignment: Prefer same district if available
+                if inspection.district:
+                    next_assignee = monitoring_query.filter(district=inspection.district).first()
+                    if not next_assignee:
+                        # No district match - return available options instead of error
+                        available_personnel = monitoring_query.values('id', 'first_name', 'last_name', 'email', 'district')
+                        return Response(
+                            {
+                                'error': f'No Monitoring Personnel found for {inspection.law} in district {inspection.district}.',
+                                'available_personnel': list(available_personnel),
+                                'requires_selection': True
+                            },
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                else:
+                    next_assignee = monitoring_query.first()
+                    if not next_assignee:
+                        # No Monitoring Personnel found - return error
+                        return Response(
+                            {'error': f'No Monitoring Personnel found for {inspection.law}. Please assign Monitoring Personnel before forwarding.'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
         else:
             # Use normal assignment logic
             next_assignee = inspection.get_next_assignee(next_status)
@@ -1227,13 +1282,42 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.assigned_to = next_assignee
         inspection.save()
         
-        # Log history
-        # Create full name from available fields
+        # Get remarks before logging history (needed for both notifications and history)
         full_name_parts = [next_assignee.first_name, next_assignee.middle_name, next_assignee.last_name]
         full_name = ' '.join([part for part in full_name_parts if part]).strip()
         display_name = full_name if full_name else next_assignee.email
         default_remarks = f'Forwarded to {display_name} ({next_assignee.userlevel})'
         remarks = request.data.get('remarks', default_remarks)
+        
+        # Send notifications to the assigned user
+        try:
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # Send email notification
+            send_inspection_forward_notification(
+                user=next_assignee,
+                inspection=inspection,
+                forwarded_by=user,
+                remarks=remarks
+            )
+            
+            # Create in-app notification
+            create_forward_notification(
+                recipient=next_assignee,
+                inspection=inspection,
+                forwarded_by=user,
+                remarks=remarks
+            )
+            
+            logger.info(f"Forward notifications sent to {next_assignee.email} for inspection {inspection.code}")
+        except Exception as e:
+            # Log the error but don't fail the forward operation
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send forward notifications for inspection {inspection.code}: {str(e)}")
+        
+        # Log history
         
         # Ensure remarks contains "Forwarded" for proper tab filtering
         if 'Forwarded' not in remarks:

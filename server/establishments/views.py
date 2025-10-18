@@ -314,6 +314,78 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         })
     
     @action(detail=False, methods=['get'])
+    def my_establishments(self, request):
+        """
+        Get establishments based on user role:
+        - Admin, Division Chief, Legal Unit: All establishments
+        - Section Chief, Unit Head, Monitoring Personnel: Only establishments with active inspections assigned to them
+        """
+        from inspections.models import Inspection
+        
+        user = request.user
+        page = int(request.query_params.get('page', 1))
+        page_size = int(request.query_params.get('page_size', 10000))
+        
+        # Define active inspection statuses (not closed)
+        active_statuses = [
+            'CREATED',
+            'SECTION_ASSIGNED', 'SECTION_IN_PROGRESS', 
+            'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT',
+            'UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 
+            'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
+            'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
+            'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT',
+            'UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED',
+            'LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT'
+        ]
+        
+        # Role-based filtering
+        if user.userlevel in ['Admin', 'Division Chief', 'Legal Unit']:
+            # Show all establishments
+            queryset = Establishment.objects.all()
+        else:
+            # Section Chief, Unit Head, Monitoring Personnel
+            # Get establishment IDs from active inspections assigned to this user
+            establishment_ids = Inspection.objects.filter(
+                assigned_to=user,
+                current_status__in=active_statuses
+            ).values_list('establishments', flat=True).distinct()
+            
+            # Filter establishments
+            queryset = Establishment.objects.filter(id__in=establishment_ids)
+        
+        # Apply search if provided
+        search = request.query_params.get('search', '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(street_building__icontains=search) |
+                Q(barangay__icontains=search) |
+                Q(city__icontains=search) |
+                Q(province__icontains=search) |
+                Q(nature_of_business__icontains=search)
+            )
+        
+        # Calculate pagination
+        total_count = queryset.count()
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        
+        # Apply pagination
+        establishments = queryset[start_index:end_index]
+        
+        # Serialize
+        serializer = self.get_serializer(establishments, many=True)
+        
+        return Response({
+            'count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size if page_size > 0 else 1,
+            'results': serializer.data
+        })
+    
+    @action(detail=False, methods=['get'])
     def location_options(self, request):
         """
         Get location options (provinces and cities) for the establishment forms.

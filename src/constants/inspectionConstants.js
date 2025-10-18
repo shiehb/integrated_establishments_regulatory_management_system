@@ -196,76 +196,103 @@ export const canUserSeeInspection = (status, userLevel) => {
   return visibilityMap[userLevel]?.includes(status) || false;
 };
 
+// Check if inspection is assigned to current user's role
+const isInspectionAssignedToRole = (status, userLevel, inspection, currentUserId) => {
+  // Direct assignment check
+  const isDirectlyAssigned = inspection?.assigned_to?.id === currentUserId;
+  
+  // Status-based role assignment check
+  const statusRoleMap = {
+    'Monitoring Personnel': ['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS', 'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'],
+    'Unit Head': ['UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT'],
+    'Section Chief': ['SECTION_ASSIGNED', 'SECTION_IN_PROGRESS', 'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT'],
+    'Division Chief': ['SECTION_REVIEWED', 'DIVISION_REVIEWED'],
+    'Legal Unit': ['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
+  };
+  
+  const relevantStatuses = statusRoleMap[userLevel] || [];
+  const isStatusMatch = relevantStatuses.includes(status);
+  
+  // For Monitoring Personnel, also check if assigned_monitoring matches current user
+  if (userLevel === 'Monitoring Personnel' && inspection?.assigned_monitoring?.id === currentUserId) {
+    return true;
+  }
+  
+  // Return true if either directly assigned OR status matches role
+  return isDirectlyAssigned || isStatusMatch;
+};
+
 // Get role-based status label
 export const getRoleBasedStatusLabel = (status, userLevel, inspection, currentUserId) => {
-  const isAssignedToMe = inspection?.assigned_to?.id === currentUserId;
+  // Determine if this inspection is "mine" based on status and role
+  const isMyWork = isInspectionAssignedToRole(status, userLevel, inspection, currentUserId);
   
-  // If assigned to me, show detailed status
-  if (isAssignedToMe) {
+  // If it's my work, show detailed status
+  if (isMyWork) {
     const myWorkLabels = {
       'Section Chief': {
-        SECTION_ASSIGNED: 'New Assignment',
-        SECTION_IN_PROGRESS: 'In Progress',
+        SECTION_ASSIGNED: 'Pending',
+        SECTION_IN_PROGRESS: 'In Process',
         SECTION_COMPLETED_COMPLIANT: 'Completed',
         SECTION_COMPLETED_NON_COMPLIANT: 'Completed',
-        UNIT_COMPLETED_COMPLIANT: 'Ready for Review',
-        UNIT_COMPLETED_NON_COMPLIANT: 'Ready for Review',
-        MONITORING_COMPLETED_COMPLIANT: 'Ready for Review',
-        MONITORING_COMPLETED_NON_COMPLIANT: 'Ready for Review',
-        UNIT_REVIEWED: 'Pending Review',
-        SECTION_REVIEWED: 'Sent to Division'
+        UNIT_COMPLETED_COMPLIANT: 'Pending Review',
+        UNIT_COMPLETED_NON_COMPLIANT: 'Pending Review',
+        MONITORING_COMPLETED_COMPLIANT: 'Pending Review',
+        MONITORING_COMPLETED_NON_COMPLIANT: 'Pending Review',
+        UNIT_REVIEWED: 'Under Review',
+        SECTION_REVIEWED: 'Forwarded to Division'
       },
       'Unit Head': {
-        UNIT_ASSIGNED: 'New Assignment',
-        UNIT_IN_PROGRESS: 'In Progress',
+        UNIT_ASSIGNED: 'Pending',
+        UNIT_IN_PROGRESS: 'In Process',
         UNIT_COMPLETED_COMPLIANT: 'Completed',
         UNIT_COMPLETED_NON_COMPLIANT: 'Completed',
-        MONITORING_COMPLETED_COMPLIANT: 'Ready for Review',
-        MONITORING_COMPLETED_NON_COMPLIANT: 'Ready for Review',
-        UNIT_REVIEWED: 'Sent to Section'
+        MONITORING_COMPLETED_COMPLIANT: 'Pending Review',
+        MONITORING_COMPLETED_NON_COMPLIANT: 'Pending Review',
+        UNIT_REVIEWED: 'Forwarded to Section'
       },
       'Monitoring Personnel': {
-        MONITORING_ASSIGNED: 'New Assignment',
-        MONITORING_IN_PROGRESS: 'In Progress',
+        MONITORING_ASSIGNED: 'Pending',
+        MONITORING_IN_PROGRESS: 'In Process',
         MONITORING_COMPLETED_COMPLIANT: 'Completed',
         MONITORING_COMPLETED_NON_COMPLIANT: 'Completed'
       },
       'Division Chief': {
         CREATED: 'Created',
-        SECTION_COMPLETED_COMPLIANT: 'Ready for Review',
-        SECTION_COMPLETED_NON_COMPLIANT: 'Ready for Review',
-        SECTION_REVIEWED: 'Pending Review',
-        DIVISION_REVIEWED: 'Under Review'
+        SECTION_COMPLETED_COMPLIANT: 'Pending Review',
+        SECTION_COMPLETED_NON_COMPLIANT: 'Pending Review',
+        SECTION_REVIEWED: 'Under Review',
+        DIVISION_REVIEWED: 'Reviewed'
       },
       'Legal Unit': {
-        LEGAL_REVIEW: 'New Assignment',
-        NOV_SENT: 'NOV Sent',
-        NOO_SENT: 'NOO Sent'
+        LEGAL_REVIEW: 'Pending Review',
+        NOV_SENT: 'NOV Issued',
+        NOO_SENT: 'NOO Issued'
       }
     };
     
     return myWorkLabels[userLevel]?.[status] || getGenericStatusLabel(status, userLevel);
   }
   
-  // Not assigned to me, show generic status
+  // Not my work, show generic status
   return getGenericStatusLabel(status, userLevel);
 };
 
 // Generic status for non-assigned users
 const getGenericStatusLabel = (status, userLevel) => {
-  // Role-specific generic labels
+  // Role-specific generic labels for forwarded work
   const roleGenericLabels = {
     'Section Chief': {
-      UNIT_ASSIGNED: 'Forwarded',
-      UNIT_IN_PROGRESS: 'Forwarded',
-      MONITORING_ASSIGNED: 'Forwarded',
-      MONITORING_IN_PROGRESS: 'Forwarded',
-      MONITORING_COMPLETED_COMPLIANT: 'Completed',
-      MONITORING_COMPLETED_NON_COMPLIANT: 'Completed'
+      UNIT_ASSIGNED: 'Forwarded to Unit',
+      UNIT_IN_PROGRESS: 'Forwarded to Unit',
+      MONITORING_ASSIGNED: 'Forwarded to Monitoring',
+      MONITORING_IN_PROGRESS: 'Forwarded to Monitoring',
+      MONITORING_COMPLETED_COMPLIANT: 'Completed by Monitoring',
+      MONITORING_COMPLETED_NON_COMPLIANT: 'Completed by Monitoring'
     },
     'Unit Head': {
-      MONITORING_ASSIGNED: 'Forwarded',
-      MONITORING_IN_PROGRESS: 'Forwarded'
+      MONITORING_ASSIGNED: 'Forwarded to Monitoring',
+      MONITORING_IN_PROGRESS: 'Forwarded to Monitoring'
     }
   };
   
@@ -273,29 +300,29 @@ const getGenericStatusLabel = (status, userLevel) => {
     return roleGenericLabels[userLevel][status];
   }
   
-  // Default generic labels
+  // Default professional business labels
   const genericLabels = {
     CREATED: 'Created',
-    SECTION_ASSIGNED: 'Assigned to Section',
-    SECTION_IN_PROGRESS: 'Assigned to Section',
-    SECTION_COMPLETED_COMPLIANT: 'Completed',
-    SECTION_COMPLETED_NON_COMPLIANT: 'Completed',
-    UNIT_ASSIGNED: 'Assigned to Unit',
-    UNIT_IN_PROGRESS: 'Assigned to Unit',
-    UNIT_COMPLETED_COMPLIANT: 'Completed',
-    UNIT_COMPLETED_NON_COMPLIANT: 'Completed',
-    MONITORING_ASSIGNED: 'Assigned to Monitoring',
-    MONITORING_IN_PROGRESS: 'Assigned to Monitoring',
-    MONITORING_COMPLETED_COMPLIANT: 'Completed',
-    MONITORING_COMPLETED_NON_COMPLIANT: 'Completed',
+    SECTION_ASSIGNED: 'With Section Chief',
+    SECTION_IN_PROGRESS: 'In Process - Section',
+    SECTION_COMPLETED_COMPLIANT: 'Completed - Section',
+    SECTION_COMPLETED_NON_COMPLIANT: 'Completed - Section',
+    UNIT_ASSIGNED: 'With Unit Head',
+    UNIT_IN_PROGRESS: 'In Process - Unit',
+    UNIT_COMPLETED_COMPLIANT: 'Completed - Unit',
+    UNIT_COMPLETED_NON_COMPLIANT: 'Completed - Unit',
+    MONITORING_ASSIGNED: 'With Monitoring Personnel',
+    MONITORING_IN_PROGRESS: 'In Process - Monitoring',
+    MONITORING_COMPLETED_COMPLIANT: 'Completed - Monitoring',
+    MONITORING_COMPLETED_NON_COMPLIANT: 'Completed - Monitoring',
     UNIT_REVIEWED: 'Under Review',
     SECTION_REVIEWED: 'Under Review',
     DIVISION_REVIEWED: 'Under Review',
-    LEGAL_REVIEW: 'With Legal',
-    NOV_SENT: 'NOV Sent',
-    NOO_SENT: 'NOO Sent',
-    CLOSED_COMPLIANT: 'Compliant',
-    CLOSED_NON_COMPLIANT: 'Non-Compliant'
+    LEGAL_REVIEW: 'Legal Review',
+    NOV_SENT: 'NOV Issued',
+    NOO_SENT: 'NOO Issued',
+    CLOSED_COMPLIANT: 'Closed - Compliant',
+    CLOSED_NON_COMPLIANT: 'Closed - Non-Compliant'
   };
   
   return genericLabels[status] || status;

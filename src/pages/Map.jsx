@@ -15,8 +15,9 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.fullscreen";
 import "leaflet.fullscreen/Control.FullScreen.css";
 import L from "leaflet";
-import { getEstablishments } from "../services/api";
+import { getEstablishments, getMyEstablishments } from "../services/api";
 import { useNotifications } from "../components/NotificationManager";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Search,
   X,
@@ -93,6 +94,7 @@ function MapFocus({ establishment }) {
 }
 
 export default function MapPage() {
+  const { user } = useAuth();
   const mapRef = useRef(null);
   const [allEstablishments, setAllEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -134,14 +136,25 @@ export default function MapPage() {
 
   // Fetch all establishments from API
   useEffect(() => {
-    fetchAllEstablishments();
-  }, []);
+    if (user) {
+      fetchAllEstablishments();
+    }
+  }, [user]);
 
   const fetchAllEstablishments = async () => {
     setLoading(true);
     try {
-      // Get all establishments for the map (use a large page size)
-      const data = await getEstablishments({ page: 1, page_size: 10000 });
+      // Determine which API to call based on user role
+      const isHighLevelUser = user?.userlevel && ['Admin', 'Division Chief', 'Legal Unit'].includes(user.userlevel);
+      
+      let data;
+      if (isHighLevelUser) {
+        // High-level users see all establishments
+        data = await getEstablishments({ page: 1, page_size: 10000 });
+      } else {
+        // Lower-level users see only their assigned establishments
+        data = await getMyEstablishments({ page: 1, page_size: 10000 });
+      }
 
       // Handle both paginated and non-paginated responses
       if (data.results) {

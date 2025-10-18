@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents, LayersControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -164,8 +164,10 @@ async function reverseGeocode(lat, lon, setFormData, setMapZoom) {
   if (data && data.address) {
     const osmProvince = data.address.state;
     const osmCity = data.address.city || data.address.town || data.address.village;
+    const osmBarangay = data.address.suburb || data.address.neighbourhood || data.address.hamlet;
     const bestProvince = findBestProvinceMatch(osmProvince);
     const bestCity = findBestCityMatch(osmCity, bestProvince);
+    const bestBarangay = findBestBarangayMatch(osmBarangay, bestProvince, bestCity);
     
     setFormData((prev) => ({
       ...prev,
@@ -173,7 +175,7 @@ async function reverseGeocode(lat, lon, setFormData, setMapZoom) {
         ...prev.address,
         province: bestProvince || prev.address.province || "",
         city: bestCity || prev.address.city || "",
-        barangay: prev.address.barangay, // Keep existing barangay unchanged
+        barangay: bestBarangay || prev.address.barangay || "",
         streetBuilding: prev.address.streetBuilding, // Keep existing street/building unchanged
         postalCode: (
           data.address.postcode ||
@@ -191,6 +193,8 @@ async function reverseGeocode(lat, lon, setFormData, setMapZoom) {
 }
 
 function LocationMarker({ formData, setFormData, setMapZoom }) {
+  const markerRef = useRef(null);
+
   useMapEvents({
     click(e) {
       reverseGeocode(
@@ -202,6 +206,19 @@ function LocationMarker({ formData, setFormData, setMapZoom }) {
     },
   });
 
+  const handleDragEnd = () => {
+    const marker = markerRef.current;
+    if (marker != null) {
+      const { lat, lng } = marker.getLatLng();
+      reverseGeocode(
+        lat.toFixed(6),
+        lng.toFixed(6),
+        setFormData,
+        setMapZoom
+      );
+    }
+  };
+
   return formData.coordinates.latitude && formData.coordinates.longitude ? (
     <Marker
       position={[
@@ -209,11 +226,16 @@ function LocationMarker({ formData, setFormData, setMapZoom }) {
         parseFloat(formData.coordinates.longitude),
       ]}
       icon={markerIcon}
+      draggable={true}
+      ref={markerRef}
+      eventHandlers={{
+        dragend: handleDragEnd,
+      }}
     />
   ) : null;
 }
 
-export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
+export default function AddEstablishment({ onClose, onEstablishmentAdded, onPolygonCreate }) {
   const [formData, setFormData] = useState({
     name: "",
     natureOfBusiness: "",
@@ -235,6 +257,8 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showPolygonPrompt, setShowPolygonPrompt] = useState(false);
+  const [createdEstablishment, setCreatedEstablishment] = useState(null);
   const [mapZoom, setMapZoom] = useState(8); // Track zoom level for different selection types
   const notifications = useNotifications();
 
@@ -441,7 +465,7 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
         ? formData.natureOfBusinessOther.trim()
         : formData.natureOfBusiness.trim();
 
-      await createEstablishment({
+      const response = await createEstablishment({
         name: formData.name.trim(),
         nature_of_business: finalNatureOfBusiness,
         year_established: formData.yearEstablished.trim(),
@@ -453,6 +477,10 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
         latitude: formData.coordinates.latitude,
         longitude: formData.coordinates.longitude,
       });
+      
+      // Store the created establishment
+      setCreatedEstablishment(response);
+      
       notifications.success(
         "Establishment added successfully!",
         {
@@ -461,7 +489,10 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
         }
       );
       if (onEstablishmentAdded) onEstablishmentAdded();
-      onClose();
+      
+      // Show polygon prompt dialog
+      setShowConfirm(false);
+      setShowPolygonPrompt(true);
     } catch (err) {
       console.error("Error creating establishment:", err);
 
@@ -483,10 +514,21 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
           }
         );
       }
+      setShowConfirm(false);
     } finally {
       setLoading(false);
-      setShowConfirm(false);
     }
+  };
+
+  const handleDrawPolygon = () => {
+    if (onPolygonCreate && createdEstablishment) {
+      onPolygonCreate(createdEstablishment);
+    }
+    onClose();
+  };
+
+  const handleSkipPolygon = () => {
+    onClose();
   };
 
   const Label = ({ field, children }) => {
@@ -762,6 +804,22 @@ export default function AddEstablishment({ onClose, onEstablishmentAdded }) {
           loading={loading}
           onCancel={() => setShowConfirm(false)}
           onConfirm={confirmAdd}
+        />
+        {/* Polygon Prompt Dialog */}
+        <ConfirmationDialog
+          open={showPolygonPrompt}
+          title="Draw Polygon Boundary?"
+          message={
+            <div className="text-center">
+              <p className="mb-4">Would you like to draw a polygon boundary for this establishment now?</p>
+              <p className="text-sm text-gray-600">You can also add this later from the establishment list.</p>
+            </div>
+          }
+          loading={false}
+          onCancel={handleSkipPolygon}
+          onConfirm={handleDrawPolygon}
+          cancelText="Skip"
+          confirmText="Draw Polygon Now"
         />
       </div>
       <div className="order-2 h-[600px] w-full rounded-lg overflow-hidden shadow">

@@ -17,8 +17,7 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
   isReadOnly = false,
   systems,
   setSystems,
-  onComplianceChange,
-  showSyncNotification
+  onComplianceChange
 }, ref) {
   useEffect(() => {
     if (!lawFilter || lawFilter.length === 0) return;
@@ -185,40 +184,22 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
     const validation = validatePD1586Rows();
     
     if (!validation.isValid) {
-      // Show notification if available
-      if (showSyncNotification) {
-        showSyncNotification(
-          'Please fill all fields in existing rows before adding new ones',
-          'error'
-        );
-      }
       return;
     }
     
     // Add new row using helper function from constants
     const newRow = InspectionConstants.addPD1586Condition(items);
     setItems([...items, newRow]);
-    
-    if (showSyncNotification) {
-      showSyncNotification('New PD-1586 row added', 'success');
-    }
   };
 
   // Delete PD-1586 row
   const handleDeletePD1586Row = (conditionId) => {
     // Don't allow deleting the first default row (PD-1586-1)
     if (conditionId === "PD-1586-1") {
-      if (showSyncNotification) {
-        showSyncNotification('Cannot delete the default row', 'error');
-      }
       return;
     }
     
     setItems(items.filter(item => item.conditionId !== conditionId));
-    
-    if (showSyncNotification) {
-      showSyncNotification('Row deleted successfully', 'success');
-    }
   };
 
   const getLawFullName = (lawId) => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents, LayersControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -121,6 +121,40 @@ function findBestCityMatch(osmCity, selectedProvince) {
   return "";
 }
 
+// Helper function to find best match for barangay
+function findBestBarangayMatch(osmBarangay, selectedProvince, selectedCity) {
+  if (!osmBarangay || !selectedProvince || !selectedCity) return "";
+  
+  const osmUpper = osmBarangay.toUpperCase();
+  const availableBarangays = BARANGAYS_BY_CITY[selectedProvince]?.[selectedCity] || [];
+  
+  // Direct match
+  if (availableBarangays.includes(osmUpper)) {
+    return osmUpper;
+  }
+  
+  // Fuzzy matching - check if OSM barangay contains or is contained in our barangays
+  for (const barangay of availableBarangays) {
+    if (osmUpper.includes(barangay) || barangay.includes(osmUpper)) {
+      return barangay;
+    }
+  }
+  
+  // Partial word matching for common patterns
+  const osmWords = osmUpper.split(/\s+/);
+  for (const barangay of availableBarangays) {
+    const barangayWords = barangay.split(/\s+/);
+    for (const osmWord of osmWords) {
+      for (const barangayWord of barangayWords) {
+        if (osmWord === barangayWord && osmWord.length > 3) {
+          return barangay;
+        }
+      }
+    }
+  }
+  
+  return ""; // No match found, leave empty
+}
 
 // Reverse geocode: lat/lng -> address
 async function reverseGeocode(lat, lon, setFormData, setMapZoom) {
@@ -130,8 +164,10 @@ async function reverseGeocode(lat, lon, setFormData, setMapZoom) {
   if (data && data.address) {
     const osmProvince = data.address.state;
     const osmCity = data.address.city || data.address.town || data.address.village;
+    const osmBarangay = data.address.suburb || data.address.neighbourhood || data.address.hamlet;
     const bestProvince = findBestProvinceMatch(osmProvince);
     const bestCity = findBestCityMatch(osmCity, bestProvince);
+    const bestBarangay = findBestBarangayMatch(osmBarangay, bestProvince, bestCity);
     
     setFormData((prev) => ({
       ...prev,
@@ -139,7 +175,7 @@ async function reverseGeocode(lat, lon, setFormData, setMapZoom) {
         ...prev.address,
         province: bestProvince || prev.address.province || "",
         city: bestCity || prev.address.city || "",
-        barangay: prev.address.barangay, // Keep existing barangay unchanged
+        barangay: bestBarangay || prev.address.barangay || "",
         streetBuilding: prev.address.streetBuilding, // Keep existing street/building unchanged
         postalCode: (
           data.address.postcode ||
@@ -157,6 +193,8 @@ async function reverseGeocode(lat, lon, setFormData, setMapZoom) {
 }
 
 function LocationMarker({ formData, setFormData, setMapZoom }) {
+  const markerRef = useRef(null);
+
   useMapEvents({
     click(e) {
       reverseGeocode(
@@ -168,6 +206,19 @@ function LocationMarker({ formData, setFormData, setMapZoom }) {
     },
   });
 
+  const handleDragEnd = () => {
+    const marker = markerRef.current;
+    if (marker != null) {
+      const { lat, lng } = marker.getLatLng();
+      reverseGeocode(
+        lat.toFixed(6),
+        lng.toFixed(6),
+        setFormData,
+        setMapZoom
+      );
+    }
+  };
+
   return formData.coordinates.latitude && formData.coordinates.longitude ? (
     <Marker
       position={[
@@ -175,6 +226,11 @@ function LocationMarker({ formData, setFormData, setMapZoom }) {
         parseFloat(formData.coordinates.longitude),
       ]}
       icon={markerIcon}
+      draggable={true}
+      ref={markerRef}
+      eventHandlers={{
+        dragend: handleDragEnd,
+      }}
     />
   ) : null;
 }
@@ -183,6 +239,7 @@ export default function EditEstablishment({
   establishmentData,
   onClose,
   onEstablishmentUpdated,
+  onPolygonCreate,
 }) {
   const [formData, setFormData] = useState({
     id: establishmentData?.id || "",
@@ -206,6 +263,8 @@ export default function EditEstablishment({
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showPolygonPrompt, setShowPolygonPrompt] = useState(false);
+  const [updatedEstablishment, setUpdatedEstablishment] = useState(null);
   const [mapZoom, setMapZoom] = useState(8); // Track zoom level for different selection types
   const notifications = useNotifications();
 
@@ -447,7 +506,7 @@ export default function EditEstablishment({
         ? formData.natureOfBusinessOther.trim()
         : formData.natureOfBusiness.trim();
 
-      await updateEstablishment(formData.id, {
+      const response = await updateEstablishment(formData.id, {
         name: formData.name.trim(),
         nature_of_business: finalNatureOfBusiness,
         year_established: formData.yearEstablished.trim(),
@@ -459,6 +518,7 @@ export default function EditEstablishment({
         latitude: formData.coordinates.latitude,
         longitude: formData.coordinates.longitude,
       });
+      
       notifications.success(
         "Establishment updated successfully!",
         {
@@ -467,7 +527,18 @@ export default function EditEstablishment({
         }
       );
       if (onEstablishmentUpdated) onEstablishmentUpdated();
-      onClose();
+      
+      // Check if establishment has no polygon - only show prompt if no polygon exists
+      const hasNoPolygon = !establishmentData?.polygon || establishmentData.polygon.length === 0;
+      
+      if (hasNoPolygon) {
+        // Store the updated establishment
+        setUpdatedEstablishment(response);
+        setShowConfirm(false);
+        setShowPolygonPrompt(true);
+      } else {
+        onClose();
+      }
     } catch (err) {
       console.error("Error updating establishment:", err);
 
@@ -489,10 +560,21 @@ export default function EditEstablishment({
           }
         );
       }
+      setShowConfirm(false);
     } finally {
       setLoading(false);
-      setShowConfirm(false);
     }
+  };
+
+  const handleDrawPolygon = () => {
+    if (onPolygonCreate && updatedEstablishment) {
+      onPolygonCreate(updatedEstablishment);
+    }
+    onClose();
+  };
+
+  const handleSkipPolygon = () => {
+    onClose();
   };
 
   const Label = ({ field, children }) => {
@@ -769,6 +851,22 @@ export default function EditEstablishment({
           loading={loading}
           onCancel={() => setShowConfirm(false)}
           onConfirm={confirmEdit}
+        />
+        {/* Polygon Prompt Dialog */}
+        <ConfirmationDialog
+          open={showPolygonPrompt}
+          title="Draw Polygon Boundary?"
+          message={
+            <div className="text-center">
+              <p className="mb-4">Would you like to draw a polygon boundary for this establishment now?</p>
+              <p className="text-sm text-gray-600">You can also add this later from the establishment list.</p>
+            </div>
+          }
+          loading={false}
+          onCancel={handleSkipPolygon}
+          onConfirm={handleDrawPolygon}
+          cancelText="Skip"
+          confirmText="Draw Polygon Now"
         />
       </div>
       <div className="order-2 h-[600px] w-full rounded-lg overflow-hidden shadow">

@@ -1754,66 +1754,68 @@ export default function InspectionForm({ inspectionData }) {
      <LayoutForm
        headerHeight="large"
        inspectionHeader={
-         <UnifiedInspectionHeader
-           onSave={handleSave}
-           onDraft={handleDraft}
-           onClose={handleClose}
-           onComplete={handleComplete}
-           onSendToSection={handleSendToSection}
-           onSendToDivision={handleSendToDivision}
-           onSendToNextLevel={handleSendToNextLevel}
-           onFinalize={handleFinalize}
-           onReview={handleReview}
-           onForwardToLegal={handleForwardToLegal}
-           onSendNOV={handleSendNOV}
-           onSendNOO={handleSendNOO}
-           onSaveRecommendation={handleSaveRecommendation}
-           onMarkAsCompliant={handleMarkAsCompliant}
-           lastSaveTime={lastSaveTime}
-           autoSaveStatus={autoSaveStatus}
-           showCompleteButton={buttonVisibility.showCompleteButton}
-           showSubmitForReviewButton={buttonVisibility.showSubmitForReviewButton}
-           showSendToSectionButton={buttonVisibility.showSendToSectionButton}
-           showSendToDivisionButton={buttonVisibility.showSendToDivisionButton}
-           showSendToNextLevelButton={buttonVisibility.showSendToNextLevelButton}
-           nextLevelName={buttonVisibility.getNextLevelName()}
-           showFinalizeButton={buttonVisibility.showFinalizeButton}
-           showReviewButton={buttonVisibility.showReviewButton}
-           showForwardToLegalButton={buttonVisibility.showForwardToLegalButton}
-           showSendNOVButton={buttonVisibility.showSendNOVButton}
-           showSendNOOButton={buttonVisibility.showSendNOOButton}
-           showSaveRecommendationButton={buttonVisibility.showSaveRecommendationButton}
-           showMarkAsCompliantButton={buttonVisibility.showMarkAsCompliantButton}
-           showDraftButton={buttonVisibility.showDraftButton}
-           showSubmitButton={buttonVisibility.showSubmitButton}
-           showCloseButton={buttonVisibility.showCloseButton}
-           isDraft={fullInspectionData?.form?.checklist?.is_draft || false}
-           activeSection={activeSection}
-           onTabClick={scrollToSection}
-           validationStatus={getValidationStatus()}
-           isMapPanelOpen={isMapPanelOpen}
-           hasMapData={!!fullInspectionData}
-         />
+        <UnifiedInspectionHeader
+          onSave={handleSave}
+          onDraft={handleDraft}
+          onClose={handleClose}
+          onComplete={handleComplete}
+          onSendToSection={handleSendToSection}
+          onSendToDivision={handleSendToDivision}
+          onSendToNextLevel={handleSendToNextLevel}
+          onFinalize={handleFinalize}
+          onReview={handleReview}
+          onForwardToLegal={handleForwardToLegal}
+          onSendNOV={handleSendNOV}
+          onSendNOO={handleSendNOO}
+          onSaveRecommendation={handleSaveRecommendation}
+          onMarkAsCompliant={handleMarkAsCompliant}
+          lastSaveTime={lastSaveTime}
+          autoSaveStatus={autoSaveStatus}
+          showCompleteButton={buttonVisibility.showCompleteButton}
+          showSubmitForReviewButton={buttonVisibility.showSubmitForReviewButton}
+          showSendToSectionButton={buttonVisibility.showSendToSectionButton}
+          showSendToDivisionButton={buttonVisibility.showSendToDivisionButton}
+          showSendToNextLevelButton={buttonVisibility.showSendToNextLevelButton}
+          nextLevelName={buttonVisibility.getNextLevelName()}
+          showFinalizeButton={buttonVisibility.showFinalizeButton}
+          showReviewButton={buttonVisibility.showReviewButton}
+          showForwardToLegalButton={buttonVisibility.showForwardToLegalButton}
+          showSendNOVButton={buttonVisibility.showSendNOVButton}
+          showSendNOOButton={buttonVisibility.showSendNOOButton}
+          showSaveRecommendationButton={buttonVisibility.showSaveRecommendationButton}
+          showMarkAsCompliantButton={buttonVisibility.showMarkAsCompliantButton}
+          showDraftButton={buttonVisibility.showDraftButton}
+          showSubmitButton={buttonVisibility.showSubmitButton}
+          showCloseButton={buttonVisibility.showCloseButton}
+          isDraft={fullInspectionData?.form?.checklist?.is_draft || false}
+          activeSection={activeSection}
+          onTabClick={scrollToSection}
+          validationStatus={getValidationStatus()}
+          isMapPanelOpen={isMapPanelOpen}
+          hasMapData={!!fullInspectionData}
+          showRecommendationsTab={determineOverallCompliance().isNonCompliant}
+        />
        }
        rightSidebar={
-         isMapPanelOpen && fullInspectionData && (
+         // Priority 1: Show validation errors (only when submit is attempted)
+         hasFormChanges && Object.keys(errors).length > 0 && (buttonVisibility.showSubmitButton || buttonVisibility.showSubmitForReviewButton || buttonVisibility.showCompleteButton) ? (
+           <ValidationSummary 
+             errors={errors} 
+             onScrollToSection={scrollToSection}
+           />
+         ) 
+         // Priority 2: Show map (reference only)
+         : isMapPanelOpen && fullInspectionData ? (
            <InspectionPolygonMap 
              inspectionData={fullInspectionData}
              currentUser={currentUser}
              onClose={() => setIsMapPanelOpen(false)}
            />
-         )
+         ) 
+         : null
        }
      >
         <div className="w-full bg-gray-50">
-
-        {/* Validation Summary - Only show when user has made changes and there are errors */}
-        {hasFormChanges && Object.keys(errors).length > 0 && (
-          <ValidationSummary 
-            errors={errors} 
-            onScrollToSection={scrollToSection}
-          />
-        )}
             
         <GeneralInformation
           ref={sectionRefs.general}
@@ -1874,13 +1876,6 @@ export default function InspectionForm({ inspectionData }) {
                 // This callback triggers when compliance changes
                 // Used to update recommendations visibility
                 console.log('🔄 Compliance changed, checking recommendations visibility');
-              }}
-              showSyncNotification={(message, type) => {
-                // Show toast notification for auto-sync
-                notifications.info(message, {
-                  title: '🔄 Auto-Sync',
-                  duration: 3000
-                });
               }}
             />
             <SummaryOfFindingsAndObservations

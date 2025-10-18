@@ -852,8 +852,8 @@ const DatabaseBackup = () => {
 
             {/* Table Section - Full width at bottom */}
             <div className="bg-white shadow-lg p-4">
-              <div className="p-4 border-b border-gray-200 rounded-t-lg bg-gray-50">
-                <div className="flex items-center justify-between mb-3">
+              <div className="pb-2 border-b border-gray-200 rounded-t-lg bg-gray-50">
+                <div className="flex items-center justify-between ">
                   <h3 className="text-lg font-semibold text-sky-600">
                     Available Backups
                   </h3>
@@ -1110,7 +1110,7 @@ const DatabaseBackup = () => {
                 )}
               </div>
 
-              <div className="overflow-auto h-[calc(100vh-520px)] border border-gray-300 rounded-lg scroll-smooth custom-scrollbar">
+              <div className="overflow-auto max-h-[calc(100vh-520px)] border border-gray-300 rounded-lg scroll-smooth custom-scrollbar">
                 <table className="w-full">
                   <thead>
                     <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">

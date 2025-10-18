@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Account Activated - Integrated Establishments Regulatory Management System</title>
+  <style>
+    body { font-family: 'Arial', 'Helvetica', sans-serif; line-height: 1.5; color: #1f2937; margin: 0; padding: 20px; background-color: #f3f4f6; }
+    .container { max-width: 650px; margin: 0 auto; background-color: #ffffff; border: 1px solid #d1d5db; }
+    
+    /* Main content */
+    .content { padding: 30px; }
+    
+    /* Professional table styling */
+    .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #d1d5db; }
+    .info-table th { background-color: #f3f4f6; padding: 10px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #374151; border-bottom: 2px solid #d1d5db; }
+    .info-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
+    .info-table td:first-child { font-weight: 600; color: #374151; width: 180px; }
+    .info-table td:last-child { background-color: #f9fafb; color: #0c4a6e; font-weight: 600; }
+    
+    /* Success box */
+    .success-box { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #16a34a; padding: 20px; margin: 25px 0; border-radius: 8px; }
+    .success-box strong { display: block; margin-bottom: 8px; color: #15803d; font-size: 14px; }
+    .success-box p { margin: 0; font-size: 12px; color: #15803d; line-height: 1.6; }
+    
+    /* Device info box */
+    .device-box { background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .device-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #1e40af; font-weight: 700; }
+    .device-box table { width: 100%; font-size: 12px; }
+    .device-box td { padding: 5px 0; color: #1e40af; }
+    .device-box td:first-child { font-weight: 600; width: 120px; }
+    
+    /* CTA Button */
+    .cta-button { display: inline-block; background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 14px; margin: 20px 0; box-shadow: 0 4px 6px rgba(22, 163, 74, 0.3); }
+    
+    /* Support info box */
+    .support-box { background-color: #f9fafb; border: 1px dashed #d1d5db; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .support-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #374151; font-weight: 700; }
+    .support-box p { margin: 5px 0; font-size: 12px; color: #6b7280; }
+    
+    /* Security notice */
+    .security-box { background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
+    .security-box strong { color: #92400e; font-size: 13px; }
+    .security-box ul { margin: 8px 0 0 0; padding-left: 20px; font-size: 11px; color: #92400e; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    {% include 'emails/partials/header.html' with title='ACCOUNT ACTIVATION NOTICE' subtitle='Account Access Restored' document_type='ACTIVATION' %}
+
+    <div class="content">
+      <!-- Reference Number -->
+      <div style="text-align: right; font-size: 11px; color: #6b7280; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
+        <strong>Reference No:</strong> IERMS-ACTIVATE-{{ user.id }}-{% now "YmdHis" %}<br/>
+        <strong>Date:</strong> {% now "F j, Y, g:i A" %}
+      </div>
+
+      <!-- Salutation -->
+      <p style="font-size: 14px; margin-bottom: 20px;">
+        <strong>Dear {% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}User{% endif %},</strong>
+      </p>
+
+      <!-- Success Notice -->
+      <div class="success-box">
+        <strong>✓ ACCOUNT SUCCESSFULLY ACTIVATED</strong>
+        <p>
+          This is to inform you that your account in the <strong>Integrated Establishments Regulatory Management System (IERMS)</strong> 
+          has been successfully activated. You now have full access to the system and can resume your duties.
+        </p>
+      </div>
+
+      <!-- Account Details Table -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        ACCOUNT INFORMATION
+      </h3>
+      <table class="info-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Full Name</td>
+            <td>{{ user.first_name }} {% if user.middle_name %}{{ user.middle_name }}{% endif %} {{ user.last_name }}</td>
+          </tr>
+          <tr>
+            <td>Email Address</td>
+            <td>{{ user.email }}</td>
+          </tr>
+          <tr>
+            <td>User Level/Role</td>
+            <td>{{ user.userlevel }}</td>
+          </tr>
+          {% if user.section %}
+          <tr>
+            <td>Assigned Section</td>
+            <td>{{ user.section }}</td>
+          </tr>
+          {% endif %}
+          {% if user.district %}
+          <tr>
+            <td>Assigned District</td>
+            <td>{{ user.district }}</td>
+          </tr>
+          {% endif %}
+          <tr>
+            <td>Status</td>
+            <td style="color: #16a34a; font-weight: 700;">ACTIVE</td>
+          </tr>
+          {% if activated_by %}
+          <tr>
+            <td>Activated By</td>
+            <td>{{ activated_by.first_name }} {{ activated_by.last_name }} ({{ activated_by.email }})</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <!-- Device & Location Information -->
+      <div class="device-box">
+        <h4>🔍 ACTIVATION DETAILS</h4>
+        <table>
+          <tr>
+            <td>Device Type:</td>
+            <td><strong>{{ device_type|default:'Unknown' }}</strong></td>
+          </tr>
+          <tr>
+            <td>IP Address:</td>
+            <td><strong>{{ ip_address|default:'Not available' }}</strong></td>
+          </tr>
+          <tr>
+            <td>Timestamp:</td>
+            <td><strong>{% now "F j, Y, g:i A" %}</strong></td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- CTA Button -->
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="{{ login_url }}" class="cta-button">ACCESS IERMS SYSTEM</a>
+        <p style="font-size: 11px; color: #6b7280; margin-top: 10px;">
+          Or copy and paste this URL: <span style="color: #0284c7; word-break: break-all;">{{ login_url }}</span>
+        </p>
+      </div>
+
+      <!-- Access Instructions -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        NEXT STEPS
+      </h3>
+      <ol style="font-size: 12px; color: #374151; line-height: 1.8; padding-left: 20px;">
+        <li>Click the "Access IERMS System" button above or navigate to the login page</li>
+        <li>Login using your registered email address and password</li>
+        <li>Review any system updates or announcements in the dashboard</li>
+        <li>Resume your regular duties and responsibilities</li>
+      </ol>
+
+      <!-- Security Reminders -->
+      <div class="security-box">
+        <strong>🔒 SECURITY REMINDERS</strong>
+        <ul>
+          <li>Keep your account credentials confidential</li>
+          <li>Use strong, unique passwords and change them regularly</li>
+          <li>Be vigilant about suspicious activities or unauthorized access attempts</li>
+          <li>Log out when using shared or public computers</li>
+          <li>Report any security concerns immediately to IT support</li>
+        </ul>
+      </div>
+
+      <!-- Support Information -->
+      <div class="support-box">
+        <h4>📞 TECHNICAL SUPPORT & ASSISTANCE</h4>
+        <p><strong>IT Help Desk:</strong> support@ierms.denr.gov.ph | Tel: (02) 8888-4376</p>
+        <p><strong>Office Hours:</strong> Monday - Friday, 8:00 AM - 5:00 PM (Philippine Time)</p>
+        <p><strong>Emergency Support:</strong> For urgent issues, contact your System Administrator</p>
+      </div>
+
+      <!-- Important Notes -->
+      <div style="background-color: #f0f9ff; border-left: 4px solid #0284c7; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0; font-size: 12px; color: #0c4a6e;">
+          <strong>ℹ️ IMPORTANT:</strong> If you did not expect this activation or have concerns about your account status, 
+          please contact the IERMS administrator or IT support immediately.
+        </p>
+      </div>
+    </div>
+
+    {% include 'emails/partials/footer.html' %}
+  </div>
+</body>
+</html>
+

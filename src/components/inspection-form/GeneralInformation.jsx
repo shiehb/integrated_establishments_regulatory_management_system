@@ -292,7 +292,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         )}
       </div>
 
-      {/* Basic Details Card */}
+      {/* Basic and Operating Details Card */}
       <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
       <div>
         <label className="block mb-1 text-sm font-medium text-gray-700">
@@ -407,10 +407,6 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           )}
         </div>
         </div>
-      </div>
-
-      {/* Operating Details Card */}
-      <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
       <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="block mb-1 text-sm font-medium text-gray-700">
@@ -617,104 +613,21 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         </div>
       </div>
 
-      {/* Contact Information Card */}
-      <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">
-            Phone/ Fax No.<span className="text-red-600">*</span>
-          </label>
-          <div className="relative">
-          <input
-              className={`w-full px-3 py-2 text-gray-900 bg-white border rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
-                data.phone_fax_no && data.phone_fax_no.trim() !== ""
-                  ? phoneValidation.isValid
-                    ? "border-green-500"
-                    : "border-red-500"
-                  : "border-gray-300"
-              }`}
-            value={data.phone_fax_no || ""}
-              onChange={(e) => handlePhoneFaxChange(e.target.value)}
-              placeholder="e.g., 09123456789 or 02-123-4567 / 02-123-4568"
-              disabled={isReadOnly}
-            />
-          </div>
-          {/* Validation message */}
-          {data.phone_fax_no && data.phone_fax_no.trim() !== "" && (
-            <p className={`text-xs mt-1 ${
-              phoneValidation.isValid
-                ? "text-green-600"
-                : "text-red-600"
-            }`}>
-              {phoneValidation.message}
-            </p>
-          )}
-          {/* Error message from form validation */}
-          {errors.phone_fax_no && (
-            <p className="text-sm text-red-600">{errors.phone_fax_no}</p>
-          )}
-        </div>
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">
-            Email Address<span className="text-red-600">*</span>
-          </label>
-          <div className="relative">
-          <input
-            type="email"
-              className={`w-full px-3 py-2 text-gray-900 lowercase bg-white border rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
-                data.email_address && data.email_address.trim() !== ""
-                  ? emailValidation.isValid
-                    ? emailValidation.warning
-                      ? "border-yellow-500"
-                      : "border-green-500"
-                    : "border-red-500"
-                  : "border-gray-300"
-              }`}
-            value={data.email_address || ""}
-              onChange={(e) => handleEmailChange(e.target.value)}
-              placeholder="e.g., example@company.com"
-              disabled={isReadOnly}
-            />
-          </div>
-          {/* Validation message */}
-          {data.email_address && data.email_address.trim() !== "" && (
-            <div className="mt-1">
-              <p className={`text-xs ${
-                emailValidation.isValid
-                  ? emailValidation.warning
-                    ? "text-yellow-600"
-                    : "text-green-600"
-                  : "text-red-600"
-              }`}>
-                {emailValidation.message}
-              </p>
-            </div>
-          )}
-          {/* Error message from form validation */}
-          {errors.email_address && (
-            <p className="text-sm text-red-600">{errors.email_address}</p>
-          )}
-        </div>
-        </div>
-      </div>
-
       {/* Production Details Card */}
       <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">Production Information</h3>
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">
-            Product Lines
-          </label>
-          <textarea
-            className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-            value={data.product_lines || ""}
-            onChange={(e) => updateField("product_lines", e.target.value)}
-            placeholder="Enter product lines manufactured"
-            rows={2}
-            disabled={isReadOnly}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Product Lines
+            </label>
+            <input
+              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              value={data.product_lines || ""}
+              onChange={(e) => updateField("product_lines", e.target.value)}
+              placeholder="Enter product lines manufactured"
+              disabled={isReadOnly}
+            />
+          </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
               Declared Production Rate
@@ -742,22 +655,21 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         </div>
       </div>
 
-      {/* Personnel Information Card */}
+      {/* Personnel and Contact Information Card */}
       <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">Personnel Information</h3>
+        <div>
+          <label className="block mb-1 text-sm font-medium text-gray-700">
+            Managing Head
+          </label>
+          <input
+            className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+            value={data.managing_head || ""}
+            onChange={(e) => updateField("managing_head", e.target.value)}
+            placeholder="Enter managing head name"
+            disabled={isReadOnly}
+          />
+        </div>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">
-              Managing Head
-            </label>
-            <input
-              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-              value={data.managing_head || ""}
-              onChange={(e) => updateField("managing_head", e.target.value)}
-              placeholder="Enter managing head name"
-              disabled={isReadOnly}
-            />
-          </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
               PCO Name
@@ -770,25 +682,19 @@ const GeneralInformation = forwardRef(function GeneralInformation({
               disabled={isReadOnly}
             />
           </div>
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Interviewed Person
+            </label>
+            <input
+              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              value={data.interviewed_person || ""}
+              onChange={(e) => updateField("interviewed_person", e.target.value)}
+              placeholder="Enter details of person interviewed"
+              disabled={isReadOnly}
+            />
+          </div>
         </div>
-        <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">
-            Interviewed Person
-          </label>
-          <textarea
-            className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-            value={data.interviewed_person || ""}
-            onChange={(e) => updateField("interviewed_person", e.target.value)}
-            placeholder="Enter details of person interviewed"
-            rows={2}
-            disabled={isReadOnly}
-          />
-        </div>
-      </div>
-
-      {/* PCO Certification Card */}
-      <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">PCO Certification</h3>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
@@ -813,6 +719,83 @@ const GeneralInformation = forwardRef(function GeneralInformation({
               onChange={(e) => setData({ ...data, effectivity_date: e.target.value })}
               disabled={isReadOnly}
             />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Phone/ Fax No.<span className="text-red-600">*</span>
+            </label>
+            <div className="relative">
+              <input
+                className={`w-full px-3 py-2 text-gray-900 bg-white border rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
+                  data.phone_fax_no && data.phone_fax_no.trim() !== ""
+                    ? phoneValidation.isValid
+                      ? "border-green-500"
+                      : "border-red-500"
+                    : "border-gray-300"
+                }`}
+                value={data.phone_fax_no || ""}
+                onChange={(e) => handlePhoneFaxChange(e.target.value)}
+                placeholder="e.g., 09123456789 or 02-123-4567 / 02-123-4568"
+                disabled={isReadOnly}
+              />
+            </div>
+            {/* Validation message */}
+            {data.phone_fax_no && data.phone_fax_no.trim() !== "" && (
+              <p className={`text-xs mt-1 ${
+                phoneValidation.isValid
+                  ? "text-green-600"
+                  : "text-red-600"
+              }`}>
+                {phoneValidation.message}
+              </p>
+            )}
+            {/* Error message from form validation */}
+            {errors.phone_fax_no && (
+              <p className="text-sm text-red-600">{errors.phone_fax_no}</p>
+            )}
+          </div>
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Email Address<span className="text-red-600">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type="email"
+                className={`w-full px-3 py-2 text-gray-900 lowercase bg-white border rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
+                  data.email_address && data.email_address.trim() !== ""
+                    ? emailValidation.isValid
+                      ? emailValidation.warning
+                        ? "border-yellow-500"
+                        : "border-green-500"
+                      : "border-red-500"
+                    : "border-gray-300"
+                }`}
+                value={data.email_address || ""}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                placeholder="e.g., example@company.com"
+                disabled={isReadOnly}
+              />
+            </div>
+            {/* Validation message */}
+            {data.email_address && data.email_address.trim() !== "" && (
+              <div className="mt-1">
+                <p className={`text-xs ${
+                  emailValidation.isValid
+                    ? emailValidation.warning
+                      ? "text-yellow-600"
+                      : "text-green-600"
+                    : "text-red-600"
+                }`}>
+                  {emailValidation.message}
+                </p>
+              </div>
+            )}
+            {/* Error message from form validation */}
+            {errors.email_address && (
+              <p className="text-sm text-red-600">{errors.email_address}</p>
+            )}
           </div>
         </div>
       </div>

@@ -318,3 +318,96 @@ def send_otp_email(user: User, otp_code: str, **kwargs) -> bool:
         context=context,
         email_type='security'
     )
+
+
+def get_device_type(user_agent_string: str) -> str:
+    """
+    Detect device type from User-Agent string
+    Returns: 'Desktop', 'Tablet', or 'Mobile'
+    """
+    if not user_agent_string:
+        return 'Unknown'
+    
+    user_agent = user_agent_string.lower()
+    
+    # Check for mobile devices
+    mobile_keywords = ['mobile', 'android', 'iphone', 'ipod', 'blackberry', 'windows phone', 'webos']
+    # Check for tablets
+    tablet_keywords = ['tablet', 'ipad', 'playbook', 'kindle']
+    
+    # Check tablets first (as some tablets may also contain 'mobile' in UA)
+    if any(keyword in user_agent for keyword in tablet_keywords):
+        return 'Tablet'
+    
+    # Then check for mobile
+    if any(keyword in user_agent for keyword in mobile_keywords):
+        return 'Mobile'
+    
+    # Default to desktop
+    return 'Desktop'
+
+
+def send_account_activated_email(user: User, activated_by: User, **kwargs) -> bool:
+    """
+    Send account activation notification email to user
+    """
+    try:
+        service = EnhancedEmailService()
+        
+        # Get device type from user agent if provided
+        user_agent = kwargs.get('user_agent', '')
+        device_type = get_device_type(user_agent)
+        
+        context = {
+            'user': user,
+            'activated_by': activated_by,
+            'login_url': kwargs.get('login_url', f"{getattr(settings, 'SITE_URL', 'https://ierms.denr.gov.ph')}/login"),
+            'device_type': device_type,
+            'ip_address': kwargs.get('ip_address', 'Not available'),
+        }
+        
+        subject = "Account Activated - IERMS Access Restored"
+        
+        return service.send_template_email(
+            template_name='emails/account_activated.html',
+            recipient_email=user.email,
+            subject=subject,
+            context=context,
+            email_type='system'
+        )
+    except Exception as e:
+        logger.error(f"Failed to send account activation email to {user.email}: {str(e)}")
+        return False
+
+
+def send_account_deactivated_email(user: User, deactivated_by: User, **kwargs) -> bool:
+    """
+    Send account deactivation notification email to user
+    """
+    try:
+        service = EnhancedEmailService()
+        
+        # Get device type from user agent if provided
+        user_agent = kwargs.get('user_agent', '')
+        device_type = get_device_type(user_agent)
+        
+        context = {
+            'user': user,
+            'deactivated_by': deactivated_by,
+            'support_email': kwargs.get('support_email', 'support@ierms.denr.gov.ph'),
+            'device_type': device_type,
+            'ip_address': kwargs.get('ip_address', 'Not available'),
+        }
+        
+        subject = "Account Deactivated - IERMS Access Suspended"
+        
+        return service.send_template_email(
+            template_name='emails/account_deactivated.html',
+            recipient_email=user.email,
+            subject=subject,
+            context=context,
+            email_type='system'
+        )
+    except Exception as e:
+        logger.error(f"Failed to send account deactivation email to {user.email}: {str(e)}")
+        return False

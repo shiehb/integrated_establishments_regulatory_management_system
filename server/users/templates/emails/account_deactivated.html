@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Account Deactivated - Integrated Establishments Regulatory Management System</title>
+  <style>
+    body { font-family: 'Arial', 'Helvetica', sans-serif; line-height: 1.5; color: #1f2937; margin: 0; padding: 20px; background-color: #f3f4f6; }
+    .container { max-width: 650px; margin: 0 auto; background-color: #ffffff; border: 1px solid #d1d5db; }
+    
+    /* Main content */
+    .content { padding: 30px; }
+    
+    /* Professional table styling */
+    .info-table { width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #d1d5db; }
+    .info-table th { background-color: #f3f4f6; padding: 10px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #374151; border-bottom: 2px solid #d1d5db; }
+    .info-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
+    .info-table td:first-child { font-weight: 600; color: #374151; width: 180px; }
+    .info-table td:last-child { background-color: #f9fafb; color: #0c4a6e; font-weight: 600; }
+    
+    /* Warning box */
+    .warning-box { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border: 2px solid #dc2626; padding: 20px; margin: 25px 0; border-radius: 8px; }
+    .warning-box strong { display: block; margin-bottom: 8px; color: #991b1b; font-size: 14px; }
+    .warning-box p { margin: 0; font-size: 12px; color: #991b1b; line-height: 1.6; }
+    
+    /* Device info box */
+    .device-box { background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .device-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #1e40af; font-weight: 700; }
+    .device-box table { width: 100%; font-size: 12px; }
+    .device-box td { padding: 5px 0; color: #1e40af; }
+    .device-box td:first-child { font-weight: 600; width: 120px; }
+    
+    /* Support info box */
+    .support-box { background-color: #f0f9ff; border: 2px solid #0284c7; padding: 20px; margin: 20px 0; border-radius: 8px; }
+    .support-box h4 { margin: 0 0 15px 0; font-size: 14px; color: #0c4a6e; font-weight: 700; text-align: center; }
+    .support-box p { margin: 8px 0; font-size: 12px; color: #0c4a6e; }
+    .support-box strong { color: #0c4a6e; }
+    
+    /* Info notice */
+    .info-box { background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
+    .info-box strong { color: #92400e; font-size: 13px; }
+    .info-box p { margin: 8px 0 0 0; font-size: 12px; color: #92400e; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    {% include 'emails/partials/header.html' with title='ACCOUNT DEACTIVATION NOTICE' subtitle='Account Access Suspended' document_type='DEACTIVATION' %}
+
+    <div class="content">
+      <!-- Reference Number -->
+      <div style="text-align: right; font-size: 11px; color: #6b7280; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
+        <strong>Reference No:</strong> IERMS-DEACTIVATE-{{ user.id }}-{% now "YmdHis" %}<br/>
+        <strong>Date:</strong> {% now "F j, Y, g:i A" %}
+      </div>
+
+      <!-- Salutation -->
+      <p style="font-size: 14px; margin-bottom: 20px;">
+        <strong>Dear {% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}User{% endif %},</strong>
+      </p>
+
+      <!-- Warning Notice -->
+      <div class="warning-box">
+        <strong>⚠️ ACCOUNT DEACTIVATED</strong>
+        <p>
+          This is to formally notify you that your account in the <strong>Integrated Establishments Regulatory Management System (IERMS)</strong> 
+          has been deactivated. You no longer have access to the system until your account is reactivated.
+        </p>
+      </div>
+
+      <!-- Account Details Table -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        ACCOUNT INFORMATION
+      </h3>
+      <table class="info-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Full Name</td>
+            <td>{{ user.first_name }} {% if user.middle_name %}{{ user.middle_name }}{% endif %} {{ user.last_name }}</td>
+          </tr>
+          <tr>
+            <td>Email Address</td>
+            <td>{{ user.email }}</td>
+          </tr>
+          <tr>
+            <td>User Level/Role</td>
+            <td>{{ user.userlevel }}</td>
+          </tr>
+          {% if user.section %}
+          <tr>
+            <td>Assigned Section</td>
+            <td>{{ user.section }}</td>
+          </tr>
+          {% endif %}
+          {% if user.district %}
+          <tr>
+            <td>Assigned District</td>
+            <td>{{ user.district }}</td>
+          </tr>
+          {% endif %}
+          <tr>
+            <td>Status</td>
+            <td style="color: #dc2626; font-weight: 700;">INACTIVE</td>
+          </tr>
+          {% if deactivated_by %}
+          <tr>
+            <td>Deactivated By</td>
+            <td>{{ deactivated_by.first_name }} {{ deactivated_by.last_name }} ({{ deactivated_by.email }})</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <!-- Device & Location Information -->
+      <div class="device-box">
+        <h4>🔍 DEACTIVATION DETAILS</h4>
+        <table>
+          <tr>
+            <td>Device Type:</td>
+            <td><strong>{{ device_type|default:'Unknown' }}</strong></td>
+          </tr>
+          <tr>
+            <td>IP Address:</td>
+            <td><strong>{{ ip_address|default:'Not available' }}</strong></td>
+          </tr>
+          <tr>
+            <td>Timestamp:</td>
+            <td><strong>{% now "F j, Y, g:i A" %}</strong></td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Important Information -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        WHAT THIS MEANS
+      </h3>
+      <ul style="font-size: 12px; color: #374151; line-height: 1.8; padding-left: 20px;">
+        <li>You can no longer log in to the IERMS system</li>
+        <li>Your access to all system features and data has been suspended</li>
+        <li>Any pending tasks or assignments are currently on hold</li>
+        <li>Your account data remains in the system and can be restored upon reactivation</li>
+      </ul>
+
+      <!-- Reactivation Information -->
+      <div class="info-box">
+        <strong>ℹ️ NEED REACTIVATION?</strong>
+        <p>
+          If you believe this deactivation was made in error or you need to have your account reactivated, 
+          please contact your supervisor or the IERMS system administrator. Include your account reference 
+          number (shown at the top of this email) when making your request.
+        </p>
+      </div>
+
+      <!-- Support Information -->
+      <div class="support-box">
+        <h4>📞 CONTACT INFORMATION</h4>
+        <p><strong>System Administrator:</strong> admin@ierms.denr.gov.ph</p>
+        <p><strong>IT Help Desk:</strong> support@ierms.denr.gov.ph</p>
+        <p><strong>Phone:</strong> (02) 8888-4376</p>
+        <p><strong>Office Hours:</strong> Monday - Friday, 8:00 AM - 5:00 PM (Philippine Time)</p>
+        <p style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #bae6fd;">
+          <strong>Note:</strong> When contacting support, please reference the document number provided above 
+          for faster processing of your request.
+        </p>
+      </div>
+
+      <!-- Data Privacy Notice -->
+      <div style="font-size: 11px; color: #6b7280; margin-top: 25px; padding: 15px; background-color: #f9fafb; border-radius: 6px; text-align: justify;">
+        <p style="margin: 0;">
+          <strong>Data Privacy Notice:</strong> Your account information and associated data remain protected 
+          under the Data Privacy Act of 2012 (R.A. 10173) and DENR Information Security policies. 
+          Account deactivation does not result in data deletion, and your information is retained 
+          in accordance with government record-keeping requirements.
+        </p>
+      </div>
+    </div>
+
+    {% include 'emails/partials/footer.html' %}
+  </div>
+</body>
+</html>
+

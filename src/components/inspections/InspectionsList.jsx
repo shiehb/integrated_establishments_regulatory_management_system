@@ -44,6 +44,7 @@ import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 import PaginationControls, { useLocalStoragePagination, useLocalStorageTab } from "../PaginationControls";
 import { useInspectionActions } from "../../hooks/useInspectionActions";
+import MonitoringPersonnelModal from "./modals/MonitoringPersonnelModal";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -99,145 +100,37 @@ const getEmptyStateMessage = (activeTab, userLevel) => {
 };
 
 // Helper function to create action-specific dialog content
-const getActionDialogContent = (action, inspection, userLevel, currentUser) => {
+const getActionDialogContent = (action, inspection, userLevel, pendingForwardAction) => {
   const establishmentNames = inspection?.establishments_detail?.length > 0 
     ? inspection.establishments_detail.map(est => est.name).join(', ')
     : 'No establishments';
 
   const actionConfig = {
     inspect: {
-      icon: <Play className="w-5 h-5 text-blue-600" />,
-      headerColor: 'blue',
       title: 'Confirm Inspection Assignment',
       confirmColor: 'blue',
-      confirmText: 'Assign & Open Form',
-      message: (
-        <div className="space-y-4">
-          {/* Inspection Details Card */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <FileText className="w-4 h-4 text-blue-600" />
-              <span className="font-medium text-blue-800">Inspection Details</span>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">Code:</span>
-                <span className="text-gray-900">{inspection?.code}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Building className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-700">{establishmentNames}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-700">Status: {inspection?.current_status}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Action Info */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Info className="w-4 h-4 text-blue-600" />
-              <span className="font-medium text-blue-800">What will happen?</span>
-            </div>
-            <div className="space-y-2 text-sm text-blue-700">
-              {userLevel === 'Section Chief' ? (
-                <>
-                  <p>• This inspection will be assigned to you as the Section Chief</p>
-                  <p>• You will have full access to edit and complete the inspection form</p>
-                  <p>• The status will change to "Section In Progress"</p>
-                  <p>• The inspection form will open automatically</p>
-                </>
-              ) : userLevel === 'Unit Head' ? (
-                <>
-                  <p>• This inspection will be assigned to you as the Unit Head</p>
-                  <p>• You will have full access to edit and complete the inspection form</p>
-                  <p>• The status will change to "Unit In Progress"</p>
-                  <p>• The inspection form will open automatically</p>
-                </>
-              ) : (
-                <>
-                  <p>• This inspection will be assigned to you</p>
-                  <p>• You will have access to the inspection form</p>
-                  <p>• The inspection form will open automatically</p>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="text-sm text-gray-600">
-            <p>Are you sure you want to proceed with this assignment?</p>
-          </div>
-        </div>
-      )
+      confirmText: 'Confirm',
+      message: 'Are you sure you want to assign this inspection to yourself and open the form?'
     },
     forward: {
-      icon: <ArrowRight className="w-5 h-5 text-sky-600" />,
-      headerColor: 'sky',
       title: 'Confirm Forward Action',
       confirmColor: 'sky',
-      confirmText: 'Forward Inspection',
-      message: (
-        <div className="space-y-4">
-          {/* Inspection Details Card */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <FileText className="w-4 h-4 text-gray-600" />
-              <span className="font-medium text-gray-800">Inspection Details</span>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">Code:</span>
-                <span className="text-gray-900">{inspection?.code}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Building className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-700">{establishmentNames}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Forwarding Rules */}
-          <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <ArrowRight className="w-4 h-4 text-sky-600" />
-              <span className="font-medium text-sky-800">Forwarding Rules</span>
-            </div>
-            <div className="space-y-2 text-sm text-sky-700">
-              {userLevel === 'Section Chief' ? (
-                <>
-                  {currentUser?.section === 'PD-1586,RA-8749,RA-9275' ? (
-                    <>
-                      <p>• <strong>Combined Section:</strong> Will forward to Unit Head</p>
-                      <p>• If no Unit Head is assigned, you will be notified</p>
-                      <p>• Unit Head will then assign to Monitoring Personnel</p>
-                    </>
-                  ) : (
-                    <>
-                      <p>• <strong>Individual Section:</strong> Will forward directly to Monitoring Personnel</p>
-                      <p>• Monitoring Personnel will conduct the actual inspection</p>
-                    </>
-                  )}
-                </>
-              ) : userLevel === 'Unit Head' ? (
-                <>
-                  <p>• Will forward the inspection to Monitoring Personnel</p>
-                  <p>• Monitoring Personnel will conduct the actual inspection</p>
-                </>
-              ) : (
-                <>
-                  <p>• Will forward the inspection to the next level in the workflow</p>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="text-sm text-gray-600">
+      confirmText: 'Confirm Forward',
+      message: () => {
+        const selectedPersonnel = pendingForwardAction?.selectedPersonnelName;
+        return (
+          <div className="space-y-3">
             <p>Are you sure you want to forward this inspection?</p>
+            {selectedPersonnel && (
+              <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-sky-900">
+                  Forward to: {selectedPersonnel}
+                </p>
+              </div>
+            )}
           </div>
-        </div>
-      )
+        );
+      }
     },
     forward_to_legal: {
       icon: <Scale className="w-5 h-5 text-orange-600" />,
@@ -516,6 +409,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [showOnlyMyAssignments, setShowOnlyMyAssignments] = useState(false);
+  
+  // 🔄 Action loading state
+  const [actionLoading, setActionLoading] = useState(false);
+  
+  // 🔄 Monitoring personnel selection state
+  const [showMonitoringModal, setShowMonitoringModal] = useState(false);
+  const [pendingForwardAction, setPendingForwardAction] = useState(null);
 
   // 📑 Tab state for role-based tabs with localStorage persistence
   const { loadFromStorage: loadTabFromStorage, saveToStorage: saveTabToStorage } = useLocalStorageTab("inspections_list");
@@ -779,13 +679,23 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       return;
     }
     
-    // 4. "Forward" button - Delegate/send up (show confirmation dialog)
+    // 4. "Forward" button - Delegate/send up (show monitoring modal or confirmation dialog)
     if (action === 'forward') {
-      setActionConfirmation({ 
-        open: true, 
-        inspection, 
-        action 
-      });
+      // Check if this requires monitoring personnel selection
+      const isCombinedSection = currentUser?.section === 'PD-1586,RA-8749,RA-9275';
+      
+      if (userLevel === 'Section Chief' && isCombinedSection) {
+        // Combined section forwards to Unit - show confirmation directly
+        setActionConfirmation({ 
+          open: true, 
+          inspection, 
+          action 
+        });
+      } else if (userLevel === 'Section Chief' || userLevel === 'Unit Head') {
+        // Individual sections and Unit Head - show monitoring modal first
+        setPendingForwardAction({ inspection, action, forwardData: { target: 'monitoring' } });
+        setShowMonitoringModal(true);
+      }
       return;
     }
     
@@ -833,17 +743,19 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     const { inspection, action } = actionConfirmation;
     if (!inspection || !action) return;
 
+    setActionLoading(true);
+
     try {
       // For inspect action by Section Chief, Unit Head, or Monitoring Personnel, execute the action and then open the form
       if (action === 'inspect' && (userLevel === 'Section Chief' || userLevel === 'Unit Head' || userLevel === 'Monitoring Personnel')) {
-      await handleAction(action, inspection.id);
+        await handleAction(action, inspection.id);
         notifications.success(
           `Inspection ${inspection.code} assigned to you`, 
           { title: 'Inspection Assigned' }
         );
         
         // Close confirmation dialog
-      setActionConfirmation({ open: false, inspection: null, action: null });
+        setActionConfirmation({ open: false, inspection: null, action: null });
         
         // Navigate to inspection form page
         window.location.href = `/inspections/${inspection.id}/form`;
@@ -856,52 +768,38 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
           remarks: 'Forwarded to next level'
         };
         
+        // Check if we already have monitoring personnel selected
+        if (pendingForwardAction?.forwardData?.assigned_monitoring_id) {
+          // Use the pre-selected monitoring personnel
+          forwardData = pendingForwardAction.forwardData;
+          
+          await handleAction(action, inspection.id, forwardData);
+          notifications.success(
+            `Inspection ${inspection.code} forwarded to selected Monitoring Personnel`, 
+            { title: 'Inspection Forwarded' }
+          );
+          
+          // Reset states
+          setPendingForwardAction(null);
+          setActionConfirmation({ open: false, inspection: null, action: null });
+          return;
+        }
+        
+        // For combined sections that forward to Unit Head (no monitoring selection)
         if (userLevel === 'Section Chief') {
-          // Section Chief forward logic
           const isCombinedSection = currentUser?.section === 'PD-1586,RA-8749,RA-9275';
           
           if (isCombinedSection) {
-            // Combined section forwards to Unit (if Unit Head exists)
             forwardData.target = 'unit';
-          } else {
-            // Individual sections (Toxic, Solid) forward to Monitoring
-            forwardData.target = 'monitoring';
-          }
-        } else if (userLevel === 'Unit Head') {
-          // Unit Head always forwards to Monitoring Personnel
-          forwardData.target = 'monitoring';
-        }
-        
-        try {
-          await handleAction(action, inspection.id, forwardData);
-          
-          // Show success message based on user level and section type
-          if (userLevel === 'Section Chief') {
-            const isCombinedSection = currentUser?.section === 'PD-1586,RA-8749,RA-9275';
-            if (isCombinedSection) {
-              notifications.success(
-                `Inspection ${inspection.code} forwarded to Unit Head`, 
-                { title: 'Inspection Forwarded' }
-              );
-            } else {
-              notifications.success(
-                `Inspection ${inspection.code} forwarded to Monitoring Personnel`, 
-                { title: 'Inspection Forwarded' }
-              );
-            }
-          } else if (userLevel === 'Unit Head') {
+            await handleAction(action, inspection.id, forwardData);
             notifications.success(
-              `Inspection ${inspection.code} forwarded to Monitoring Personnel`, 
+              `Inspection ${inspection.code} forwarded to Unit Head`, 
               { title: 'Inspection Forwarded' }
             );
+            setActionConfirmation({ open: false, inspection: null, action: null });
+            return;
           }
-          
-          setActionConfirmation({ open: false, inspection: null, action: null });
-        } catch {
-          // Error handling is done in the useInspectionActions hook
-          // The error message will be displayed automatically
         }
-        return;
       }
       
       // For other actions, just execute normally
@@ -909,9 +807,46 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       setActionConfirmation({ open: false, inspection: null, action: null });
     } catch {
       // Error is already handled in the hook
+    } finally {
+      setActionLoading(false);
     }
   }, [actionConfirmation, handleAction, userLevel, notifications, currentUser]);
 
+  // Handle monitoring personnel selection
+  const handleMonitoringPersonnelSelect = useCallback(async (monitoringId, selectedPerson) => {
+    if (!pendingForwardAction) return;
+
+    // Get the selected personnel name
+    const selectedPersonnelName = selectedPerson ? 
+      `${selectedPerson.first_name} ${selectedPerson.last_name}` : 
+      'Selected Personnel';
+
+    // Close monitoring modal
+    setShowMonitoringModal(false);
+    
+    // Add monitoring ID and personnel name to pending action
+    setPendingForwardAction({
+      ...pendingForwardAction,
+      forwardData: {
+        ...pendingForwardAction.forwardData,
+        assigned_monitoring_id: monitoringId
+      },
+      selectedPersonnelName: selectedPersonnelName
+    });
+    
+    // Show confirmation dialog
+    setActionConfirmation({
+      open: true,
+      inspection: pendingForwardAction.inspection,
+      action: 'forward'
+    });
+  }, [pendingForwardAction]);
+
+  // Handle monitoring modal close
+  const handleMonitoringModalClose = useCallback(() => {
+    setShowMonitoringModal(false);
+    setPendingForwardAction(null);
+  }, []);
 
   // Delete inspection function
   const handleDeleteInspection = useCallback(async (inspection) => {
@@ -1595,8 +1530,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         const dialogContent = getActionDialogContent(
           actionConfirmation.action, 
           actionConfirmation.inspection, 
-          userLevel, 
-          currentUser
+          userLevel,
+          pendingForwardAction
         );
         
         return (
@@ -1609,13 +1544,22 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             confirmText={dialogContent.confirmText}
             cancelText="Cancel"
             confirmColor={dialogContent.confirmColor}
-            size="xl"
+            size="md"
+            loading={actionLoading}
             onCancel={() => setActionConfirmation({ open: false, inspection: null, action: null })}
             onConfirm={executeAction}
           />
         );
       })()}
 
+      {/* Monitoring Personnel Selection Modal */}
+      <MonitoringPersonnelModal
+        open={showMonitoringModal}
+        inspection={pendingForwardAction?.inspection}
+        onClose={handleMonitoringModalClose}
+        onSelect={handleMonitoringPersonnelSelect}
+        loading={actionLoading}
+      />
 
     </div>
   );

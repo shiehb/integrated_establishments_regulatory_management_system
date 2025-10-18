@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>New Law Assignment - IERMS</title>
+  <title>Inspection Forwarded - IERMS</title>
   <style>
     body { font-family: 'Arial', 'Helvetica', sans-serif; line-height: 1.5; color: #1f2937; margin: 0; padding: 20px; background-color: #f3f4f6; }
     .container { max-width: 650px; margin: 0 auto; background-color: #ffffff; border: 1px solid #d1d5db; }
@@ -19,6 +19,7 @@
     
     /* Alert boxes */
     .alert-info { background-color: #f0f9ff; border: 2px solid #0284c7; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    .alert-warning { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; padding: 18px; margin: 20px 0; border-radius: 8px; }
     .alert-success { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 8px; }
     
     /* CTA Button */
@@ -29,10 +30,21 @@
     .support-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #374151; font-weight: 700; }
     .support-box p { margin: 5px 0; font-size: 12px; color: #6b7280; }
     
-    /* Law info box */
-    .law-box { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center; }
-    .law-box h3 { margin: 0 0 10px 0; font-size: 16px; color: #92400e; font-weight: 700; }
-    .law-box p { margin: 5px 0; font-size: 13px; color: #92400e; }
+    /* Establishment list */
+    .establishment-list { background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .establishment-list h4 { margin: 0 0 10px 0; font-size: 13px; color: #166534; font-weight: 700; }
+    .establishment-list p { margin: 5px 0; font-size: 12px; color: #166534; line-height: 1.6; }
+    
+    /* Forwarded by box */
+    .forwarded-box { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 2px solid #3b82f6; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center; }
+    .forwarded-box h3 { margin: 0 0 10px 0; font-size: 14px; color: #1e40af; font-weight: 700; }
+    .forwarded-box p { margin: 5px 0; font-size: 13px; color: #1e40af; }
+    .forwarded-box .name { font-size: 16px; font-weight: 700; color: #0c4a6e; margin: 10px 0; }
+    
+    /* Remarks box */
+    .remarks-box { background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .remarks-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #92400e; font-weight: 700; }
+    .remarks-box p { margin: 0; font-size: 12px; color: #92400e; line-height: 1.6; font-style: italic; }
   </style>
 </head>
 <body>
@@ -50,9 +62,9 @@
                   {% endif %}
                 </td>
                 <td style="padding-left: 15px; color: white;">
-                  <h1 style="margin:0; font-size:20px; font-weight:700; color:white;">NEW LAW ASSIGNMENT</h1>
-                  <p style="margin:3px 0 0 0; font-size:11px; opacity:0.9; color:#e0f2fe;">Environmental Law Inspection Assignment</p>
-                  <p style="margin:2px 0 0 0; font-size:10px; opacity:0.8; color:#bae6fd;">Document No: IERMS-LAW-{% now "YmdHis" %}</p>
+                  <h1 style="margin:0; font-size:20px; font-weight:700; color:white;">INSPECTION FORWARDED</h1>
+                  <p style="margin:3px 0 0 0; font-size:11px; opacity:0.9; color:#e0f2fe;">Inspection Reassignment Notification</p>
+                  <p style="margin:2px 0 0 0; font-size:10px; opacity:0.8; color:#bae6fd;">Document No: IERMS-FORWARD-{% now "YmdHis" %}</p>
                 </td>
                 <td width="100" style="text-align: right; color: white; font-size: 10px;">
                   <div style="border: 1px solid rgba(255,255,255,0.3); padding: 8px; border-radius: 6px;">
@@ -70,33 +82,49 @@
     <div class="content">
       <!-- Reference & Timestamp -->
       <div style="text-align: right; font-size: 11px; color: #6b7280; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
-        <strong>Assignment ID:</strong> LAW-{{ inspection.id|default:'NEW' }}-{% now "YmdHis" %}<br/>
+        <strong>Forward ID:</strong> FWD-{{ inspection.id|default:'NEW' }}-{% now "YmdHis" %}<br/>
         <strong>Generated:</strong> {% now "F j, Y, g:i A" %}
       </div>
 
       <!-- Salutation -->
       <p style="font-size: 14px; margin-bottom: 20px;">
-        <strong>Dear {% if section_chief.first_name %}{{ section_chief.first_name }} {{ section_chief.last_name }}{% else %}{{ section_chief.email }}{% endif %},</strong>
+        <strong>Dear {% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}{{ user.email }}{% endif %},</strong>
       </p>
 
-      <!-- Assignment Notice -->
+      <!-- Forward Notice -->
       <div class="alert-info">
         <p style="margin: 0; font-size: 13px; color: #0c4a6e;">
-          You have been assigned a new environmental law for inspection in the <strong>Integrated Establishments Regulatory Management System (IERMS)</strong>. 
-          Please review the details below and coordinate with your team as needed.
+          An inspection has been forwarded to you in the <strong>Integrated Establishments Regulatory Management System (IERMS)</strong>. 
+          This inspection requires your attention and action. Please review the details below.
         </p>
       </div>
 
-      <!-- Law Assignment -->
-      <div class="law-box">
-        <h3>📋 ASSIGNED LAW</h3>
-        <p style="font-size: 15px; font-weight: 700; margin: 10px 0;">{{ law_code }}</p>
-        <p style="font-size: 13px;">{{ law_name }}</p>
+      <!-- Forwarded By Information -->
+      <div class="forwarded-box">
+        <h3>👤 FORWARDED BY</h3>
+        {% if forwarded_by %}
+        <div class="name">{{ forwarded_by.first_name }} {{ forwarded_by.last_name }}</div>
+        <p>{{ forwarded_by.userlevel }}</p>
+        <p style="font-size: 11px; margin-top: 5px;">{{ forwarded_by.email }}</p>
+        {% if forwarded_by.section %}
+        <p style="font-size: 11px;">Section: {{ forwarded_by.section }}</p>
+        {% endif %}
+        {% else %}
+        <div class="name">System Administrator</div>
+        {% endif %}
       </div>
 
-      <!-- Establishment Details -->
+      <!-- Forwarding Remarks -->
+      {% if remarks %}
+      <div class="remarks-box">
+        <h4>💬 FORWARDING REMARKS</h4>
+        <p>"{{ remarks }}"</p>
+      </div>
+      {% endif %}
+
+      <!-- Inspection Details -->
       <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
-        ESTABLISHMENT DETAILS
+        INSPECTION DETAILS
       </h3>
       <table class="assignment-table">
         <thead>
@@ -107,22 +135,16 @@
         </thead>
         <tbody>
           <tr>
-            <td>Establishment Name</td>
-            <td>{{ establishment.name }}</td>
-          </tr>
-          <tr>
-            <td>Location</td>
-            <td>{{ establishment.city }}, {{ establishment.province }}</td>
-          </tr>
-          {% if establishment.address %}
-          <tr>
-            <td>Address</td>
-            <td>{{ establishment.address }}</td>
-          </tr>
-          {% endif %}
-          <tr>
             <td>Inspection Code</td>
             <td>{{ inspection.code }}</td>
+          </tr>
+          <tr>
+            <td>Law/Regulation</td>
+            <td>{{ law }}</td>
+          </tr>
+          <tr>
+            <td>Current Status</td>
+            <td>{{ inspection.get_simplified_status }}</td>
           </tr>
           {% if inspection.district %}
           <tr>
@@ -130,42 +152,82 @@
             <td>{{ inspection.district }}</td>
           </tr>
           {% endif %}
+          {% if inspection.scheduled_date %}
+          <tr>
+            <td>Scheduled Date</td>
+            <td>{{ inspection.scheduled_date|date:"F j, Y" }}</td>
+          </tr>
+          {% endif %}
+          <tr>
+            <td>Priority</td>
+            <td>{{ inspection.priority|default:'Normal' }}</td>
+          </tr>
         </tbody>
       </table>
 
-      <!-- Required Actions -->
+      <!-- Establishment Information -->
+      <div class="establishment-list">
+        <h4>🏢 ESTABLISHMENT(S) TO INSPECT</h4>
+        <p>{{ establishment_list }}</p>
+      </div>
+
+      <!-- Action Required -->
+      <div class="alert-warning">
+        <p style="margin: 0 0 10px 0; font-size: 13px; color: #92400e; font-weight: 700;">
+          ⚠️ ACTION REQUIRED
+        </p>
+        <p style="margin: 0; font-size: 12px; color: #92400e; line-height: 1.6;">
+          This inspection has been forwarded to you for continuation. Please review the inspection details, 
+          check any previous findings or notes, and proceed with the necessary actions according to DENR guidelines.
+        </p>
+      </div>
+
+      <!-- Next Steps -->
       <div class="alert-success">
         <p style="margin: 0 0 10px 0; font-size: 13px; color: #166534; font-weight: 700;">
           ✅ NEXT STEPS
         </p>
         <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 12px; color: #166534; line-height: 1.6;">
-          <li>Review the assigned law and inspection requirements</li>
-          <li>Coordinate with your team for inspection planning</li>
-          <li>Prepare necessary documentation and checklists</li>
-          <li>Schedule and conduct the inspection according to DENR guidelines</li>
+          <li>Review the forwarding remarks and previous actions taken</li>
+          <li>Access the inspection form and review all existing data</li>
+          <li>Continue the inspection process from the current stage</li>
+          <li>Complete required documentation and assessments</li>
+          <li>Submit or forward the inspection as appropriate</li>
         </ol>
       </div>
 
       <!-- Action Buttons -->
       <div style="text-align: center; margin: 30px 0;">
-        <a href="{{ site_url }}/inspections/{{ inspection.id }}" class="cta-button">VIEW INSPECTION DETAILS</a>
+        <a href="{{ site_url }}/inspections/{{ inspection.id }}/form" class="cta-button">VIEW INSPECTION DETAILS</a>
         <p style="font-size: 11px; color: #6b7280; margin-top: 10px;">
-          Or copy and paste this URL: <span style="color: #0284c7; word-break: break-all;">{{ site_url }}/inspections/{{ inspection.id }}</span>
+          Or copy and paste this URL: <span style="color: #0284c7; word-break: break-all;">{{ site_url }}/inspections/{{ inspection.id }}/form</span>
         </p>
       </div>
+
+      <!-- Important Reminders -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #0c4a6e; margin: 25px 0 12px 0; border-bottom: 2px solid #0284c7; padding-bottom: 6px;">
+        IMPORTANT REMINDERS
+      </h3>
+      <ul style="font-size: 12px; color: #374151; line-height: 1.8; padding-left: 20px;">
+        <li>Review all previous inspection notes and findings before proceeding</li>
+        <li>Coordinate with the previous handler if clarification is needed</li>
+        <li>Maintain continuity in the inspection process</li>
+        <li>Document all actions and findings thoroughly</li>
+        <li>Follow all DENR protocols and safety guidelines</li>
+      </ul>
 
       <!-- Support Information -->
       <div class="support-box">
         <h4>📞 TECHNICAL SUPPORT & ASSISTANCE</h4>
         <p><strong>IT Help Desk:</strong> support@ierms.denr.gov.ph | Tel: (02) 8888-4376</p>
         <p><strong>Office Hours:</strong> Monday - Friday, 8:00 AM - 5:00 PM (Philippine Time)</p>
-        <p><strong>Emergency Support:</strong> For urgent issues, contact your supervisor</p>
+        <p><strong>Emergency Support:</strong> For urgent issues, contact your immediate supervisor</p>
       </div>
 
       <!-- Legal Disclaimer -->
       <div style="font-size: 10px; color: #9ca3af; margin-top: 25px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: justify;">
         <p style="margin: 0;">
-          This law assignment is generated by the IERMS system in accordance with DENR inspection protocols. 
+          This inspection forwarding notification is generated by the IERMS system in accordance with DENR inspection protocols. 
           All inspection activities must comply with DENR regulations and the Data Privacy Act of 2012 (R.A. 10173).
         </p>
       </div>
@@ -216,3 +278,4 @@
   </div>
 </body>
 </html>
+

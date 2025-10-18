@@ -136,6 +136,7 @@ class UserSerializer(serializers.ModelSerializer):
             'section',
             'district',
             'date_joined',
+            'last_login',
             'updated_at',  # NEW: Include updated_at field
             'is_active',
             'must_change_password',  # Required for forced password change on first login

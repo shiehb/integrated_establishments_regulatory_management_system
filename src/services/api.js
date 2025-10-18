@@ -205,6 +205,11 @@ export const getEstablishments = async (params = {}) => {
   return res.data;
 };
 
+export const getMyEstablishments = async (params = {}) => {
+  const res = await api.get("establishments/my_establishments/", { params });
+  return res.data;
+};
+
 export const getEstablishment = async (id) => {
   const res = await api.get(`establishments/${id}/`);
   return res.data;
@@ -609,6 +614,12 @@ export const getFindingDocuments = async (inspectionId) => {
 // Get available actions for an inspection
 export const getAvailableActions = async (id) => {
   const res = await api.get(`inspections/${id}/available_actions/`);
+  return res.data;
+};
+
+// Get available monitoring personnel for an inspection
+export const getInspectionAvailableMonitoringPersonnel = async (inspectionId) => {
+  const res = await api.get(`inspections/${inspectionId}/available_monitoring_personnel/`);
   return res.data;
 };
 

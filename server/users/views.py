@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from django.conf import settings
 from django.contrib.auth import get_user_model, authenticate
 from .utils.otp_utils import generate_otp, verify_otp, send_otp_email
+from .utils.email_utils import send_account_activated_email, send_account_deactivated_email
 from django.core.cache import cache
 from django.utils import timezone
 from django.db.models import Q
@@ -82,6 +83,10 @@ class LoginView(APIView):
             
             # Reset failed login attempts on successful login
             user.reset_failed_logins()
+            
+            # Update last_login timestamp
+            user.last_login = timezone.now()
+            user.save(update_fields=['last_login'])
             
             # Generate JWT tokens
             refresh = RefreshToken.for_user(user)
@@ -441,6 +446,36 @@ def toggle_user_active(request, pk):
             f"Toggled active status for {user.email} → {user.is_active}",
             request=request
         )
+
+        # Send email notification to the user
+        try:
+            # Get IP address and User-Agent from request
+            ip_address = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', 'Unknown'))
+            if ',' in ip_address:
+                ip_address = ip_address.split(',')[0].strip()
+            
+            user_agent = request.META.get('HTTP_USER_AGENT', '')
+            
+            # Send appropriate email based on activation status
+            if new_active_status:
+                send_account_activated_email(
+                    user=user,
+                    activated_by=request.user,
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+            else:
+                send_account_deactivated_email(
+                    user=user,
+                    deactivated_by=request.user,
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+        except Exception as e:
+            # Log the error but don't fail the request
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send account status email to {user.email}: {str(e)}")
 
         return Response({
             'is_active': user.is_active,
