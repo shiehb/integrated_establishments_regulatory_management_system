@@ -2,6 +2,7 @@
 # Remove Database Autosave and Update Local Storage Autosave
 
 ## Overview
+
 Change autosave behavior to only use local storage (every 30 seconds) instead of database, and remove specific notifications.
 
 ## Changes Required
@@ -27,6 +28,7 @@ useEffect(() => {
 **Lines 276-308**: Modify the local storage useEffect to save every 30 seconds instead of immediately
 
 **Current**: Saves immediately on every change
+
 **New**: Debounce to save every 30 seconds
 
 ```javascript
@@ -123,7 +125,6 @@ if (showSyncNotification && value && value.trim() !== "") {
 - **Better UX**: Less notification noise
 - **Local backup**: Still maintains 30-second local storage backup for user safety
 - **Manual save control**: Users explicitly save when ready using Draft or Save buttons
-
 
 ### To-dos
 

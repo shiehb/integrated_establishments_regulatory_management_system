@@ -367,6 +367,28 @@ class InspectionForm(models.Model):
     compliance_plan = models.TextField(blank=True, help_text='Establishment compliance plan')
     compliance_deadline = models.DateField(null=True, blank=True)
     
+    # NOV (Notice of Violation) fields
+    nov_sent_date = models.DateField(null=True, blank=True, help_text='Date NOV was sent')
+    nov_compliance_date = models.DateTimeField(null=True, blank=True, 
+        help_text='Deadline for establishment to comply with NOV')
+    nov_violations = models.TextField(blank=True, 
+        help_text='Detailed list of violations found')
+    nov_compliance_instructions = models.TextField(blank=True,
+        help_text='Required compliance actions for establishment')
+    nov_remarks = models.TextField(blank=True, help_text='Additional remarks for NOV')
+    
+    # NOO (Notice of Order) fields
+    noo_sent_date = models.DateField(null=True, blank=True, help_text='Date NOO was sent')
+    noo_violation_breakdown = models.TextField(blank=True,
+        help_text='Detailed breakdown of violations for NOO')
+    noo_penalty_fees = models.DecimalField(max_digits=10, decimal_places=2, 
+        null=True, blank=True, help_text='Total penalty fees assessed')
+    noo_payment_deadline = models.DateField(null=True, blank=True,
+        help_text='Deadline for penalty payment')
+    noo_payment_instructions = models.TextField(blank=True,
+        help_text='Instructions for paying penalties')
+    noo_remarks = models.TextField(blank=True, help_text='Additional remarks for NOO')
+    
     # Inspector tracking (first fill-out only)
     inspected_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -487,3 +509,107 @@ class InspectionHistory(models.Model):
     
     def __str__(self):
         return f"{self.inspection.code}: {self.previous_status} → {self.new_status}"
+
+
+class BillingRecord(models.Model):
+    """
+    Billing records created when NOO (Notice of Order) is sent
+    Links to inspection and tracks penalty fees
+    """
+    # Auto-generated billing code
+    billing_code = models.CharField(max_length=30, unique=True, 
+        help_text='Format: BILL-YYYY-NNNN')
+    
+    # Relationships
+    inspection = models.OneToOneField(Inspection, on_delete=models.CASCADE,
+        related_name='billing_record')
+    establishment = models.ForeignKey('establishments.Establishment',
+        on_delete=models.CASCADE, related_name='billing_records')
+    
+    # Establishment info (snapshot at time of billing)
+    establishment_name = models.CharField(max_length=255)
+    contact_person = models.CharField(max_length=255, blank=True)
+    contact_number = models.CharField(max_length=50, blank=True)
+    related_law = models.CharField(max_length=50)
+    
+    # Billing details
+    BILLING_TYPE_CHOICES = [
+        ('PENALTY', 'Penalty'),
+        ('FEE', 'Fee'),
+        ('FINE', 'Fine'),
+    ]
+    billing_type = models.CharField(max_length=20, choices=BILLING_TYPE_CHOICES,
+        default='PENALTY')
+    description = models.TextField(help_text='Detailed description of billing reason')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, 
+        help_text='Total billing amount')
+    due_date = models.DateField(help_text='Payment deadline')
+    recommendations = models.TextField(blank=True, 
+        help_text='Additional recommendations or instructions')
+    
+    # Tracking
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='issued_billings',
+        help_text='User who issued this billing (typically Legal Unit)'
+    )
+    sent_date = models.DateTimeField(auto_now_add=True, 
+        help_text='When billing was created and sent')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Billing Record'
+        verbose_name_plural = 'Billing Records'
+        indexes = [
+            models.Index(fields=['billing_code']),
+            models.Index(fields=['establishment']),
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['related_law']),
+        ]
+    
+    def __str__(self):
+        return f"{self.billing_code} - {self.establishment_name}"
+    
+    def save(self, *args, **kwargs):
+        """Generate unique billing code if not set"""
+        if not self.billing_code:
+            year = timezone.now().year
+            # Get count for this year
+            count = BillingRecord.objects.filter(
+                created_at__year=year
+            ).count() + 1
+            # Generate code
+            candidate = f"BILL-{year}-{str(count).zfill(4)}"
+            # Ensure uniqueness
+            while BillingRecord.objects.filter(billing_code=candidate).exists():
+                count += 1
+                candidate = f"BILL-{year}-{str(count).zfill(4)}"
+            self.billing_code = candidate
+        super().save(*args, **kwargs)
+
+
+class BillingItem(models.Model):
+    """
+    Individual violation line items in a billing record
+    Allows breaking down total penalties by violation type
+    """
+    billing_record = models.ForeignKey(BillingRecord, on_delete=models.CASCADE,
+        related_name='items')
+    violation = models.CharField(max_length=255, 
+        help_text='Description of specific violation')
+    amount = models.DecimalField(max_digits=10, decimal_places=2,
+        help_text='Penalty amount for this violation')
+    order = models.IntegerField(default=0, 
+        help_text='Display order (for sorting line items)')
+    
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'Billing Item'
+        verbose_name_plural = 'Billing Items'
+    
+    def __str__(self):
+        return f"{self.violation}: ₱{self.amount}"

@@ -44,6 +44,7 @@ import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 import PaginationControls, { useLocalStoragePagination, useLocalStorageTab } from "../PaginationControls";
 import { useInspectionActions } from "../../hooks/useInspectionActions";
+import { useOptimizedInspections } from "../../hooks/useOptimizedInspections";
 import MonitoringPersonnelModal from "./modals/MonitoringPersonnelModal";
 
 // Debounce hook
@@ -388,10 +389,7 @@ const getActionDialogContent = (action, inspection, userLevel, pendingForwardAct
 
 export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Division Chief' }) {
   const notifications = useNotifications();
-  const [inspections, setInspections] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
-  const [tabCounts, setTabCounts] = useState({});
 
   // 🎯 Search highlighting
   const location = useLocation();
@@ -453,108 +451,74 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   };
 
 
+  // Use optimized inspections hook
+  const { 
+    inspections, 
+    tabCounts, 
+    paginationMeta,
+    loading, 
+    error, 
+    fetchInspections, 
+    fetchTabCounts, 
+    refreshData 
+  } = useOptimizedInspections(userLevel, currentUser);
+
   const fetchAllInspections = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Don't fetch if currentUser is not loaded yet
-      if (!currentUser) {
-        setLoading(false);
-        return;
-      }
+    if (!currentUser) return;
 
-      console.log('Fetching inspections for tab:', activeTab, 'userLevel:', userLevel);
+    const params = {
+      page: currentPage,
+      page_size: pageSize,
+      tab: activeTab,
+    };
 
-      // Use the new getInspections API function with exact tab mapping
-      const params = {
-        page: currentPage,
-        page_size: pageSize,
-        tab: activeTab, // Exact tab mapping as specified
-      };
-
-      // Add search parameter if provided
-      if (debouncedSearchQuery) {
-        params.search = debouncedSearchQuery;
-      }
-
-      // Add section filter if selected
-      if (sectionFilter.length > 0) {
-        params.section = sectionFilter.join(",");
-      }
-      const response = await getInspections(params);
-
-      if (response.results) {
-        // Server-side paginated response
-        setInspections(response.results);
-      } else {
-        // Fallback for non-paginated response
-        setInspections(response);
-      }
-    } catch (err) {
-      console.error("Error fetching inspections:", err);
-      setInspections([]);
-    } finally {
-      setLoading(false);
+    // Add search parameter if provided
+    if (debouncedSearchQuery) {
+      params.search = debouncedSearchQuery;
     }
-  }, [currentPage, pageSize, debouncedSearchQuery, sectionFilter, activeTab, userLevel, currentUser]);
 
-  // Client-side filtering and sorting
-  const filteredInspections = useMemo(() => {
-    let list = inspections.filter((inspection) => {
-      // 1. Visibility filter - user can only see relevant inspections
-      const canSee = canUserSeeInspection(inspection.current_status, userLevel);
-      if (!canSee) return false;
-      
-      // 2. Tab filter - only show inspections that belong in this tab
-      const belongsInTab = shouldShowInTab(inspection.current_status, userLevel, activeTab);
-      if (!belongsInTab) return false;
-      
-      // 3. Law filter - use partial matching
-    const matchesLaw = lawFilter.length === 0 || 
-      lawFilter.some(law => {
-        // Extract just the code part (e.g., "PD-1586" from "PD-1586 (Philippine Environment Code)")
-        const lawCode = law.split(' ')[0];
-        return inspection.law?.includes(lawCode);
-      });
-      
-      // 4. Date range filter
-      const matchesDateFrom = !dateFrom || 
-        new Date(inspection.created_at) >= new Date(dateFrom);
-      const matchesDateTo = !dateTo || 
-        new Date(inspection.created_at) <= new Date(dateTo);
-      
-      // 5. Assignment filter - show only my assignments if enabled
-      const matchesAssignment = !showOnlyMyAssignments || 
-        (currentUser && inspection.assigned_to?.id === currentUser.id);
-      
-      return matchesLaw && matchesDateFrom && matchesDateTo && matchesAssignment;
-    });
+    // Add law filter (server-side)
+    if (lawFilter.length > 0) {
+      params.law = lawFilter.join(",");
+    }
 
-    // Client-side sorting
+    // Add date filters (server-side)
+    if (dateFrom) {
+      params.date_from = dateFrom;
+    }
+    if (dateTo) {
+      params.date_to = dateTo;
+    }
+
+    // Add assignment filter (server-side)
+    if (showOnlyMyAssignments) {
+      params.assigned_to_me = 'true';
+    }
+
+    // Add sorting parameters (server-side)
     if (sortConfig.key) {
-      list = [...list].sort((a, b) => {
-        let aVal = a[sortConfig.key];
-        let bVal = b[sortConfig.key];
-        
-        // Handle date fields
-        if (sortConfig.key === 'created_at') {
-          aVal = new Date(aVal).getTime();
-          bVal = new Date(bVal).getTime();
-        }
-        
-        // Handle string fields
-        if (sortConfig.key === 'code') {
-          aVal = aVal ? aVal.toLowerCase() : '';
-          bVal = bVal ? bVal.toLowerCase() : '';
-        }
-        
-        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
+      params.order_by = sortConfig.key;
+      params.order_direction = sortConfig.direction;
     }
 
-    return list;
-  }, [inspections, lawFilter, dateFrom, dateTo, sortConfig, userLevel, activeTab, showOnlyMyAssignments, currentUser]);
+    await fetchInspections(params);
+  }, [
+    currentPage, 
+    pageSize, 
+    debouncedSearchQuery, 
+    lawFilter,
+    dateFrom,
+    dateTo,
+    showOnlyMyAssignments,
+    sortConfig,
+    activeTab, 
+    currentUser, 
+    fetchInspections
+  ]);
+
+  // All filtering and sorting is now done server-side
+  // Use inspections directly from API
+  const filteredInspections = inspections;
 
   // Get unique laws from current inspections
   const availableLaws = useMemo(() => {
@@ -567,48 +531,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     return Array.from(lawSet).sort();
   }, [inspections]);
 
-  // Calculate tab counts based on current inspections
-  const calculateTabCounts = useCallback(async () => {
-    if (!currentUser) {
-      console.log('calculateTabCounts: No user');
-      setTabCounts({});
-      return;
-    }
-
-    try {
-      const availableTabs = roleTabs[userLevel] || [];
-      const counts = {};
-
-      console.log('calculateTabCounts: Starting calculation', { 
-        userLevel, 
-        availableTabs
-      });
-
-      // For each tab, fetch the count from the backend
-      for (const tab of availableTabs) {
-        try {
-          const params = {
-            page: 1,
-            page_size: 1, // Just get count
-            tab: tab,
-          };
-
-          const response = await getInspections(params);
-          counts[tab] = response.count || 0;
-          console.log(`Tab ${tab}: ${counts[tab]} inspections (from backend)`);
-        } catch (error) {
-          console.error(`Error fetching count for tab ${tab}:`, error);
-          counts[tab] = 0;
-        }
-      }
-
-      console.log('Final tab counts:', counts);
-      setTabCounts(counts);
-    } catch (error) {
-      console.error('Error calculating tab counts:', error);
-      setTabCounts({});
-    }
-  }, [currentUser, userLevel]);
+  // Tab counts are now handled by the optimized hook
 
   // Use the inspection actions hook
   const { handleAction, isActionLoading } = useInspectionActions(fetchAllInspections);
@@ -672,10 +595,10 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       return;
     }
     
-    // 3. "Review" button - View completed work (no status change, just open form)
+    // 3. "Review" button - View completed work (navigate to review page)
     if (action === 'review') {
-      // Navigate to inspection form page for review
-      window.location.href = `/inspections/${inspectionId}/form`;
+      // Navigate to inspection review page for viewing/reviewing
+      window.location.href = `/inspections/${inspectionId}/review`;
       return;
     }
     
@@ -887,30 +810,17 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     fetchUserProfile();
   }, [userLevel, activeTab]);
 
-  // Calculate tab counts when user changes
-  useEffect(() => {
-    if (currentUser) {
-      calculateTabCounts();
-    }
-  }, [currentUser, calculateTabCounts]);
-
+  // Fetch inspections when dependencies change
   useEffect(() => {
     fetchAllInspections();
   }, [refreshTrigger, fetchAllInspections, currentUser]);
 
-  // Recalculate tab counts when active tab changes or after fetching inspections
+  // Refresh data when refreshTrigger changes
   useEffect(() => {
-    if (currentUser && inspections.length >= 0) { // >= 0 to handle empty results
-      calculateTabCounts();
+    if (refreshTrigger > 0) {
+      refreshData();
     }
-  }, [activeTab, inspections.length, calculateTabCounts, currentUser]);
-
-  // Debug: Log tab counts when they change
-  useEffect(() => {
-    if (Object.keys(tabCounts).length > 0) {
-      console.log('Tab counts updated:', tabCounts);
-    }
-  }, [tabCounts]);
+  }, [refreshTrigger, refreshData]);
 
   // Add this useEffect to handle clicks outside the dropdowns
   useEffect(() => {
@@ -994,10 +904,10 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   ];
 
 
-  // Note: Filtering and sorting are now handled client-side
-
-  // ✅ Pagination (using client-side pagination)
-  const totalPages = Math.ceil(filteredInspections.length / pageSize);
+  // ✅ Pagination (using server-side pagination)
+  const totalPages = Math.ceil((paginationMeta?.count || filteredInspections.length) / pageSize);
+  const totalInspections = paginationMeta?.count || filteredInspections.length;
+  const filteredCount = totalInspections;
 
   // ✅ Selection
   const toggleSelect = (id) => {
@@ -1046,8 +956,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  const totalInspections = inspections.length;
-  const filteredCount = filteredInspections.length;
   const hasActiveFilters =
     searchQuery ||
     sectionFilter.length > 0 ||
@@ -1063,9 +971,9 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     (dateTo ? 1 : 0) +
     (showOnlyMyAssignments ? 1 : 0);
 
-  // Calculate display range
-  const startItem = (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, filteredInspections.length);
+  // Calculate display range (for server-side pagination)
+  const startItem = totalInspections > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+  const endItem = Math.min(currentPage * pageSize, totalInspections);
 
   // Removed handleRowClick to prevent navigation on row click
 
@@ -1421,9 +1329,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                 </td>
               </tr>
             ) : (
-              filteredInspections
-                .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                .map((inspection) => (
+              filteredInspections.map((inspection) => (
                 <tr
                   key={inspection.id}
                   ref={inspection.id === highlightedInspId ? highlightedRowRef : null}

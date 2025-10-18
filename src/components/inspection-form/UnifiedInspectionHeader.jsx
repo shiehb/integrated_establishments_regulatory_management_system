@@ -1,5 +1,5 @@
 import React from "react";
-import { Info, Target, ClipboardCheck, CheckSquare, AlertCircle, Lightbulb, MapIcon } from "lucide-react";
+import { Info, Target, ClipboardCheck, CheckSquare, AlertCircle, Lightbulb, MapIcon, ArrowLeft, X, Save, Send, FileCheck, UserCheck, Users, Building, Scale, Mail, FileText, CornerDownLeft } from "lucide-react";
 
 /* ---------------------------
    Unified Inspection Header
@@ -11,6 +11,8 @@ export default function UnifiedInspectionHeader({
   onDraft,
   onClose,
   onComplete,
+  onBack,
+  showBackButton = false,
   onSendToSection,
   onSendToDivision,
   onSendToNextLevel,
@@ -142,11 +144,22 @@ export default function UnifiedInspectionHeader({
           
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
+            {showBackButton && (
+              <button
+                onClick={onBack}
+                className="flex items-center px-3 py-1 text-sm text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                Back to Review
+              </button>
+            )}
+            
             {showCloseButton && (
               <button
                 onClick={onClose}
-                className="px-3 py-1 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
+                className="flex items-center px-3 py-1 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
               >
+                <X className="w-4 h-4 mr-1" />
                 Close Form
               </button>
             )}
@@ -154,8 +167,9 @@ export default function UnifiedInspectionHeader({
             {showDraftButton && (
               <button
                 onClick={onDraft}
-                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
+                <Save className="w-4 h-4 mr-1" />
                 Draft
               </button>
             )}
@@ -163,8 +177,9 @@ export default function UnifiedInspectionHeader({
             {showSubmitButton && (
               <button
                 onClick={onSave}
-                className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
               >
+                <Send className="w-4 h-4 mr-1" />
                 Submit
               </button>
             )}
@@ -172,8 +187,9 @@ export default function UnifiedInspectionHeader({
             {showSubmitForReviewButton && (
               <button
                 onClick={onComplete}
-                className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
               >
+                <FileCheck className="w-4 h-4 mr-1" />
                 Submit
               </button>
             )}
@@ -181,8 +197,9 @@ export default function UnifiedInspectionHeader({
             {showCompleteButton && (
               <button
                 onClick={onComplete}
-                className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
               >
+                <FileCheck className="w-4 h-4 mr-1" />
                 Submit
               </button>
             )}
@@ -190,8 +207,9 @@ export default function UnifiedInspectionHeader({
             {showSendToSectionButton && (
               <button
                 onClick={onSendToSection}
-                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
+                <UserCheck className="w-4 h-4 mr-1" />
                 Send to Section
               </button>
             )}
@@ -199,8 +217,9 @@ export default function UnifiedInspectionHeader({
             {showSendToDivisionButton && (
               <button
                 onClick={onSendToDivision}
-                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
+                <Users className="w-4 h-4 mr-1" />
                 Send to Division
               </button>
             )}
@@ -208,8 +227,9 @@ export default function UnifiedInspectionHeader({
             {showReviewButton && (
               <button
                 onClick={onReview}
-                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
+                <FileCheck className="w-4 h-4 mr-1" />
                 Review Form
               </button>
             )}
@@ -217,8 +237,9 @@ export default function UnifiedInspectionHeader({
             {showSendToNextLevelButton && (
               <button
                 onClick={onSendToNextLevel}
-                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
+                <CornerDownLeft className="w-4 h-4 mr-1" />
                 Send to {nextLevelName}
               </button>
             )}
@@ -226,8 +247,9 @@ export default function UnifiedInspectionHeader({
             {showForwardToLegalButton && (
               <button
                 onClick={onForwardToLegal}
-                className="px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
+                <Scale className="w-4 h-4 mr-1" />
                 Send to Legal
               </button>
             )}
@@ -235,8 +257,9 @@ export default function UnifiedInspectionHeader({
             {showFinalizeButton && (
               <button
                 onClick={onFinalize}
-                className="px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
               >
+                <FileCheck className="w-4 h-4 mr-1" />
                 Close Form
               </button>
             )}
@@ -244,8 +267,9 @@ export default function UnifiedInspectionHeader({
             {showSendNOVButton && (
               <button
                 onClick={onSendNOV}
-                className="px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
               >
+                <Mail className="w-4 h-4 mr-1" />
                 Send NOV
               </button>
             )}
@@ -253,8 +277,9 @@ export default function UnifiedInspectionHeader({
             {showSendNOOButton && (
               <button
                 onClick={onSendNOO}
-                className="px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
               >
+                <FileText className="w-4 h-4 mr-1" />
                 Send NOO
               </button>
             )}
@@ -262,8 +287,9 @@ export default function UnifiedInspectionHeader({
             {showSaveRecommendationButton && (
               <button
                 onClick={onSaveRecommendation}
-                className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
+                className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
               >
+                <Save className="w-4 h-4 mr-1" />
                 Save Recommendation
               </button>
             )}
@@ -271,11 +297,9 @@ export default function UnifiedInspectionHeader({
             {showMarkAsCompliantButton && (
               <button
                 onClick={onMarkAsCompliant}
-                className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 flex items-center gap-2"
+                className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+                <CheckSquare className="w-4 h-4 mr-1" />
                 Mark as Compliant
               </button>
             )}

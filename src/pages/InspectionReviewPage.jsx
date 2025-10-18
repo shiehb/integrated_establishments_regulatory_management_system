@@ -3,23 +3,22 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../components/NotificationManager';
 import api from '../services/api';
-import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck, Printer } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck, Printer, Edit, X, UserCheck, Users, Building, CheckSquare, Scale, Mail, FileText, CornerDownLeft } from 'lucide-react';
 import LayoutForm from '../components/LayoutForm';
 
 const InspectionReviewPage = () => {
   const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { user: currentUser, loading: userLoading } = useAuth();
   const notifications = useNotifications();
   
   const urlParams = new URLSearchParams(location.search);
-  const mode = urlParams.get('mode') || 'preview';
+  const mode = urlParams.get('mode') || 'review';
   
   const [inspectionData, setInspectionData] = useState(null);
   const [formData, setFormData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [remarks, setRemarks] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
   const [actionType, setActionType] = useState('');
 
@@ -85,12 +84,27 @@ const InspectionReviewPage = () => {
   const fetchInspectionData = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/api/inspections/${id}/`);
+      const response = await api.get(`inspections/${id}/`);
       setInspectionData(response.data);
-      setFormData(response.data.form?.checklist || {});
+      
+      // Set form data from checklist, or create empty structure if needed
+      const checklist = response.data.form?.checklist;
+      if (checklist && Object.keys(checklist).length > 0) {
+        setFormData(checklist);
+      } else {
+        // Initialize with empty structure to prevent rendering issues
+        setFormData({
+          general: {},
+          purpose: {},
+          permits: [],
+          complianceItems: [],
+          systems: [],
+          recommendationState: {}
+        });
+      }
     } catch (error) {
       console.error('Error fetching inspection:', error);
-      notifications.error('Failed to load inspection data');
+      notifications.error(`Failed to load inspection data: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -129,12 +143,11 @@ const InspectionReviewPage = () => {
     navigate(-1);
   };
 
-  const handleSubmit = async () => {
-    if (!remarks.trim() && mode !== 'preview') {
-      notifications.warning('Please provide remarks');
-      return;
-    }
+  const handleEdit = () => {
+    navigate(`/inspections/${id}/form?returnTo=review`);
+  };
 
+  const handleSubmit = async () => {
     setLoading(true);
     try {
       if (mode === 'preview') {
@@ -153,38 +166,68 @@ const InspectionReviewPage = () => {
   };
 
   const handlePreviewSubmit = async () => {
-    try {
-      const payload = {
-        ...formData,
-        is_draft: false,
-        completed_at: new Date().toISOString()
-      };
+    // Extract compliance decision from form data
+    const complianceObservations = formData?.general?.compliance_observations || 'COMPLIANT';
+    
+    // Determine the correct endpoint based on current status and user level
+    let endpoint;
+    let payload = {
+      form_data: formData,
+      compliance_decision: complianceObservations
+    };
 
-      await api.post(`/api/inspections/${id}/complete/`, payload);
-      notifications.success('Inspection submitted successfully!');
-      navigate('/inspections');
-    } catch (error) {
-      throw error;
+    // Check current status and user level to determine correct endpoint
+    if (inspectionData?.current_status === 'MONITORING_COMPLETED_COMPLIANT' || 
+        inspectionData?.current_status === 'MONITORING_COMPLETED_NON_COMPLIANT') {
+      // Unit Head reviewing monitoring completed inspections
+      if (currentUser?.userlevel === 'Unit Head') {
+        endpoint = `inspections/${id}/review_and_forward_unit/`;
+      } else {
+        // Fallback to complete endpoint for other users
+        endpoint = `inspections/${id}/complete/`;
+      }
+    } else if (inspectionData?.current_status === 'UNIT_REVIEWED') {
+      // Section Chief reviewing unit reviewed inspections
+      if (currentUser?.userlevel === 'Section Chief') {
+        endpoint = `inspections/${id}/review_and_forward_section/`;
+      } else {
+        // Fallback to complete endpoint for other users
+        endpoint = `inspections/${id}/complete/`;
+      }
+    } else {
+      // Default to complete endpoint for other statuses
+      endpoint = `inspections/${id}/complete/`;
     }
+
+    await api.post(endpoint, payload);
+    notifications.success('Inspection submitted successfully!');
+    navigate('/inspections');
   };
 
   const handleReviewAction = async () => {
     const endpoints = {
-      approve_unit: `/api/inspections/${id}/submit-for-review/`,
-      approve_section: `/api/inspections/${id}/send-to-next-level/`,
-      approve_division: `/api/inspections/${id}/close/`,
-      forward_legal: `/api/inspections/${id}/forward-to-legal/`,
-      send_nov: `/api/inspections/${id}/send-nov/`,
-      send_noo: `/api/inspections/${id}/send-noo/`,
-      reject: `/api/inspections/${id}/return/`,
-      mark_compliant: `/api/inspections/${id}/mark-as-compliant/`
+      approve_unit: `inspections/${id}/review_and_forward_unit/`,
+      approve_section: `inspections/${id}/review_and_forward_section/`,
+      approve_division: `inspections/${id}/close/`,
+      forward_legal: `inspections/${id}/forward_to_legal/`,
+      send_nov: `inspections/${id}/send_nov/`,
+      send_noo: `inspections/${id}/send_noo/`,
+      reject: `inspections/${id}/return_to_division/`,
+      mark_compliant: `inspections/${id}/close/`
     };
 
     const endpoint = endpoints[actionType];
     if (!endpoint) return;
 
-    await api.post(endpoint, { remarks: remarks.trim() });
+    // Prepare payload based on action type
+    let payload = {};
+    if (actionType === 'mark_compliant') {
+      payload = { final_status: 'CLOSED_COMPLIANT' };
+    }
+
+    await api.post(endpoint, payload);
     notifications.success('Action completed successfully!');
+    setShowConfirm(false);
     navigate('/inspections');
   };
 
@@ -204,10 +247,19 @@ const InspectionReviewPage = () => {
     );
   }
 
-  if (!inspectionData || !formData) {
+  if (!inspectionData) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-600">No data available</p>
+        <div className="text-center">
+          <p className="text-gray-600 text-lg mb-2">No inspection data available</p>
+          <p className="text-gray-500 text-sm mb-4">The inspection could not be loaded. Please try again.</p>
+          <button 
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 text-white bg-sky-600 hover:bg-sky-700 rounded-md"
+          >
+            Go Back
+          </button>
+        </div>
       </div>
     );
   }
@@ -220,167 +272,204 @@ const InspectionReviewPage = () => {
   const systems = formData.systems || [];
   const recommendations = formData.recommendationState || {};
 
-  // Debug logging
-  console.log('🔍 Review Page Debug:', {
-    mode,
-    complianceItems,
-    complianceItemsLength: complianceItems.length,
-    processedItemsLength: processedComplianceItems.length,
-    firstItem: complianceItems[0],
-    firstItemKeys: complianceItems[0] ? Object.keys(complianceItems[0]) : 'No items',
-    formDataKeys: Object.keys(formData),
-    sampleItem: complianceItems.slice(0, 3) // Show first 3 items for debugging
-  });
 
   // Custom header for review page
   const reviewHeader = (
     <div className="bg-white border-b border-gray-300 shadow-sm print:hidden">
-      <div className="max-w-7xl mx-auto px-4 py-3">
-        <div className="flex items-center justify-between">
-          {/* Left: Title and ID */}
+      <div className="flex items-center justify-between px-6 py-3">
+          {/* Left: Title */}
           <div className="flex items-center gap-4">
-            <button
-              onClick={handleBackToEdit}
-              className="flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-              disabled={loading}
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back
-            </button>
-            <div className="border-l border-gray-300 pl-4">
-              <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <FileCheck className="w-5 h-5 text-sky-600" />
-                {mode === 'preview' ? 'Inspection Preview' : 'Inspection Review'}
-              </h1>
-              <p className="text-xs text-gray-600">
-                {inspectionData?.custom_id || inspectionData?.id} | {inspectionData?.establishments_detail?.[0]?.name}
-              </p>
+            <div className="text-xl font-bold text-sky-700">
+              {mode === 'preview' ? 'Integrated Compliance Inspection Report - Preview' : 'Integrated Compliance Inspection Report - Review'}
             </div>
           </div>
 
           {/* Right: Action Buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => window.print()}
-              className="flex items-center px-3 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+              onClick={handleBackToEdit}
+              className="flex items-center px-3 py-1 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+              disabled={loading}
             >
-              <Printer className="w-4 h-4 mr-2" />
-              Print
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Back
             </button>
-
-            {mode === 'preview' ? (
-              <button
-                onClick={() => handleActionClick('submit')}
-                className="flex items-center px-4 py-2 text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors font-semibold"
-                disabled={loading}
-              >
-                <Send className="w-4 h-4 mr-2" />
-                {loading ? 'Submitting...' : 'Submit for Review'}
-              </button>
-            ) : (
+            {mode === 'review' ? (
               <>
-                {currentUser?.userlevel === 'Unit Head' && (
-                  <>
-                    <button
-                      onClick={() => handleActionClick('reject')}
-                      className="px-3 py-2 text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors text-sm"
-                      disabled={loading}
-                    >
-                      Reject
-                    </button>
-                    <button
-                      onClick={() => handleActionClick('approve_unit')}
-                      className="px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors font-semibold text-sm"
-                      disabled={loading}
-                    >
-                      Approve & Send to Section
-                    </button>
-                  </>
+                {/* Review Mode: Show Edit + Review Buttons */}
+                <button
+                  onClick={handleEdit}
+                  className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
+                >
+                  <Edit className="w-4 h-4 mr-1" />
+                  Edit Inspection
+                </button>
+
+                {!userLoading && currentUser?.userlevel === 'Unit Head' && inspectionData?.current_status === 'MONITORING_COMPLETED_COMPLIANT' && (
+                  <button
+                    onClick={() => handleActionClick('approve_unit')}
+                    className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
+                    disabled={loading}
+                  >
+                    <UserCheck className="w-4 h-4 mr-1" />
+                    Approve
+                  </button>
                 )}
 
-                {currentUser?.userlevel === 'Section Chief' && (
-                  <>
-                    <button
-                      onClick={() => handleActionClick('reject')}
-                      className="px-3 py-2 text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors text-sm"
-                      disabled={loading}
-                    >
-                      Reject
-                    </button>
-                    <button
-                      onClick={() => handleActionClick('approve_section')}
-                      className="px-4 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors font-semibold text-sm"
-                      disabled={loading}
-                    >
-                      Approve & Send to Division
-                    </button>
-                  </>
+                {!userLoading && currentUser?.userlevel === 'Unit Head' && inspectionData?.current_status === 'MONITORING_COMPLETED_NON_COMPLIANT' && (
+                  <button
+                    onClick={() => handleActionClick('approve_unit')}
+                    className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
+                    disabled={loading}
+                  >
+                    <UserCheck className="w-4 h-4 mr-1" />
+                    Approve
+                  </button>
                 )}
 
-                {currentUser?.userlevel === 'Division Chief' && (
+                {!userLoading && currentUser?.userlevel === 'Section Chief' && inspectionData?.current_status === 'UNIT_COMPLETED_COMPLIANT' && (
+                  <button
+                    onClick={() => handleActionClick('approve_section')}
+                    className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
+                    disabled={loading}
+                  >
+                    <Users className="w-4 h-4 mr-1" />
+                    Approve
+                  </button>
+                )}
+
+                {!userLoading && currentUser?.userlevel === 'Section Chief' && inspectionData?.current_status === 'UNIT_COMPLETED_NON_COMPLIANT' && (
+                  <button
+                    onClick={() => handleActionClick('approve_section')}
+                    className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
+                    disabled={loading}
+                  >
+                    <Users className="w-4 h-4 mr-1" />
+                    Approve
+                  </button>
+                )}
+
+                {!userLoading && currentUser?.userlevel === 'Section Chief' && inspectionData?.current_status === 'UNIT_REVIEWED' && (
+                  <button
+                    onClick={() => handleActionClick('approve_section')}
+                    className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
+                    disabled={loading}
+                  >
+                    <Users className="w-4 h-4 mr-1" />
+                    Approve
+                  </button>
+                )}
+
+                {!userLoading && currentUser?.userlevel === 'Division Chief' && inspectionData?.current_status === 'SECTION_COMPLETED_COMPLIANT' && (
                   <>
                     <button
                       onClick={() => handleActionClick('mark_compliant')}
-                      className="px-3 py-2 text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors text-sm"
+                      className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
                       disabled={loading}
                     >
+                      <CheckSquare className="w-4 h-4 mr-1" />
                       Mark Compliant
                     </button>
                     <button
                       onClick={() => handleActionClick('forward_legal')}
-                      className="px-3 py-2 text-white bg-orange-600 rounded-md hover:bg-orange-700 transition-colors text-sm"
+                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
                       disabled={loading}
                     >
+                      <Scale className="w-4 h-4 mr-1" />
                       Forward to Legal
                     </button>
                     <button
                       onClick={() => handleActionClick('approve_division')}
-                      className="px-4 py-2 text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors font-semibold text-sm"
+                      className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
                       disabled={loading}
                     >
+                      <Building className="w-4 h-4 mr-1" />
                       Approve & Close
                     </button>
                   </>
                 )}
 
-                {currentUser?.userlevel === 'Legal Unit' && (
+                {!userLoading && currentUser?.userlevel === 'Division Chief' && inspectionData?.current_status === 'SECTION_COMPLETED_NON_COMPLIANT' && (
+                  <>
+                    <button
+                      onClick={() => handleActionClick('mark_compliant')}
+                      className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
+                      disabled={loading}
+                    >
+                      <CheckSquare className="w-4 h-4 mr-1" />
+                      Mark Compliant
+                    </button>
+                    <button
+                      onClick={() => handleActionClick('forward_legal')}
+                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
+                      disabled={loading}
+                    >
+                      <Scale className="w-4 h-4 mr-1" />
+                      Forward to Legal
+                    </button>
+                    <button
+                      onClick={() => handleActionClick('approve_division')}
+                      className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
+                      disabled={loading}
+                    >
+                      <Building className="w-4 h-4 mr-1" />
+                      Approve & Close
+                    </button>
+                  </>
+                )}
+
+                {!userLoading && currentUser?.userlevel === 'Legal Unit' && inspectionData?.current_status === 'LEGAL_REVIEW' && (
                   <>
                     <button
                       onClick={() => handleActionClick('send_nov')}
-                      className="px-3 py-2 text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors text-sm"
+                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
                       disabled={loading}
                     >
+                      <Mail className="w-4 h-4 mr-1" />
                       Send NOV
                     </button>
                     <button
                       onClick={() => handleActionClick('send_noo')}
-                      className="px-3 py-2 text-white bg-red-700 rounded-md hover:bg-red-800 transition-colors text-sm"
+                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
                       disabled={loading}
                     >
+                      <FileText className="w-4 h-4 mr-1" />
                       Send NOO
                     </button>
                     <button
                       onClick={() => handleActionClick('reject')}
-                      className="px-3 py-2 text-white bg-gray-600 rounded-md hover:bg-gray-700 transition-colors text-sm"
+                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
                       disabled={loading}
                     >
+                      <CornerDownLeft className="w-4 h-4 mr-1" />
                       Return to Division
                     </button>
                   </>
                 )}
               </>
+            ) : (
+              <>
+                {/* Preview Mode: Show ONLY Save & Review Button */}
+                <button
+                  onClick={() => setShowConfirm(true)}
+                  className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
+                  disabled={loading}
+                >
+                  <Send className="w-4 h-4 mr-1" />
+                  {loading ? 'Saving...' : 'Save & Review'}
+                </button>
+              </>
             )}
           </div>
         </div>
       </div>
-    </div>
   );
 
   return (
-    <LayoutForm headerHeight="medium" inspectionHeader={reviewHeader}>
+    <LayoutForm headerHeight="small" inspectionHeader={reviewHeader}>
       <div className="w-full">
         {/* PDF Document Container */}
-        <div className="bg-white shadow-lg print:shadow-none" style={{ padding: '10px' }}>
+        <div className="bg-white shadow-lg print:shadow-none p-10">
           
           {/* Document Info */}
           <div className="mb-6 text-sm relative">
@@ -824,31 +913,18 @@ const InspectionReviewPage = () => {
 
         {/* Confirmation Modal */}
         {showConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 print:hidden">
-            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
+          <div className="fixed inset-0 bg-white/30 backdrop-blur-md flex items-center justify-center z-50 print:hidden">
+            <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full mx-4 p-6 border border-gray-200">
               <h3 className="text-lg font-semibold mb-4">
-                {mode === 'preview' ? 'Confirm Submission' : 'Confirm Action'}
+                {mode === 'preview' ? 'Confirm Save & Review' : 'Confirm Action'}
               </h3>
               
-              {mode === 'preview' ? (
-                <p className="text-gray-700 mb-4">
-                  Are you sure you want to submit this inspection for review? Please ensure all information is correct.
-                </p>
-              ) : (
-                <>
-                  <p className="text-gray-700 mb-4">
-                    Please provide remarks for this action:
-                  </p>
-                  <textarea
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                    rows="4"
-                    placeholder="Enter your remarks here..."
-                    required
-                  />
-                </>
-              )}
+              <p className="text-gray-700 mb-4">
+                {mode === 'preview' 
+                  ? 'This will save the inspection data to the database and forward it to the next review level. Please ensure all information is correct before proceeding.'
+                  : 'Are you sure you want to proceed with this action?'
+                }
+              </p>
 
               <div className="flex justify-end gap-3 mt-6">
                 <button
@@ -861,7 +937,7 @@ const InspectionReviewPage = () => {
                 <button
                   onClick={handleSubmit}
                   className="px-4 py-2 text-white bg-sky-600 rounded-md hover:bg-sky-700 font-semibold"
-                  disabled={loading || (mode !== 'preview' && !remarks.trim())}
+                  disabled={loading}
                 >
                   {loading ? 'Processing...' : 'Confirm'}
                 </button>

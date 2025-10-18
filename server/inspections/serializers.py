@@ -2,7 +2,10 @@
 Serializers for Refactored Inspection Models
 """
 from rest_framework import serializers
-from .models import Inspection, InspectionForm, InspectionDocument, InspectionHistory
+from .models import (
+    Inspection, InspectionForm, InspectionDocument, InspectionHistory,
+    BillingRecord, BillingItem
+)
 from establishments.models import Establishment
 
 
@@ -233,9 +236,9 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('MONITORING_COMPLETED_COMPLIANT', 'Unit Head'): ['review'],  # NO forward, auto-assigned
             ('MONITORING_COMPLETED_NON_COMPLIANT', 'Unit Head'): ['review'],  # NO forward, auto-assigned
             
-            # Review statuses (have Forward button)
-            ('UNIT_REVIEWED', 'Section Chief'): ['review', 'forward'],
-            ('SECTION_REVIEWED', 'Division Chief'): ['review', 'forward'],
+            # Review statuses (NO Forward button - removed as requested)
+            ('UNIT_REVIEWED', 'Section Chief'): ['review'],
+            ('SECTION_REVIEWED', 'Division Chief'): ['review'],
             ('DIVISION_REVIEWED', 'Division Chief'): ['review', 'send_to_legal', 'close'],
             
             # Legal Unit actions
@@ -273,8 +276,8 @@ class InspectionSerializer(serializers.ModelSerializer):
             for action in available_actions:
                 if action == 'assign_to_me':
                     filtered_actions.append(action)
-                elif action == 'review' and user.userlevel == 'Unit Head':
-                    # Unit Head can review inspections even if not assigned (for review tab)
+                elif action == 'review' and user.userlevel in ['Unit Head', 'Section Chief', 'Division Chief']:
+                    # Unit Head, Section Chief, and Division Chief can review inspections even if not assigned (for review tab)
                     filtered_actions.append(action)
             
             
@@ -405,16 +408,66 @@ class InspectionActionSerializer(serializers.Serializer):
 
 class NOVSerializer(serializers.Serializer):
     """Serializer for sending Notice of Violation"""
-    violations = serializers.CharField(required=True)
-    compliance_instructions = serializers.CharField(required=True)
-    compliance_deadline = serializers.DateField(required=True)
-    required_office_visit = serializers.BooleanField(default=False)
-    remarks = serializers.CharField(required=False, allow_blank=True)
+    violations = serializers.CharField(required=True, 
+        help_text='Detailed list of violations found')
+    compliance_instructions = serializers.CharField(required=True,
+        help_text='Required compliance actions')
+    compliance_deadline = serializers.DateTimeField(required=True,
+        help_text='Deadline for establishment to comply')
+    remarks = serializers.CharField(required=False, allow_blank=True,
+        help_text='Additional remarks')
 
 
 class NOOSerializer(serializers.Serializer):
-    """Serializer for sending Notice of Order"""
-    penalty_fees = serializers.CharField(required=True)
-    violation_breakdown = serializers.CharField(required=True)
-    payment_deadline = serializers.DateField(required=True)
-    remarks = serializers.CharField(required=False, allow_blank=True)
+    """Serializer for sending Notice of Order with billing"""
+    violation_breakdown = serializers.CharField(required=True,
+        help_text='Detailed breakdown of violations')
+    penalty_fees = serializers.DecimalField(max_digits=10, decimal_places=2, 
+        required=True, help_text='Total penalty amount')
+    payment_deadline = serializers.DateField(required=True,
+        help_text='Deadline for penalty payment')
+    payment_instructions = serializers.CharField(required=False, allow_blank=True,
+        help_text='Instructions for payment')
+    remarks = serializers.CharField(required=False, allow_blank=True,
+        help_text='Additional remarks')
+    billing_items = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        help_text='List of individual violation line items'
+    )
+
+
+class BillingRecordSerializer(serializers.ModelSerializer):
+    """Serializer for Billing Records"""
+    inspection_code = serializers.CharField(source='inspection.code', read_only=True)
+    issued_by_name = serializers.SerializerMethodField()
+    items = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BillingRecord
+        fields = [
+            'id', 'billing_code', 'inspection', 'inspection_code',
+            'establishment', 'establishment_name', 'contact_person',
+            'contact_number', 'related_law', 'billing_type',
+            'description', 'amount', 'due_date', 'recommendations',
+            'issued_by', 'issued_by_name', 'sent_date', 'items',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'billing_code', 'sent_date', 'created_at', 'updated_at']
+    
+    def get_issued_by_name(self, obj):
+        if obj.issued_by:
+            return f"{obj.issued_by.first_name} {obj.issued_by.last_name}".strip() or obj.issued_by.email
+        return None
+    
+    def get_items(self, obj):
+        return BillingItemSerializer(obj.items.all(), many=True).data
+
+
+class BillingItemSerializer(serializers.ModelSerializer):
+    """Serializer for Billing Items"""
+    
+    class Meta:
+        model = BillingItem
+        fields = ['id', 'violation', 'amount', 'order']
+        read_only_fields = ['id']

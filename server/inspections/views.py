@@ -99,19 +99,22 @@ class InspectionViewSet(viewsets.ModelViewSet):
             pass  # Admin sees all
         elif user.userlevel == 'Division Chief':
             if tab == 'all_inspections':
-                queryset = queryset.filter(
-                    Q(created_by=user) | Q(current_status='DIVISION_REVIEWED')
-                )
+                # Show ALL inspections they created - covers entire workflow
+                queryset = queryset.filter(created_by=user)
             elif tab == 'review':
+                # Show inspections that need Division Chief review
+                # Includes section completed and section reviewed (awaiting division review)
                 queryset = queryset.filter(
-                    current_status='DIVISION_REVIEWED',
-                    assigned_to=user
+                    current_status__in=[
+                        'SECTION_COMPLETED_COMPLIANT',
+                        'SECTION_COMPLETED_NON_COMPLIANT',
+                        'SECTION_REVIEWED',
+                        'DIVISION_REVIEWED'
+                    ]
                 )
             else:
-                # Default to all inspections
-                queryset = queryset.filter(
-                    Q(created_by=user) | Q(current_status='DIVISION_REVIEWED')
-                )
+                # Default to all inspections created by them
+                queryset = queryset.filter(created_by=user)
         elif user.userlevel == 'Section Chief':
             queryset = self._filter_section_chief(queryset, user, tab)
         elif user.userlevel == 'Unit Head':
@@ -119,9 +122,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
         elif user.userlevel == 'Monitoring Personnel':
             queryset = self._filter_monitoring_personnel(queryset, user, tab)
         elif user.userlevel == 'Legal Unit':
-            queryset = queryset.filter(
-                current_status__in=['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
-            )
+            queryset = self._filter_legal_unit(queryset, user, tab)
         
         # Additional filters
         if status_filter:
@@ -131,119 +132,187 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if created_by_me:
             queryset = queryset.filter(created_by=user)
         
+        # Law filter
+        law_param = self.request.query_params.get('law')
+        if law_param:
+            # Support comma-separated laws for multiple selection
+            laws = [l.strip() for l in law_param.split(',') if l.strip()]
+            if laws:
+                queryset = queryset.filter(law__in=laws)
+        
+        # Date range filters
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        if date_from:
+            try:
+                from datetime import datetime
+                date_from_obj = datetime.fromisoformat(date_from.replace('Z', '+00:00'))
+                queryset = queryset.filter(created_at__gte=date_from_obj)
+            except (ValueError, AttributeError):
+                pass  # Invalid date format, skip filter
+        if date_to:
+            try:
+                from datetime import datetime
+                date_to_obj = datetime.fromisoformat(date_to.replace('Z', '+00:00'))
+                # Add one day to include the entire end date
+                from datetime import timedelta
+                date_to_obj = date_to_obj + timedelta(days=1)
+                queryset = queryset.filter(created_at__lt=date_to_obj)
+            except (ValueError, AttributeError):
+                pass  # Invalid date format, skip filter
+        
         # Search functionality
         if search:
             queryset = self._apply_search_filter(queryset, search)
         
+        # Sorting
+        order_by = self.request.query_params.get('order_by', 'created_at')
+        order_direction = self.request.query_params.get('order_direction', 'desc')
+        
+        # Validate sort field
+        valid_sort_fields = ['code', 'created_at', 'updated_at', 'current_status', 'law']
+        if order_by in valid_sort_fields:
+            # Apply direction
+            if order_direction == 'desc':
+                order_by = f'-{order_by}'
+            queryset = queryset.order_by(order_by)
+        else:
+            # Default sorting
+            queryset = queryset.order_by('-created_at')
+        
         return queryset.select_related(
             'created_by', 'assigned_to'
-        ).prefetch_related('establishments', 'history').distinct().order_by('-created_at')
+        ).prefetch_related('establishments', 'history').distinct()
     
     def _filter_section_chief(self, queryset, user, tab):
         """Filter for Section Chief based on tab"""
+        # Setup law filter for combined EIA section
+        law_filter = Q(law=user.section)
+        if user.section == 'PD-1586,RA-8749,RA-9275':
+            law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
+        
         if tab == 'received':
             # Show inspections assigned to this Section Chief but not yet started
             return queryset.filter(
-                assigned_to=user,
+                law_filter,
                 current_status='SECTION_ASSIGNED'
             )
         elif tab == 'my_inspections':
-            # Show inspections that this Section Chief has started or is working on
+            # Show inspections that this Section Chief is working on (in-progress AND completed)
+            # Only show inspections assigned to this user
             return queryset.filter(
+                law_filter,
                 assigned_to=user,
-                current_status__in=['SECTION_IN_PROGRESS', 'SECTION_COMPLETED']
-            )
-        elif tab == 'forwarded':
-            # Show inspections that this Section Chief has forwarded
-            # Get inspection IDs where this user has forwarded (from history)
-            forwarded_inspection_ids = InspectionHistory.objects.filter(
-                changed_by=user,
-                new_status__in=['UNIT_ASSIGNED', 'MONITORING_ASSIGNED'],
-                remarks__icontains='Forwarded'
-            ).values_list('inspection_id', flat=True)
-            
-            # Also include inspections that match the law filter and are in forwarded statuses
-            # This ensures we catch any inspections that might have been forwarded by other means
-            law_filter = Q(law=user.section)
-            if user.section == 'PD-1586,RA-8749,RA-9275':
-                law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
-            
-            # Combine both conditions: either forwarded by this user OR matches law filter
-            return queryset.filter(
-                Q(id__in=forwarded_inspection_ids) | (
-                    law_filter & Q(current_status__in=[
-                        'UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
-                        'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
-                    ])
-                )
-            )
-        elif tab == 'review':
-            return queryset.filter(
-                assigned_to=user,
-                current_status='SECTION_REVIEWED'
-            )
-        else:
-            # Special case: If user is in combined EIA section, also show PD-1586, RA-8749, RA-9275 inspections
-            law_filter = Q(law=user.section)
-            if user.section == 'PD-1586,RA-8749,RA-9275':
-                law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
-            
-            return queryset.filter(
-                Q(assigned_to=user) | law_filter
-            )
-    
-    def _filter_unit_head(self, queryset, user, tab):
-        """Filter for Unit Head based on tab"""
-        if tab == 'received':
-            # Show inspections assigned to this Unit Head but not yet started
-            return queryset.filter(
-                assigned_to=user,
-                current_status='UNIT_ASSIGNED'
-            )
-        elif tab == 'my_inspections':
-            # Show inspections that this Unit Head has started or is working on
-            return queryset.filter(
-                assigned_to=user,
-                current_status__in=['UNIT_IN_PROGRESS', 'UNIT_COMPLETED']
-            )
-        elif tab == 'forwarded':
-            # Show inspections that this Unit Head has forwarded to Monitoring Personnel
-            # Get inspection IDs where this user has forwarded (from history)
-            forwarded_inspection_ids = InspectionHistory.objects.filter(
-                changed_by=user,
-                new_status='MONITORING_ASSIGNED',
-                remarks__icontains='Forwarded'
-            ).values_list('inspection_id', flat=True)
-            
-            # Also include inspections that match the law filter and are in forwarded statuses
-            law_filter = Q(law=user.section)
-            if user.section == 'PD-1586,RA-8749,RA-9275':
-                law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
-            
-            # Combine both conditions: either forwarded by this user OR matches law filter
-            return queryset.filter(
-                Q(id__in=forwarded_inspection_ids) | (
-                    law_filter & Q(current_status__in=[
-                        'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
-                    ])
-                )
-            )
-        elif tab == 'review':
-            # Show inspections that need Unit Head review
-            return queryset.filter(
                 current_status__in=[
+                    'SECTION_IN_PROGRESS',
+                    'SECTION_COMPLETED_COMPLIANT',
+                    'SECTION_COMPLETED_NON_COMPLIANT'
+                ]
+            )
+        elif tab == 'forwarded':
+            # Show inspections forwarded to Unit Head or Monitoring Personnel (status-based)
+            return queryset.filter(
+                law_filter,
+                current_status__in=[
+                    'UNIT_ASSIGNED',
+                    'UNIT_IN_PROGRESS',
+                    'MONITORING_ASSIGNED',
+                    'MONITORING_IN_PROGRESS'
+                ]
+            )
+        elif tab == 'review':
+            # Show inspections that need Section Chief review (completed work from Unit/Monitoring)
+            return queryset.filter(
+                law_filter,
+                current_status__in=[
+                    'UNIT_COMPLETED_COMPLIANT',
+                    'UNIT_COMPLETED_NON_COMPLIANT',
+                    'MONITORING_COMPLETED_COMPLIANT',
+                    'MONITORING_COMPLETED_NON_COMPLIANT',
                     'UNIT_REVIEWED'
                 ]
             )
-        else:
-            # Special case: If user is in combined EIA section, also show PD-1586, RA-8749, RA-9275 inspections
-            law_filter = Q(law=user.section)
-            if user.section == 'PD-1586,RA-8749,RA-9275':
-                law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
-            
+        elif tab == 'compliance':
+            # Show final status inspections (completed work through entire workflow)
             return queryset.filter(
-                Q(assigned_to=user) | law_filter
+                law_filter,
+                current_status__in=[
+                    'SECTION_COMPLETED_COMPLIANT',
+                    'SECTION_COMPLETED_NON_COMPLIANT',
+                    'SECTION_REVIEWED',
+                    'DIVISION_REVIEWED',
+                    'LEGAL_REVIEW',
+                    'NOV_SENT',
+                    'NOO_SENT',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
             )
+        else:
+            # Default: show all inspections for this section
+            return queryset.filter(law_filter)
+    
+    def _filter_unit_head(self, queryset, user, tab):
+        """Filter for Unit Head based on tab"""
+        # Setup law filter for combined EIA section
+        law_filter = Q(law=user.section)
+        if user.section == 'PD-1586,RA-8749,RA-9275':
+            law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
+        
+        if tab == 'received':
+            # Show inspections assigned to this Unit Head but not yet started
+            return queryset.filter(
+                law_filter,
+                current_status='UNIT_ASSIGNED'
+            )
+        elif tab == 'my_inspections':
+            # Show inspections that this Unit Head is working on (in-progress AND completed)
+            # Only show inspections assigned to this user
+            return queryset.filter(
+                law_filter,
+                assigned_to=user,
+                current_status__in=[
+                    'UNIT_IN_PROGRESS',
+                    'UNIT_COMPLETED_COMPLIANT',
+                    'UNIT_COMPLETED_NON_COMPLIANT'
+                ]
+            )
+        elif tab == 'forwarded':
+            # Show inspections forwarded to Monitoring Personnel (status-based)
+            return queryset.filter(
+                law_filter,
+                current_status__in=[
+                    'MONITORING_ASSIGNED',
+                    'MONITORING_IN_PROGRESS'
+                ]
+            )
+        elif tab == 'review':
+            # Show inspections that need Unit Head review (completed work from Monitoring)
+            return queryset.filter(
+                law_filter,
+                current_status__in=[
+                    'MONITORING_COMPLETED_COMPLIANT',
+                    'MONITORING_COMPLETED_NON_COMPLIANT',
+                    'UNIT_REVIEWED'
+                ]
+            )
+        elif tab == 'compliance':
+            # Show final status inspections (completed work through entire workflow)
+            return queryset.filter(
+                law_filter,
+                current_status__in=[
+                    'UNIT_COMPLETED_COMPLIANT',
+                    'UNIT_COMPLETED_NON_COMPLIANT',
+                    'UNIT_REVIEWED',
+                    'SECTION_REVIEWED',
+                    'DIVISION_REVIEWED',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
+            )
+        else:
+            # Default: show all inspections for this section
+            return queryset.filter(law_filter)
     
     def _filter_monitoring_personnel(self, queryset, user, tab):
         """Filter for Monitoring Personnel based on tab"""
@@ -260,14 +329,21 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 current_status='MONITORING_IN_PROGRESS'
             )
         elif tab == 'completed':
-            # Show inspections that this Monitoring Personnel has completed and progressed through reviews up to legal
+            # Show inspections that this Monitoring Personnel has completed and those in review
+            # Includes both completed statuses and all review levels
             return queryset.filter(
                 assigned_to=user,
                 current_status__in=[
+                    'MONITORING_COMPLETED_COMPLIANT',
+                    'MONITORING_COMPLETED_NON_COMPLIANT',
                     'UNIT_REVIEWED',
                     'SECTION_REVIEWED', 
                     'DIVISION_REVIEWED',
-                    'LEGAL_REVIEW'
+                    'LEGAL_REVIEW',
+                    'NOV_SENT',
+                    'NOO_SENT',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
                 ]
             )
         else:
@@ -275,6 +351,25 @@ class InspectionViewSet(viewsets.ModelViewSet):
             return queryset.filter(
                 assigned_to=user,
                 current_status__in=['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS', 'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']
+            )
+    
+    def _filter_legal_unit(self, queryset, user, tab):
+        """Filter for Legal Unit based on tab"""
+        if tab == 'legal_review':
+            # Show only inspections in legal review status
+            return queryset.filter(current_status='LEGAL_REVIEW')
+        elif tab == 'nov_sent':
+            # Show only inspections with NOV sent
+            return queryset.filter(current_status='NOV_SENT')
+        elif tab == 'noo_sent':
+            # Show NOO sent and closed non-compliant (per tabStatusMapping)
+            return queryset.filter(
+                current_status__in=['NOO_SENT', 'CLOSED_NON_COMPLIANT']
+            )
+        else:
+            # Default: show all legal unit inspections
+            return queryset.filter(
+                current_status__in=['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT', 'CLOSED_NON_COMPLIANT']
             )
     
     def _apply_search_filter(self, queryset, search_term):
@@ -1378,6 +1473,182 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'status': inspection.current_status,
             'id': inspection.id
         })
+    
+    @action(detail=True, methods=['post'])
+    def review_and_forward_unit(self, request, pk=None):
+        """Unit Head reviews and forwards to Section Chief"""
+        inspection = self.get_object()
+        user = request.user
+        
+        # Check if user is Unit Head
+        if user.userlevel != 'Unit Head':
+            return Response(
+                {'error': 'Only Unit Heads can perform this action'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check valid statuses
+        if inspection.current_status not in ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']:
+            return Response(
+                {'error': f'Cannot review from status {inspection.current_status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Handle form data if provided
+        form_data = request.data.get('form_data', {})
+        if form_data:
+            form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+            
+            # Store all form data in the checklist JSON field
+            form.checklist = {
+                'general': form_data.get('general', {}),
+                'purpose': form_data.get('purpose', {}),
+                'permits': form_data.get('permits', []),
+                'complianceItems': form_data.get('complianceItems', []),
+                'systems': form_data.get('systems', []),
+                'recommendationState': form_data.get('recommendationState', {}),
+                'is_draft': False,
+                'completed_at': timezone.now().isoformat(),
+                'completed_by': user.id
+            }
+            
+            # Update direct fields from general data
+            general_data = form_data.get('general', {})
+            if general_data.get('findings_summary'):
+                form.findings_summary = general_data['findings_summary']
+            if general_data.get('violations_found'):
+                form.violations_found = general_data['violations_found']
+            if general_data.get('compliance_observations'):
+                form.compliance_decision = general_data['compliance_observations']
+            if general_data.get('recommendations'):
+                form.compliance_plan = general_data['recommendations']
+            
+            # Update scheduled_at if provided
+            if 'general' in form_data and form_data['general'].get('inspection_date_time'):
+                try:
+                    from datetime import datetime
+                    form.scheduled_at = datetime.fromisoformat(form_data['general']['inspection_date_time'].replace('Z', '+00:00'))
+                except:
+                    pass
+            
+            # Capture inspector information if this is the first time
+            is_first_fill = capture_inspector_info(form, user)
+            
+            form.save()
+        
+        # Get Section Chief assignee
+        next_assignee = inspection.get_next_assignee('SECTION_REVIEWED')
+        if not next_assignee:
+            return Response(
+                {'error': 'No Section Chief found for assignment'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Transition to UNIT_REVIEWED
+        prev_status = inspection.current_status
+        inspection.current_status = 'UNIT_REVIEWED'
+        inspection.assigned_to = next_assignee
+        inspection.save()
+        
+        # Log history
+        InspectionHistory.objects.create(
+            inspection=inspection,
+            previous_status=prev_status,
+            new_status='UNIT_REVIEWED',
+            changed_by=user,
+            remarks=request.data.get('remarks', 'Unit Head reviewed and forwarded to Section Chief')
+        )
+        
+        serializer = self.get_serializer(inspection)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def review_and_forward_section(self, request, pk=None):
+        """Section Chief reviews and forwards to Division Chief"""
+        inspection = self.get_object()
+        user = request.user
+        
+        # Check if user is Section Chief
+        if user.userlevel != 'Section Chief':
+            return Response(
+                {'error': 'Only Section Chiefs can perform this action'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check valid statuses
+        if inspection.current_status not in ['UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT', 'UNIT_REVIEWED']:
+            return Response(
+                {'error': f'Cannot review from status {inspection.current_status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Handle form data if provided
+        form_data = request.data.get('form_data', {})
+        if form_data:
+            form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+            
+            # Store all form data in the checklist JSON field
+            form.checklist = {
+                'general': form_data.get('general', {}),
+                'purpose': form_data.get('purpose', {}),
+                'permits': form_data.get('permits', []),
+                'complianceItems': form_data.get('complianceItems', []),
+                'systems': form_data.get('systems', []),
+                'recommendationState': form_data.get('recommendationState', {}),
+                'is_draft': False,
+                'completed_at': timezone.now().isoformat(),
+                'completed_by': user.id
+            }
+            
+            # Update direct fields from general data
+            general_data = form_data.get('general', {})
+            if general_data.get('findings_summary'):
+                form.findings_summary = general_data['findings_summary']
+            if general_data.get('violations_found'):
+                form.violations_found = general_data['violations_found']
+            if general_data.get('compliance_observations'):
+                form.compliance_decision = general_data['compliance_observations']
+            if general_data.get('recommendations'):
+                form.compliance_plan = general_data['recommendations']
+            
+            # Update scheduled_at if provided
+            if 'general' in form_data and form_data['general'].get('inspection_date_time'):
+                try:
+                    from datetime import datetime
+                    form.scheduled_at = datetime.fromisoformat(form_data['general']['inspection_date_time'].replace('Z', '+00:00'))
+                except:
+                    pass
+            
+            # Capture inspector information if this is the first time
+            is_first_fill = capture_inspector_info(form, user)
+            
+            form.save()
+        
+        # Get Division Chief assignee
+        next_assignee = inspection.get_next_assignee('DIVISION_REVIEWED')
+        if not next_assignee:
+            return Response(
+                {'error': 'No Division Chief found for assignment'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Transition to SECTION_REVIEWED
+        prev_status = inspection.current_status
+        inspection.current_status = 'SECTION_REVIEWED'
+        inspection.assigned_to = next_assignee
+        inspection.save()
+        
+        # Log history
+        InspectionHistory.objects.create(
+            inspection=inspection,
+            previous_status=prev_status,
+            new_status='SECTION_REVIEWED',
+            changed_by=user,
+            remarks=request.data.get('remarks', 'Section Chief reviewed and forwarded to Division Chief')
+        )
+        
+        serializer = self.get_serializer(inspection)
+        return Response(serializer.data)
         
     @action(detail=True, methods=['post'])
     def send_to_section(self, request, pk=None):
@@ -1539,13 +1810,19 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         data = serializer.validated_data
         
-        # Update form
-        form = getattr(inspection, 'form', None)
-        if form:
-            form.violations_found = data['violations']
-            form.compliance_plan = data['compliance_instructions']
-            form.compliance_deadline = data['compliance_deadline']
-            form.save()
+        # Get or create form
+        form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+        
+        # Update form with NOV data
+        form.nov_sent_date = timezone.now().date()
+        form.nov_violations = data['violations']
+        form.nov_compliance_instructions = data['compliance_instructions']
+        form.nov_compliance_date = data['compliance_deadline']
+        form.nov_remarks = data.get('remarks', '')
+        # Also update legacy fields for backward compatibility
+        form.violations_found = data['violations']
+        form.compliance_plan = data['compliance_instructions']
+        form.save()
         
         # Transition
         prev_status = inspection.current_status
@@ -1584,12 +1861,48 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         data = serializer.validated_data
         
-        # Update form
-        form = getattr(inspection, 'form', None)
-        if form:
-            form.compliance_plan = data['violation_breakdown']
-            form.compliance_deadline = data['payment_deadline']
-            form.save()
+        # Get or create form and update with NOO data
+        form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+        form.noo_sent_date = timezone.now().date()
+        form.noo_violation_breakdown = data['violation_breakdown']
+        form.noo_penalty_fees = data['penalty_fees']
+        form.noo_payment_deadline = data['payment_deadline']
+        form.noo_payment_instructions = data.get('payment_instructions', '')
+        form.noo_remarks = data.get('remarks', '')
+        form.save()
+        
+        # Create billing record
+        from .models import BillingRecord, BillingItem
+        establishment = inspection.establishments.first()
+        if not establishment:
+            return Response(
+                {'error': 'No establishment associated with this inspection'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        billing = BillingRecord.objects.create(
+            inspection=inspection,
+            establishment=establishment,
+            establishment_name=establishment.name,
+            contact_person=getattr(establishment, 'contact_person', ''),
+            contact_number=getattr(establishment, 'contact_number', ''),
+            related_law=inspection.law,
+            billing_type='PENALTY',
+            description=data['violation_breakdown'],
+            amount=data['penalty_fees'],
+            due_date=data['payment_deadline'],
+            recommendations=data.get('remarks', ''),
+            issued_by=user
+        )
+        
+        # Create billing items if provided
+        for idx, item_data in enumerate(data.get('billing_items', [])):
+            BillingItem.objects.create(
+                billing_record=billing,
+                violation=item_data.get('violation', ''),
+                amount=item_data.get('amount', 0),
+                order=idx
+            )
         
         # Transition
         prev_status = inspection.current_status
@@ -1602,11 +1915,18 @@ class InspectionViewSet(viewsets.ModelViewSet):
             previous_status=prev_status,
             new_status='NOO_SENT',
             changed_by=user,
-            remarks=f"Notice of Order sent. Penalties: {data['penalty_fees']}"
+            remarks=f"Notice of Order sent. Penalties: ₱{data['penalty_fees']}"
         )
         
         serializer = self.get_serializer(inspection)
-        return Response(serializer.data)
+        return Response({
+            'inspection': serializer.data,
+            'billing': {
+                'id': billing.id,
+                'billing_code': billing.billing_code,
+                'amount': str(billing.amount)
+            }
+        })
     
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):
@@ -1633,7 +1953,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 remarks=request.data.get('remarks', 'Closed by Section Chief')
             )
             
-        elif user.userlevel == 'Division Chief' and inspection.current_status == 'DIVISION_REVIEWED':
+        elif user.userlevel == 'Division Chief' and inspection.current_status in ['DIVISION_REVIEWED', 'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT']:
             # Division Chief finalizing
             final_status = request.data.get('final_status', 'CLOSED')
             
@@ -1674,6 +1994,95 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def return_to_division(self, request, pk=None):
+        """Legal Unit returns inspection to Division Chief"""
+        inspection = self.get_object()
+        user = request.user
+        
+        # Check if user is Legal Unit
+        if user.userlevel != 'Legal Unit':
+            return Response(
+                {'error': 'Only Legal Unit can perform this action'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Check valid status
+        if inspection.current_status != 'LEGAL_REVIEW':
+            return Response(
+                {'error': f'Cannot return from status {inspection.current_status}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Find Division Chief assignee
+        next_assignee = inspection.get_next_assignee('DIVISION_REVIEWED')
+        if not next_assignee:
+            return Response(
+                {'error': 'No Division Chief found for assignment'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Transition back to DIVISION_REVIEWED
+        prev_status = inspection.current_status
+        inspection.current_status = 'DIVISION_REVIEWED'
+        inspection.assigned_to = next_assignee
+        inspection.save()
+        
+        # Log history
+        InspectionHistory.objects.create(
+            inspection=inspection,
+            previous_status=prev_status,
+            new_status='DIVISION_REVIEWED',
+            changed_by=user,
+            remarks=request.data.get('remarks', 'Returned to Division Chief by Legal Unit')
+        )
+        
+        serializer = self.get_serializer(inspection)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], url_path='compliance-expired')
+    def check_compliance_expired(self, request):
+        """Check for inspections with expired compliance deadlines (Legal Unit only)"""
+        user = request.user
+        
+        # Check if Legal Unit
+        if user.userlevel != 'Legal Unit':
+            return Response(
+                {'error': 'Only Legal Unit can access this endpoint'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        from .models import InspectionForm
+        
+        # Find inspections with expired NOV compliance deadlines
+        expired = []
+        now = timezone.now()
+        
+        # Query inspections in NOV_SENT or NOO_SENT with expired deadlines
+        inspections = Inspection.objects.filter(
+            current_status__in=['NOV_SENT', 'NOO_SENT']
+        ).select_related('form')
+        
+        for inspection in inspections:
+            form = getattr(inspection, 'form', None)
+            if form and form.nov_compliance_date:
+                if form.nov_compliance_date < now:
+                    days_overdue = (now.date() - form.nov_compliance_date.date()).days
+                    expired.append({
+                        'id': inspection.id,
+                        'code': inspection.code,
+                        'establishment': inspection.establishments.first().name if inspection.establishments.exists() else 'N/A',
+                        'status': inspection.current_status,
+                        'compliance_deadline': form.nov_compliance_date,
+                        'days_overdue': days_overdue,
+                        'violations': form.nov_violations or form.violations_found
+                    })
+        
+        return Response({
+            'count': len(expired),
+            'expired_inspections': expired
+        })
     
     @action(detail=False, methods=['get'])
     def compliance_stats(self, request):
@@ -1908,3 +2317,148 @@ class InspectionViewSet(viewsets.ModelViewSet):
             })
         
         return Response(stats_by_law)
+    
+    @action(detail=False, methods=['get'])
+    def tab_counts(self, request):
+        """Get tab counts for role-based dashboard"""
+        from django.http import QueryDict
+        
+        user = request.user
+        
+        # Define tab mappings (simplified - use existing get_queryset logic)
+        tab_list = {
+            'Division Chief': ['all_inspections', 'review'],
+            'Section Chief': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
+            'Unit Head': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
+            'Monitoring Personnel': ['assigned', 'in_progress', 'completed'],
+            'Legal Unit': ['legal_review', 'nov_sent', 'noo_sent']
+        }
+        
+        user_level = user.userlevel
+        tabs = tab_list.get(user_level, [])
+        counts = {}
+        
+        # Save original query params
+        original_params = self.request.query_params
+        
+        for tab_name in tabs:
+            # Create a mutable copy of query params and set tab
+            query_params = QueryDict('', mutable=True)
+            query_params.update(original_params)
+            query_params['tab'] = tab_name
+            
+            # Temporarily replace query_params
+            self.request._request.GET = query_params
+            
+            # Get queryset with tab filtering applied
+            queryset = self.get_queryset()
+            counts[tab_name] = queryset.count()
+        
+        # Restore original query params
+        self.request._request.GET = original_params
+        
+        return Response(counts)
+
+
+class BillingViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Billing Records
+    """
+    from .models import BillingRecord, BillingItem
+    from .serializers import BillingRecordSerializer
+    
+    queryset = BillingRecord.objects.all().order_by('-created_at')
+    serializer_class = BillingRecordSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filter billing records based on user level and permissions"""
+        user = self.request.user
+        queryset = BillingRecord.objects.all()
+        
+        # Legal Unit can see all billing records
+        if user.userlevel == 'Legal Unit':
+            pass  # No filter, see all
+        # Division/Section Chiefs can see all
+        elif user.userlevel in ['Division Chief', 'Section Chief']:
+            pass  # No filter, see all
+        # Others can only see their related law
+        elif hasattr(user, 'law') and user.law:
+            queryset = queryset.filter(related_law=user.law)
+        else:
+            # No access for others
+            queryset = queryset.none()
+        
+        # Apply filters from query params
+        law = self.request.query_params.get('law', None)
+        if law:
+            queryset = queryset.filter(related_law=law)
+        
+        establishment_id = self.request.query_params.get('establishment', None)
+        if establishment_id:
+            queryset = queryset.filter(establishment_id=establishment_id)
+        
+        search = self.request.query_params.get('search', None)
+        if search:
+            queryset = queryset.filter(
+                Q(billing_code__icontains=search) |
+                Q(establishment_name__icontains=search) |
+                Q(description__icontains=search)
+            )
+        
+        return queryset.select_related('inspection', 'establishment', 'issued_by').prefetch_related('items')
+    
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """Get billing statistics"""
+        from django.db.models import Sum, Count, Avg
+        
+        queryset = self.get_queryset()
+        
+        stats = {
+            'total_records': queryset.count(),
+            'total_amount': queryset.aggregate(Sum('amount'))['amount__sum'] or 0,
+            'average_amount': queryset.aggregate(Avg('amount'))['amount__avg'] or 0,
+            'by_type': [],
+            'by_law': []
+        }
+        
+        # Stats by billing type
+        type_stats = queryset.values('billing_type').annotate(
+            count=Count('id'),
+            total=Sum('amount')
+        ).order_by('-count')
+        
+        for item in type_stats:
+            stats['by_type'].append({
+                'type': item['billing_type'],
+                'count': item['count'],
+                'total': float(item['total'] or 0)
+            })
+        
+        # Stats by law
+        law_stats = queryset.values('related_law').annotate(
+            count=Count('id'),
+            total=Sum('amount')
+        ).order_by('-count')
+        
+        for item in law_stats:
+            stats['by_law'].append({
+                'law': item['related_law'],
+                'count': item['count'],
+                'total': float(item['total'] or 0)
+            })
+        
+        return Response(stats)
+    
+    @action(detail=True, methods=['get'])
+    def print_receipt(self, request, pk=None):
+        """Generate printable billing receipt"""
+        billing = self.get_object()
+        serializer = self.get_serializer(billing)
+        
+        # Return formatted data for printing
+        return Response({
+            'billing': serializer.data,
+            'generated_at': timezone.now().isoformat()
+        })

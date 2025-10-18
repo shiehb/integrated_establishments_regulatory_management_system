@@ -1,5 +1,6 @@
 // src/services/api.js
 import axios from "axios";
+import apiCache from "./apiCache";
 
 // -------------------------------------------------
 // Axios Instance
@@ -265,7 +266,19 @@ export const getAvailableEstablishments = async (params = {}) => {
 // Inspections - Updated for new backend
 // -------------------------------------------------
 export const getInspections = async (params = {}) => {
+  // Check cache first
+  const cacheKey = `inspections_${JSON.stringify(params)}`;
+  const cached = apiCache.get("inspections/", params);
+  if (cached) {
+    console.log("🚀 Cache hit for inspections");
+    return cached;
+  }
+
   const res = await api.get("inspections/", { params });
+  
+  // Cache the response for 2 minutes
+  apiCache.set("inspections/", params, res.data, 2 * 60 * 1000);
+  
   return res.data;
 };
 
@@ -279,6 +292,10 @@ export const createInspection = async (inspectionData) => {
     console.log("Sending inspection data:", inspectionData);
     const res = await api.post("inspections/", inspectionData);
     console.log("Inspection created successfully:", res.data);
+    
+    // Clear inspection-related cache
+    apiCache.clearByPattern('inspections');
+    
     return res.data;
   } catch (error) {
     console.error("Create inspection error:", error.response?.data || error);
@@ -296,6 +313,10 @@ export const createInspection = async (inspectionData) => {
 
 export const updateInspection = async (id, inspectionData) => {
   const res = await api.patch(`inspections/${id}/`, inspectionData);
+  
+  // Clear inspection-related cache
+  apiCache.clearByPattern('inspections');
+  
   return res.data;
 };
 
@@ -644,7 +665,18 @@ export const getComplianceByLaw = async (params = {}) => {
 // Get tab counts for role-based dashboards
 export const getTabCounts = async () => {
   try {
+    // Check cache first
+    const cached = apiCache.get('inspections/tab_counts/');
+    if (cached) {
+      console.log("🚀 Cache hit for tab counts");
+      return cached;
+    }
+
     const res = await api.get('inspections/tab_counts/');
+    
+    // Cache the response for 3 minutes
+    apiCache.set('inspections/tab_counts/', {}, res.data, 3 * 60 * 1000);
+    
     return res.data;
   } catch (error) {
     console.error("Get tab counts error:", error.response?.data || error);
@@ -904,6 +936,82 @@ export const downloadBackup = async (fileName) => {
       error.response?.data?.error ||
         error.response?.data?.detail ||
         "Failed to download backup. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+// -------------------------------------------------
+// Billing Records API
+// -------------------------------------------------
+
+/**
+ * Get all billing records with optional filters
+ */
+export const getBillingRecords = async (params = {}) => {
+  try {
+    const response = await api.get('inspections/billing/', { params });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch billing records. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+/**
+ * Get a single billing record by ID
+ */
+export const getBillingRecord = async (id) => {
+  try {
+    const response = await api.get(`inspections/billing/${id}/`);
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch billing record. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+/**
+ * Get billing statistics
+ */
+export const getBillingStatistics = async () => {
+  try {
+    const response = await api.get('inspections/billing/statistics/');
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch billing statistics. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+/**
+ * Generate printable billing receipt
+ */
+export const printBillingReceipt = async (id) => {
+  try {
+    const response = await api.get(`inspections/billing/${id}/print_receipt/`);
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to generate receipt. Please try again."
     );
     enhancedError.response = error.response;
     throw enhancedError;

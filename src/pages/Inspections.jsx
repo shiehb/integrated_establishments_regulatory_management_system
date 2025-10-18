@@ -179,9 +179,10 @@ export default function Inspections() {
   };
 
   // Handle NOV modal
-  const handleNOVSubmit = async (inspectionId, formData) => {
+  const handleNOVSubmit = async (formData) => {
+    if (!novModal.inspection) return;
     try {
-      await sendNOV(inspectionId, formData);
+      await sendNOV(novModal.inspection.id, formData);
       setNovModal({ open: false, inspection: null });
       refreshInspections();
       alert('Notice of Violation sent successfully!');
@@ -192,9 +193,10 @@ export default function Inspections() {
   };
 
   // Handle NOO modal
-  const handleNOOSubmit = async (inspectionId, formData) => {
+  const handleNOOSubmit = async (formData) => {
+    if (!nooModal.inspection) return;
     try {
-      await sendNOO(inspectionId, formData);
+      await sendNOO(nooModal.inspection.id, formData);
       setNooModal({ open: false, inspection: null });
       refreshInspections();
       alert('Notice of Order sent successfully!');

@@ -105,7 +105,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route
               path="/billing"
               element={
-                <RoleRoute allowed={["legal"]}>
+                <RoleRoute allowed={["Legal Unit"]}>
                   <Billing />
                 </RoleRoute>
               }

@@ -329,6 +329,8 @@ const getGenericStatusLabel = (status, userLevel) => {
 };
 
 // Tab-Status Mapping: Defines which statuses appear in which tabs for each role
+// NOTE: This mapping is for reference only. The backend (server/inspections/views.py) 
+// is the source of truth for tab filtering. All tab filtering is done server-side.
 export const tabStatusMapping = {
   'Division Chief': {
     all_inspections: [
@@ -394,6 +396,7 @@ export const tabStatusMapping = {
 };
 
 // Helper function to check if status should appear in tab
+// NOTE: This is for UI reference only. Actual filtering is done server-side.
 export const shouldShowInTab = (status, userLevel, tab) => {
   // Admin can see all inspections in all tabs
   if (userLevel === 'Admin') {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
 import { saveInspectionDraft, completeInspection, getInspection, updateInspection, reviewInspection, forwardToLegal, sendToSection, sendToDivision, closeInspection, sendNOV, sendNOO, uploadFindingDocument } from "../../services/api";
@@ -23,6 +23,9 @@ import ValidationSummary from "./ValidationSummary";
 export default function InspectionForm({ inspectionData }) {
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
+  const urlParams = new URLSearchParams(location.search);
+  const returnTo = urlParams.get('returnTo');
   const inspectionId = id || inspectionData?.id;
   const storageKey = `inspection-form-${inspectionId || "draft"}`;
   const notifications = useNotifications();
@@ -212,11 +215,11 @@ export default function InspectionForm({ inspectionData }) {
       // Close Form Button - Always visible (including in review statuses)
       showCloseButton: true,
       
-      // Draft Button - Hidden during review statuses
-      showDraftButton: isEditableStatus && !isInReviewStatus,
+      // Draft Button - Hidden during review statuses, BUT shown when editing from review
+      showDraftButton: returnTo === 'review' || (isEditableStatus && !isInReviewStatus),
       
-      // Submit Button - Removed as per user request
-      showSubmitButton: false,
+      // Submit Button - Show ONLY when returnTo=review (editing from review page)
+      showSubmitButton: returnTo === 'review',
       
       // Submit for Review Button - For Section Chief in SECTION_IN_PROGRESS and Unit Head in UNIT_IN_PROGRESS
       showSubmitForReviewButton: (userLevel === 'Section Chief' && status === 'SECTION_IN_PROGRESS') || 
@@ -957,8 +960,21 @@ export default function InspectionForm({ inspectionData }) {
         title: 'Save Successful' 
       });
       
-      // Navigate back to inspections list
-    navigate("/inspections");
+      // If returnTo parameter exists, navigate back to preview
+      if (returnTo === 'review') {
+        console.log('🔄 Returning to preview page after save');
+        // Navigate to preview mode to review changes before submitting
+        navigate(`/inspections/${inspectionId}/review?mode=preview`, {
+          state: {
+            formData: formDataToSave,
+            inspectionData: fullInspectionData,
+            compliance: complianceStatus
+          }
+        });
+      } else {
+        // Navigate back to inspections list
+        navigate("/inspections");
+      }
     } catch (error) {
       console.error("Failed to save inspection:", error);
       notifications.error(`Failed to save inspection: ${error.message}`, { 
@@ -1012,8 +1028,21 @@ export default function InspectionForm({ inspectionData }) {
         title: 'Draft Saved' 
       });
       
-      // Navigate back to inspections list
-      navigate("/inspections");
+      // If returnTo parameter exists, navigate back to preview
+      if (returnTo === 'review') {
+        console.log('🔄 Returning to preview page after draft save');
+        // Navigate to preview mode to review changes before submitting
+        navigate(`/inspections/${inspectionId}/review?mode=preview`, {
+          state: {
+            formData: formDataToSave,
+            inspectionData: fullInspectionData,
+            compliance: determineComplianceStatus()
+          }
+        });
+      } else {
+        // Navigate back to inspections list
+        navigate("/inspections");
+      }
     } catch (error) {
       console.error("Failed to save draft:", error);
       notifications.error(`Failed to save draft: ${error.message}`, { 
@@ -1747,6 +1776,15 @@ export default function InspectionForm({ inspectionData }) {
     return validationStatus;
   };
 
+  const handleBackToReview = () => {
+    if (returnTo === 'review') {
+      // Navigate to review mode (not preview)
+      navigate(`/inspections/${inspectionId}/review`);
+    } else {
+      navigate(-1);
+    }
+  };
+
   /* ======================
      Render
      ====================== */
@@ -1759,6 +1797,8 @@ export default function InspectionForm({ inspectionData }) {
           onDraft={handleDraft}
           onClose={handleClose}
           onComplete={handleComplete}
+          onBack={handleBackToReview}
+          showBackButton={returnTo === 'review'}
           onSendToSection={handleSendToSection}
           onSendToDivision={handleSendToDivision}
           onSendToNextLevel={handleSendToNextLevel}
