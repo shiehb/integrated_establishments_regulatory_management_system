@@ -40,7 +40,8 @@ class UserManager(BaseUserManager):
         extra_fields.setdefault('first_name', 'Administrator')  # Auto-set first name
         extra_fields.setdefault('is_first_login', False)  # Not first login
         extra_fields.setdefault('must_change_password', False)  # No password change required
-        return self.create_user(email, password, **extra_fields)
+        # Don't send welcome email for superuser - password is provided by admin
+        return self.create_user(email, password, password_provided=True, **extra_fields)
 
 class User(AbstractBaseUser, PermissionsMixin):
     USERLEVEL_CHOICES = [

@@ -338,14 +338,59 @@ class UserUpdateView(generics.RetrieveUpdateAPIView):
     lookup_field = "id"
 
     def perform_update(self, serializer):
+        # Get the original user instance before update
+        original_user = self.get_object()
+        original_email = original_user.email
+        
+        # Check if email is being changed
+        new_email = serializer.validated_data.get('email', original_email)
+        email_changed = new_email != original_email
+        
+        # Save the user with updated data
         user = serializer.save()
-
-        log_activity(
-            self.request.user,
-            "update",
-            f"Updated user: {user.email}",
-            request=self.request
-        )
+        
+        # If email changed, generate new password and send credentials
+        if email_changed:
+            from system_config.models import SystemConfiguration
+            from .utils.email_utils import send_welcome_email
+            
+            # Generate new password
+            new_password = SystemConfiguration.generate_default_password()
+            
+            # Set the new password
+            user.set_password(new_password)
+            
+            # Set flags for forced password change
+            user.must_change_password = True
+            user.is_first_login = True
+            
+            # Save the user with new password and flags
+            user.save()
+            
+            # Send email with new credentials
+            try:
+                send_welcome_email(user, new_password)
+                log_activity(
+                    self.request.user,
+                    "update",
+                    f"Updated user email from {original_email} to {user.email}. New password generated and sent.",
+                    request=self.request
+                )
+            except Exception as e:
+                # Log the error but don't fail the update
+                log_activity(
+                    self.request.user,
+                    "error",
+                    f"Updated user email to {user.email} but failed to send email: {str(e)}",
+                    request=self.request
+                )
+        else:
+            log_activity(
+                self.request.user,
+                "update",
+                f"Updated user: {user.email}",
+                request=self.request
+            )
 
 
 # ---------------------------

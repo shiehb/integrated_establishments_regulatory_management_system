@@ -698,6 +698,125 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         </div>
       </div>
 
+      {/* Production Details Card */}
+      <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
+        <h3 className="text-sm font-semibold text-gray-700 mb-2">Production Information</h3>
+        <div>
+          <label className="block mb-1 text-sm font-medium text-gray-700">
+            Product Lines
+          </label>
+          <textarea
+            className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+            value={data.product_lines || ""}
+            onChange={(e) => updateField("product_lines", e.target.value)}
+            placeholder="Enter product lines manufactured"
+            rows={2}
+            disabled={isReadOnly}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Declared Production Rate
+            </label>
+            <input
+              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              value={data.declared_production_rate || ""}
+              onChange={(e) => updateField("declared_production_rate", e.target.value)}
+              placeholder="Enter declared production rate"
+              disabled={isReadOnly}
+            />
+          </div>
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Actual Production Rate
+            </label>
+            <input
+              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              value={data.actual_production_rate || ""}
+              onChange={(e) => updateField("actual_production_rate", e.target.value)}
+              placeholder="Enter actual production rate"
+              disabled={isReadOnly}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Personnel Information Card */}
+      <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
+        <h3 className="text-sm font-semibold text-gray-700 mb-2">Personnel Information</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Managing Head
+            </label>
+            <input
+              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              value={data.managing_head || ""}
+              onChange={(e) => updateField("managing_head", e.target.value)}
+              placeholder="Enter managing head name"
+              disabled={isReadOnly}
+            />
+          </div>
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              PCO Name
+            </label>
+            <input
+              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              value={data.pco_name || ""}
+              onChange={(e) => updateField("pco_name", e.target.value)}
+              placeholder="Enter PCO name"
+              disabled={isReadOnly}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block mb-1 text-sm font-medium text-gray-700">
+            Interviewed Person
+          </label>
+          <textarea
+            className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+            value={data.interviewed_person || ""}
+            onChange={(e) => updateField("interviewed_person", e.target.value)}
+            placeholder="Enter details of person interviewed"
+            rows={2}
+            disabled={isReadOnly}
+          />
+        </div>
+      </div>
+
+      {/* PCO Certification Card */}
+      <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
+        <h3 className="text-sm font-semibold text-gray-700 mb-2">PCO Certification</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              PCO Accreditation No.
+            </label>
+            <input
+              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              value={data.pco_accreditation_no || ""}
+              onChange={(e) => updateField("pco_accreditation_no", e.target.value)}
+              placeholder="Enter PCO accreditation number"
+              disabled={isReadOnly}
+            />
+          </div>
+          <div>
+            <label className="block mb-1 text-sm font-medium text-gray-700">
+              Effectivity Date
+            </label>
+            <input
+              type="date"
+              className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              value={data.effectivity_date || ""}
+              onChange={(e) => setData({ ...data, effectivity_date: e.target.value })}
+              disabled={isReadOnly}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Confirmation Modal */}
       {confirmationModal.isOpen && (
         <div className="fixed inset-0  bg-opacity-75 backdrop-blur-sm flex items-center justify-center z-50">

@@ -15,6 +15,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
   const [submitted, setSubmitted] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [emailChanged, setEmailChanged] = useState(false);
   const notifications = useNotifications();
 
   useEffect(() => {
@@ -28,6 +29,9 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       userLevel: userData?.userlevel || "",
       section: userData?.section || "",
     });
+    
+    // Reset email changed flag when component re-initializes
+    setEmailChanged(false);
     
     console.log("Form data initialized:", {
       firstName: userData?.first_name,
@@ -75,6 +79,11 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
         newFormData.section = "";
       }
       
+      // Track email changes
+      if (name === "email") {
+        setEmailChanged(newValue !== userData?.email);
+      }
+      
       return newFormData;
     });
   };
@@ -87,6 +96,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       !formData.firstName.trim() ||
       !formData.middleName.trim() ||
       !formData.lastName.trim() ||
+      !formData.email.trim() ||
       !formData.userLevel.trim() ||
       (sectionOptionsByLevel[formData.userLevel] && !formData.section.trim())
     ) {
@@ -203,16 +213,25 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
           </div>
         </div>
 
-        {/* Email (disabled) */}
+        {/* Email */}
         <div>
           <Label field="email">Email</Label>
           <input
             type="email"
             name="email"
             value={formData.email}
-            disabled
-            className="w-full p-2 text-gray-500 bg-gray-100 border rounded-lg cursor-not-allowed"
+            onChange={handleChange}
+            className={`w-full p-2 border rounded-lg ${
+              submitted && !formData.email.trim()
+                ? "border-red-500"
+                : "border-gray-300"
+            }`}
           />
+          {emailChanged && (
+            <p className="mt-1 text-xs text-amber-600">
+              ⚠️ Changing email will generate a new password and send it to the new email address
+            </p>
+          )}
         </div>
 
         {/* User Level + Section */}
@@ -288,7 +307,11 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       <ConfirmationDialog
         open={showConfirm}
         title="Confirm Action"
-        message="Are you sure you want to save changes to this user?"
+        message={
+          emailChanged
+            ? "⚠️ Changing the email will generate a new password and send it to the new email address. The user will be required to change their password on first login. Continue?"
+            : "Are you sure you want to save changes to this user?"
+        }
         loading={loading}
         onCancel={() => setShowConfirm(false)}
         onConfirm={confirmEdit}

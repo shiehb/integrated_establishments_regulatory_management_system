@@ -93,21 +93,15 @@ const getInspectionStatusDisplay = (status) => {
 const getInspectionStatusBadge = (status) => {
   const displayName = getInspectionStatusDisplay(status);
   
-  const config = {
-    'Created': { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' },
-    'New – Waiting for Action': { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
-    'In Progress': { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300' },
-    'Completed – Compliant': { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' },
-    'Completed – Non-Compliant': { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' },
-    'Reviewed': { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300' },
-    'For Legal Review': { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-300' },
-    'NOV Sent': { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-300' },
-    'NOO Sent': { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300' },
-    'Finalized': { bg: 'bg-teal-100', text: 'text-teal-700', border: 'border-teal-300' },
-    'Closed': { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300' },
-  };
+  // Default to light gray for all statuses
+  let style = { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' };
   
-  const style = config[displayName] || { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' };
+  // Only apply green/red for final closed statuses
+  if (status === 'CLOSED_COMPLIANT') {
+    style = { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' };
+  } else if (status === 'CLOSED_NON_COMPLIANT') {
+    style = { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' };
+  }
   
   return (
     <span className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 text-xs font-semibold border rounded w-45 ${style.bg} ${style.text} ${style.border}`}>

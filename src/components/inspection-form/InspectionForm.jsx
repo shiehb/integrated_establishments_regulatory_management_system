@@ -53,6 +53,14 @@ export default function InspectionForm({ inspectionData }) {
       operating_hours: "",
       operating_days_per_week: "",
       operating_days_per_year: "",
+      product_lines: "",
+      declared_production_rate: "",
+      actual_production_rate: "",
+      managing_head: "",
+      pco_name: "",
+      interviewed_person: "",
+      pco_accreditation_no: "",
+      effectivity_date: "",
       phone_fax_no: "",
       email_address: "",
     }
@@ -273,39 +281,31 @@ export default function InspectionForm({ inspectionData }) {
   const buttonVisibility = getButtonVisibility();
 
 
-  // Local storage backup (only for manual saves)
+  // Local storage autosave (30-second interval)
   useEffect(() => {
-    const saveData = {
-      general,
-      purpose,
-      permits,
-      complianceItems,
-      systems,
-      recommendationState,
-      lawFilter,
-      findingImages,
-      generalFindings,
-      lastSaved: lastSaveTime || new Date().toISOString(),
-    };
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(saveData));
-      console.log("💾 LocalStorage backup saved:", saveData);
-    } catch (e) {
-      console.error("localStorage backup error", e);
-    }
-  }, [
-    general,
-    purpose,
-    permits,
-    complianceItems,
-    systems,
-    recommendationState,
-    lawFilter,
-    findingImages,
-    generalFindings,
-    storageKey,
-    lastSaveTime,
-  ]);
+    const timer = setTimeout(() => {
+      const saveData = {
+        general,
+        purpose,
+        permits,
+        complianceItems,
+        systems,
+        recommendationState,
+        lawFilter,
+        findingImages,
+        generalFindings,
+        lastSaved: new Date().toISOString(),
+      };
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(saveData));
+        console.log("💾 LocalStorage auto-saved (30s interval)");
+      } catch (e) {
+        console.error("localStorage backup error", e);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearTimeout(timer);
+  }, [general, purpose, permits, complianceItems, systems, recommendationState, lawFilter, findingImages, generalFindings, storageKey]);
 
   // Prefill law filter from fullInspectionData
   useEffect(() => {
@@ -394,12 +394,7 @@ export default function InspectionForm({ inspectionData }) {
           
           console.log("✅ Checklist data loaded successfully into form state");
           
-          // Show notification that checklist data was loaded (only once)
-          if (!draftNotificationShown.current) {
-            const isDraft = checklistData.is_draft;
-            // Notification removed as requested
-            draftNotificationShown.current = true;
-          }
+          // Draft notification removed as per requirements
         } else {
           console.log("📝 No checklist data found, using fresh form");
         }
@@ -451,44 +446,6 @@ export default function InspectionForm({ inspectionData }) {
     loadCurrentUser();
   }, []);
 
-  // Auto-save to database for editable statuses
-  useEffect(() => {
-    // Only auto-save for Section Chief, Unit Head, Monitoring Personnel in editable statuses
-    const editableStatuses = ['SECTION_IN_PROGRESS', 'UNIT_IN_PROGRESS', 'MONITORING_IN_PROGRESS'];
-    const isEditable = editableStatuses.includes(inspectionStatus);
-    
-    if (!isEditable || !inspectionId || !hasFormChanges) return;
-    
-    // Debounce: save after 3 seconds of inactivity
-    const timer = setTimeout(async () => {
-      try {
-        setAutoSaveStatus('saving');
-        
-        const formDataToSave = {
-          general,
-          purpose,
-          permits,
-          complianceItems,
-          systems,
-          recommendationState,
-          findingImages,
-          generalFindings
-        };
-        
-        await saveInspectionDraft(inspectionId, { form_data: formDataToSave });
-        console.log('✅ Auto-saved to database');
-        setLastSaveTime(new Date().toISOString());
-        setHasFormChanges(false);
-        setAutoSaveStatus('saved');
-      } catch (error) {
-        console.error('Auto-save failed:', error);
-        setAutoSaveStatus('error');
-        // Don't show error to user for auto-save failures
-      }
-    }, 3000); // 3 second debounce
-    
-    return () => clearTimeout(timer);
-  }, [general, purpose, permits, complianceItems, systems, recommendationState, findingImages, generalFindings, inspectionStatus, inspectionId, hasFormChanges]);
 
   // Scroll detection for tab navigation
   useEffect(() => {

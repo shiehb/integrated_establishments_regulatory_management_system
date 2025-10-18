@@ -17,31 +17,31 @@ import {
 export const statusDisplayMap = {
   CREATED: { label: 'Created', color: 'gray' },
   
-  SECTION_ASSIGNED: { label: 'New Assignment', color: 'blue' },
-  SECTION_IN_PROGRESS: { label: 'In Progress', color: 'yellow' },
-  SECTION_COMPLETED_COMPLIANT: { label: 'Completed ✓', color: 'green' },
-  SECTION_COMPLETED_NON_COMPLIANT: { label: 'Completed ✗', color: 'red' },
+  SECTION_ASSIGNED: { label: 'New Assignment', color: 'gray' },
+  SECTION_IN_PROGRESS: { label: 'In Progress', color: 'gray' },
+  SECTION_COMPLETED_COMPLIANT: { label: 'Inspection Complete ✓', color: 'gray' },
+  SECTION_COMPLETED_NON_COMPLIANT: { label: 'Inspection Complete ✗', color: 'gray' },
   
-  UNIT_ASSIGNED: { label: 'New Assignment', color: 'blue' },
-  UNIT_IN_PROGRESS: { label: 'In Progress', color: 'yellow' },
-  UNIT_COMPLETED_COMPLIANT: { label: 'Completed ✓', color: 'green' },
-  UNIT_COMPLETED_NON_COMPLIANT: { label: 'Completed ✗', color: 'red' },
+  UNIT_ASSIGNED: { label: 'New Assignment', color: 'gray' },
+  UNIT_IN_PROGRESS: { label: 'In Progress', color: 'gray' },
+  UNIT_COMPLETED_COMPLIANT: { label: 'Inspection Complete ✓', color: 'gray' },
+  UNIT_COMPLETED_NON_COMPLIANT: { label: 'Inspection Complete ✗', color: 'gray' },
   
-  MONITORING_ASSIGNED: { label: 'New Assignment', color: 'indigo' },
-  MONITORING_IN_PROGRESS: { label: 'In Progress', color: 'amber' },
-  MONITORING_COMPLETED_COMPLIANT: { label: 'Completed ✓', color: 'green' },
-  MONITORING_COMPLETED_NON_COMPLIANT: { label: 'Completed ✗', color: 'red' },
+  MONITORING_ASSIGNED: { label: 'New Assignment', color: 'gray' },
+  MONITORING_IN_PROGRESS: { label: 'In Progress', color: 'gray' },
+  MONITORING_COMPLETED_COMPLIANT: { label: 'Inspection Complete ✓', color: 'gray' },
+  MONITORING_COMPLETED_NON_COMPLIANT: { label: 'Inspection Complete ✗', color: 'gray' },
   
-  UNIT_REVIEWED: { label: 'Pending Section Review', color: 'purple' },
-  SECTION_REVIEWED: { label: 'Pending Division Review', color: 'purple' },
-  DIVISION_REVIEWED: { label: 'Under Final Review', color: 'purple' },
+  UNIT_REVIEWED: { label: 'Under Review', color: 'gray' },
+  SECTION_REVIEWED: { label: 'Under Review', color: 'gray' },
+  DIVISION_REVIEWED: { label: 'Under Review', color: 'gray' },
   
-  LEGAL_REVIEW: { label: 'Legal Review', color: 'orange' },
-  NOV_SENT: { label: 'NOV Sent', color: 'pink' },
-  NOO_SENT: { label: 'NOO Sent', color: 'pink' },
+  LEGAL_REVIEW: { label: 'Legal Review', color: 'gray' },
+  NOV_SENT: { label: 'NOV Sent', color: 'gray' },
+  NOO_SENT: { label: 'NOO Sent', color: 'gray' },
   
   CLOSED_COMPLIANT: { label: 'Closed ✅', color: 'green' },
-  CLOSED_NON_COMPLIANT: { label: 'Closed ❌', color: 'rose' }
+  CLOSED_NON_COMPLIANT: { label: 'Closed ❌', color: 'red' }
 };
 
 // Role-based tabs configuration
@@ -116,16 +116,8 @@ export const getStatusColorClass = (status) => {
   
   const colorMap = {
     gray: 'text-gray-600',
-    blue: 'text-blue-600',
-    yellow: 'text-yellow-600',
     green: 'text-green-600',
-    indigo: 'text-indigo-600',
-    amber: 'text-amber-600',
-    red: 'text-red-600',
-    purple: 'text-purple-600',
-    orange: 'text-orange-600',
-    pink: 'text-pink-600',
-    rose: 'text-rose-600'
+    red: 'text-red-600'
   };
   
   return colorMap[config.color] || 'text-gray-600';
@@ -138,16 +130,8 @@ export const getStatusBgColorClass = (status) => {
   
   const colorMap = {
     gray: 'bg-gray-100',
-    blue: 'bg-blue-100',
-    yellow: 'bg-yellow-100',
     green: 'bg-green-100',
-    indigo: 'bg-indigo-100',
-    amber: 'bg-amber-100',
-    red: 'bg-red-100',
-    purple: 'bg-purple-100',
-    orange: 'bg-orange-100',
-    pink: 'bg-pink-100',
-    rose: 'bg-rose-100'
+    red: 'bg-red-100'
   };
   
   return colorMap[config.color] || 'bg-gray-100';
