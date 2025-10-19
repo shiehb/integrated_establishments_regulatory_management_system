@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
-import { saveInspectionDraft, completeInspection, getInspection, updateInspection, reviewInspection, forwardToLegal, sendToSection, sendToDivision, closeInspection, sendNOV, sendNOO, uploadFindingDocument } from "../../services/api";
+import { saveInspectionDraft, completeInspection, getInspection, closeInspection, sendNOV, sendNOO, uploadFindingDocument } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
+import { getButtonVisibility as getRoleStatusButtonVisibility, canUserAccessInspection } from "../../utils/roleStatusMatrix";
 
 // Import all section components
 import UnifiedInspectionHeader from "./UnifiedInspectionHeader";
@@ -26,6 +27,7 @@ export default function InspectionForm({ inspectionData }) {
   const location = useLocation();
   const urlParams = new URLSearchParams(location.search);
   const returnTo = urlParams.get('returnTo');
+  const reviewMode = urlParams.get('reviewMode') === 'true';
   const inspectionId = id || inspectionData?.id;
   const storageKey = `inspection-form-${inspectionId || "draft"}`;
   const notifications = useNotifications();
@@ -118,7 +120,6 @@ export default function InspectionForm({ inspectionData }) {
   const [inspectionStatus, setInspectionStatus] = useState(null);
   const [fullInspectionData, setFullInspectionData] = useState(null);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const draftNotificationShown = useRef(false);
   
   // Confirmation dialog states
   const [completeConfirmation, setCompleteConfirmation] = useState({ 
@@ -136,7 +137,7 @@ export default function InspectionForm({ inspectionData }) {
   const [loading, setLoading] = useState(false);
   const [hasFormChanges, setHasFormChanges] = useState(false);
   const [hasActionTaken, setHasActionTaken] = useState(false);
-  const [autoSaveStatus, setAutoSaveStatus] = useState('saved'); // 'saving', 'saved', 'error'
+  const [autoSaveStatus] = useState('saved'); // 'saving', 'saved', 'error'
   
   // Tab navigation state and refs
   const [activeSection, setActiveSection] = useState('general');
@@ -191,94 +192,62 @@ export default function InspectionForm({ inspectionData }) {
     }
   };
 
-  // Determine button visibility and access control based on status and user role
+  // Determine button visibility and access control based on unified role-status matrix
   const getButtonVisibility = () => {
     const userLevel = currentUser?.userlevel;
     const status = inspectionStatus;
-    const isDraft = fullInspectionData?.form?.checklist?.is_draft || false;
     
-    // Review statuses where main form should be read-only
-    const reviewStatuses = ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED', 'LEGAL_REVIEW', 'FINALIZED', 'CLOSED'];
-    const isInReviewStatus = reviewStatuses.includes(status);
+    // Check if we're in preview mode
+    const isPreviewMode = urlParams.get('mode') === 'preview';
     
-    // Statuses where Close Form, Draft, Submit buttons should be visible
-    const editableStatuses = ['CREATED', 'SECTION_IN_PROGRESS', 'UNIT_IN_PROGRESS', 'MONITORING_IN_PROGRESS'];
-    const isEditableStatus = editableStatuses.includes(status) || isDraft;
+    // Check if user can access this inspection
+    const canAccess = canUserAccessInspection(userLevel, status);
+    if (!canAccess) {
+      console.warn(`🚫 User ${userLevel} cannot access inspection with status ${status}`);
+      return {
+        showCloseButton: false,
+        showBackButton: false,
+        showDraftButton: false,
+        showSubmitButton: false,
+        isReadOnly: true,
+        canEditRecommendation: false,
+        isDivisionChief: userLevel === 'Division Chief'
+      };
+    }
     
-    // NEW ACCESS CONTROL LOGIC:
-    // All fields are read-only during review process
-    // Only Division Chief can edit recommendations
+    // Get button visibility from unified role-status matrix
+    const roleStatusConfig = getRoleStatusButtonVisibility(userLevel, status, isPreviewMode, returnTo);
+    
+    // Additional role-specific logic
     const isDivisionChief = userLevel === 'Division Chief';
-    const isFormReadOnly = isInReviewStatus; // Make form read-only during review
     
-    return {
-      // Close Form Button - Always visible (including in review statuses)
-      showCloseButton: true,
+    console.log('🔍 Unified button visibility debug:', {
+      userLevel,
+      status,
+      isPreviewMode,
+      returnTo,
+      canAccess,
+      roleStatusConfig
+    });
+
+    const buttonVisibility = {
+      // Use unified role-status matrix configuration
+      showCloseButton: roleStatusConfig.showClose,
+      showBackButton: roleStatusConfig.showBack,
+      showDraftButton: roleStatusConfig.showDraft,
+      showSubmitButton: roleStatusConfig.showSubmit,
       
-      // Draft Button - Hidden during review statuses, BUT shown when editing from review
-      showDraftButton: returnTo === 'review' || (isEditableStatus && !isInReviewStatus),
+      // Access control
+      isReadOnly: roleStatusConfig.isReadOnly,
       
-      // Submit Button - Show ONLY when returnTo=review (editing from review page)
-      showSubmitButton: returnTo === 'review',
-      
-      // Submit for Review Button - For Section Chief in SECTION_IN_PROGRESS and Unit Head in UNIT_IN_PROGRESS
-      showSubmitForReviewButton: (userLevel === 'Section Chief' && status === 'SECTION_IN_PROGRESS') || 
-                                 (userLevel === 'Unit Head' && status === 'UNIT_IN_PROGRESS'),
-      
-      // Submit for Review Button - Only for Monitoring Personnel in MONITORING_IN_PROGRESS
-      showCompleteButton: userLevel === 'Monitoring Personnel' && status === 'MONITORING_IN_PROGRESS',
-      
-      // Send to Section Button - For Unit Head in UNIT_REVIEWED and in review forms (hidden when new button is shown)
-      showSendToSectionButton: false, // Disabled in favor of generic "Send to Next Level" button
-      
-      // Send to Division Button - For Section Chief in SECTION_REVIEWED and in review forms (hidden when new button is shown)
-      showSendToDivisionButton: false, // Disabled in favor of generic "Send to Next Level" button
-      
-      // Send to Next Level Button - For Unit Head and Section Chief
-      showSendToNextLevelButton: (
-        (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') ||
-        (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED')
-      ),
-      
-      // Get the next level name for button text
-      getNextLevelName: () => {
-        if (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') return 'Section';
-        if (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') return 'Division';
-        if (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED') {
-          return 'Legal'; // Division Chief can always send to Legal
-        }
-        return 'Next Level';
-      },
-      
-      // Review Button - Only for Unit Head who uses it to enter the form
-      showReviewButton: (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED'),
-      
-      // Forward to Legal Button - Only for Division Chief in DIVISION_REVIEWED (any compliance status)
-      showForwardToLegalButton: userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED',
-      
-      // Mark as Compliant Button - Only for Division Chief in DIVISION_REVIEWED
-      showMarkAsCompliantButton: userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED',
-      
-      // Finalize Button - Disabled (functionality moved to Close Form)
-      showFinalizeButton: false,
-      
-      // Legal Unit buttons - NOV and NOO buttons for Legal Unit in LEGAL_REVIEW
-      showSendNOVButton: userLevel === 'Legal Unit' && status === 'LEGAL_REVIEW',
-      showSendNOOButton: userLevel === 'Legal Unit' && status === 'LEGAL_REVIEW',
-      
-      // Save Recommendation Button - Only for Division Chief
-      showSaveRecommendationButton: isDivisionChief,
-      
-      // NEW ACCESS CONTROL:
-      // All fields are read-only by default
-      isReadOnly: isFormReadOnly,
-      
-      // Only Division Chief can edit recommendations
+      // Role-specific permissions
       canEditRecommendation: isDivisionChief,
-      
-      // Division Chief specific access
       isDivisionChief: isDivisionChief
     };
+
+    console.log('🎯 Final unified button visibility result:', buttonVisibility);
+    
+    return buttonVisibility;
   };
 
   const buttonVisibility = getButtonVisibility();
@@ -434,6 +403,7 @@ export default function InspectionForm({ inspectionData }) {
           const contentType = response.headers.get('content-type');
           if (contentType && contentType.includes('application/json')) {
             const userData = await response.json();
+            console.log('👤 Current user loaded:', userData);
             setCurrentUser(userData);
           } else {
             console.error("❌ Received HTML instead of JSON for user profile");
@@ -832,36 +802,22 @@ export default function InspectionForm({ inspectionData }) {
     return findings.length > 0 ? findings.join('\n') : 'No findings recorded';
   };
 
-  // Function to determine the appropriate status based on current status and compliance
-  const determineNewStatus = (currentStatus) => {
-    // Determine next status based on current status (matching backend logic)
-    if (currentStatus === 'MONITORING_IN_PROGRESS') {
-      // Monitoring Personnel submits for Unit Head review
-      return 'UNIT_REVIEWED';
-    } else if (currentStatus === 'UNIT_IN_PROGRESS') {
-      // Unit Head submits for Section Chief review
-      return 'SECTION_REVIEWED';
-    } else if (currentStatus === 'SECTION_IN_PROGRESS') {
-      // Section Chief submits for Division Chief review
-      return 'DIVISION_REVIEWED';
-    }
-    
-    // Default fallback
-    return currentStatus;
-  };
 
   /* ======================
      Handlers
      ====================== */
-  const handleSave = async () => {
+  const handleSubmit = () => {
     if (!inspectionId) {
-      notifications.error("No inspection ID found. Cannot save.", { 
-        title: 'Save Failed' 
+      notifications.error("No inspection ID found. Cannot submit.", { 
+        title: 'Submit Failed' 
       });
       return;
     }
 
-    if (!validateForm()) {
+    const isValid = validateForm();
+    console.log('🔍 Form validation result:', { isValid, errors });
+    
+    if (!isValid) {
       window.scrollTo({ top: 0, behavior: "smooth" });
       
       // Show detailed error summary
@@ -871,7 +827,7 @@ export default function InspectionForm({ inspectionData }) {
         .join('\n');
       
       notifications.warning(
-        `Please fix ${errorCount} validation error(s) before saving:\n\n${errorSummary}`, 
+        `Please fix ${errorCount} validation error(s) before submitting:\n\n${errorSummary}`, 
         { 
           title: 'Validation Error',
           duration: 10000 // Show for 10 seconds
@@ -880,8 +836,11 @@ export default function InspectionForm({ inspectionData }) {
       return;
     }
 
-    // Save as draft in database (same as handleDraft but with validation)
-    const formDataToSave = {
+    // Navigate to preview page
+    console.log('🚀 handleSubmit called with:', { returnTo, inspectionId });
+    
+    // Prepare form data for preview
+    const formDataToPreview = {
       general,
       purpose,
       permits,
@@ -892,93 +851,28 @@ export default function InspectionForm({ inspectionData }) {
       findingImages,
       generalFindings,
     };
-
-    try {
-      console.log("💾 Saving validated form as draft:", formDataToSave);
-      console.log("💾 General data being saved:", general);
-      console.log("💾 LawFilter being saved:", lawFilter);
-      
-      // Determine compliance status
-      const complianceStatus = determineComplianceStatus();
-      console.log("🔍 Determined compliance status:", complianceStatus);
-      
-      // Determine new status based on current status and compliance
-      const currentStatus = fullInspectionData?.current_status || 'CREATED';
-      const newStatus = determineNewStatus(currentStatus);
-      console.log("📊 Current status:", currentStatus, "→ New status:", newStatus);
-      
-      // Save draft to backend
-      await saveInspectionDraft(inspectionId, { form_data: formDataToSave });
-      
-      // Update inspection status if it has changed
-      if (newStatus !== currentStatus) {
-        console.log("🔄 Updating inspection status to:", newStatus);
-        
-        // Prepare update data
-        const updateData = { 
-          current_status: newStatus,
-          compliance_status: complianceStatus
-        };
-        
-        // If status is DIVISION_REVIEWED, the backend will automatically assign to Division Chief
-        if (newStatus === 'DIVISION_REVIEWED') {
-          console.log("📋 Status changed to DIVISION_REVIEWED - will be assigned to Division Chief");
+    
+    if (returnTo === 'review') {
+      // If editing from review, navigate to preview with reviewApproval=true
+      const url = `/inspections/${inspectionId}/review?mode=preview&reviewApproval=true`;
+      console.log('🚀 Navigating to review preview:', url);
+      navigate(url, {
+        state: {
+          formData: formDataToPreview,
+          inspectionData: fullInspectionData,
+          compliance: determineComplianceStatus()
         }
-        
-        await updateInspection(inspectionId, updateData);
-      }
-      
-      // Update last save time
-      const now = new Date().toISOString();
-      setLastSaveTime(now);
-      
-      // Clear localStorage draft since it's saved to backend
-    try {
-      localStorage.removeItem(storageKey);
-    } catch (e) {
-      console.error("clear draft error", e);
-      }
-      
-      // Show success message with status info
-      let statusMessage = "Inspection saved successfully!";
-      
-      if (newStatus !== currentStatus) {
-        if (newStatus === 'UNIT_REVIEWED') {
-          statusMessage = "Inspection saved successfully! Status updated to Unit Reviewed - assigned to Unit Head for review.";
-        } else if (newStatus === 'DIVISION_REVIEWED') {
-          statusMessage = "Inspection saved successfully! Status updated to Division Reviewed - assigned to Division Chief for review.";
-        } else if (newStatus === 'UNIT_COMPLETED_COMPLIANT') {
-          statusMessage = "Inspection saved successfully! Status updated to Unit Completed - Compliant.";
-        } else if (newStatus === 'UNIT_COMPLETED_NON_COMPLIANT') {
-          statusMessage = "Inspection saved successfully! Status updated to Unit Completed - Non-Compliant.";
-        } else {
-          statusMessage = `Inspection saved successfully! Status updated to: ${newStatus.replace(/_/g, ' ')}`;
-        }
-      }
-      
-      notifications.success(statusMessage, { 
-        title: 'Save Successful' 
       });
-      
-      // If returnTo parameter exists, navigate back to preview
-      if (returnTo === 'review') {
-        console.log('🔄 Returning to preview page after save');
-        // Navigate to preview mode to review changes before submitting
-        navigate(`/inspections/${inspectionId}/review?mode=preview`, {
-          state: {
-            formData: formDataToSave,
-            inspectionData: fullInspectionData,
-            compliance: complianceStatus
-          }
-        });
-      } else {
-        // Navigate back to inspections list
-        navigate("/inspections");
-      }
-    } catch (error) {
-      console.error("Failed to save inspection:", error);
-      notifications.error(`Failed to save inspection: ${error.message}`, { 
-        title: 'Save Failed' 
+    } else {
+      // Regular submit from personnel
+      const url = `/inspections/${inspectionId}/review?mode=preview`;
+      console.log('🚀 Navigating to regular preview:', url);
+      navigate(url, {
+        state: {
+          formData: formDataToPreview,
+          inspectionData: fullInspectionData,
+          compliance: determineComplianceStatus()
+        }
       });
     }
   };
@@ -1027,22 +921,6 @@ export default function InspectionForm({ inspectionData }) {
       notifications.success("Draft saved successfully!", { 
         title: 'Draft Saved' 
       });
-      
-      // If returnTo parameter exists, navigate back to preview
-      if (returnTo === 'review') {
-        console.log('🔄 Returning to preview page after draft save');
-        // Navigate to preview mode to review changes before submitting
-        navigate(`/inspections/${inspectionId}/review?mode=preview`, {
-          state: {
-            formData: formDataToSave,
-            inspectionData: fullInspectionData,
-            compliance: determineComplianceStatus()
-          }
-        });
-      } else {
-        // Navigate back to inspections list
-        navigate("/inspections");
-      }
     } catch (error) {
       console.error("Failed to save draft:", error);
       notifications.error(`Failed to save draft: ${error.message}`, { 
@@ -1051,322 +929,15 @@ export default function InspectionForm({ inspectionData }) {
     }
   };
 
-  const handleComplete = () => {
-    if (!validateForm()) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      
-      // Show detailed error summary
-      const errorCount = Object.keys(errors).length;
-      const errorSummary = Object.entries(errors)
-        .map(([, message]) => `• ${message}`)
-        .join('\n');
-      
-      notifications.warning(
-        `Please fix ${errorCount} validation error(s) before completing:\n\n${errorSummary}`, 
-        { 
-          title: 'Validation Error',
-          duration: 10000 // Show for 10 seconds
-        }
-      );
-      return;
-    }
 
-    if (!inspectionId) {
-      notifications.error("No inspection ID found. Cannot complete inspection.", { 
-        title: 'Completion Failed' 
-      });
-      return;
-    }
 
-    // Automatically determine compliance status based on collected data
-    const autoCompliance = determineComplianceStatus();
-    
-    // Navigate to review page in preview mode
-    navigate(`/inspections/${inspectionId}/review?mode=preview`, {
-      state: {
-        formData: {
-          general,
-          purpose,
-          permits,
-          complianceItems,
-          systems,
-          recommendationState,
-          findingImages,
-          generalFindings
-        },
-        inspectionData: fullInspectionData,
-        compliance: autoCompliance
-      }
-    });
-  };
 
-  const handleSendToSection = async () => {
-    if (!inspectionId) {
-      notifications.error("No inspection ID found. Cannot send to section.", { 
-        title: 'Send Failed' 
-      });
-      return;
-    }
 
-    try {
-      setLoading(true);
-      
-      // Call the review action to change status to SECTION_REVIEWED
-      await reviewInspection(inspectionId, {
-        remarks: 'Sent to Section Chief for review'
-      });
-      
-      notifications.success("Inspection sent to Section Chief successfully!", { 
-        title: 'Sent to Section',
-        duration: 6000
-      });
-      
-      // Navigate back to inspections list
-      navigate("/inspections");
-    } catch (error) {
-      console.error("Failed to send to section:", error);
-      notifications.error(`Failed to send to section: ${error.message}`, { 
-        title: 'Send Failed' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleSendToDivision = async () => {
-    if (!inspectionId) {
-      notifications.error("No inspection ID found. Cannot send to division.", { 
-        title: 'Send Failed' 
-      });
-      return;
-    }
 
-    try {
-      setLoading(true);
-      
-      // Call the review action to change status to DIVISION_REVIEWED
-      await reviewInspection(inspectionId, {
-        remarks: 'Sent to Division Chief for review'
-      });
-      
-      notifications.success("Inspection sent to Division Chief successfully!", { 
-        title: 'Sent to Division',
-        duration: 6000
-      });
-      
-      // Navigate back to inspections list
-      navigate("/inspections");
-    } catch (error) {
-      console.error("Failed to send to division:", error);
-      notifications.error(`Failed to send to division: ${error.message}`, { 
-        title: 'Send Failed' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleSendToNextLevel = async () => {
-    if (!inspectionId) {
-      notifications.error("No inspection ID found. Cannot send to next level.", { 
-        title: 'Send Failed' 
-      });
-      return;
-    }
 
-    const userLevel = currentUser?.userlevel;
-    const status = inspectionStatus;
-    let remarks = '';
-    let successMessage = '';
-    let nextLevel = '';
 
-    try {
-      setLoading(true);
-      
-      // Determine the next level and call appropriate action
-      if (userLevel === 'Unit Head' && status === 'UNIT_REVIEWED') {
-        nextLevel = 'Section';
-        remarks = 'Sent to Section Chief for review';
-        successMessage = 'Inspection sent to Section Chief successfully!';
-        // Call send to section action
-        await sendToSection(inspectionId, { remarks });
-      } else if (userLevel === 'Section Chief' && status === 'SECTION_REVIEWED') {
-        nextLevel = 'Division';
-        remarks = 'Sent to Division Chief for review';
-        successMessage = 'Inspection sent to Division Chief successfully!';
-        // Call send to division action
-        await sendToDivision(inspectionId, { remarks });
-      } else if (userLevel === 'Division Chief' && status === 'DIVISION_REVIEWED') {
-        nextLevel = 'Legal';
-        remarks = 'Forwarded case to Legal Unit';
-        successMessage = 'Inspection forwarded to Legal Unit successfully!';
-        // Call forward to legal action
-        await forwardToLegal(inspectionId, { remarks });
-      } else {
-        throw new Error('Invalid user level or status for sending to next level');
-      }
-      
-      notifications.success(successMessage, { 
-        title: `Sent to ${nextLevel}`,
-        duration: 6000
-      });
-      
-      // Navigate back to inspections list
-      navigate("/inspections");
-    } catch (error) {
-      console.error("Failed to send to next level:", error);
-      notifications.error(`Failed to send to next level: ${error.message}`, { 
-        title: 'Send Failed' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleReview = async () => {
-    // Review button should just open the form for viewing/reviewing
-    // It should NOT change the status - that's what the "Send to Section/Division" buttons do
-    notifications.info("Form opened for review. Use 'Send to Section/Division' buttons to advance the workflow.", { 
-      title: 'Form Opened for Review',
-      duration: 4000
-    });
-  };
-
-  const handleForwardToLegal = async () => {
-    if (!inspectionId) {
-      notifications.error("No inspection ID found. Cannot forward to legal.", { 
-        title: 'Forward Failed' 
-      });
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      // Call the forward to legal action
-      await forwardToLegal(inspectionId, {
-        remarks: 'Forwarded non-compliant case to Legal Unit'
-      });
-      
-      notifications.success("Inspection forwarded to Legal Unit successfully!", { 
-        title: 'Forwarded to Legal',
-        duration: 6000
-      });
-      
-      // Navigate back to inspections list
-      navigate("/inspections");
-    } catch (error) {
-      console.error("Failed to forward to legal:", error);
-      notifications.error(`Failed to forward to legal: ${error.message}`, { 
-        title: 'Forward Failed' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFinalize = async () => {
-    if (!inspectionId) {
-      notifications.error("No inspection ID found. Cannot finalize.", { 
-        title: 'Finalize Failed' 
-      });
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      // Save the recommendation first
-      await updateInspection(inspectionId, {
-        recommendation: recommendationState
-      });
-      
-      // Call the review action to change status to FINALIZED
-      await reviewInspection(inspectionId, {
-        remarks: 'Inspection finalized by Division Chief'
-      });
-      
-      notifications.success("Inspection finalized successfully!", { 
-        title: 'Inspection Finalized',
-        duration: 6000
-      });
-      
-      // Navigate back to inspections list
-      navigate("/inspections");
-    } catch (error) {
-      console.error("Failed to finalize inspection:", error);
-      notifications.error(`Failed to finalize inspection: ${error.message}`, { 
-        title: 'Finalize Failed' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSendNOV = async () => {
-    if (!inspectionId) {
-      notifications.error("No inspection ID found. Cannot send NOV.", { 
-        title: 'Send NOV Failed' 
-      });
-      return;
-    }
-
-    // Show confirmation dialog for NOV
-    setActionConfirmation({
-      open: true,
-      inspection: { id: inspectionId, code: fullInspectionData?.code || 'Unknown' },
-      action: 'send_nov'
-    });
-  };
-
-  const handleSendNOO = async () => {
-    if (!inspectionId) {
-      notifications.error("No inspection ID found. Cannot send NOO.", { 
-        title: 'Send NOO Failed' 
-      });
-      return;
-    }
-
-    // Show confirmation dialog for NOO
-    setActionConfirmation({
-      open: true,
-      inspection: { id: inspectionId, code: fullInspectionData?.code || 'Unknown' },
-      action: 'send_noo'
-    });
-  };
-
-  const handleSaveRecommendation = async () => {
-    if (!inspectionId) {
-      notifications.error("No inspection ID found. Cannot save recommendation.", { 
-        title: 'Save Failed' 
-      });
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      // Save the recommendation
-      await updateInspection(inspectionId, {
-        recommendation: recommendationState
-      });
-      
-      notifications.success("Recommendation saved successfully!", { 
-        title: 'Recommendation Saved',
-        duration: 4000
-      });
-      
-      // Update last save time
-      setLastSaveTime(new Date().toISOString());
-    } catch (error) {
-      console.error("Failed to save recommendation:", error);
-      notifications.error(`Failed to save recommendation: ${error.message}`, { 
-        title: 'Save Failed' 
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const executeAction = async () => {
     const { inspection, action } = actionConfirmation;
@@ -1512,38 +1083,6 @@ export default function InspectionForm({ inspectionData }) {
     }
   };
 
-  const handleMarkAsCompliant = async () => {
-    const complianceStatus = determineComplianceStatus();
-    
-    if (complianceStatus !== 'COMPLIANT') {
-      notifications.warning(
-        'Cannot mark as compliant. Please ensure all compliance items and systems are marked as compliant.',
-        { title: 'Action Not Allowed' }
-      );
-      return;
-    }
-    
-    setActionConfirmation({
-      open: true,
-      inspection: fullInspectionData,
-      action: 'mark_compliant',
-      message: 'Are you sure you want to mark this inspection as compliant? The inspection will be closed with compliant status.',
-      onConfirm: async () => {
-        try {
-          setLoading(true);
-          await closeInspection(inspectionId, {
-            remarks: 'Marked as compliant by Division Chief',
-            final_status: 'CLOSED'
-          });
-          notifications.success('Inspection marked as compliant successfully', { title: 'Inspection Closed' });
-          navigate("/inspections");
-        } catch (error) {
-          notifications.error(`Failed to mark as compliant: ${error.message}`, { title: 'Action Failed' });
-          setLoading(false);
-        }
-      }
-    });
-  };
 
   const handleClose = async () => {
     const userLevel = currentUser?.userlevel;
@@ -1561,7 +1100,7 @@ export default function InspectionForm({ inspectionData }) {
           onConfirm: async () => {
             try {
               setLoading(true);
-              await sendToDivision(inspectionId, {
+              await closeInspection(inspectionId, {
                 remarks: 'Reviewed and closed by Section Chief'
               });
               notifications.success('Inspection sent to Division Chief successfully', { title: 'Review Completed' });
@@ -1577,7 +1116,7 @@ export default function InspectionForm({ inspectionData }) {
         // No changes - auto-close
         try {
           setLoading(true);
-          await sendToDivision(inspectionId, {
+          await closeInspection(inspectionId, {
             remarks: 'Reviewed by Section Chief - no changes needed'
           });
           notifications.success('Inspection sent to Division Chief', { title: 'Review Completed' });
@@ -1778,7 +1317,7 @@ export default function InspectionForm({ inspectionData }) {
 
   const handleBackToReview = () => {
     if (returnTo === 'review') {
-      // Navigate to review mode (not preview)
+      // When returnTo=review (with or without reviewMode), go back to regular review page
       navigate(`/inspections/${inspectionId}/review`);
     } else {
       navigate(-1);
@@ -1793,37 +1332,13 @@ export default function InspectionForm({ inspectionData }) {
        headerHeight="large"
        inspectionHeader={
         <UnifiedInspectionHeader
-          onSave={handleSave}
+          onSave={handleSubmit}
           onDraft={handleDraft}
           onClose={handleClose}
-          onComplete={handleComplete}
           onBack={handleBackToReview}
-          showBackButton={returnTo === 'review'}
-          onSendToSection={handleSendToSection}
-          onSendToDivision={handleSendToDivision}
-          onSendToNextLevel={handleSendToNextLevel}
-          onFinalize={handleFinalize}
-          onReview={handleReview}
-          onForwardToLegal={handleForwardToLegal}
-          onSendNOV={handleSendNOV}
-          onSendNOO={handleSendNOO}
-          onSaveRecommendation={handleSaveRecommendation}
-          onMarkAsCompliant={handleMarkAsCompliant}
+          showBackButton={buttonVisibility.showBackButton}
           lastSaveTime={lastSaveTime}
           autoSaveStatus={autoSaveStatus}
-          showCompleteButton={buttonVisibility.showCompleteButton}
-          showSubmitForReviewButton={buttonVisibility.showSubmitForReviewButton}
-          showSendToSectionButton={buttonVisibility.showSendToSectionButton}
-          showSendToDivisionButton={buttonVisibility.showSendToDivisionButton}
-          showSendToNextLevelButton={buttonVisibility.showSendToNextLevelButton}
-          nextLevelName={buttonVisibility.getNextLevelName()}
-          showFinalizeButton={buttonVisibility.showFinalizeButton}
-          showReviewButton={buttonVisibility.showReviewButton}
-          showForwardToLegalButton={buttonVisibility.showForwardToLegalButton}
-          showSendNOVButton={buttonVisibility.showSendNOVButton}
-          showSendNOOButton={buttonVisibility.showSendNOOButton}
-          showSaveRecommendationButton={buttonVisibility.showSaveRecommendationButton}
-          showMarkAsCompliantButton={buttonVisibility.showMarkAsCompliantButton}
           showDraftButton={buttonVisibility.showDraftButton}
           showSubmitButton={buttonVisibility.showSubmitButton}
           showCloseButton={buttonVisibility.showCloseButton}
@@ -1838,7 +1353,7 @@ export default function InspectionForm({ inspectionData }) {
        }
        rightSidebar={
          // Priority 1: Show validation errors (only when submit is attempted)
-         hasFormChanges && Object.keys(errors).length > 0 && (buttonVisibility.showSubmitButton || buttonVisibility.showSubmitForReviewButton || buttonVisibility.showCompleteButton) ? (
+         hasFormChanges && Object.keys(errors).length > 0 && buttonVisibility.showSubmitButton ? (
            <ValidationSummary 
              errors={errors} 
              onScrollToSection={scrollToSection}
@@ -1912,7 +1427,7 @@ export default function InspectionForm({ inspectionData }) {
                 setSystems(newSystems);
                 setHasFormChanges(true);
               }}
-              onComplianceChange={(updatedItems) => {
+              onComplianceChange={() => {
                 // This callback triggers when compliance changes
                 // Used to update recommendations visibility
                 console.log('🔄 Compliance changed, checking recommendations visibility');

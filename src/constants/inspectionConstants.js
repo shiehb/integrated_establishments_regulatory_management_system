@@ -47,7 +47,7 @@ export const statusDisplayMap = {
 // Role-based tabs configuration
 export const roleTabs = {
   'Admin': ['all_inspections'], // Admin can see all inspections in read-only mode
-  'Division Chief': ['all_inspections', 'review'],
+  'Division Chief': ['all_inspections', 'review', 'reviewed'],
   'Section Chief': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
   'Unit Head': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
   'Monitoring Personnel': ['assigned', 'in_progress', 'completed'],
@@ -58,6 +58,7 @@ export const roleTabs = {
 export const tabDisplayNames = {
   all_inspections: 'All Inspections',
   review: 'Review',
+  reviewed: 'Reviewed',
   received: 'Received',
   my_inspections: 'My Inspections',
   forwarded: 'Forwarded',

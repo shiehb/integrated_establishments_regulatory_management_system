@@ -98,23 +98,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if user.userlevel == 'Admin':
             pass  # Admin sees all
         elif user.userlevel == 'Division Chief':
-            if tab == 'all_inspections':
-                # Show ALL inspections they created - covers entire workflow
-                queryset = queryset.filter(created_by=user)
-            elif tab == 'review':
-                # Show inspections that need Division Chief review
-                # Includes section completed and section reviewed (awaiting division review)
-                queryset = queryset.filter(
-                    current_status__in=[
-                        'SECTION_COMPLETED_COMPLIANT',
-                        'SECTION_COMPLETED_NON_COMPLIANT',
-                        'SECTION_REVIEWED',
-                        'DIVISION_REVIEWED'
-                    ]
-                )
-            else:
-                # Default to all inspections created by them
-                queryset = queryset.filter(created_by=user)
+            queryset = self._filter_division_chief(queryset, user, tab)
         elif user.userlevel == 'Section Chief':
             queryset = self._filter_section_chief(queryset, user, tab)
         elif user.userlevel == 'Unit Head':
@@ -353,6 +337,30 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 current_status__in=['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS', 'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']
             )
     
+    def _filter_division_chief(self, queryset, user, tab):
+        """Filter for Division Chief based on tab"""
+        if tab == 'all_inspections':
+            # Show ALL inspections they created - covers entire workflow
+            return queryset.filter(created_by=user)
+        elif tab == 'review':
+            # Show inspections that need Division Chief review
+            # Includes section completed and section reviewed (awaiting division review)
+            return queryset.filter(
+                current_status__in=[
+                    'SECTION_COMPLETED_COMPLIANT',
+                    'SECTION_COMPLETED_NON_COMPLIANT',
+                    'SECTION_REVIEWED'
+                ]
+            )
+        elif tab == 'reviewed':
+            # Show inspections that Division Chief has reviewed (DIVISION_REVIEWED status)
+            return queryset.filter(
+                current_status='DIVISION_REVIEWED'
+            )
+        else:
+            # Default to all inspections created by them
+            return queryset.filter(created_by=user)
+
     def _filter_legal_unit(self, queryset, user, tab):
         """Filter for Legal Unit based on tab"""
         if tab == 'legal_review':
@@ -941,10 +949,30 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection = self.get_object()
         user = request.user
         
-        # Check if user can act
-        if inspection.assigned_to != user:
+        # Check if user can act based on role and status
+        can_act = False
+        
+        # Check if user is assigned to this inspection
+        if inspection.assigned_to == user:
+            can_act = True
+        else:
+            # Check if user can act based on role and status
+            user_level = user.userlevel
+            current_status = inspection.current_status
+            
+            # Monitoring Personnel can complete MONITORING_IN_PROGRESS inspections
+            if user_level == 'Monitoring Personnel' and current_status == 'MONITORING_IN_PROGRESS':
+                can_act = True
+            # Unit Head can complete UNIT_IN_PROGRESS inspections
+            elif user_level == 'Unit Head' and current_status == 'UNIT_IN_PROGRESS':
+                can_act = True
+            # Section Chief can complete SECTION_IN_PROGRESS inspections
+            elif user_level == 'Section Chief' and current_status == 'SECTION_IN_PROGRESS':
+                can_act = True
+        
+        if not can_act:
             return Response(
-                {'error': 'You are not assigned to this inspection'},
+                {'error': f'You are not authorized to complete this inspection. User: {user.userlevel}, Status: {inspection.current_status}, Assigned to: {inspection.assigned_to}'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
@@ -998,6 +1026,20 @@ class InspectionViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         data = serializer.validated_data
+        
+        # Handle violations_found from main payload (convert list to string if needed)
+        violations_found = data.get('violations_found', [])
+        if isinstance(violations_found, list):
+            violations_found_str = ', '.join(violations_found) if violations_found else ''
+        else:
+            violations_found_str = str(violations_found) if violations_found else ''
+        
+        # Update form with violations_found from main payload if not already set from form_data
+        if form_data and inspection.current_status == 'MONITORING_IN_PROGRESS':
+            form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+            if not form.violations_found and violations_found_str:
+                form.violations_found = violations_found_str
+            form.save()
         
         # Determine next status based on current status and compliance decision
         compliance_decision = data.get('compliance_decision', 'COMPLIANT')
@@ -1650,84 +1692,37 @@ class InspectionViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
         
-    @action(detail=True, methods=['post'])
-    def send_to_section(self, request, pk=None):
-        """Send inspection to Section Chief for review (Unit Head only)"""
-        inspection = self.get_object()
-        user = request.user
-        
-        # Check if user is Unit Head
-        if user.userlevel != 'Unit Head':
-            return Response(
-                {'error': 'Only Unit Heads can send to Section'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Check if in correct status
-        if inspection.current_status != 'UNIT_REVIEWED':
-            return Response(
-                {'error': 'Can only send to Section from Unit Reviewed status'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Get Section Chief assignee
-        next_assignee = inspection.get_next_assignee('SECTION_REVIEWED')
-        if not next_assignee:
-            return Response(
-                {'error': 'No Section Chief found for assignment'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        # Transition
-        prev_status = inspection.current_status
-        inspection.current_status = 'SECTION_REVIEWED'
-        inspection.assigned_to = next_assignee
-        inspection.save()
-        
-        # Log history
-        InspectionHistory.objects.create(
-            inspection=inspection,
-            previous_status=prev_status,
-            new_status='SECTION_REVIEWED',
-            changed_by=user,
-            remarks=request.data.get('remarks', 'Sent to Section Chief for review')
-        )
-        
-        serializer = self.get_serializer(inspection)
-        return Response(serializer.data)
     
     @action(detail=True, methods=['post'])
-    def send_to_division(self, request, pk=None):
-        """Send inspection to Division Chief for review (Section Chief only)"""
+    def review_division(self, request, pk=None):
+        """Division Chief reviews and marks as DIVISION_REVIEWED"""
         inspection = self.get_object()
         user = request.user
         
-        # Check if user is Section Chief
-        if user.userlevel != 'Section Chief':
+        # Check if user is Division Chief
+        if user.userlevel != 'Division Chief':
             return Response(
-                {'error': 'Only Section Chiefs can send to Division'},
+                {'error': 'Only Division Chiefs can perform this action'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Check if in correct status
+        # Check valid status
         if inspection.current_status != 'SECTION_REVIEWED':
             return Response(
-                {'error': 'Can only send to Division from Section Reviewed status'},
+                {'error': f'Cannot review from status {inspection.current_status}. Expected SECTION_REVIEWED.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get Division Chief assignee
-        next_assignee = inspection.get_next_assignee('DIVISION_REVIEWED')
-        if not next_assignee:
-            return Response(
-                {'error': 'No Division Chief found for assignment'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        # Validate other data using serializer
+        serializer = InspectionActionSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        # Transition
+        data = serializer.validated_data
+        
+        # Transition to DIVISION_REVIEWED
         prev_status = inspection.current_status
         inspection.current_status = 'DIVISION_REVIEWED'
-        inspection.assigned_to = next_assignee
         inspection.save()
         
         # Log history
@@ -1736,12 +1731,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
             previous_status=prev_status,
             new_status='DIVISION_REVIEWED',
             changed_by=user,
-            remarks=request.data.get('remarks', 'Sent to Division Chief for review')
+            remarks=data.get('remarks', 'Division Chief reviewed and marked as DIVISION_REVIEWED')
         )
         
-        serializer = self.get_serializer(inspection)
-        return Response(serializer.data)
-    
+        # Return updated inspection
+        response_serializer = InspectionSerializer(inspection, context={'request': request})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'])
     def forward_to_legal(self, request, pk=None):
         """Forward case to Legal Unit (Division Chief only)"""
@@ -2327,7 +2323,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Define tab mappings (simplified - use existing get_queryset logic)
         tab_list = {
-            'Division Chief': ['all_inspections', 'review'],
+            'Division Chief': ['all_inspections', 'review', 'reviewed'],
             'Section Chief': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
             'Unit Head': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
             'Monitoring Personnel': ['assigned', 'in_progress', 'completed'],

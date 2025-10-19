@@ -266,19 +266,8 @@ export const getAvailableEstablishments = async (params = {}) => {
 // Inspections - Updated for new backend
 // -------------------------------------------------
 export const getInspections = async (params = {}) => {
-  // Check cache first
-  const cacheKey = `inspections_${JSON.stringify(params)}`;
-  const cached = apiCache.get("inspections/", params);
-  if (cached) {
-    console.log("🚀 Cache hit for inspections");
-    return cached;
-  }
-
+  // Disable caching for inspections to ensure fresh data
   const res = await api.get("inspections/", { params });
-  
-  // Cache the response for 2 minutes
-  apiCache.set("inspections/", params, res.data, 2 * 60 * 1000);
-  
   return res.data;
 };
 

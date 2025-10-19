@@ -235,11 +235,15 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('MONITORING_IN_PROGRESS', 'Monitoring Personnel'): ['continue'],
             ('MONITORING_COMPLETED_COMPLIANT', 'Unit Head'): ['review'],  # NO forward, auto-assigned
             ('MONITORING_COMPLETED_NON_COMPLIANT', 'Unit Head'): ['review'],  # NO forward, auto-assigned
+            # Section Chief can review Monitoring completed when no Unit Head exists
+            ('MONITORING_COMPLETED_COMPLIANT', 'Section Chief'): ['review'],  # When no Unit Head
+            ('MONITORING_COMPLETED_NON_COMPLIANT', 'Section Chief'): ['review'],  # When no Unit Head
             
             # Review statuses (NO Forward button - removed as requested)
             ('UNIT_REVIEWED', 'Section Chief'): ['review'],
             ('SECTION_REVIEWED', 'Division Chief'): ['review'],
-            ('DIVISION_REVIEWED', 'Division Chief'): ['review', 'send_to_legal', 'close'],
+            # DIVISION_REVIEWED actions depend on compliance status - handled separately below
+            ('DIVISION_REVIEWED', 'Division Chief'): [],
             
             # Legal Unit actions
             ('LEGAL_REVIEW', 'Legal Unit'): ['review', 'close'],
@@ -250,6 +254,22 @@ class InspectionSerializer(serializers.ModelSerializer):
         key = (status, user.userlevel)
         available_actions = actions_map.get(key, [])
         
+        # Special case: DIVISION_REVIEWED - actions based on compliance status
+        if status == 'DIVISION_REVIEWED' and user.userlevel == 'Division Chief':
+            # Check compliance status from form data
+            try:
+                form = obj.form
+                compliance_decision = form.compliance_decision if hasattr(form, 'compliance_decision') else 'PENDING'
+                
+                if compliance_decision == 'COMPLIANT':
+                    # Compliant: Show close action (will be rendered as "Mark as Compliant")
+                    available_actions = ['close']
+                else:
+                    # Non-compliant: Show send_to_legal action
+                    available_actions = ['send_to_legal']
+            except:
+                # If no form data, default to both actions
+                available_actions = ['send_to_legal', 'close']
         
         # Special case: Unassigned users can assign to themselves
         if status in ['SECTION_ASSIGNED', 'UNIT_ASSIGNED'] and obj.assigned_to != user:
@@ -260,11 +280,6 @@ class InspectionSerializer(serializers.ModelSerializer):
         # Special case: Monitoring Personnel with MONITORING_ASSIGNED status
         if status == 'MONITORING_ASSIGNED' and user.userlevel == 'Monitoring Personnel':
             return ['inspect']
-        
-        # Special case: Division Chief in "all_inspections" tab should have no actions
-        # Check if this is a Division Chief viewing in "all_inspections" tab
-        if user.userlevel == 'Division Chief' and status != 'DIVISION_REVIEWED':
-            return []
         
         # Filter actions based on assignment status
         if obj.assigned_to == user:
@@ -279,11 +294,9 @@ class InspectionSerializer(serializers.ModelSerializer):
                 elif action == 'review' and user.userlevel in ['Unit Head', 'Section Chief', 'Division Chief']:
                     # Unit Head, Section Chief, and Division Chief can review inspections even if not assigned (for review tab)
                     filtered_actions.append(action)
-            
-            
-            # TEMPORARY FIX: If no actions found, return assign_to_me for Division Chief
-            if not filtered_actions and user.userlevel == 'Division Chief':
-                return ['assign_to_me']
+                elif action in ['send_to_legal', 'close'] and user.userlevel == 'Division Chief':
+                    # Division Chief can perform these actions even if not directly assigned
+                    filtered_actions.append(action)
             
             return filtered_actions
 
@@ -399,7 +412,11 @@ class InspectionActionSerializer(serializers.Serializer):
         choices=['COMPLIANT', 'NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
         required=False
     )
-    violations_found = serializers.CharField(required=False, allow_blank=True)
+    violations_found = serializers.ListField(
+        child=serializers.CharField(allow_blank=True),
+        required=False,
+        allow_empty=True
+    )
     findings_summary = serializers.CharField(required=False, allow_blank=True)
     
     # For form data

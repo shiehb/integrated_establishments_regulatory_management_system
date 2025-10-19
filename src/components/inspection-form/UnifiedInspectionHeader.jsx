@@ -10,36 +10,13 @@ export default function UnifiedInspectionHeader({
   onSave,
   onDraft,
   onClose,
-  onComplete,
   onBack,
   showBackButton = false,
-  onSendToSection,
-  onSendToDivision,
-  onSendToNextLevel,
-  onFinalize,
   onReview,
-  onForwardToLegal,
-  onSendNOV,
-  onSendNOO,
-  onSaveRecommendation,
-  onMarkAsCompliant,
   lastSaveTime,
   autoSaveStatus = 'saved',
-  showCompleteButton = false,
-  showSendToSectionButton = false,
-  showSendToDivisionButton = false,
-  showSendToNextLevelButton = false,
-  nextLevelName = 'Next Level',
-  showFinalizeButton = false,
-  showReviewButton = false,
-  showForwardToLegalButton = false,
-  showSendNOVButton = false,
-  showSendNOOButton = false,
-  showSaveRecommendationButton = false,
-  showMarkAsCompliantButton = false,
   showDraftButton = false,
   showSubmitButton = false,
-  showSubmitForReviewButton = false,
   showCloseButton = false,
   isDraft = false,
   complianceStatus = null,
@@ -147,10 +124,10 @@ export default function UnifiedInspectionHeader({
             {showBackButton && (
               <button
                 onClick={onBack}
-                className="flex items-center px-3 py-1 text-sm text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+                className="flex items-center px-3 py-1 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
               >
                 <ArrowLeft className="w-4 h-4 mr-1" />
-                Back to Review
+                Back
               </button>
             )}
             
@@ -184,123 +161,13 @@ export default function UnifiedInspectionHeader({
               </button>
             )}
             
-            {showSubmitForReviewButton && (
-              <button
-                onClick={onComplete}
-                className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
-              >
-                <FileCheck className="w-4 h-4 mr-1" />
-                Submit
-              </button>
-            )}
-            
-            {showCompleteButton && (
-              <button
-                onClick={onComplete}
-                className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
-              >
-                <FileCheck className="w-4 h-4 mr-1" />
-                Submit
-              </button>
-            )}
-            
-            {showSendToSectionButton && (
-              <button
-                onClick={onSendToSection}
-                className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
-              >
-                <UserCheck className="w-4 h-4 mr-1" />
-                Send to Section
-              </button>
-            )}
-            
-            {showSendToDivisionButton && (
-              <button
-                onClick={onSendToDivision}
-                className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
-              >
-                <Users className="w-4 h-4 mr-1" />
-                Send to Division
-              </button>
-            )}
-            
-            {showReviewButton && (
+            {onReview && (
               <button
                 onClick={onReview}
                 className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
               >
                 <FileCheck className="w-4 h-4 mr-1" />
                 Review Form
-              </button>
-            )}
-            
-            {showSendToNextLevelButton && (
-              <button
-                onClick={onSendToNextLevel}
-                className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
-              >
-                <CornerDownLeft className="w-4 h-4 mr-1" />
-                Send to {nextLevelName}
-              </button>
-            )}
-            
-            {showForwardToLegalButton && (
-              <button
-                onClick={onForwardToLegal}
-                className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
-              >
-                <Scale className="w-4 h-4 mr-1" />
-                Send to Legal
-              </button>
-            )}
-            
-            {showFinalizeButton && (
-              <button
-                onClick={onFinalize}
-                className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
-              >
-                <FileCheck className="w-4 h-4 mr-1" />
-                Close Form
-              </button>
-            )}
-            
-            {showSendNOVButton && (
-              <button
-                onClick={onSendNOV}
-                className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
-              >
-                <Mail className="w-4 h-4 mr-1" />
-                Send NOV
-              </button>
-            )}
-            
-            {showSendNOOButton && (
-              <button
-                onClick={onSendNOO}
-                className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700"
-              >
-                <FileText className="w-4 h-4 mr-1" />
-                Send NOO
-              </button>
-            )}
-            
-            {showSaveRecommendationButton && (
-              <button
-                onClick={onSaveRecommendation}
-                className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
-              >
-                <Save className="w-4 h-4 mr-1" />
-                Save Recommendation
-              </button>
-            )}
-            
-            {showMarkAsCompliantButton && (
-              <button
-                onClick={onMarkAsCompliant}
-                className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
-              >
-                <CheckSquare className="w-4 h-4 mr-1" />
-                Mark as Compliant
               </button>
             )}
           </div>

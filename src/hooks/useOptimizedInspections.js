@@ -21,10 +21,8 @@ export const useOptimizedInspections = (userLevel, currentUser) => {
         setLoading(true);
         setError(null);
         
-        const response = await cachedApiCall(getInspections, params, {
-          ttl: 2 * 60 * 1000, // 2 minutes cache for inspections
-          cacheKey: `inspections_${JSON.stringify(params)}`
-        });
+        // Call API directly without caching for fresh data
+        const response = await getInspections(params);
         
         if (response.results) {
           setInspections(response.results);
@@ -52,7 +50,7 @@ export const useOptimizedInspections = (userLevel, currentUser) => {
         setLoading(false);
       }
     }, 300),
-    [cachedApiCall]
+    []
   );
 
   // Optimized tab counts fetching - single API call instead of multiple

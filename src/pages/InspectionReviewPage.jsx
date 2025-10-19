@@ -5,6 +5,7 @@ import { useNotifications } from '../components/NotificationManager';
 import api from '../services/api';
 import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck, Printer, Edit, X, UserCheck, Users, Building, CheckSquare, Scale, Mail, FileText, CornerDownLeft } from 'lucide-react';
 import LayoutForm from '../components/LayoutForm';
+import { getButtonVisibility as getRoleStatusButtonVisibility, canUserAccessInspection } from '../utils/roleStatusMatrix';
 
 const InspectionReviewPage = () => {
   const { id } = useParams();
@@ -15,6 +16,15 @@ const InspectionReviewPage = () => {
   
   const urlParams = new URLSearchParams(location.search);
   const mode = urlParams.get('mode') || 'review';
+  const reviewApproval = urlParams.get('reviewApproval') === 'true';
+  
+  console.log('🔍 InspectionReviewPage loaded with:', {
+    id,
+    mode,
+    reviewApproval,
+    search: location.search,
+    state: location.state
+  });
   
   const [inspectionData, setInspectionData] = useState(null);
   const [formData, setFormData] = useState(null);
@@ -139,96 +149,119 @@ const InspectionReviewPage = () => {
     return formData?.compliance_status || 'PENDING';
   };
 
-  const handleBackToEdit = () => {
-    navigate(-1);
-  };
+  // Removed unused functions - navigation is handled directly in buttons
 
-  const handleEdit = () => {
-    navigate(`/inspections/${id}/form?returnTo=review`);
-  };
 
-  const handleSubmit = async () => {
-    setLoading(true);
-    try {
-      if (mode === 'preview') {
-        // Submit inspection
-        await handlePreviewSubmit();
-      } else {
-        // Handle review action
-        await handleReviewAction();
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      notifications.error(error.response?.data?.message || 'Action failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePreviewSubmit = async () => {
-    // Extract compliance decision from form data
-    const complianceObservations = formData?.general?.compliance_observations || 'COMPLIANT';
-    
-    // Determine the correct endpoint based on current status and user level
-    let endpoint;
-    let payload = {
-      form_data: formData,
-      compliance_decision: complianceObservations
-    };
-
-    // Check current status and user level to determine correct endpoint
-    if (inspectionData?.current_status === 'MONITORING_COMPLETED_COMPLIANT' || 
-        inspectionData?.current_status === 'MONITORING_COMPLETED_NON_COMPLIANT') {
-      // Unit Head reviewing monitoring completed inspections
-      if (currentUser?.userlevel === 'Unit Head') {
-        endpoint = `inspections/${id}/review_and_forward_unit/`;
-      } else {
-        // Fallback to complete endpoint for other users
-        endpoint = `inspections/${id}/complete/`;
-      }
-    } else if (inspectionData?.current_status === 'UNIT_REVIEWED') {
-      // Section Chief reviewing unit reviewed inspections
-      if (currentUser?.userlevel === 'Section Chief') {
-        endpoint = `inspections/${id}/review_and_forward_section/`;
-      } else {
-        // Fallback to complete endpoint for other users
-        endpoint = `inspections/${id}/complete/`;
-      }
-    } else {
-      // Default to complete endpoint for other statuses
-      endpoint = `inspections/${id}/complete/`;
-    }
-
-    await api.post(endpoint, payload);
-    notifications.success('Inspection submitted successfully!');
-    navigate('/inspections');
-  };
 
   const handleReviewAction = async () => {
     const endpoints = {
       approve_unit: `inspections/${id}/review_and_forward_unit/`,
       approve_section: `inspections/${id}/review_and_forward_section/`,
+      review_division: `inspections/${id}/review_division/`,
       approve_division: `inspections/${id}/close/`,
       forward_legal: `inspections/${id}/forward_to_legal/`,
       send_nov: `inspections/${id}/send_nov/`,
       send_noo: `inspections/${id}/send_noo/`,
       reject: `inspections/${id}/return_to_division/`,
-      mark_compliant: `inspections/${id}/close/`
+      mark_compliant: `inspections/${id}/close/`,
+      save_and_submit: `inspections/${id}/complete/`,
+      save_and_approve: `inspections/${id}/complete/`
     };
 
-    const endpoint = endpoints[actionType];
-    if (!endpoint) return;
+    let endpoint = endpoints[actionType];
+    if (!endpoint) {
+      notifications.error('Invalid action type');
+      return;
+    }
 
     // Prepare payload based on action type
     let payload = {};
     if (actionType === 'mark_compliant') {
       payload = { final_status: 'CLOSED_COMPLIANT' };
+    } else if (actionType === 'forward_legal') {
+      payload = { remarks: 'Forwarded to Legal Unit for enforcement' };
+    } else if (actionType === 'approve_unit') {
+      payload = { remarks: 'Unit Head approved and forwarded to Section Chief' };
+    } else if (actionType === 'approve_section') {
+      payload = { remarks: 'Section Chief approved and forwarded to Division Chief' };
+    } else if (actionType === 'review_division') {
+      payload = { remarks: 'Division Chief reviewed and marked as DIVISION_REVIEWED' };
+    } else if (actionType === 'save_and_submit') {
+      // Complete inspection from preview
+      const userLevel = currentUser?.userlevel;
+      const complianceDecision = getComplianceStatus();
+      
+      console.log('🔍 Save & Submit debug:', {
+        userLevel,
+        actionType,
+        endpoint,
+        complianceDecision,
+        formData: !!formData
+      });
+      
+      payload = {
+        form_data: formData,
+        compliance_decision: complianceDecision,
+        violations_found: [],
+        findings_summary: 'Inspection completed',
+        remarks: `Inspection completed by ${userLevel}`
+      };
+    } else if (actionType === 'save_and_approve') {
+      // Complete inspection and approve from preview (after edit from review)
+      // Role-specific approval based on current user
+      const userLevel = currentUser?.userlevel;
+      const complianceDecision = getComplianceStatus();
+      
+      if (userLevel === 'Unit Head') {
+        // Unit Head approving - use review_and_forward_unit endpoint
+        endpoint = `inspections/${id}/review_and_forward_unit/`;
+        payload = {
+          form_data: formData,
+          compliance_decision: complianceDecision,
+          remarks: 'Unit Head approved and forwarded to Section Chief'
+        };
+      } else if (userLevel === 'Section Chief') {
+        // Section Chief approving - use review_and_forward_section endpoint
+        endpoint = `inspections/${id}/review_and_forward_section/`;
+        payload = {
+          form_data: formData,
+          compliance_decision: complianceDecision,
+          remarks: 'Section Chief approved and forwarded to Division Chief'
+        };
+      } else if (userLevel === 'Division Chief') {
+        // Division Chief approving - use close endpoint
+        endpoint = `inspections/${id}/close/`;
+        payload = {
+          form_data: formData,
+          compliance_decision: complianceDecision,
+          final_status: complianceDecision === 'COMPLIANT' ? 'CLOSED_COMPLIANT' : 'LEGAL_REVIEW',
+          remarks: 'Division Chief approved and closed'
+        };
+      } else {
+        // Fallback to complete endpoint
+        payload = {
+          form_data: formData,
+          compliance_decision: complianceDecision,
+          violations_found: [],
+          findings_summary: 'Inspection completed and approved',
+          remarks: 'Inspection completed and approved by reviewer'
+        };
+      }
     }
 
-    await api.post(endpoint, payload);
-    notifications.success('Action completed successfully!');
-    setShowConfirm(false);
-    navigate('/inspections');
+    try {
+      console.log('🚀 Making API call:', { endpoint, payload });
+      await api.post(endpoint, payload);
+      notifications.success('Action completed successfully!');
+      setShowConfirm(false);
+      navigate('/inspections');
+    } catch (error) {
+      console.error('❌ Error executing review action:', error);
+      console.error('❌ Error response:', error.response?.data);
+      notifications.error(
+        error.response?.data?.error || error.response?.data?.message || 'Action failed'
+      );
+    }
   };
 
   const handleActionClick = (type) => {
@@ -272,6 +305,46 @@ const InspectionReviewPage = () => {
   const systems = formData.systems || [];
   const recommendations = formData.recommendationState || {};
 
+  // Get button visibility using unified role-status matrix
+  const getButtonVisibility = () => {
+    const userLevel = currentUser?.userlevel;
+    const status = inspectionData?.current_status;
+    
+    // Check if we're in preview mode
+    const isPreviewMode = mode === 'preview';
+    
+    // Check if user can access this inspection
+    const canAccess = canUserAccessInspection(userLevel, status);
+    if (!canAccess) {
+      console.warn(`🚫 User ${userLevel} cannot access inspection with status ${status}`);
+      return {
+        showCloseButton: false,
+        showBackButton: false,
+        showSaveSubmitButton: false
+      };
+    }
+    
+    // Get button visibility from unified role-status matrix
+    const roleStatusConfig = getRoleStatusButtonVisibility(userLevel, status, isPreviewMode, null, reviewApproval);
+    
+    console.log('🔍 InspectionReviewPage button visibility debug:', {
+      userLevel,
+      status,
+      isPreviewMode,
+      reviewApproval,
+      canAccess,
+      roleStatusConfig
+    });
+
+    return {
+      showCloseButton: roleStatusConfig.showClose,
+      showBackButton: roleStatusConfig.showBack,
+      showSaveSubmitButton: !isPreviewMode || reviewApproval || (isPreviewMode && roleStatusConfig.showBack) // Show Save & Submit in preview mode for in-progress statuses or when reviewApproval is true
+    };
+  };
+
+  const buttonVisibility = getButtonVisibility();
+
 
   // Custom header for review page
   const reviewHeader = (
@@ -286,26 +359,62 @@ const InspectionReviewPage = () => {
 
           {/* Right: Action Buttons */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleBackToEdit}
-              className="flex items-center px-3 py-1 text-sm text-gray-700 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
-              disabled={loading}
-            >
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Back
-            </button>
-            {mode === 'review' ? (
+            {mode === 'preview' ? (
               <>
-                {/* Review Mode: Show Edit + Review Buttons */}
+                {/* Preview Mode: Use unified button visibility logic */}
+                {buttonVisibility.showBackButton && (
+                  <button
+                    onClick={() => navigate(`/inspections/${id}/form?returnTo=review&reviewMode=true`)}
+                    className="flex items-center px-3 py-1 text-sm text-black bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Back
+                  </button>
+                )}
+                {buttonVisibility.showCloseButton && (
                 <button
-                  onClick={handleEdit}
-                  className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
+                  onClick={() => navigate('/inspections')}
+                    className="flex items-center px-3 py-1 text-sm text-black bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Close
+                </button>
+                )}
+                {buttonVisibility.showSaveSubmitButton && (
+                <button
+                  onClick={() => handleActionClick(reviewApproval ? 'save_and_approve' : 'save_and_submit')}
+                  className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
+                  disabled={loading}
+                >
+                  <FileCheck className="w-4 h-4 mr-1" />
+                  {reviewApproval ? 'Save & Approve' : 'Save & Submit'}
+                </button>
+                )}
+              </>
+            ) : mode === 'review' ? (
+              <>
+                {/* Review Mode: Show Edit Inspection and Approve buttons */}
+                <button
+                  onClick={() => navigate('/inspections')}
+                  className="flex items-center px-3 py-1 text-sm text-black bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Close
+                </button>
+                {/* Hide Edit Inspection button for Division Chief viewing SECTION_REVIEWED or DIVISION_REVIEWED status */}
+                {!(currentUser?.userlevel === 'Division Chief' && (inspectionData?.current_status === 'SECTION_REVIEWED' || inspectionData?.current_status === 'DIVISION_REVIEWED')) && (
+                <button
+                  onClick={() => navigate(`/inspections/${id}/form?returnTo=review&reviewMode=true`)}
+                  className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
                 >
                   <Edit className="w-4 h-4 mr-1" />
                   Edit Inspection
                 </button>
-
-                {!userLoading && currentUser?.userlevel === 'Unit Head' && inspectionData?.current_status === 'MONITORING_COMPLETED_COMPLIANT' && (
+                )}
+                {/* Show Approve button based on user role and status */}
+                {!userLoading && currentUser?.userlevel === 'Unit Head' && 
+                 (inspectionData?.current_status === 'MONITORING_COMPLETED_COMPLIANT' || 
+                  inspectionData?.current_status === 'MONITORING_COMPLETED_NON_COMPLIANT') && (
                   <button
                     onClick={() => handleActionClick('approve_unit')}
                     className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
@@ -315,19 +424,12 @@ const InspectionReviewPage = () => {
                     Approve
                   </button>
                 )}
-
-                {!userLoading && currentUser?.userlevel === 'Unit Head' && inspectionData?.current_status === 'MONITORING_COMPLETED_NON_COMPLIANT' && (
-                  <button
-                    onClick={() => handleActionClick('approve_unit')}
-                    className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
-                    disabled={loading}
-                  >
-                    <UserCheck className="w-4 h-4 mr-1" />
-                    Approve
-                  </button>
-                )}
-
-                {!userLoading && currentUser?.userlevel === 'Section Chief' && inspectionData?.current_status === 'UNIT_COMPLETED_COMPLIANT' && (
+                {!userLoading && currentUser?.userlevel === 'Section Chief' && 
+                 (inspectionData?.current_status === 'UNIT_COMPLETED_COMPLIANT' || 
+                  inspectionData?.current_status === 'UNIT_COMPLETED_NON_COMPLIANT' ||
+                  inspectionData?.current_status === 'UNIT_REVIEWED' ||
+                  inspectionData?.current_status === 'MONITORING_COMPLETED_COMPLIANT' ||
+                  inspectionData?.current_status === 'MONITORING_COMPLETED_NON_COMPLIANT') && (
                   <button
                     onClick={() => handleActionClick('approve_section')}
                     className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
@@ -337,133 +439,58 @@ const InspectionReviewPage = () => {
                     Approve
                   </button>
                 )}
-
-                {!userLoading && currentUser?.userlevel === 'Section Chief' && inspectionData?.current_status === 'UNIT_COMPLETED_NON_COMPLIANT' && (
-                  <button
-                    onClick={() => handleActionClick('approve_section')}
-                    className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
-                    disabled={loading}
-                  >
-                    <Users className="w-4 h-4 mr-1" />
-                    Approve
-                  </button>
-                )}
-
-                {!userLoading && currentUser?.userlevel === 'Section Chief' && inspectionData?.current_status === 'UNIT_REVIEWED' && (
-                  <button
-                    onClick={() => handleActionClick('approve_section')}
-                    className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
-                    disabled={loading}
-                  >
-                    <Users className="w-4 h-4 mr-1" />
-                    Approve
-                  </button>
-                )}
-
-                {!userLoading && currentUser?.userlevel === 'Division Chief' && inspectionData?.current_status === 'SECTION_COMPLETED_COMPLIANT' && (
+                {!userLoading && currentUser?.userlevel === 'Division Chief' && 
+                 (inspectionData?.current_status === 'SECTION_COMPLETED_COMPLIANT' || 
+                  inspectionData?.current_status === 'SECTION_COMPLETED_NON_COMPLIANT' ||
+                  inspectionData?.current_status === 'SECTION_REVIEWED' ||
+                  inspectionData?.current_status === 'DIVISION_REVIEWED') && (
                   <>
-                    <button
-                      onClick={() => handleActionClick('mark_compliant')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
-                      disabled={loading}
-                    >
-                      <CheckSquare className="w-4 h-4 mr-1" />
-                      Mark Compliant
-                    </button>
-                    <button
-                      onClick={() => handleActionClick('forward_legal')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
-                      disabled={loading}
-                    >
-                      <Scale className="w-4 h-4 mr-1" />
-                      Forward to Legal
-                    </button>
-                    <button
-                      onClick={() => handleActionClick('approve_division')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
-                      disabled={loading}
-                    >
-                      <Building className="w-4 h-4 mr-1" />
-                      Approve & Close
-                    </button>
-                  </>
-                )}
-
-                {!userLoading && currentUser?.userlevel === 'Division Chief' && inspectionData?.current_status === 'SECTION_COMPLETED_NON_COMPLIANT' && (
+                    {/* Show "Reviewed" button for SECTION_REVIEWED to transition to DIVISION_REVIEWED */}
+                    {inspectionData?.current_status === 'SECTION_REVIEWED' && (
+                      <button
+                        onClick={() => handleActionClick('review_division')}
+                        className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
+                        disabled={loading}
+                      >
+                        <CheckCircle className="w-4 h-4 mr-1" />
+                        Reviewed
+                      </button>
+                    )}
+                    
+                    {/* Show compliance-based buttons for DIVISION_REVIEWED or completed statuses */}
+                    {(inspectionData?.current_status === 'DIVISION_REVIEWED' ||
+                      inspectionData?.current_status === 'SECTION_COMPLETED_COMPLIANT' ||
+                      inspectionData?.current_status === 'SECTION_COMPLETED_NON_COMPLIANT') && (
                   <>
-                    <button
-                      onClick={() => handleActionClick('mark_compliant')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
-                      disabled={loading}
-                    >
-                      <CheckSquare className="w-4 h-4 mr-1" />
-                      Mark Compliant
-                    </button>
-                    <button
-                      onClick={() => handleActionClick('forward_legal')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
-                      disabled={loading}
-                    >
-                      <Scale className="w-4 h-4 mr-1" />
-                      Forward to Legal
-                    </button>
-                    <button
-                      onClick={() => handleActionClick('approve_division')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
-                      disabled={loading}
-                    >
-                      <Building className="w-4 h-4 mr-1" />
-                      Approve & Close
-                    </button>
-                  </>
-                )}
-
-                {!userLoading && currentUser?.userlevel === 'Legal Unit' && inspectionData?.current_status === 'LEGAL_REVIEW' && (
-                  <>
-                    <button
-                      onClick={() => handleActionClick('send_nov')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
-                      disabled={loading}
-                    >
-                      <Mail className="w-4 h-4 mr-1" />
-                      Send NOV
-                    </button>
-                    <button
-                      onClick={() => handleActionClick('send_noo')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
-                      disabled={loading}
-                    >
-                      <FileText className="w-4 h-4 mr-1" />
-                      Send NOO
-                    </button>
-                    <button
-                      onClick={() => handleActionClick('reject')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
-                      disabled={loading}
-                    >
-                      <CornerDownLeft className="w-4 h-4 mr-1" />
-                      Return to Division
-                    </button>
+                    {complianceStatus === 'COMPLIANT' ? (
+                      <button
+                        onClick={() => handleActionClick('mark_compliant')}
+                        className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
+                        disabled={loading}
+                      >
+                        <CheckSquare className="w-4 h-4 mr-1" />
+                        Mark as Compliant
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleActionClick('forward_legal')}
+                        className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
+                        disabled={loading}
+                      >
+                        <Scale className="w-4 h-4 mr-1" />
+                        Send to Legal
+                      </button>
+                        )}
+                      </>
+                    )}
                   </>
                 )}
               </>
-            ) : (
-              <>
-                {/* Preview Mode: Show ONLY Save & Review Button */}
-                <button
-                  onClick={() => setShowConfirm(true)}
-                  className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
-                  disabled={loading}
-                >
-                  <Send className="w-4 h-4 mr-1" />
-                  {loading ? 'Saving...' : 'Save & Review'}
-                </button>
-              </>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
-  );
+    );
 
   return (
     <LayoutForm headerHeight="small" inspectionHeader={reviewHeader}>
@@ -916,13 +943,29 @@ const InspectionReviewPage = () => {
           <div className="fixed inset-0 bg-white/30 backdrop-blur-md flex items-center justify-center z-50 print:hidden">
             <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full mx-4 p-6 border border-gray-200">
               <h3 className="text-lg font-semibold mb-4">
-                {mode === 'preview' ? 'Confirm Save & Review' : 'Confirm Action'}
+                {actionType === 'save_and_submit' ? 'Confirm Save & Submit' :
+                 actionType === 'save_and_approve' ? 'Confirm Save & Approve' :
+                 actionType === 'mark_compliant' ? 'Mark as Compliant' :
+                 actionType === 'forward_legal' ? 'Send to Legal' :
+                 actionType === 'approve_unit' ? 'Approve & Forward' :
+                 actionType === 'approve_section' ? 'Approve & Forward' :
+                 'Confirm Action'}
               </h3>
               
               <p className="text-gray-700 mb-4">
-                {mode === 'preview' 
-                  ? 'This will save the inspection data to the database and forward it to the next review level. Please ensure all information is correct before proceeding.'
-                  : 'Are you sure you want to proceed with this action?'
+                {actionType === 'save_and_submit' 
+                  ? 'This will complete the inspection and change its status to completed. Please ensure all information is correct before proceeding.'
+                  : actionType === 'save_and_approve' 
+                    ? 'This will save the inspection changes and approve it for the next review level. Please ensure all information is correct before proceeding.'
+                    : actionType === 'mark_compliant' 
+                      ? 'This will mark the inspection as compliant and close the case. The establishment will be considered in full compliance.'
+                      : actionType === 'forward_legal' 
+                        ? 'This will forward the inspection to the Legal Unit for enforcement action. The case will be marked for legal review.'
+                        : actionType === 'approve_unit' 
+                          ? 'This will approve the inspection and forward it to the Section Chief for review.'
+                          : actionType === 'approve_section' 
+                            ? 'This will approve the inspection and forward it to the Division Chief for review.'
+                            : 'Are you sure you want to proceed with this action?'
                 }
               </p>
 
@@ -935,11 +978,18 @@ const InspectionReviewPage = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={handleSubmit}
+                  onClick={handleReviewAction}
                   className="px-4 py-2 text-white bg-sky-600 rounded-md hover:bg-sky-700 font-semibold"
                   disabled={loading}
                 >
-                  {loading ? 'Processing...' : 'Confirm'}
+                  {loading ? 'Processing...' : 
+                   actionType === 'save_and_submit' ? 'Save & Submit' :
+                   actionType === 'save_and_approve' ? 'Save & Approve' :
+                   actionType === 'mark_compliant' ? 'Mark as Compliant' :
+                   actionType === 'forward_legal' ? 'Send to Legal' :
+                   actionType === 'approve_unit' ? 'Approve & Forward' :
+                   actionType === 'approve_section' ? 'Approve & Forward' :
+                   'Confirm'}
                 </button>
               </div>
             </div>

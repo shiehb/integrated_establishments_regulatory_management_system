@@ -510,7 +510,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     dateFrom,
     dateTo,
     showOnlyMyAssignments,
-    sortConfig,
+    sortConfig.key,
+    sortConfig.direction,
     activeTab, 
     currentUser, 
     fetchInspections
@@ -597,9 +598,20 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     
     // 3. "Review" button - View completed work (navigate to review page)
     if (action === 'review') {
-      // Navigate to inspection review page for viewing/reviewing
-      window.location.href = `/inspections/${inspectionId}/review`;
-      return;
+      try {
+        // First call the backend review action to verify access
+        await handleAction(action, inspectionId);
+        // Then navigate to inspection review page
+        window.location.href = `/inspections/${inspectionId}/review`;
+        return;
+      } catch (error) {
+        console.error('Error accessing review:', error);
+        notifications.error(
+          `Error accessing review: ${error.message}`, 
+          { title: 'Access Denied' }
+        );
+        return;
+      }
     }
     
     // 4. "Forward" button - Delegate/send up (show monitoring modal or confirmation dialog)
@@ -622,8 +634,15 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       return;
     }
     
-    // 5. "Send to Legal" / "Close" buttons - Final actions (show confirmation dialog)
+    // 5. "Send to Legal" / "Close" buttons - Final actions
     if (action === 'send_to_legal' || action === 'close') {
+      // Special case: In "reviewed" tab with DIVISION_REVIEWED status, navigate to review page
+      if (activeTab === 'reviewed' && inspection.current_status === 'DIVISION_REVIEWED' && userLevel === 'Division Chief') {
+        window.location.href = `/inspections/${inspectionId}/review`;
+        return;
+      }
+      
+      // Default: show confirmation dialog
       setActionConfirmation({ 
         open: true, 
         inspection, 
@@ -784,7 +803,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     }
   }, [fetchAllInspections, notifications]);
 
-  // Fetch user profile
+  // Fetch user profile (only once on mount)
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
@@ -808,12 +827,30 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       }
     };
     fetchUserProfile();
-  }, [userLevel, activeTab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only fetch on mount, not on every tab change
 
   // Fetch inspections when dependencies change
   useEffect(() => {
-    fetchAllInspections();
-  }, [refreshTrigger, fetchAllInspections, currentUser]);
+    if (currentUser) {
+      fetchAllInspections();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    currentPage, 
+    pageSize, 
+    activeTab, 
+    debouncedSearchQuery,
+    lawFilter.join(','), // Convert array to string for proper comparison
+    dateFrom,
+    dateTo,
+    showOnlyMyAssignments,
+    sortConfig.key,
+    sortConfig.direction,
+    refreshTrigger,
+    currentUser
+    // Note: fetchAllInspections is intentionally excluded to prevent infinite loop
+  ]);
 
   // Refresh data when refreshTrigger changes
   useEffect(() => {
