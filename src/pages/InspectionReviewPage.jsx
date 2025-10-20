@@ -484,8 +484,8 @@ const InspectionReviewPage = () => {
                   <X className="w-4 h-4 mr-1" />
                   Close
                 </button>
-                {/* Hide Edit Inspection button for Division Chief viewing SECTION_REVIEWED or DIVISION_REVIEWED status */}
-                {!(currentUser?.userlevel === 'Division Chief' && (inspectionData?.current_status === 'SECTION_REVIEWED' || inspectionData?.current_status === 'DIVISION_REVIEWED')) && (
+                {/* Hide Edit Inspection button for Division Chief */}
+                {currentUser?.userlevel !== 'Division Chief' && (
                 <button
                   onClick={() => navigate(`/inspections/${id}/form?returnTo=review&reviewMode=true`)}
                   className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
@@ -528,41 +528,65 @@ const InspectionReviewPage = () => {
                   inspectionData?.current_status === 'SECTION_REVIEWED' ||
                   inspectionData?.current_status === 'DIVISION_REVIEWED') && (
                   <>
-                    {/* Show "Reviewed" button for SECTION_REVIEWED to transition to DIVISION_REVIEWED */}
-                    {inspectionData?.current_status === 'SECTION_REVIEWED' && (
-                      <button
-                        onClick={() => handleActionClick('review_division')}
-                        className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
-                        disabled={loading}
-                      >
-                        <CheckCircle className="w-4 h-4 mr-1" />
-                        Reviewed
-                      </button>
-                    )}
-                    
-                    {/* Show compliance-based buttons for DIVISION_REVIEWED or completed statuses */}
-                    {(inspectionData?.current_status === 'DIVISION_REVIEWED' ||
+                    {/* For SECTION_REVIEWED and SECTION_COMPLETED_* statuses */}
+                    {(inspectionData?.current_status === 'SECTION_REVIEWED' ||
                       inspectionData?.current_status === 'SECTION_COMPLETED_COMPLIANT' ||
                       inspectionData?.current_status === 'SECTION_COMPLETED_NON_COMPLIANT') && (
-                  <>
-                    {complianceStatus === 'COMPLIANT' ? (
-                      <button
-                        onClick={() => handleActionClick('mark_compliant')}
-                        className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
-                        disabled={loading}
-                      >
-                        <CheckSquare className="w-4 h-4 mr-1" />
-                        Mark as Compliant
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleActionClick('forward_legal')}
-                        className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
-                        disabled={loading}
-                      >
-                        <Scale className="w-4 h-4 mr-1" />
-                        Send to Legal
-                      </button>
+                      <>
+                        {/* Always show "Reviewed" button for these statuses */}
+                        <button
+                          onClick={() => handleActionClick('review_division')}
+                          className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
+                          disabled={loading}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Reviewed
+                        </button>
+                        
+                        {/* Show compliance-based action button */}
+                        {complianceStatus === 'COMPLIANT' ? (
+                          <button
+                            onClick={() => handleActionClick('mark_compliant')}
+                            className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
+                            disabled={loading}
+                          >
+                            <CheckSquare className="w-4 h-4 mr-1" />
+                            Mark as Compliant
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleActionClick('forward_legal')}
+                            className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
+                            disabled={loading}
+                          >
+                            <Scale className="w-4 h-4 mr-1" />
+                            Send to Legal
+                          </button>
+                        )}
+                      </>
+                    )}
+                    
+                    {/* For DIVISION_REVIEWED status - only show compliance action */}
+                    {inspectionData?.current_status === 'DIVISION_REVIEWED' && (
+                      <>
+                        {complianceStatus === 'COMPLIANT' ? (
+                          <button
+                            onClick={() => handleActionClick('mark_compliant')}
+                            className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
+                            disabled={loading}
+                          >
+                            <CheckSquare className="w-4 h-4 mr-1" />
+                            Mark as Compliant
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleActionClick('forward_legal')}
+                            className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
+                            disabled={loading}
+                          >
+                            <Scale className="w-4 h-4 mr-1" />
+                            Send to Legal
+                          </button>
                         )}
                       </>
                     )}
