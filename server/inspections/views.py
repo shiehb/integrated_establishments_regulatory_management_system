@@ -206,16 +206,28 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         elif tab == 'review':
             # Show inspections that need Section Chief review (completed work from Unit/Monitoring)
-            return queryset.filter(
-                law_filter,
-                current_status__in=[
-                    'UNIT_COMPLETED_COMPLIANT',
-                    'UNIT_COMPLETED_NON_COMPLIANT',
-                    'MONITORING_COMPLETED_COMPLIANT',
-                    'MONITORING_COMPLETED_NON_COMPLIANT',
-                    'UNIT_REVIEWED'
-                ]
-            )
+            # Differentiate based on section type
+            if user.section == 'PD-1586,RA-8749,RA-9275':
+                # Combined section: has Unit Head in hierarchy
+                # Show ONLY Unit completed work and Unit reviewed (monitoring goes through Unit Head)
+                return queryset.filter(
+                    law_filter,
+                    current_status__in=[
+                        'UNIT_COMPLETED_COMPLIANT',
+                        'UNIT_COMPLETED_NON_COMPLIANT',
+                        'UNIT_REVIEWED'
+                    ]
+                )
+            else:
+                # Individual sections: NO Unit Head, goes directly to Monitoring
+                # Show only Monitoring completed work
+                return queryset.filter(
+                    law_filter,
+                    current_status__in=[
+                        'MONITORING_COMPLETED_COMPLIANT',
+                        'MONITORING_COMPLETED_NON_COMPLIANT'
+                    ]
+                )
         elif tab == 'compliance':
             # Show final status inspections (completed work through entire workflow)
             return queryset.filter(
@@ -1355,25 +1367,48 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
     
     def _auto_assign_to_unit_head(self, inspection, user):
-        """Auto-assign to Unit Head for review (status unchanged)"""
-        # Find Unit Head based on law
-        unit_head = User.objects.filter(
-            userlevel='Unit Head',
-            section=inspection.law,
-            is_active=True
-        ).first()
+        """Auto-assign to Unit Head (combined section) or Section Chief (individual section) for review"""
+        # Check if this is a combined section inspection
+        is_combined_section = inspection.law in ['PD-1586', 'RA-8749', 'RA-9275']
         
-        if unit_head:
-            inspection.assigned_to = unit_head
-            inspection.save()
+        if is_combined_section:
+            # Combined section: Assign to Unit Head
+            unit_head = User.objects.filter(
+                userlevel='Unit Head',
+                section=inspection.law,
+                is_active=True
+            ).first()
             
-            InspectionHistory.objects.create(
-                inspection=inspection,
-                previous_status=inspection.current_status,
-                new_status=inspection.current_status,
-                changed_by=user,
-                remarks=f'Assigned to Unit Head for review'
-            )
+            if unit_head:
+                inspection.assigned_to = unit_head
+                inspection.save()
+                
+                InspectionHistory.objects.create(
+                    inspection=inspection,
+                    previous_status=inspection.current_status,
+                    new_status=inspection.current_status,
+                    changed_by=user,
+                    remarks=f'Assigned to Unit Head for review'
+                )
+        else:
+            # Individual section: NO Unit Head, assign to Section Chief
+            section_chief = User.objects.filter(
+                userlevel='Section Chief',
+                section=inspection.law,
+                is_active=True
+            ).first()
+            
+            if section_chief:
+                inspection.assigned_to = section_chief
+                inspection.save()
+                
+                InspectionHistory.objects.create(
+                    inspection=inspection,
+                    previous_status=inspection.current_status,
+                    new_status=inspection.current_status,
+                    changed_by=user,
+                    remarks=f'Assigned to Section Chief for review (no Unit Head in workflow)'
+                )
     
     @action(detail=True, methods=['get'])
     def available_monitoring_personnel(self, request, pk=None):
@@ -1744,8 +1779,14 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Check valid statuses
-        if inspection.current_status not in ['UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT', 'UNIT_REVIEWED']:
+        # Check valid statuses based on section type
+        valid_statuses = ['UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT', 'UNIT_REVIEWED']
+        
+        # For individual sections (non-combined), also accept MONITORING_COMPLETED
+        if user.section != 'PD-1586,RA-8749,RA-9275':
+            valid_statuses.extend(['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'])
+        
+        if inspection.current_status not in valid_statuses:
             return Response(
                 {'error': f'Cannot review from status {inspection.current_status}'},
                 status=status.HTTP_400_BAD_REQUEST

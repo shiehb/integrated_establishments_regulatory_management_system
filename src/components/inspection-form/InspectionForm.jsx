@@ -1224,9 +1224,19 @@ export default function InspectionForm({ inspectionData }) {
       
       // Determine the appropriate action based on user level and status
       if (userLevel === 'Monitoring Personnel' && status === 'MONITORING_IN_PROGRESS') {
-        remarks = 'Inspection submitted for Unit Head review';
-        successMessage = 'Inspection submitted successfully! It has been sent to Unit Head for review.';
-        console.log("✅ Submitting inspection for Unit Head review with data:", formData);
+        // Check if inspection is for combined section or individual section
+        const inspectionLaw = fullInspectionData?.law;
+        const isCombinedSection = ['PD-1586', 'RA-8749', 'RA-9275'].includes(inspectionLaw);
+        
+        if (isCombinedSection) {
+          remarks = 'Inspection submitted for Unit Head review';
+          successMessage = 'Inspection submitted successfully! It has been sent to Unit Head for review.';
+          console.log("✅ Submitting inspection for Unit Head review with data:", formData);
+        } else {
+          remarks = 'Inspection submitted for Section Chief review';
+          successMessage = 'Inspection submitted successfully! It has been sent to Section Chief for review.';
+          console.log("✅ Submitting inspection for Section Chief review with data:", formData);
+        }
       } else if (userLevel === 'Section Chief' && status === 'SECTION_IN_PROGRESS') {
         remarks = 'Inspection submitted for Division Chief review';
         successMessage = 'Inspection submitted successfully! It has been sent to Division Chief for review.';

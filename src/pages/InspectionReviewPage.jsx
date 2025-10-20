@@ -120,14 +120,21 @@ const InspectionReviewPage = () => {
   const fetchInspectionData = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('🔍 Fetching inspection data for ID:', id);
       const response = await api.get(`inspections/${id}/`);
+      console.log('📦 API Response:', response.data);
+      console.log('📋 Form data:', response.data.form);
+      console.log('✅ Checklist:', response.data.form?.checklist);
+      
       setInspectionData(response.data);
       
       // Set form data from checklist, or create empty structure if needed
       const checklist = response.data.form?.checklist;
       if (checklist && Object.keys(checklist).length > 0) {
+        console.log('✓ Using checklist data:', checklist);
         setFormData(checklist);
       } else {
+        console.warn('⚠️ No checklist data, using empty structure');
         // Initialize with empty structure to prevent rendering issues
         setFormData({
           general: {},
@@ -139,12 +146,18 @@ const InspectionReviewPage = () => {
         });
       }
     } catch (error) {
-      console.error('Error fetching inspection:', error);
+      console.error('❌ Error fetching inspection:', error);
       notifications.error(`Failed to load inspection data: ${error.message}`);
     } finally {
       setLoading(false);
     }
-  }, [id, notifications]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset state when ID changes
+  useEffect(() => {
+    setInspectionData(null);
+    setFormData(null);
+  }, [id]);
 
   // Load data based on mode
   useEffect(() => {
@@ -161,7 +174,7 @@ const InspectionReviewPage = () => {
       // Review mode: fetch from API
       fetchInspectionData();
     }
-  }, [mode, id, location.state, navigate, notifications, fetchInspectionData]);
+  }, [mode, fetchInspectionData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -562,6 +575,20 @@ const InspectionReviewPage = () => {
       </div>
     );
 
+  // Show loading state if data is not ready
+  if (loading || !inspectionData || !formData) {
+    return (
+      <LayoutForm headerHeight="small">
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading inspection data...</p>
+          </div>
+        </div>
+      </LayoutForm>
+    );
+  }
+
   return (
     <LayoutForm headerHeight="small" inspectionHeader={reviewHeader}>
       <div className="w-full">
@@ -588,7 +615,7 @@ const InspectionReviewPage = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="font-semibold">Inspection Reference No.:</p>
-                <p className="text-gray-700">EIA-2025-0001</p>
+                <p className="text-gray-700">{inspectionData?.code || 'N/A'}</p>
               </div>
               <div className="text-right">
                 <p className="font-semibold">Date Generated:</p>
