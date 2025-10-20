@@ -681,7 +681,7 @@ export default function DistrictManagement() {
           <div className="overflow-y-auto h-[calc(100vh-325px)] border border-gray-300 rounded-lg scroll-smooth custom-scrollbar">
             <table className="w-full">
             <thead>
-                <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
+                <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
                 <th className="p-1 border-b border-gray-300">
                   <button
                     onClick={() => handleSort('name')}

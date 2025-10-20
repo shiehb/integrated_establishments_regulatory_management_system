@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, FileText } from 'lucide-react';
 import { useState } from 'react';
 
 /**

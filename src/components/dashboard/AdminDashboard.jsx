@@ -38,63 +38,104 @@ import DateRangeDropdown from "../DateRangeDropdown";
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
-// Status display mapping based on backend - COMPLETE MAPPING
+// Status display mapping using standardized labels
 const getInspectionStatusDisplay = (status) => {
   const statusMap = {
-    // Initial creation
-    'CREATED': 'Created',
+    // Creation Stage
+    'CREATED': 'Draft',
     
-    // Section Chief workflow
-    'SECTION_ASSIGNED': 'New – Waiting for Action',
+    // Assignment Stage
+    'SECTION_ASSIGNED': 'Assigned',
+    'UNIT_ASSIGNED': 'Assigned',
+    'MONITORING_ASSIGNED': 'Assigned',
+    
+    // In Progress Stage
     'SECTION_IN_PROGRESS': 'In Progress',
-    'SECTION_COMPLETED_COMPLIANT': 'Completed – Compliant',
-    'SECTION_COMPLETED_NON_COMPLIANT': 'Completed – Non-Compliant',
-    
-    // Unit Head workflow
-    'UNIT_ASSIGNED': 'New – Waiting for Action',
     'UNIT_IN_PROGRESS': 'In Progress',
-    'UNIT_COMPLETED_COMPLIANT': 'Completed – Compliant',
-    'UNIT_COMPLETED_NON_COMPLIANT': 'Completed – Non-Compliant',
-    
-    // Monitoring Personnel workflow
-    'MONITORING_ASSIGNED': 'New – Waiting for Action',
     'MONITORING_IN_PROGRESS': 'In Progress',
-    'MONITORING_COMPLETED_COMPLIANT': 'Completed – Compliant',
-    'MONITORING_COMPLETED_NON_COMPLIANT': 'Completed – Non-Compliant',
     
-    // Review workflow (compliant path)
-    'UNIT_REVIEWED': 'Reviewed',
-    'SECTION_REVIEWED': 'Reviewed',
-    'DIVISION_REVIEWED': 'For Legal Review',
+    // Completed Stage
+    'SECTION_COMPLETED_COMPLIANT': 'Inspection Complete',
+    'SECTION_COMPLETED_NON_COMPLIANT': 'Inspection Complete',
+    'UNIT_COMPLETED_COMPLIANT': 'Inspection Complete',
+    'UNIT_COMPLETED_NON_COMPLIANT': 'Inspection Complete',
+    'MONITORING_COMPLETED_COMPLIANT': 'Inspection Complete',
+    'MONITORING_COMPLETED_NON_COMPLIANT': 'Inspection Complete',
     
-    // Legal workflow (non-compliant path)
-    'LEGAL_REVIEW': 'For Legal Review',
-    'NOV_SENT': 'NOV Sent',
-    'NOO_SENT': 'NOO Sent',
+    // Review Stage
+    'UNIT_REVIEWED': 'Under Review',
+    'SECTION_REVIEWED': 'Under Review',
+    'DIVISION_REVIEWED': 'Under Review',
     
-    // Final states
-    'FINALIZED': 'Finalized',
-    'CLOSED': 'Closed',
-    'CLOSED_COMPLIANT': 'Closed',
-    'CLOSED_NON_COMPLIANT': 'Closed',
+    // Legal Stage
+    'LEGAL_REVIEW': 'Legal Review',
+    'NOV_SENT': 'NOV Issued',
+    'NOO_SENT': 'NOO Issued',
+    
+    // Final Stage
+    'CLOSED_COMPLIANT': 'Compliant',
+    'CLOSED_NON_COMPLIANT': 'Non-Compliant',
   };
   
   return statusMap[status] || status;
 };
 
-// Status badge with proper colors
+// Status badge with professional color scheme
 const getInspectionStatusBadge = (status) => {
   const displayName = getInspectionStatusDisplay(status);
   
-  // Default to light gray for all statuses
-  let style = { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' };
+  // Color mapping based on workflow stages
+  const getStatusStyle = (status) => {
+    switch (status) {
+      // Creation Stage (Gray)
+      case 'CREATED':
+        return { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' };
+      
+      // Assignment Stage (Blue)
+      case 'SECTION_ASSIGNED':
+      case 'UNIT_ASSIGNED':
+      case 'MONITORING_ASSIGNED':
+        return { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' };
+      
+      // In Progress Stage (Amber)
+      case 'SECTION_IN_PROGRESS':
+      case 'UNIT_IN_PROGRESS':
+      case 'MONITORING_IN_PROGRESS':
+        return { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300' };
+      
+      // Completed Stage (Sky)
+      case 'SECTION_COMPLETED_COMPLIANT':
+      case 'SECTION_COMPLETED_NON_COMPLIANT':
+      case 'UNIT_COMPLETED_COMPLIANT':
+      case 'UNIT_COMPLETED_NON_COMPLIANT':
+      case 'MONITORING_COMPLETED_COMPLIANT':
+      case 'MONITORING_COMPLETED_NON_COMPLIANT':
+        return { bg: 'bg-sky-100', text: 'text-sky-700', border: 'border-sky-300' };
+      
+      // Review Stage (Indigo)
+      case 'UNIT_REVIEWED':
+      case 'SECTION_REVIEWED':
+      case 'DIVISION_REVIEWED':
+        return { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-300' };
+      
+      // Legal Stage (Orange)
+      case 'LEGAL_REVIEW':
+      case 'NOV_SENT':
+      case 'NOO_SENT':
+        return { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-300' };
+      
+      // Final Stage (Green/Red)
+      case 'CLOSED_COMPLIANT':
+        return { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' };
+      case 'CLOSED_NON_COMPLIANT':
+        return { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' };
+      
+      default:
+        return { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300' };
+    }
+  };
   
-  // Only apply green/red for final closed statuses
-  if (status === 'CLOSED_COMPLIANT') {
-    style = { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-300' };
-  } else if (status === 'CLOSED_NON_COMPLIANT') {
-    style = { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-300' };
-  }
+  const style = getStatusStyle(status);
   
   return (
     <span className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 text-xs font-semibold border rounded w-45 ${style.bg} ${style.text} ${style.border}`}>
@@ -634,7 +675,7 @@ export default function AdminDashboard() {
             )}
             <table className="w-full">
               <thead>
-                <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
+                <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
                   <th className="p-1 border-b border-gray-300">Date & Time</th>
                   <th className="p-1 border-b border-gray-300 text-center">Action</th>
                   <th className="p-1 border-b border-gray-300">Message</th>
@@ -927,7 +968,7 @@ export default function AdminDashboard() {
             )}
             <table className="w-full">
               <thead>
-                <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
+                <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
                   <th className="p-1 border-b border-gray-300">Date & Time</th>
                   <th className="p-1 border-b border-gray-300">Establishment</th>
                   <th className="p-1 border-b border-gray-300">Inspector</th>

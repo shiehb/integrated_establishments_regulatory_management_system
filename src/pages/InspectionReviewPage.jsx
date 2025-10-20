@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../components/NotificationManager';
 import api from '../services/api';
-import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck, Printer, Edit, X, UserCheck, Users, Building, CheckSquare, Scale, Mail, FileText, CornerDownLeft } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck, Printer, Edit, X, UserCheck, Users, Building, CheckSquare, Scale, Mail, FileText, CornerDownLeft, Camera } from 'lucide-react';
 import LayoutForm from '../components/LayoutForm';
 import { getButtonVisibility as getRoleStatusButtonVisibility, canUserAccessInspection } from '../utils/roleStatusMatrix';
+import ImageLightbox from '../components/inspection-form/ImageLightbox';
 
 const InspectionReviewPage = () => {
   const { id } = useParams();
@@ -31,25 +32,67 @@ const InspectionReviewPage = () => {
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [actionType, setActionType] = useState('');
+  
+  // Image lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   // Process compliance items for merged law citations (moved to top level)
   const processedComplianceItems = useMemo(() => {
     if (!formData?.complianceItems || formData.complianceItems.length === 0) {
+      console.log('No compliance items found in formData:', formData);
       return [];
     }
 
-    // Get selected environmental laws from general information
+    // Get selected environmental laws from general information (like in inspection form)
     const selectedEnvironmentalLaws = formData.general?.environmental_laws || [];
+    console.log('Selected environmental laws:', selectedEnvironmentalLaws);
     
-    // Filter compliance items to only show those matching selected environmental laws
+    // Always include PCO Accreditation and SMR items (like in inspection form)
+    const ALWAYS_INCLUDED_LAWS = [
+      "DAO 2014-02 or Revised Guidelines on PCO Accreditation",
+      "DAO 2014-02",
+      "PCO Accreditation",
+      "Pollution-Control",
+      "DAO 2003-27",
+      "Self-Monitoring",
+      "SMR"
+    ];
+    const effectiveLawFilter = [
+      ...new Set([...(selectedEnvironmentalLaws || []), ...ALWAYS_INCLUDED_LAWS]),
+    ];
+    
+    // Filter compliance items to only show those matching selected environmental laws + always included laws
     const filteredComplianceItems = formData.complianceItems.filter(item => {
       const itemLawId = item.lawId || item.law_id || item.law;
-      return selectedEnvironmentalLaws.includes(itemLawId);
+      const itemLawCitation = item.lawCitation || item.law_citation;
+      
+      // Check if item matches selected laws OR always included laws OR contains related text
+      const matchesSelected = effectiveLawFilter.includes(itemLawId);
+      const matchesCitation = effectiveLawFilter.includes(itemLawCitation);
+      const isPCORelated = itemLawId?.includes('PCO') || 
+                          itemLawCitation?.includes('PCO') || 
+                          itemLawId?.includes('2014-02') ||
+                          itemLawCitation?.includes('2014-02') ||
+                          item.complianceRequirement?.includes('PCO') ||
+                          item.complianceRequirement?.includes('accreditation');
+      const isSMRRelated = itemLawId?.includes('2003-27') ||
+                          itemLawCitation?.includes('2003-27') ||
+                          itemLawId?.includes('SMR') ||
+                          itemLawCitation?.includes('SMR') ||
+                          item.complianceRequirement?.includes('SMR') ||
+                          item.complianceRequirement?.includes('Self-Monitoring') ||
+                          item.complianceRequirement?.includes('monitoring report');
+      
+      return matchesSelected || matchesCitation || isPCORelated || isSMRRelated;
     });
+    
+    console.log('Filtered compliance items:', filteredComplianceItems);
 
     // Group filtered items by law citation
     const groupedByLaw = filteredComplianceItems.reduce((acc, item) => {
-      const lawCitation = item.lawCitation || item.law_citation || item.lawId || '-';
+      const lawCitation = item.lawCitation || item.law_citation || item.lawId || item.law || '-';
       if (!acc[lawCitation]) {
         acc[lawCitation] = [];
       }
@@ -72,26 +115,9 @@ const InspectionReviewPage = () => {
     });
 
     return result;
-  }, [formData?.complianceItems, formData?.general?.environmental_laws]);
+  }, [formData]);
 
-  // Load data based on mode
-  useEffect(() => {
-    if (mode === 'preview') {
-      // Preview mode: use navigation state
-      if (location.state) {
-        setFormData(location.state.formData);
-        setInspectionData(location.state.inspectionData);
-      } else {
-        notifications.error('No data to preview');
-        navigate(-1);
-      }
-    } else {
-      // Review mode: fetch from API
-      fetchInspectionData();
-    }
-  }, [mode, id]);
-
-  const fetchInspectionData = async () => {
+  const fetchInspectionData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get(`inspections/${id}/`);
@@ -118,7 +144,24 @@ const InspectionReviewPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, notifications]);
+
+  // Load data based on mode
+  useEffect(() => {
+    if (mode === 'preview') {
+      // Preview mode: use navigation state
+      if (location.state) {
+        setFormData(location.state.formData);
+        setInspectionData(location.state.inspectionData);
+      } else {
+        notifications.error('No data to preview');
+        navigate(-1);
+      }
+    } else {
+      // Review mode: fetch from API
+      fetchInspectionData();
+    }
+  }, [mode, id, location.state, navigate, notifications, fetchInspectionData]);
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -147,6 +190,13 @@ const InspectionReviewPage = () => {
       return location.state.compliance;
     }
     return formData?.compliance_status || 'PENDING';
+  };
+
+  // Function to open lightbox with images
+  const openLightbox = (images, index = 0) => {
+    setLightboxImages(images);
+    setLightboxIndex(index);
+    setLightboxOpen(true);
   };
 
   // Removed unused functions - navigation is handled directly in buttons
@@ -364,7 +414,27 @@ const InspectionReviewPage = () => {
                 {/* Preview Mode: Use unified button visibility logic */}
                 {buttonVisibility.showBackButton && (
                   <button
-                    onClick={() => navigate(`/inspections/${id}/form?returnTo=review&reviewMode=true`)}
+                    onClick={() => {
+                      const status = inspectionData?.current_status;
+                      const inProgressStatuses = ['SECTION_IN_PROGRESS', 'UNIT_IN_PROGRESS', 'MONITORING_IN_PROGRESS'];
+                      const completedStatuses = [
+                        'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT',
+                        'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
+                        'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
+                      ];
+                      const reviewedStatuses = ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED'];
+                      
+                      if (inProgressStatuses.includes(status)) {
+                        // For in-progress statuses, go to form without review parameters
+                        navigate(`/inspections/${id}/form`);
+                      } else if (completedStatuses.includes(status) || reviewedStatuses.includes(status)) {
+                        // For completed and reviewed statuses, go to form with review parameters
+                        navigate(`/inspections/${id}/form?returnTo=review&reviewMode=true`);
+                      } else {
+                        // For all other statuses, go to form with review parameters
+                        navigate(`/inspections/${id}/form?returnTo=review&reviewMode=true`);
+                      }
+                    }}
                     className="flex items-center px-3 py-1 text-sm text-black bg-gray-200 rounded hover:bg-gray-300 transition-colors"
                   >
                     <ArrowLeft className="w-4 h-4 mr-1" />
@@ -533,65 +603,130 @@ const InspectionReviewPage = () => {
               I. GENERAL INFORMATION
             </h2>
             
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="font-semibold text-gray-700">Name of Establishment:</p>
-                  <p className="text-gray-900">{general.establishment_name || '-'}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-700">Nature of Business:</p>
-                  <p className="text-gray-900">{general.nature_of_business || '-'}</p>
-                </div>
-              </div>
-
-              <div>
-                <p className="font-semibold text-gray-700">Address:</p>
-                <p className="text-gray-900">{general.address || '-'}</p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <p className="font-semibold text-gray-700">Coordinates:</p>
-                  <p className="text-gray-900">{general.coordinates || '-'}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-700">Year Established:</p>
-                  <p className="text-gray-900">{general.year_established || '-'}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-700">Inspection Date & Time:</p>
-                  <p className="text-gray-900">{general.inspection_date_time ? formatDate(general.inspection_date_time) : '-'}</p>
-                </div>
-              </div>
-
-              <div>
-                <p className="font-semibold text-gray-700 mb-2">Operating Schedule:</p>
-                <div className="ml-4 space-y-1">
-                  <p>• Operating Hours: {general.operating_hours || '-'} hours/day</p>
-                  <p>• Operating Days per Week: {general.operating_days_per_week || '-'} days</p>
-                  <p>• Operating Days per Year: {general.operating_days_per_year || '-'} days</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="font-semibold text-gray-700">Contact Information:</p>
-                  <p>• Phone/Fax: {general.phone_fax_no || '-'}</p>
-                  <p>• Email: {general.email_address || '-'}</p>
-                </div>
-              </div>
-
-              <div>
-                <p className="font-semibold text-gray-700 mb-2">Applicable Environmental Laws:</p>
-                <div className="ml-4 space-y-1">
+            <div className="space-y-4">
+              {/* Environmental Laws Section - At Top */}
+              <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                <p className="text-xs font-semibold text-gray-700 uppercase mb-3 border-b border-gray-300 pb-2">Applicable Environmental Laws</p>
+                <div className="space-y-1 text-sm">
                   {general.environmental_laws && general.environmental_laws.length > 0 ? (
                     general.environmental_laws.map(law => (
-                      <p key={law}>☑ {law}</p>
+                      <p key={law} className="text-gray-900">☑ {law}</p>
                     ))
                   ) : (
-                    <p className="text-gray-500">No laws selected</p>
+                    <p className="text-gray-500 italic">No laws selected</p>
                   )}
+                </div>
+              </div>
+
+              {/* Basic and Operating Details Card - Full Width */}
+              <div className="border border-gray-300 rounded-lg p-5 bg-gray-50">
+                <div>
+                  <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Name of Establishment</p>
+                  <p className="text-sm text-gray-900 font-medium">{general.establishment_name || '-'}</p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Address</p>
+                    <p className="text-sm text-gray-900">{general.address || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Coordinates (Decimal)</p>
+                    <p className="text-sm text-gray-900">{general.coordinates || '-'}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Nature of Business</p>
+                  <p className="text-sm text-gray-900">{general.nature_of_business || '-'}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Year Established</p>
+                    <p className="text-sm text-gray-900">{general.year_established || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Inspection Date & Time</p>
+                    <p className="text-sm text-gray-900">{general.inspection_date_time ? formatDate(general.inspection_date_time) : '-'}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mt-4">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Operating Hours</p>
+                    <p className="text-sm text-gray-900">{general.operating_hours || '-'} hours/day</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Operating Days/Week</p>
+                    <p className="text-sm text-gray-900">{general.operating_days_per_week || '-'} days</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase mb-1">Operating Days/Year</p>
+                    <p className="text-sm text-gray-900">{general.operating_days_per_year || '-'} days</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Production Details Card - Full Width */}
+              <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                <p className="text-xs font-semibold text-gray-700 uppercase mb-3 border-b border-gray-300 pb-2">Production Details</p>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Product Lines</p>
+                    <p className="text-gray-900">{general.product_lines || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Declared Production Rate</p>
+                    <p className="text-gray-900">{general.declared_production_rate || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Actual Production Rate</p>
+                    <p className="text-gray-900">{general.actual_production_rate || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Personnel and Contact Information Card - Full Width */}
+              <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                <p className="text-xs font-semibold text-gray-700 uppercase mb-3 border-b border-gray-300 pb-2">Personnel and Contact Information</p>
+                
+                <div className="mb-4">
+                  <p className="text-xs font-semibold text-gray-600 mb-1">Managing Head</p>
+                  <p className="text-sm text-gray-900">{general.managing_head || '-'}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1">PCO Name</p>
+                    <p className="text-sm text-gray-900">{general.pco_name || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Interviewed Person</p>
+                    <p className="text-sm text-gray-900">{general.interviewed_person || '-'}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1">PCO Accreditation No.</p>
+                    <p className="text-sm text-gray-900">{general.pco_accreditation_no || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Effectivity Date</p>
+                    <p className="text-sm text-gray-900">{general.effectivity_date ? formatDateOnly(general.effectivity_date) : '-'}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Phone/Fax No.</p>
+                    <p className="text-sm text-gray-900">{general.phone_fax_no || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Email Address</p>
+                    <p className="text-sm text-gray-900">{general.email_address || '-'}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -735,6 +870,7 @@ const InspectionReviewPage = () => {
                                                    item.requirement ||
                                                    item.description ||
                                                    item.text ||
+                                                   item.conditionNumber ||
                                                    `Compliance Item ${idx + 1}`;
                       
                       return (
@@ -756,7 +892,7 @@ const InspectionReviewPage = () => {
                               {item.compliant === 'Yes' && 'Yes'}
                               {item.compliant === 'No' && 'No'}
                               {item.compliant === 'N/A' && 'N/A'}
-                              {!item.compliant && '-'}
+                              {!item.compliant && 'N/A'}
                             </span>
                           </td>
                           <td className="border border-gray-300 px-3 py-2">
@@ -779,7 +915,7 @@ const InspectionReviewPage = () => {
                             ) : item.compliant === 'Yes' ? (
                               <span className="text-black">Compliant</span>
                             ) : (
-                              <span className="text-black">-</span>
+                              <span className="text-black">Not Applicable</span>
                             )}
                           </td>
                         </tr>
@@ -789,6 +925,11 @@ const InspectionReviewPage = () => {
                     <tr>
                       <td colSpan="4" className="border border-gray-300 px-3 py-4 text-center text-gray-500">
                         No compliance items recorded
+                        {formData && (
+                          <div className="text-xs mt-2">
+                            Debug: formData.complianceItems = {JSON.stringify(formData.complianceItems)}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )}
@@ -843,6 +984,42 @@ const InspectionReviewPage = () => {
                           </div>
                         </div>
                       )}
+
+                      {/* Display finding images if available */}
+                      {formData.findingImages && formData.findingImages[system.system] && formData.findingImages[system.system].length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-gray-700 font-semibold mb-2 flex items-center gap-2">
+                            <Camera className="w-4 h-4" />
+                            Photo Documentation:
+                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {formData.findingImages[system.system].slice(0, 4).map((img, imgIdx) => (
+                              <button
+                                key={img.id || imgIdx}
+                                onClick={() => openLightbox(formData.findingImages[system.system], imgIdx)}
+                                className="w-16 h-16 rounded-md overflow-hidden border border-gray-300 hover:border-sky-500 transition-colors"
+                              >
+                                {img.type === 'application/pdf' ? (
+                                  <div className="w-full h-full bg-red-50 flex items-center justify-center">
+                                    <FileText className="w-6 h-6 text-red-600" />
+                                  </div>
+                                ) : (
+                                  <img 
+                                    src={img.url} 
+                                    alt={img.caption || img.name || `Photo ${imgIdx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                )}
+                              </button>
+                            ))}
+                            {formData.findingImages[system.system].length > 4 && (
+                              <div className="w-16 h-16 rounded-md bg-gray-100 flex items-center justify-center text-xs text-gray-600 font-medium border border-gray-300">
+                                +{formData.findingImages[system.system].length - 4}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -858,6 +1035,7 @@ const InspectionReviewPage = () => {
               )}
             </div>
           </section>
+
 
           {/* VI. RECOMMENDATIONS */}
           {complianceStatus !== 'COMPLIANT' && recommendations.checked && recommendations.checked.length > 0 && (
@@ -889,52 +1067,44 @@ const InspectionReviewPage = () => {
             </section>
           )}
 
-          {/* VII. OVERALL ASSESSMENT */}
-          <section className="mb-8">
-            <div className={`border-4 p-6 rounded ${
-              complianceStatus === 'COMPLIANT' 
-                ? 'border-green-600 bg-green-50' 
-                : 'border-red-600 bg-red-50'
-            }`}>
-              <h2 className="text-lg font-bold uppercase text-center mb-4">
-                OVERALL ASSESSMENT
+          {/* VII. PHOTO DOCUMENTATION */}
+          {formData.generalFindings && Array.isArray(formData.generalFindings) && formData.generalFindings.length > 0 && (
+            <section className="mb-8 page-break-before">
+              <h2 className="text-lg font-bold uppercase border-b-2 border-gray-800 pb-2 mb-4">
+                VII. PHOTO DOCUMENTATION
               </h2>
               
-              <div className="space-y-3 text-sm">
-                <div>
-                  <p className="font-semibold">Compliance Status:</p>
-                  <p className={`text-lg font-bold ${
-                    complianceStatus === 'COMPLIANT' ? 'text-green-700' : 'text-red-700'
-                  }`}>
-                    {complianceStatus === 'COMPLIANT' ? 'COMPLIANT' : 'NON-COMPLIANT'}
-                  </p>
-                </div>
-
-                {complianceStatus !== 'COMPLIANT' && (
-                  <>
-                    <div>
-                      <p className="font-semibold">Violations Found:</p>
-                      <ul className="list-disc ml-6 mt-1 space-y-1">
-                        {systems.filter(s => s.nonCompliant).map((system, idx) => (
-                          <li key={idx} className="text-gray-700">{system.system}</li>
-                        ))}
-                        {complianceItems.filter(item => item.compliant === 'No').map((item, idx) => (
-                          <li key={`ci-${idx}`} className="text-gray-700">{item.item || item.title}</li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div>
-                      <p className="font-semibold">Required Actions:</p>
-                      <p className="text-gray-700 mt-1">
-                        The establishment must submit a corrective action plan and implement necessary improvements within the specified timeframe.
-                      </p>
-                    </div>
-                  </>
-                )}
+              <div className="grid grid-cols-3 gap-4">
+                {formData.generalFindings.map((doc, idx) => (
+                  <div key={idx} className="border border-gray-300 rounded-lg overflow-hidden bg-gray-50 hover:shadow-md transition-shadow cursor-pointer" onClick={() => openLightbox(formData.generalFindings, idx)}>
+                    {doc.url && doc.url.toLowerCase().endsWith('.pdf') ? (
+                      <div className="aspect-square bg-gray-200 flex items-center justify-center">
+                        <div className="text-center">
+                          <FileText className="w-16 h-16 mx-auto text-red-600" />
+                          <p className="text-xs text-gray-600 mt-2">PDF Document</p>
+                        </div>
+                      </div>
+                    ) : doc.url ? (
+                      <img 
+                        src={doc.url} 
+                        alt={doc.caption || `Photo ${idx + 1}`}
+                        className="w-full aspect-square object-cover hover:scale-105 transition-transform"
+                      />
+                    ) : null}
+                    {doc.caption && (
+                      <div className="p-3">
+                        <p className="text-xs text-gray-700">{doc.caption}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-            </div>
-          </section>
+              
+              {formData.generalFindings.length === 0 && (
+                <p className="text-sm text-gray-500 italic">No photo documentation uploaded</p>
+              )}
+            </section>
+          )}
 
         </div>
 
@@ -996,6 +1166,16 @@ const InspectionReviewPage = () => {
           </div>
         )}
       </div>
+
+      {/* Image Lightbox */}
+      {lightboxOpen && (
+        <ImageLightbox
+          images={lightboxImages}
+          currentIndex={lightboxIndex}
+          onClose={() => setLightboxOpen(false)}
+          onNavigate={setLightboxIndex}
+        />
+      )}
 
       {/* Print Styles */}
       <style>{`

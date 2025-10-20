@@ -1,13 +1,11 @@
 import React from 'react';
-import { statusDisplayMap, getStatusColorClass, getStatusBgColorClass, getRoleBasedStatusLabel } from '../../constants/inspectionConstants';
+import { statusDisplayMap, getStatusColorClass, getStatusBgColorClass } from '../../constants/inspectionConstants';
 
-const StatusBadge = ({ status, inspection, userLevel, currentUser, className = '' }) => {
+const StatusBadge = ({ status, className = '' }) => {
   const config = statusDisplayMap[status];
   
-  // Get role-based label if inspection and user data provided
-  const label = (inspection && userLevel && currentUser) 
-    ? getRoleBasedStatusLabel(status, userLevel, inspection, currentUser.id)
-    : config?.label || status;
+  // Use standardized label from statusDisplayMap
+  const label = config?.label || status;
   
   if (!config) {
     return (

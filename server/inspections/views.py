@@ -463,6 +463,133 @@ class InspectionViewSet(viewsets.ModelViewSet):
         serializer = InspectionDocumentSerializer(document, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
+    @action(detail=True, methods=['post'], url_path='findings/documents')
+    def findings_documents(self, request, pk=None):
+        """Upload finding documents with system association"""
+        inspection = self.get_object()
+        
+        # Get or create inspection form
+        form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+        
+        # Handle file upload
+        file = request.FILES.get('file')
+        system_id = request.data.get('system_id', 'general')
+        caption = request.data.get('caption', '')
+        finding_type = request.data.get('finding_type', 'individual')
+        
+        if not file:
+            return Response(
+                {'error': 'No file provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create document with finding-specific metadata
+        document = InspectionDocument.objects.create(
+            inspection_form=form,
+            file=file,
+            document_type='PHOTO',  # Default to PHOTO for finding documents
+            description=caption,
+            uploaded_by=request.user
+        )
+        
+        # Store additional metadata in the description field
+        # Format: "system_id:general|finding_type:general|caption:user_caption"
+        metadata = f"system_id:{system_id}|finding_type:{finding_type}|caption:{caption}"
+        document.description = metadata
+        document.save()
+        
+        serializer = InspectionDocumentSerializer(document, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['get', 'post', 'delete'], url_path='findings/documents')
+    def findings_documents(self, request, pk=None):
+        """Get, upload, or delete finding documents with system association"""
+        inspection = self.get_object()
+        
+        if request.method == 'GET':
+            # Get finding documents for an inspection
+            form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+            
+            # Get all documents for this inspection form
+            documents = form.documents.all()
+            
+            # Filter by system_id if provided
+            system_id = request.query_params.get('system_id')
+            if system_id:
+                documents = documents.filter(description__contains=f"system_id:{system_id}")
+            
+            serializer = InspectionDocumentSerializer(documents, many=True, context={'request': request})
+            return Response(serializer.data)
+        
+        elif request.method == 'POST':
+            # Upload finding documents with system association
+            form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+            
+            # Handle file upload
+            file = request.FILES.get('file')
+            system_id = request.data.get('system_id', 'general')
+            caption = request.data.get('caption', '')
+            finding_type = request.data.get('finding_type', 'individual')
+            
+            if not file:
+                return Response(
+                    {'error': 'No file provided'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Create document with finding-specific metadata
+            document = InspectionDocument.objects.create(
+                inspection_form=form,
+                file=file,
+                document_type='PHOTO',  # Default to PHOTO for finding documents
+                description=caption,
+                uploaded_by=request.user
+            )
+            
+            # Store additional metadata in the description field
+            # Format: "system_id:general|finding_type:general|caption:user_caption"
+            metadata = f"system_id:{system_id}|finding_type:{finding_type}|caption:{caption}"
+            document.description = metadata
+            document.save()
+            
+            serializer = InspectionDocumentSerializer(document, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        elif request.method == 'DELETE':
+            # Delete finding document
+            document_id = request.data.get('document_id')
+            if not document_id:
+                return Response(
+                    {'error': 'Document ID is required for deletion'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            try:
+                # Get or create inspection form
+                form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+                
+                # Find and delete the document
+                document = form.documents.filter(id=document_id).first()
+                if not document:
+                    return Response(
+                        {'error': 'Document not found'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+                
+                # Delete the document
+                document.delete()
+                
+                return Response(
+                    {'message': 'Document deleted successfully'},
+                    status=status.HTTP_200_OK
+                )
+                
+            except Exception as e:
+                return Response(
+                    {'error': f'Failed to delete document: {str(e)}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+    
     @action(detail=True, methods=['post'])
     def assign_to_me(self, request, pk=None):
         """Assign inspection to current user (Section/Unit only)"""

@@ -129,7 +129,7 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
       '/district-management': { keywords: ['District'], tags: ['district', 'region', 'area', 'management'], priority: 1 },
       '/billing': { keywords: ['Billing'], tags: ['billing', 'payment', 'legal', 'records'], priority: 1 },
       '/system-config': { keywords: ['System Configuration', 'Settings'], tags: ['system', 'config', 'settings', 'admin'], priority: 1 },
-      '/database-backup': { keywords: ['Database', 'Backup'], tags: ['database', 'backup', 'export', 'admin'], priority: 1 },
+      '/database-backup': { keywords: ['Backup & Restore', 'Database'], tags: ['database', 'backup', 'restore', 'export', 'admin'], priority: 1 },
       '/notifications': { keywords: ['Notification'], tags: ['notification', 'alert', 'message'], priority: 1 },
       '/help': { keywords: ['Help'], tags: ['help', 'guide', 'support'], priority: 1 },
       '/profile': { keywords: ['Profile'], tags: ['profile', 'account', 'user', 'settings'], priority: 1 },

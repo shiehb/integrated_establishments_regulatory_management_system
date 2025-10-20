@@ -93,7 +93,7 @@ export default function Dashboard() {
 
 function DefaultDashboard() {
   return (
-    <div className="flex items-center justify-center bg-gray-100 h-[calc(100vh-500px)]">
+    <div className="flex items-center justify-center bg-gray-100 ">
       <div className="text-center">
         <div className="inline-block p-8 bg-white border border-gray-200 rounded-lg shadow-sm">
           <h2 className="mb-2 text-xl font-semibold text-gray-800">

@@ -124,6 +124,8 @@ export default function LayoutWithSidebar({ children }) {
         <InternalHeader
           userLevel={userLevel}
           userName={userName}
+          onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+          sidebarOpen={sidebarOpen}
         />
         <main className="flex-1 overflow-y-auto bg-gray-50">
           <div>

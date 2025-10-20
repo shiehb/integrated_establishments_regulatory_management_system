@@ -13,35 +13,42 @@ import {
 
 // Inspection workflow constants and mappings
 
-// Status display mapping with TailwindCSS colors - Simplified for 5-Button Strategy
+// Status display mapping with TailwindCSS colors - Professional color-coded system
 export const statusDisplayMap = {
-  CREATED: { label: 'Created', color: 'gray' },
+  // Creation Stage (Gray)
+  CREATED: { label: 'Draft', color: 'gray' },
   
-  SECTION_ASSIGNED: { label: 'New Assignment', color: 'gray' },
-  SECTION_IN_PROGRESS: { label: 'In Progress', color: 'gray' },
-  SECTION_COMPLETED_COMPLIANT: { label: 'Inspection Complete ✓', color: 'gray' },
-  SECTION_COMPLETED_NON_COMPLIANT: { label: 'Inspection Complete ✗', color: 'gray' },
+  // Assignment Stage (Blue)
+  SECTION_ASSIGNED: { label: 'Assigned', color: 'blue' },
+  UNIT_ASSIGNED: { label: 'Assigned', color: 'blue' },
+  MONITORING_ASSIGNED: { label: 'Assigned', color: 'blue' },
   
-  UNIT_ASSIGNED: { label: 'New Assignment', color: 'gray' },
-  UNIT_IN_PROGRESS: { label: 'In Progress', color: 'gray' },
-  UNIT_COMPLETED_COMPLIANT: { label: 'Inspection Complete ✓', color: 'gray' },
-  UNIT_COMPLETED_NON_COMPLIANT: { label: 'Inspection Complete ✗', color: 'gray' },
+  // In Progress Stage (Amber)
+  SECTION_IN_PROGRESS: { label: 'In Progress', color: 'amber' },
+  UNIT_IN_PROGRESS: { label: 'In Progress', color: 'amber' },
+  MONITORING_IN_PROGRESS: { label: 'In Progress', color: 'amber' },
   
-  MONITORING_ASSIGNED: { label: 'New Assignment', color: 'gray' },
-  MONITORING_IN_PROGRESS: { label: 'In Progress', color: 'gray' },
-  MONITORING_COMPLETED_COMPLIANT: { label: 'Inspection Complete ✓', color: 'gray' },
-  MONITORING_COMPLETED_NON_COMPLIANT: { label: 'Inspection Complete ✗', color: 'gray' },
+  // Completed/Pending Review Stage (Sky)
+  SECTION_COMPLETED_COMPLIANT: { label: 'Inspection Complete', color: 'sky' },
+  SECTION_COMPLETED_NON_COMPLIANT: { label: 'Inspection Complete', color: 'sky' },
+  UNIT_COMPLETED_COMPLIANT: { label: 'Inspection Complete', color: 'sky' },
+  UNIT_COMPLETED_NON_COMPLIANT: { label: 'Inspection Complete', color: 'sky' },
+  MONITORING_COMPLETED_COMPLIANT: { label: 'Inspection Complete', color: 'sky' },
+  MONITORING_COMPLETED_NON_COMPLIANT: { label: 'Inspection Complete', color: 'sky' },
   
-  UNIT_REVIEWED: { label: 'Under Review', color: 'gray' },
-  SECTION_REVIEWED: { label: 'Under Review', color: 'gray' },
-  DIVISION_REVIEWED: { label: 'Under Review', color: 'gray' },
+  // Review Stage (Indigo)
+  UNIT_REVIEWED: { label: 'Under Review', color: 'indigo' },
+  SECTION_REVIEWED: { label: 'Under Review', color: 'indigo' },
+  DIVISION_REVIEWED: { label: 'Under Review', color: 'indigo' },
   
-  LEGAL_REVIEW: { label: 'Legal Review', color: 'gray' },
-  NOV_SENT: { label: 'NOV Sent', color: 'gray' },
-  NOO_SENT: { label: 'NOO Sent', color: 'gray' },
+  // Legal Stage (Orange)
+  LEGAL_REVIEW: { label: 'Legal Review', color: 'orange' },
+  NOV_SENT: { label: 'NOV Issued', color: 'orange' },
+  NOO_SENT: { label: 'NOO Issued', color: 'orange' },
   
-  CLOSED_COMPLIANT: { label: 'Closed ✅', color: 'green' },
-  CLOSED_NON_COMPLIANT: { label: 'Closed ❌', color: 'red' }
+  // Final Stage (Green/Red)
+  CLOSED_COMPLIANT: { label: 'Compliant', color: 'green' },
+  CLOSED_NON_COMPLIANT: { label: 'Non-Compliant', color: 'red' }
 };
 
 // Role-based tabs configuration
@@ -117,6 +124,11 @@ export const getStatusColorClass = (status) => {
   
   const colorMap = {
     gray: 'text-gray-600',
+    blue: 'text-blue-600',
+    amber: 'text-amber-600',
+    sky: 'text-sky-600',
+    indigo: 'text-indigo-600',
+    orange: 'text-orange-600',
     green: 'text-green-600',
     red: 'text-red-600'
   };
@@ -131,6 +143,11 @@ export const getStatusBgColorClass = (status) => {
   
   const colorMap = {
     gray: 'bg-gray-100',
+    blue: 'bg-blue-100',
+    amber: 'bg-amber-100',
+    sky: 'bg-sky-100',
+    indigo: 'bg-indigo-100',
+    orange: 'bg-orange-100',
     green: 'bg-green-100',
     red: 'bg-red-100'
   };
@@ -223,60 +240,10 @@ const isInspectionAssignedToRole = (status, userLevel, inspection, currentUserId
   return isDirectlyAssigned || isStatusMatch;
 };
 
-// Get role-based status label
-export const getRoleBasedStatusLabel = (status, userLevel, inspection, currentUserId) => {
-  // Determine if this inspection is "mine" based on status and role
-  const isMyWork = isInspectionAssignedToRole(status, userLevel, inspection, currentUserId);
-  
-  // If it's my work, show detailed status
-  if (isMyWork) {
-    const myWorkLabels = {
-      'Section Chief': {
-        SECTION_ASSIGNED: 'Pending',
-        SECTION_IN_PROGRESS: 'In Process',
-        SECTION_COMPLETED_COMPLIANT: 'Completed',
-        SECTION_COMPLETED_NON_COMPLIANT: 'Completed',
-        UNIT_COMPLETED_COMPLIANT: 'Pending Review',
-        UNIT_COMPLETED_NON_COMPLIANT: 'Pending Review',
-        MONITORING_COMPLETED_COMPLIANT: 'Pending Review',
-        MONITORING_COMPLETED_NON_COMPLIANT: 'Pending Review',
-        UNIT_REVIEWED: 'Under Review',
-        SECTION_REVIEWED: 'Forwarded to Division'
-      },
-      'Unit Head': {
-        UNIT_ASSIGNED: 'Pending',
-        UNIT_IN_PROGRESS: 'In Process',
-        UNIT_COMPLETED_COMPLIANT: 'Completed',
-        UNIT_COMPLETED_NON_COMPLIANT: 'Completed',
-        MONITORING_COMPLETED_COMPLIANT: 'Pending Review',
-        MONITORING_COMPLETED_NON_COMPLIANT: 'Pending Review',
-        UNIT_REVIEWED: 'Forwarded to Section'
-      },
-      'Monitoring Personnel': {
-        MONITORING_ASSIGNED: 'Pending',
-        MONITORING_IN_PROGRESS: 'In Process',
-        MONITORING_COMPLETED_COMPLIANT: 'Completed',
-        MONITORING_COMPLETED_NON_COMPLIANT: 'Completed'
-      },
-      'Division Chief': {
-        CREATED: 'Created',
-        SECTION_COMPLETED_COMPLIANT: 'Pending Review',
-        SECTION_COMPLETED_NON_COMPLIANT: 'Pending Review',
-        SECTION_REVIEWED: 'Under Review',
-        DIVISION_REVIEWED: 'Reviewed'
-      },
-      'Legal Unit': {
-        LEGAL_REVIEW: 'Pending Review',
-        NOV_SENT: 'NOV Issued',
-        NOO_SENT: 'NOO Issued'
-      }
-    };
-    
-    return myWorkLabels[userLevel]?.[status] || getGenericStatusLabel(status, userLevel);
-  }
-  
-  // Not my work, show generic status
-  return getGenericStatusLabel(status, userLevel);
+// Get standardized status label (same for all roles)
+export const getRoleBasedStatusLabel = (status) => {
+  // Return standardized label from statusDisplayMap for all users
+  return statusDisplayMap[status]?.label || status;
 };
 
 // Generic status for non-assigned users

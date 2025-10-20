@@ -23,10 +23,8 @@ export default function ViewInspection({ inspection, onClose, onEdit, userLevel,
   const [showTimeline, setShowTimeline] = useState(false);
 
   const getStatusDisplay = (status) => {
-    // Use role-based status label if user data provided
-    const label = (inspection && userLevel && currentUser) 
-      ? getRoleBasedStatusLabel(status, userLevel, inspection, currentUser.id)
-      : statusDisplayMap[status]?.label || status;
+    // Use standardized status label from statusDisplayMap
+    const label = statusDisplayMap[status]?.label || status;
     
     const config = statusDisplayMap[status];
     if (!config) {

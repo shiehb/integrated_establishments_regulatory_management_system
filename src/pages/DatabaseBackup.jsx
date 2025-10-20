@@ -697,7 +697,7 @@ const DatabaseBackup = () => {
                       setConfirmOpen(true);
                     }}
                     disabled={processing || !backupPath.trim()}
-                    className="flex items-center px-4 py-2 text-white transition-colors rounded-md bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center px-3 py-1 text-sm font-medium text-white transition-colors rounded-md bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {processing && processingAction === "backup" ? (
                       <>
@@ -832,7 +832,7 @@ const DatabaseBackup = () => {
                   <button
                     onClick={() => setRestoreConfirm(true)}
                     disabled={processing || (!restoreFile && !selectedBackup)}
-                    className="flex items-center px-4 py-2 text-white transition-colors bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center px-3 py-1 text-sm font-medium text-white transition-colors bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {processing && processingAction === "restore" ? (
                       <>
@@ -1113,7 +1113,7 @@ const DatabaseBackup = () => {
               <div className="overflow-auto max-h-[calc(100vh-520px)] border border-gray-300 rounded-lg scroll-smooth custom-scrollbar">
                 <table className="w-full">
                   <thead>
-                    <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
+                    <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
                       <th className="w-6 p-1 text-center border-b border-gray-300">
                         <input
                           type="checkbox"

@@ -487,52 +487,24 @@ export const validatePermitDates = (dateIssued, expiryDate) => {
   const errors = [];
   const warnings = [];
 
-  // Check if dates are provided
+  // Check if date issued is provided (required)
   if (!dateIssued || dateIssued.trim() === "") {
     errors.push("Date issued is required");
   }
 
-  if (!expiryDate || expiryDate.trim() === "") {
-    errors.push("Expiry date is required");
-  }
-
-  // If both dates are provided, validate them
-  if (dateIssued && expiryDate) {
+  // Expiry date is now optional - no error if not provided
+  // Only validate expiry date if it's provided
+  if (dateIssued) {
     const issuedDate = new Date(dateIssued);
-    const expiryDateObj = new Date(expiryDate);
 
-    // Check if dates are valid
+    // Check if date issued is valid
     if (isNaN(issuedDate.getTime())) {
       errors.push("Invalid date issued format");
-    }
-
-    if (isNaN(expiryDateObj.getTime())) {
-      errors.push("Invalid expiry date format");
-    }
-
-    // If both dates are valid, check if expiry is after issued date
-    if (!isNaN(issuedDate.getTime()) && !isNaN(expiryDateObj.getTime())) {
-      if (expiryDateObj <= issuedDate) {
-        errors.push("Expiry date must be after the date issued");
-      }
-
-      // Check if expiry date is in the past (warning)
+    } else {
+      // Check if issued date is in the future (warning)
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       
-      if (expiryDateObj < today) {
-        warnings.push("Expiry date is in the past - permit may be expired");
-      }
-
-      // Check if expiry date is very far in the future (warning)
-      const fiveYearsFromNow = new Date();
-      fiveYearsFromNow.setFullYear(fiveYearsFromNow.getFullYear() + 5);
-      
-      if (expiryDateObj > fiveYearsFromNow) {
-        warnings.push("Expiry date is more than 5 years in the future");
-      }
-
-      // Check if issued date is in the future (warning)
       if (issuedDate > today) {
         warnings.push("Date issued is in the future");
       }
@@ -543,6 +515,39 @@ export const validatePermitDates = (dateIssued, expiryDate) => {
       
       if (issuedDate < tenYearsAgo) {
         warnings.push("Date issued is more than 10 years ago");
+      }
+    }
+
+    // If expiry date is provided, validate it
+    if (expiryDate && expiryDate.trim() !== "") {
+      const expiryDateObj = new Date(expiryDate);
+
+      // Check if expiry date is valid
+      if (isNaN(expiryDateObj.getTime())) {
+        errors.push("Invalid expiry date format");
+      } else {
+        // If both dates are valid, check if expiry is after issued date
+        if (!isNaN(issuedDate.getTime())) {
+          if (expiryDateObj <= issuedDate) {
+            errors.push("Expiry date must be after the date issued");
+          }
+
+          // Check if expiry date is in the past (warning)
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          
+          if (expiryDateObj < today) {
+            warnings.push("Expiry date is in the past - permit may be expired");
+          }
+
+          // Check if expiry date is very far in the future (warning)
+          const fiveYearsFromNow = new Date();
+          fiveYearsFromNow.setFullYear(fiveYearsFromNow.getFullYear() + 5);
+          
+          if (expiryDateObj > fiveYearsFromNow) {
+            warnings.push("Expiry date is more than 5 years in the future");
+          }
+        }
       }
     }
   }
@@ -605,10 +610,11 @@ export const validateExpiryDate = (expiryDate, dateIssued = null, permitNumber =
     };
   }
 
+  // Expiry date is now optional - if not provided, it's valid
   if (!expiryDate || expiryDate.trim() === "") {
     return {
-      isValid: false,
-      message: "Expiry date is required"
+      isValid: true,
+      message: "Expiry date is optional (leave blank if no expiry)"
     };
   }
 

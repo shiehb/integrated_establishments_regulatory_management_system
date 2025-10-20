@@ -41,6 +41,7 @@ export const MENU_CONFIG = [
     path: "/establishments",
     icon: Building,
     roles: ["Admin", "Section Chief", "Unit Head", "Legal Unit", "Inspector", "public"],
+    category: "Management"
   },
   {
     id: "inspections",
@@ -48,6 +49,7 @@ export const MENU_CONFIG = [
     path: "/inspections",
     icon: InspectIcon,
     roles: ["Admin", "Section Chief", "Unit Head", "Legal Unit", "Inspector", "public"],
+    category: "Management"
   },
   {
     id: "district-management",
@@ -75,7 +77,7 @@ export const MENU_CONFIG = [
   },
   {
     id: "database-backup",
-    name: "Database Backup",
+    name: "Backup & Restore",
     path: "/database-backup",
     icon: Database,
     roles: ["Admin"],
@@ -106,5 +108,16 @@ export const groupMenuByCategory = (menuItems) => {
     }
   });
   
-  return { grouped, uncategorized };
+  // Define the order of categories (Administration at the bottom)
+  const categoryOrder = ["Management", "Legal", "Administration"];
+  
+  // Create ordered grouped object
+  const orderedGrouped = {};
+  categoryOrder.forEach(category => {
+    if (grouped[category]) {
+      orderedGrouped[category] = grouped[category];
+    }
+  });
+  
+  return { grouped: orderedGrouped, uncategorized };
 };

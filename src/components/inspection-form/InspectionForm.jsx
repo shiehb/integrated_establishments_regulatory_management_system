@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
-import { saveInspectionDraft, completeInspection, getInspection, closeInspection, sendNOV, sendNOO, uploadFindingDocument } from "../../services/api";
+import { saveInspectionDraft, completeInspection, getInspection, closeInspection, sendNOV, sendNOO, uploadFindingDocument, getFindingDocuments, deleteFindingDocument } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 import { getButtonVisibility as getRoleStatusButtonVisibility, canUserAccessInspection } from "../../utils/roleStatusMatrix";
@@ -287,6 +287,92 @@ export default function InspectionForm({ inspectionData }) {
     }
   }, [fullInspectionData, lawFilter]);
 
+  // Load photos from backend
+  const loadPhotosFromBackend = async (inspectionId) => {
+    try {
+      console.log("📸 Loading photos from backend for inspection:", inspectionId);
+      const documents = await getFindingDocuments(inspectionId);
+      console.log("📸 Loaded documents from backend:", documents);
+      
+      // Filter for general photos (system_id: general)
+      const generalPhotos = documents.filter(doc => 
+        doc.description && doc.description.includes('system_id:general')
+      );
+      
+      console.log("📸 General photos found:", generalPhotos);
+      
+      if (generalPhotos.length > 0) {
+        // Convert backend documents to frontend format
+        const convertedPhotos = generalPhotos.map(doc => {
+          // Parse metadata from description
+          const metadata = {};
+          if (doc.description) {
+            const parts = doc.description.split('|');
+            parts.forEach(part => {
+              const [key, value] = part.split(':');
+              if (key && value) {
+                metadata[key] = value;
+              }
+            });
+          }
+          
+          return {
+            id: `backend-${doc.id}`,
+            file: null, // No file object for backend photos
+            url: doc.file_url || doc.file,
+            name: (doc.file_url || doc.file)?.split('/').pop() || `Photo ${doc.id}`,
+            type: (doc.file_url || doc.file)?.toLowerCase().includes('.pdf') ? 'application/pdf' : 'image/jpeg',
+            size: 0, // Unknown size for backend photos
+            caption: metadata.caption || '',
+            uploaded: true,
+            uploadProgress: 100,
+            error: null,
+            systemId: 'general',
+            backendId: doc.id
+          };
+        });
+        
+        console.log("📸 Converted photos:", convertedPhotos);
+        
+        // Update general findings with backend photos
+        setGeneralFindings(prevPhotos => {
+          // Merge with existing photos, avoiding duplicates
+          const existingIds = new Set(prevPhotos.map(p => p.backendId));
+          const newPhotos = convertedPhotos.filter(p => !existingIds.has(p.backendId));
+          return [...prevPhotos, ...newPhotos];
+        });
+      }
+    } catch (error) {
+      console.error("Failed to load photos from backend:", error);
+      // Don't show error notification for photos as it's not critical
+    }
+  };
+
+  // Function to refresh photos (can be called manually if needed)
+  const _refreshPhotos = async () => {
+    if (inspectionId) {
+      await loadPhotosFromBackend(inspectionId);
+    }
+  };
+
+  // Function to delete photo from backend
+  const deletePhotoFromBackend = async (imageId, backendId) => {
+    try {
+      if (backendId && inspectionId) {
+        console.log("🗑️ Deleting photo from backend:", backendId);
+        await deleteFindingDocument(inspectionId, backendId);
+        console.log("✅ Photo deleted from backend successfully");
+      }
+    } catch (error) {
+      console.error("Failed to delete photo from backend:", error);
+      notifications.error("Failed to delete photo from server. Please try again.", {
+        title: 'Delete Error',
+        duration: 3000
+      });
+      throw error; // Re-throw to prevent frontend removal if backend fails
+    }
+  };
+
   // Load draft from backend when component mounts
   useEffect(() => {
     const loadDraftFromBackend = async () => {
@@ -306,8 +392,102 @@ export default function InspectionForm({ inspectionData }) {
         // Store inspection status for completion logic
         setInspectionStatus(inspectionData.current_status);
         
-        // Check if there's checklist data to load (draft or completed)
-        if (inspectionData.form?.checklist && (inspectionData.form.checklist.is_draft || inspectionData.form.checklist.completed_at)) {
+        // Check if we have localStorage data and determine loading priority
+        const hasLocalStorageData = savedData && Object.keys(savedData).length > 0;
+        const isReviewMode = reviewMode || returnTo === 'review';
+        const isInProgressStatus = inspectionData.current_status && 
+          ['SECTION_IN_PROGRESS', 'UNIT_IN_PROGRESS', 'MONITORING_IN_PROGRESS'].includes(inspectionData.current_status);
+        
+        console.log("🔍 Data loading context:", { 
+          hasLocalStorageData, 
+          isReviewMode, 
+          reviewMode, 
+          returnTo,
+          isInProgressStatus,
+          currentStatus: inspectionData.current_status,
+          localStorageKeys: hasLocalStorageData ? Object.keys(savedData) : []
+        });
+        
+        // If we have localStorage data and (we're in review mode OR it's an in-progress status), prioritize localStorage
+        if (hasLocalStorageData && (isReviewMode || isInProgressStatus)) {
+          console.log("📝 Prioritizing localStorage data for review mode or in-progress status");
+          
+          // Load localStorage data into form state
+          if (savedData.general) {
+            setGeneral(prevGeneral => ({
+              ...prevGeneral,
+              ...savedData.general
+            }));
+          }
+          
+          if (savedData.purpose) {
+            setPurpose(prevPurpose => ({
+              ...prevPurpose,
+              ...savedData.purpose
+            }));
+          }
+          
+          if (savedData.permits) {
+            setPermits(savedData.permits);
+          }
+          
+          if (savedData.complianceItems) {
+            setComplianceItems(savedData.complianceItems);
+          }
+          
+          if (savedData.systems) {
+            // Clean systems data - remove all auto-summary properties
+            const cleanedSystems = savedData.systems.map(system => {
+              // Create a clean system object with only core properties
+              const cleanedSystem = {
+                // Core system properties only
+                system: system.system || "",
+                lawId: system.lawId || "",
+                compliant: system.compliant || "",
+                nonCompliant: system.nonCompliant || false,
+                remarks: system.remarks || "",
+                remarksOption: system.remarksOption || "",
+                
+                // Preserve other essential properties
+                id: system.id || null,
+                createdAt: system.createdAt || null,
+                updatedAt: system.updatedAt || null
+              };
+              
+              return cleanedSystem;
+            });
+            
+            console.log("🔧 Loading systems from localStorage (auto-summary removed):", {
+              totalSystems: cleanedSystems.length
+            });
+            
+            setSystems(cleanedSystems);
+          }
+          
+          if (savedData.recommendationState) {
+            setRecommendationState(savedData.recommendationState);
+          }
+          
+          if (savedData.lawFilter) {
+            setLawFilter(savedData.lawFilter);
+          }
+          
+          if (savedData.findingImages) {
+            setFindingImages(savedData.findingImages);
+          }
+          
+          if (savedData.generalFindings) {
+            setGeneralFindings(savedData.generalFindings);
+          }
+          
+          if (savedData.lastSaved) {
+            setLastSaveTime(savedData.lastSaved);
+          }
+          
+          console.log("✅ localStorage data loaded successfully for review mode or in-progress status");
+        }
+        // Otherwise, check if there's checklist data to load (draft or completed)
+        else if (inspectionData.form?.checklist && (inspectionData.form.checklist.is_draft || inspectionData.form.checklist.completed_at)) {
           const checklistData = inspectionData.form.checklist;
           
           console.log("📝 Found checklist data:", checklistData);
@@ -371,6 +551,9 @@ export default function InspectionForm({ inspectionData }) {
           console.log("📝 No checklist data found, using fresh form");
         }
         
+        // Load photos from backend
+        await loadPhotosFromBackend(inspectionId);
+        
         // Mark data as loaded to prevent duplicate loading
         setIsDataLoaded(true);
         
@@ -385,7 +568,7 @@ export default function InspectionForm({ inspectionData }) {
     };
 
     loadDraftFromBackend();
-  }, [inspectionId, isDataLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [inspectionId, isDataLoaded, reviewMode, returnTo, savedData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load current user
   useEffect(() => {
@@ -609,28 +792,9 @@ export default function InspectionForm({ inspectionData }) {
       errs.permits = "At least one DENR Permit, License, or Clearance is required.";
     }
 
-    // Summary of Compliance Validation - At least one compliance item must be filled
-    const complianceItemsForSelectedLaws = complianceItems.filter(item => selectedLaws.includes(item.lawId));
-    const hasAtLeastOneComplianceItemFilled = complianceItemsForSelectedLaws.some(
-      item => item.compliant && item.compliant.trim() !== ""
-    );
-    
-    if (selectedLaws.length > 0 && complianceItemsForSelectedLaws.length > 0 && !hasAtLeastOneComplianceItemFilled) {
-      errs.compliance_items = "At least one compliance item must be evaluated.";
-    }
+    // Summary of Compliance Validation - REMOVED (no validation required)
 
-    // Compliance - validate individual items for selected environmental laws
-    complianceItems.forEach((c, i) => {
-      // Only validate if the compliance item's law is selected
-      if (selectedLaws.includes(c.lawId)) {
-      if (!c.compliant) errs[`compliant-${i}`] = "Select compliance status.";
-      if (c.compliant === "No") {
-        if (!c.remarksOption) errs[`remarks-${i}`] = "Select a remark option.";
-        if (c.remarksOption === "Other" && !c.remarks)
-          errs[`remarks-${i}`] = "Enter custom remarks.";
-        }
-      }
-    });
+    // Compliance - validate individual items for selected environmental laws - REMOVED (no validation required)
 
     // Findings - only validate systems for selected environmental laws
     systems.forEach((s, i) => {
@@ -834,6 +998,37 @@ export default function InspectionForm({ inspectionData }) {
         }
       );
       return;
+    }
+
+    // Auto-save to localStorage before navigation
+    try {
+      const saveData = {
+        general,
+        purpose,
+        permits,
+        complianceItems,
+        systems,
+        recommendationState,
+        findingImages,
+        generalFindings,
+        lastSaved: new Date().toISOString(),
+        autoSavedOnSubmit: true
+      };
+      
+      localStorage.setItem(storageKey, JSON.stringify(saveData));
+      console.log("💾 Auto-saved to localStorage on submit");
+      
+      // Show brief success notification
+      notifications.success("Form auto-saved successfully", { 
+        title: 'Auto-Save Complete',
+        duration: 2000
+      });
+    } catch (e) {
+      console.error("Auto-save error on submit:", e);
+      notifications.warning("Form submitted but auto-save failed", { 
+        title: 'Auto-Save Warning',
+        duration: 3000
+      });
     }
 
     // Navigate to preview page
@@ -1408,7 +1603,6 @@ export default function InspectionForm({ inspectionData }) {
               permits={permits}
               setPermits={setPermits}
               lawFilter={lawFilter}
-              natureOfBusiness={general.nature_of_business}
               errors={errors}
               isReadOnly={buttonVisibility.isReadOnly}
             />
@@ -1537,6 +1731,7 @@ export default function InspectionForm({ inspectionData }) {
                   });
                 }
               }}
+              onDeletePhoto={deletePhotoFromBackend}
             />
           </>
         )}

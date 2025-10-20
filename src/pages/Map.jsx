@@ -674,7 +674,7 @@ export default function MapPage() {
               <div className=" rounded-lg flex-1 overflow-y-auto min-h-0 custom-scrollbar">
                 <table className="w-full border-b border-gray-300 rounded-lg">
                   <thead>
-                    <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
+                    <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
                       <th
                         className="p-1 border-b border-gray-300 cursor-pointer"
                         onClick={() => handleSort("name")}

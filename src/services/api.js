@@ -603,7 +603,9 @@ export const uploadFindingDocument = async (inspectionId, systemId, file, captio
 
 // Delete finding document
 export const deleteFindingDocument = async (inspectionId, documentId) => {
-  const res = await api.delete(`inspections/${inspectionId}/documents/${documentId}/`);
+  const res = await api.delete(`inspections/${inspectionId}/findings/documents/`, {
+    data: { document_id: documentId }
+  });
   return res.data;
 };
 

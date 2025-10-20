@@ -375,7 +375,7 @@ export default function SimpleInspectionWizard({
                 {/* Establishments Table */}
                 <table className="w-full border border-gray-300 rounded-lg">
                   <thead>
-                    <tr className="text-sm text-left text-white bg-sky-700">
+                    <tr className="text-sm text-left text-white bg-gradient-to-r from-sky-600 to-sky-700">
                       <th className="w-6 p-1 text-center border-b border-gray-300">
                         <input
                           type="checkbox"

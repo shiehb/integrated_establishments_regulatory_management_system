@@ -2,12 +2,9 @@ import React, { useEffect, forwardRef } from "react";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import { formatInput } from "./utils";
 import SectionHeader from "./SectionHeader";
-import { autoSyncComplianceToFinding } from "./complianceFindingsMapping";
-import { updateSystemsWithAutoSummaries } from "./summaryGenerator";
 
 /* ---------------------------
    Summary Of Compliance (with predefined remarks)
-   - Now with auto-sync to findings!
    ---------------------------*/
 const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({ 
   items, 
@@ -33,7 +30,7 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
             lawId: li.lawId,
             lawCitation: li.lawCitation,
             complianceRequirement: li.complianceRequirement || "",
-            compliant: "",
+            compliant: "N/A",
             remarksOption: "",
             remarks: "",
             conditionNumber: "",
@@ -45,21 +42,6 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
     if (changed) setItems(clone);
   }, [lawFilter, items, setItems]);
 
-  // Auto-sync all compliance items to findings whenever items change
-  useEffect(() => {
-    if (!systems || !setSystems || !items || items.length === 0) return;
-    
-    // Generate auto-summaries for all systems based on current compliance items
-    const updatedSystems = updateSystemsWithAutoSummaries(systems, items);
-    
-    // Check if anything actually changed
-    const hasChanges = JSON.stringify(systems) !== JSON.stringify(updatedSystems);
-    
-    if (hasChanges) {
-      setSystems(updatedSystems);
-      console.log('🔄 Auto-summaries generated for all systems');
-    }
-  }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateItem = (
     index,
@@ -72,11 +54,11 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
 
     if (field === "compliant") {
       if (value === "Yes") {
-        // ✅ Auto-set to Compliant when Yes
+        // ✅ Clear remarks when Yes - let user enter their own
         clone[index] = {
           ...clone[index],
           compliant: value,
-          remarksOption: "Compliant",
+          remarksOption: "",
           remarks: "",
         };
       } else if (value === "No") {
@@ -99,21 +81,6 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
         clone[index] = { ...clone[index], compliant: value };
       }
       
-      // 🔄 AUTO-SYNC to corresponding finding system
-      if (systems && setSystems) {
-        const oldSystems = [...systems];
-        const updatedSystems = autoSyncComplianceToFinding(clone[index], systems);
-        
-        // Check if any system was actually updated
-        const hasChanges = JSON.stringify(oldSystems) !== JSON.stringify(updatedSystems);
-        
-        if (hasChanges) {
-          setSystems(updatedSystems);
-          console.log('🔄 Auto-synced compliance to finding:', clone[index].complianceRequirement);
-          
-          // Auto-sync notification removed as per requirements
-        }
-      }
       
       // Trigger compliance change callback (for recommendations visibility)
       if (onComplianceChange) {
@@ -122,13 +89,6 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
     } else {
       clone[index] = { ...clone[index], [field]: formatter(value) };
       
-      // If updating remarks, also sync to findings
-      if ((field === "remarksOption" || field === "remarks") && systems && setSystems && clone[index].compliant === "No") {
-        const updatedSystems = autoSyncComplianceToFinding(clone[index], systems);
-        setSystems(updatedSystems);
-        
-        // Auto-sync notification removed as per requirements
-      }
     }
 
     setItems(clone);
@@ -402,12 +362,21 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                         {/* Remarks */}
                         <td className="py-1.5 px-3 border border-gray-300">
                           {item.compliant === "Yes" ? (
-                            // ✅ Show "Compliant" as readonly text
-                            <input
-                              type="text"
-                              value="Compliant"
-                              readOnly
-                              className="w-full px-3 py-2 text-gray-900 bg-gray-100 border border-gray-300 rounded-md"
+                            // ✅ Show textbox for user to enter their own remarks
+                            <textarea
+                              value={item.remarks || ""}
+                              onChange={(e) => {
+                                const itemIndex = items.findIndex(i => i.conditionId === item.conditionId);
+                                updateItem(
+                                  itemIndex,
+                                  "remarks",
+                                  e.target.value,
+                                  (v) => v
+                                );
+                              }}
+                              placeholder="Enter remarks for compliant item..."
+                              className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[80px]"
+                              disabled={isReadOnly}
                             />
                           ) : (
                             <>

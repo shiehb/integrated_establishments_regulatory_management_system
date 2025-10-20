@@ -2,13 +2,12 @@ import React, { useMemo, useState, useEffect, forwardRef } from "react";
 import { formatInput, validateDateIssued, validateExpiryDate, validatePermitDates } from "./utils";
 import SectionHeader from "./SectionHeader";
 import { validatePermitNumber, getPermitExample } from "./permitValidation";
-import { filterPermitsByBusiness } from "../../constants/inspectionform/permitsConstants";
 
 /* ---------------------------
    Compliance Status (Permits)
    - includes date validation & formatting
    ---------------------------*/
-const ComplianceStatus = forwardRef(function ComplianceStatus({ permits, setPermits, lawFilter, natureOfBusiness, errors = {}, isReadOnly = false }, ref) {
+const ComplianceStatus = forwardRef(function ComplianceStatus({ permits, setPermits, lawFilter, errors = {}, isReadOnly = false }, ref) {
   // State for validation
   const [dateValidations, setDateValidations] = useState({});
   const [permitNumberValidations, setPermitNumberValidations] = useState({});
@@ -52,19 +51,15 @@ const ComplianceStatus = forwardRef(function ComplianceStatus({ permits, setPerm
     setPermitNumberValidations(validations);
   }, [permits]);
 
-  // Filter permits by selected laws and nature of business
+  // Filter permits by selected laws only
   const filtered = useMemo(() => {
-    // First filter by law
-    let result = permits;
+    // Filter by law only
     if (lawFilter && lawFilter.length > 0) {
-      result = permits.filter((p) => lawFilter.includes(p.lawId));
+      return permits.filter((p) => lawFilter.includes(p.lawId));
     }
     
-    // Then filter by nature of business
-    result = filterPermitsByBusiness(result, natureOfBusiness);
-    
-    return result;
-  }, [permits, lawFilter, natureOfBusiness]);
+    return permits;
+  }, [permits, lawFilter]);
 
   // Group permits by lawId
   const grouped = useMemo(() => {
@@ -148,13 +143,12 @@ const ComplianceStatus = forwardRef(function ComplianceStatus({ permits, setPerm
                           title={`Example: ${getPermitExample(perm.lawId, perm.permitType)}`}
                           disabled={isReadOnly}
                         />
-                        {/* Permit Number Validation Message */}
-                        {permitNumberValidations[originalIndex] && permitNumberValidations[originalIndex].message && (
+                        {/* Permit Number Validation Message - Only show errors and warnings */}
+                        {permitNumberValidations[originalIndex] && permitNumberValidations[originalIndex].message && 
+                         (!permitNumberValidations[originalIndex].isValid || permitNumberValidations[originalIndex].warning) && (
                           <p className={`text-xs mt-1 ${
-                            permitNumberValidations[originalIndex].isValid
-                              ? permitNumberValidations[originalIndex].warning
-                                ? 'text-yellow-600'
-                                : 'text-green-600'
+                            permitNumberValidations[originalIndex].warning
+                              ? 'text-yellow-600'
                               : 'text-red-600'
                           }`}>
                             {permitNumberValidations[originalIndex].message}
@@ -185,13 +179,12 @@ const ComplianceStatus = forwardRef(function ComplianceStatus({ permits, setPerm
                           disabled={isReadOnly}
                         />
                       </div>
-                      {/* Validation message */}
-                      {dateValidations[originalIndex]?.dateIssued && (
+                      {/* Validation message - Only show errors and warnings */}
+                      {dateValidations[originalIndex]?.dateIssued && 
+                       (!dateValidations[originalIndex].dateIssued.isValid || dateValidations[originalIndex].dateIssued.warning) && (
                         <p className={`text-xs mt-1 ${
-                          dateValidations[originalIndex].dateIssued.isValid
-                            ? dateValidations[originalIndex].dateIssued.warning
-                              ? "text-yellow-600"
-                              : "text-green-600"
+                          dateValidations[originalIndex].dateIssued.warning
+                            ? "text-yellow-600"
                             : "text-red-600"
                         }`}>
                           {dateValidations[originalIndex].dateIssued.message}
@@ -219,15 +212,16 @@ const ComplianceStatus = forwardRef(function ComplianceStatus({ permits, setPerm
                           }
                           min={permits[originalIndex].dateIssued || undefined} // Prevent dates before issued date
                           disabled={isReadOnly}
+                          placeholder="Leave blank if no expiry"
+                          title="Leave blank if this permit has no expiry date"
                         />
                       </div>
-                      {/* Validation message */}
-                      {dateValidations[originalIndex]?.expiryDate && (
+                      {/* Validation message - Only show errors and warnings */}
+                      {dateValidations[originalIndex]?.expiryDate && dateValidations[originalIndex].expiryDate.message && 
+                       (!dateValidations[originalIndex].expiryDate.isValid || dateValidations[originalIndex].expiryDate.warning) && (
                         <p className={`text-xs mt-1 ${
-                          dateValidations[originalIndex].expiryDate.isValid
-                            ? dateValidations[originalIndex].expiryDate.warning
-                              ? "text-yellow-600"
-                              : "text-green-600"
+                          dateValidations[originalIndex].expiryDate.warning
+                            ? "text-yellow-600"
                             : "text-red-600"
                         }`}>
                           {dateValidations[originalIndex].expiryDate.message}

@@ -322,7 +322,7 @@ const SystemConfiguration = () => {
               <button
                 onClick={handleOpenConfirm}
                 disabled={saving || !hasUnsavedChanges}
-                className="inline-flex items-center justify-center px-6 py-2 text-sm font-medium text-white bg-sky-600 border border-transparent rounded-lg hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
+                className="inline-flex items-center justify-center px-3 py-1 text-sm font-medium text-white bg-sky-600 border border-transparent rounded-lg hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 shadow-sm"
               >
                 <Save className="mr-2" size={16} />
                 {saving ? "Saving..." : "Save Configuration"}
@@ -564,7 +564,7 @@ const SystemConfiguration = () => {
                         <button
                           onClick={handleTestEmail}
                           disabled={testing}
-                          className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="inline-flex items-center justify-center px-3 py-1 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <TestTube className="mr-2" size={16} />
                           {testing ? "Testing..." : "Test Email"}

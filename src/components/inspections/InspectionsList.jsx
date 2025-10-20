@@ -1302,7 +1302,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       <div className="overflow-auto border border-gray-300 rounded-lg h-[calc(100vh-325px)] scroll-smooth custom-scrollbar">
         <table className="w-full min-w-[800px]">
           <thead>
-            <tr className="text-xs text-left text-white bg-sky-700 sticky top-0 z-10">
+            <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
               <th className="w-6 p-1 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
@@ -1318,7 +1318,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               </th>
               <th className="p-1 border-b border-gray-300">Establishments</th>
               <th className="p-1 border-b border-gray-300">Law</th>
-              <th className="p-1 border-b border-gray-300">Status</th>
+              <th className="p-1 text-center border-b border-gray-300">Status</th>
               <th className="p-1 border-b border-gray-300">Inspected By</th>
               <th className="p-1 text-center border-b border-gray-300 cursor-pointer" onClick={() => handleSort("created_at")}>
                 <div className="flex items-center justify-center gap-1">Created {getSortIcon("created_at")}</div>
@@ -1393,12 +1393,9 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   <td className="p-1 border-b border-gray-300">
                     {inspection.law}
                   </td>
-                  <td className="p-1 border-b border-gray-300">
+                  <td className="p-1 text-center border-b border-gray-300">
                     <StatusBadge 
-                      status={inspection.current_status} 
-                      inspection={inspection}
-                      userLevel={userLevel}
-                      currentUser={currentUser}
+                      status={inspection.current_status}
                     />
                   </td>
                   <td className="p-1 border-b border-gray-300">

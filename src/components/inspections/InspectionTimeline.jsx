@@ -10,6 +10,7 @@ import {
   Building,
   Scale
 } from 'lucide-react';
+import { statusDisplayMap, getStatusColorClass, getStatusBgColorClass } from '../../constants/inspectionConstants';
 
 export default function InspectionTimeline({ history = [] }) {
   const [expandedItems, setExpandedItems] = useState(new Set());
@@ -28,28 +29,41 @@ export default function InspectionTimeline({ history = [] }) {
     setExpandedItems(newExpanded);
   };
 
-  const getStatusIcon = (status, action) => {
-    if (action?.includes('created')) return <CheckCircle className="h-4 w-4 text-green-600" />;
-    if (action?.includes('assigned') || action?.includes('forwarded')) return <ArrowRight className="h-4 w-4 text-blue-600" />;
-    if (action?.includes('started') || action?.includes('in progress')) return <Clock className="h-4 w-4 text-yellow-600" />;
-    if (action?.includes('completed')) return <CheckCircle className="h-4 w-4 text-green-600" />;
-    if (action?.includes('reviewed')) return <Scale className="h-4 w-4 text-purple-600" />;
-    if (action?.includes('legal')) return <AlertCircle className="h-4 w-4 text-red-600" />;
-    if (action?.includes('closed')) return <CheckCircle className="h-4 w-4 text-green-600" />;
+  const getStatusIcon = (status) => {
+    // Use status-based icons with new color scheme
+    if (status?.includes('CREATED')) return <FileText className="h-4 w-4 text-gray-600" />;
+    if (status?.includes('ASSIGNED')) return <ArrowRight className="h-4 w-4 text-blue-600" />;
+    if (status?.includes('IN_PROGRESS')) return <Clock className="h-4 w-4 text-amber-600" />;
+    if (status?.includes('COMPLETED')) return <CheckCircle className="h-4 w-4 text-sky-600" />;
+    if (status?.includes('REVIEWED')) return <Scale className="h-4 w-4 text-indigo-600" />;
+    if (status?.includes('LEGAL') || status?.includes('NOV') || status?.includes('NOO')) return <AlertCircle className="h-4 w-4 text-orange-600" />;
+    if (status?.includes('CLOSED_COMPLIANT')) return <CheckCircle className="h-4 w-4 text-green-600" />;
+    if (status?.includes('CLOSED_NON_COMPLIANT')) return <AlertCircle className="h-4 w-4 text-red-600" />;
     
     return <FileText className="h-4 w-4 text-gray-600" />;
   };
 
-  const getStatusColor = (status, action) => {
-    if (action?.includes('created')) return 'bg-green-100 border-green-300';
-    if (action?.includes('assigned') || action?.includes('forwarded')) return 'bg-blue-100 border-blue-300';
-    if (action?.includes('started') || action?.includes('in progress')) return 'bg-yellow-100 border-yellow-300';
-    if (action?.includes('completed')) return 'bg-green-100 border-green-300';
-    if (action?.includes('reviewed')) return 'bg-purple-100 border-purple-300';
-    if (action?.includes('legal')) return 'bg-red-100 border-red-300';
-    if (action?.includes('closed')) return 'bg-green-100 border-green-300';
+  const getStatusColor = (status) => {
+    // Use standardized color scheme from statusDisplayMap
+    const config = statusDisplayMap[status];
+    if (!config) return 'bg-gray-100 border-gray-300';
     
-    return 'bg-gray-100 border-gray-300';
+    const colorMap = {
+      gray: 'bg-gray-100 border-gray-300',
+      blue: 'bg-blue-100 border-blue-300',
+      amber: 'bg-amber-100 border-amber-300',
+      sky: 'bg-sky-100 border-sky-300',
+      indigo: 'bg-indigo-100 border-indigo-300',
+      orange: 'bg-orange-100 border-orange-300',
+      green: 'bg-green-100 border-green-300',
+      red: 'bg-red-100 border-red-300'
+    };
+    
+    return colorMap[config.color] || 'bg-gray-100 border-gray-300';
+  };
+
+  const getStatusLabel = (status) => {
+    return statusDisplayMap[status]?.label || status?.replace(/_/g, ' ');
   };
 
   const formatDateTime = (dateString) => {
@@ -120,8 +134,8 @@ export default function InspectionTimeline({ history = [] }) {
           return (
             <div key={entry.id} className="relative flex items-start pb-6">
               {/* Timeline dot */}
-              <div className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full border-2 ${getStatusColor(entry.new_status, entry.remarks)}`}>
-                {getStatusIcon(entry.new_status, entry.remarks)}
+              <div className={`relative z-10 flex items-center justify-center w-12 h-12 rounded-full border-2 ${getStatusColor(entry.new_status)}`}>
+                {getStatusIcon(entry.new_status)}
               </div>
 
               {/* Timeline content */}
@@ -146,14 +160,14 @@ export default function InspectionTimeline({ history = [] }) {
                           {entry.previous_status && (
                             <>
                               <span className="px-2 py-1 bg-gray-100 rounded text-xs">
-                                {entry.previous_status.replace(/_/g, ' ')}
+                                {getStatusLabel(entry.previous_status)}
                               </span>
                               <ArrowRight className="h-3 w-3 text-gray-400 mx-1" />
                             </>
                           )}
                         </span>
-                        <span className="px-2 py-1 bg-sky-100 text-sky-800 rounded text-xs font-medium">
-                          {entry.new_status.replace(/_/g, ' ')}
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusBgColorClass(entry.new_status)} ${getStatusColorClass(entry.new_status)}`}>
+                          {getStatusLabel(entry.new_status)}
                         </span>
                       </div>
 
@@ -220,11 +234,11 @@ export default function InspectionTimeline({ history = [] }) {
                           <div className="grid grid-cols-2 gap-4 text-xs">
                             <div>
                               <span className="font-medium text-gray-700">Previous Status:</span>
-                              <div className="text-gray-600">{entry.previous_status.replace(/_/g, ' ')}</div>
+                              <div className="text-gray-600">{getStatusLabel(entry.previous_status)}</div>
                             </div>
                             <div>
                               <span className="font-medium text-gray-700">New Status:</span>
-                              <div className="text-gray-600">{entry.new_status.replace(/_/g, ' ')}</div>
+                              <div className="text-gray-600">{getStatusLabel(entry.new_status)}</div>
                             </div>
                           </div>
                         </div>

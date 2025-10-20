@@ -241,7 +241,7 @@ export default function RoleBasedSearch({ userLevel = "public" }) {
         <button
           onMouseEnter={() => setShowKeyboardHints(true)}
           onMouseLeave={() => setShowKeyboardHints(false)}
-          className="absolute -translate-y-1/2 left-[-1rem] top-1 text-gray-400 hover:text-gray-600 transition-colors hidden sm:block"
+          className="absolute -translate-y-1/2 right-[-1rem] top-1 text-gray-400 hover:text-gray-600 transition-colors hidden sm:block"
           title="Keyboard shortcuts"
         >
           <Info className="w-3.5 h-3.5" />
@@ -305,7 +305,7 @@ export default function RoleBasedSearch({ userLevel = "public" }) {
 
       {/* Keyboard shortcuts tooltip */}
       {showKeyboardHints && (
-        <div className="absolute top-full left-0 mt-1 bg-gray-900 text-white rounded-lg shadow-lg p-3 z-50 text-xs w-64 keyboard-hints-tooltip">
+        <div className="absolute top-full right-0 mt-1 bg-gray-900 text-white rounded-lg shadow-lg p-3 z-50 text-xs w-64 keyboard-hints-tooltip">
           <h4 className="font-semibold mb-2">Keyboard Shortcuts</h4>
           <div className="space-y-1">
             <div className="flex justify-between">
