@@ -191,62 +191,12 @@ export default function Billing() {
     <>
       <Header />
       <LayoutWithSidebar>
-        <div className="p-4 bg-gray-50">
-          {/* Page Header */}
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-              <FileText className="w-8 h-8 mr-2 text-sky-600" />
-              Billing Records
-            </h1>
-            <p className="text-gray-600 mt-1">
-              View and manage penalty billing records from non-compliant inspections
-            </p>
-          </div>
+        <div className="p-4 bg-white h-[calc(100vh-160px)]">
+          {/* Top controls */}
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h1 className="text-2xl font-bold text-sky-600">Billing Records</h1>
 
-          {/* Statistics Cards */}
-          {statistics && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-6">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Records</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {statistics.total_records}
-                    </p>
-                  </div>
-                  <FileText className="w-10 h-10 text-sky-600" />
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Total Amount</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {formatCurrency(statistics.total_amount)}
-                    </p>
-                  </div>
-                  <DollarSign className="w-10 h-10 text-green-600" />
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600">Average Amount</p>
-                    <p className="text-2xl font-bold text-amber-600">
-                      {formatCurrency(statistics.average_amount)}
-                    </p>
-                  </div>
-                  <TrendingUp className="w-10 h-10 text-amber-600" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Advanced Controls */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               {/* Search Bar */}
               <div className="relative">
                 <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
@@ -385,6 +335,48 @@ export default function Billing() {
               />
             </div>
           </div>
+
+          {/* Statistics Cards */}
+          {statistics && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-6">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Records</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {statistics.total_records}
+                    </p>
+                  </div>
+                  <FileText className="w-10 h-10 text-sky-600" />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Amount</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {formatCurrency(statistics.total_amount)}
+                    </p>
+                  </div>
+                  <DollarSign className="w-10 h-10 text-green-600" />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Average Amount</p>
+                    <p className="text-2xl font-bold text-amber-600">
+                      {formatCurrency(statistics.average_amount)}
+                    </p>
+                  </div>
+                  <TrendingUp className="w-10 h-10 text-amber-600" />
+                </div>
+              </div>
+            </div>
+          )}
+
 
           {/* Billing Records Table */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
