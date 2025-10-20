@@ -3,10 +3,12 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../components/NotificationManager';
 import api from '../services/api';
+import { sendNOV } from '../services/api';
 import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck, Printer, Edit, X, UserCheck, Users, Building, CheckSquare, Scale, Mail, FileText, CornerDownLeft, Camera } from 'lucide-react';
 import LayoutForm from '../components/LayoutForm';
 import { getButtonVisibility as getRoleStatusButtonVisibility, canUserAccessInspection } from '../utils/roleStatusMatrix';
 import ImageLightbox from '../components/inspection-form/ImageLightbox';
+import NOVModal from '../components/inspections/NOVModal';
 
 const InspectionReviewPage = () => {
   const { id } = useParams();
@@ -37,6 +39,9 @@ const InspectionReviewPage = () => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  
+  // NOV modal state
+  const [showNOVModal, setShowNOVModal] = useState(false);
 
   // Process compliance items for merged law citations (moved to top level)
   const processedComplianceItems = useMemo(() => {
@@ -328,8 +333,35 @@ const InspectionReviewPage = () => {
   };
 
   const handleActionClick = (type) => {
-    setActionType(type);
-    setShowConfirm(true);
+    if (type === 'send_nov') {
+      setShowNOVModal(true);
+    } else {
+      setActionType(type);
+      setShowConfirm(true);
+    }
+  };
+
+  const handleNOVConfirm = async (novData) => {
+    try {
+      setLoading(true);
+      await sendNOV(id, {
+        violations: novData.violations,
+        compliance_instructions: novData.complianceInstructions,
+        compliance_deadline: new Date(novData.complianceDeadline).toISOString(),
+        remarks: novData.remarks || 'Notice of Violation sent'
+      });
+      
+      notifications.success('Notice of Violation sent successfully!');
+      setShowNOVModal(false);
+      navigate('/inspections');
+    } catch (error) {
+      console.error('Error sending NOV:', error);
+      notifications.error(
+        error.response?.data?.error || error.response?.data?.message || 'Failed to send NOV'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading && !inspectionData) {
@@ -484,8 +516,9 @@ const InspectionReviewPage = () => {
                   <X className="w-4 h-4 mr-1" />
                   Close
                 </button>
-                {/* Hide Edit Inspection button for Division Chief */}
-                {currentUser?.userlevel !== 'Division Chief' && (
+                {/* Hide Edit Inspection button for Division Chief and Legal Unit with LEGAL_REVIEW status */}
+                {currentUser?.userlevel !== 'Division Chief' && 
+                 !(currentUser?.userlevel === 'Legal Unit' && inspectionData?.current_status === 'LEGAL_REVIEW') && (
                 <button
                   onClick={() => navigate(`/inspections/${id}/form?returnTo=review&reviewMode=true`)}
                   className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
@@ -543,8 +576,8 @@ const InspectionReviewPage = () => {
                           Reviewed
                         </button>
                         
-                        {/* Show compliance-based action button */}
-                        {complianceStatus === 'COMPLIANT' ? (
+                        {/* Show compliance-based action button - only for COMPLIANT inspections */}
+                        {complianceStatus === 'COMPLIANT' && (
                           <button
                             onClick={() => handleActionClick('mark_compliant')}
                             className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
@@ -552,15 +585,6 @@ const InspectionReviewPage = () => {
                           >
                             <CheckSquare className="w-4 h-4 mr-1" />
                             Mark as Compliant
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleActionClick('forward_legal')}
-                            className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
-                            disabled={loading}
-                          >
-                            <Scale className="w-4 h-4 mr-1" />
-                            Send to Legal
                           </button>
                         )}
                       </>
@@ -590,6 +614,20 @@ const InspectionReviewPage = () => {
                         )}
                       </>
                     )}
+                  </>
+                )}
+                {/* Legal Unit buttons for LEGAL_REVIEW status */}
+                {!userLoading && currentUser?.userlevel === 'Legal Unit' && 
+                 inspectionData?.current_status === 'LEGAL_REVIEW' && (
+                  <>
+                    <button
+                      onClick={() => handleActionClick('send_nov')}
+                      className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
+                      disabled={loading}
+                    >
+                      <Mail className="w-4 h-4 mr-1" />
+                      Send NOV
+                    </button>
                   </>
                 )}
               </>
@@ -1246,6 +1284,15 @@ const InspectionReviewPage = () => {
           }
         }
       `}</style>
+
+      {/* NOV Modal */}
+      <NOVModal
+        open={showNOVModal}
+        onClose={() => setShowNOVModal(false)}
+        onConfirm={handleNOVConfirm}
+        inspection={inspectionData}
+        loading={loading}
+      />
     </LayoutForm>
   );
 };
