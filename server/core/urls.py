@@ -25,6 +25,9 @@ urlpatterns = [
     # 🔹 Backup & Restore endpoints
     path('api/db/', include('system.urls')),   # <---- add this line
 
+    # Include inspections URLs (contains billing endpoints)
+    path('api/', include('inspections.urls')),
+
     # Search
     path('api/search/', GlobalSearchView.as_view()),
     path('api/search/suggestions/', SearchSuggestionsView.as_view()),

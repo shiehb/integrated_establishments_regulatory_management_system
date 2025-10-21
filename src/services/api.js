@@ -942,7 +942,7 @@ export const downloadBackup = async (fileName) => {
  */
 export const getBillingRecords = async (params = {}) => {
   try {
-    const response = await api.get('inspections/billing/', { params });
+    const response = await api.get('billing/', { params });
     return response.data;
   } catch (error) {
     const enhancedError = new Error(
@@ -960,7 +960,7 @@ export const getBillingRecords = async (params = {}) => {
  */
 export const getBillingRecord = async (id) => {
   try {
-    const response = await api.get(`inspections/billing/${id}/`);
+    const response = await api.get(`billing/${id}/`);
     return response.data;
   } catch (error) {
     const enhancedError = new Error(
@@ -978,7 +978,7 @@ export const getBillingRecord = async (id) => {
  */
 export const getBillingStatistics = async () => {
   try {
-    const response = await api.get('inspections/billing/statistics/');
+    const response = await api.get('billing/statistics/');
     return response.data;
   } catch (error) {
     const enhancedError = new Error(
@@ -996,7 +996,7 @@ export const getBillingStatistics = async () => {
  */
 export const printBillingReceipt = async (id) => {
   try {
-    const response = await api.get(`inspections/billing/${id}/print_receipt/`);
+    const response = await api.get(`billing/${id}/print_receipt/`);
     return response.data;
   } catch (error) {
     const enhancedError = new Error(

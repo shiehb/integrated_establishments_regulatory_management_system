@@ -2593,7 +2593,26 @@ class BillingViewSet(viewsets.ModelViewSet):
         # Apply filters from query params
         law = self.request.query_params.get('law', None)
         if law:
-            queryset = queryset.filter(related_law=law)
+            # Normalize law format - try multiple formats
+            law_normalized = law.replace(' ', '').replace('-', '')
+            # Try to add dashes if it's a law code like RA8749 -> RA-8749
+            if law.startswith('RA') and len(law) > 2:
+                law_with_dash = f"RA-{law[2:]}"
+                law_with_spaces = f"RA {law[2:]}"
+            elif law.startswith('PD') and len(law) > 2:
+                law_with_dash = f"PD-{law[2:]}"
+                law_with_spaces = f"PD {law[2:]}"
+            else:
+                law_with_dash = law
+                law_with_spaces = law
+            
+            queryset = queryset.filter(
+                Q(related_law=law) | 
+                Q(related_law=law_normalized) |
+                Q(related_law=law_with_dash) |
+                Q(related_law=law_with_spaces) |
+                Q(related_law__icontains=law.replace(' ', '').replace('-', ''))
+            )
         
         establishment_id = self.request.query_params.get('establishment', None)
         if establishment_id:
@@ -2607,7 +2626,7 @@ class BillingViewSet(viewsets.ModelViewSet):
                 Q(description__icontains=search)
             )
         
-        return queryset.select_related('inspection', 'establishment', 'issued_by').prefetch_related('items')
+        return queryset.select_related('inspection', 'establishment', 'issued_by')
     
     @action(detail=False, methods=['get'])
     def statistics(self, request):
