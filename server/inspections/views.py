@@ -8,11 +8,11 @@ from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from .models import Inspection, InspectionForm, InspectionDocument, InspectionHistory
+from .models import Inspection, InspectionForm, InspectionDocument, InspectionHistory, NoticeOfViolation, NoticeOfOrder, BillingRecord
 from .serializers import (
     InspectionSerializer, InspectionCreateSerializer, InspectionFormSerializer,
     InspectionHistorySerializer, InspectionDocumentSerializer,
-    InspectionActionSerializer, NOVSerializer, NOOSerializer
+    InspectionActionSerializer, NOVSerializer, NOOSerializer, BillingRecordSerializer
 )
 from .utils import send_inspection_forward_notification, create_forward_notification
 
@@ -230,8 +230,14 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 )
         elif tab == 'compliance':
             # Show final status inspections (completed work through entire workflow)
+            # Filter by Section Chief's own work or their section's work
+            from django.db.models import Q
             return queryset.filter(
                 law_filter,
+                Q(form__inspected_by=user) | 
+                Q(form__inspected_by__userlevel='Section Chief', form__inspected_by__section=user.section) |
+                Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) |
+                Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
                 current_status__in=[
                     'SECTION_COMPLETED_COMPLIANT',
                     'SECTION_COMPLETED_NON_COMPLIANT',
@@ -294,8 +300,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         elif tab == 'compliance':
             # Show final status inspections (completed work through entire workflow)
+            # Filter by Unit Head's own work or their section's work
+            from django.db.models import Q
             return queryset.filter(
                 law_filter,
+                Q(form__inspected_by=user) | 
+                Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) | 
+                Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
                 current_status__in=[
                     'UNIT_COMPLETED_COMPLIANT',
                     'UNIT_COMPLETED_NON_COMPLIANT',
@@ -326,9 +337,10 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         elif tab == 'completed':
             # Show inspections that this Monitoring Personnel has completed and those in review
-            # Includes both completed statuses and all review levels
+            # Filter by who actually performed the inspection, not current assignee
+            from django.db.models import Q
             return queryset.filter(
-                assigned_to=user,
+                Q(form__inspected_by=user) | Q(assigned_to=user, form__inspected_by__isnull=True),
                 current_status__in=[
                     'MONITORING_COMPLETED_COMPLIANT',
                     'MONITORING_COMPLETED_NON_COMPLIANT',
@@ -1173,15 +1185,19 @@ class InspectionViewSet(viewsets.ModelViewSet):
         else:
             violations_found_str = str(violations_found) if violations_found else ''
         
-        # Update form with violations_found from main payload if not already set from form_data
-        if form_data and inspection.current_status == 'MONITORING_IN_PROGRESS':
-            form, created = InspectionForm.objects.get_or_create(inspection=inspection)
-            if not form.violations_found and violations_found_str:
-                form.violations_found = violations_found_str
-            form.save()
-        
-        # Determine next status based on current status and compliance decision
+        # Determine compliance decision from request data
         compliance_decision = data.get('compliance_decision', 'COMPLIANT')
+        
+        # Always update form with compliance_decision - this is critical for all completion scenarios
+        form, created = InspectionForm.objects.get_or_create(inspection=inspection)
+        form.compliance_decision = compliance_decision
+        
+        # Update violations_found if form_data exists
+        if form_data:
+            if not form.violations_found:
+                form.violations_found = violations_found_str if violations_found_str else 'None'
+        
+        form.save()
         
         if inspection.current_status == 'SECTION_IN_PROGRESS':
             # Section Chief completes inspection
@@ -1874,10 +1890,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Check valid status
-        if inspection.current_status != 'SECTION_REVIEWED':
+        # Check valid status - allow SECTION_REVIEWED and SECTION_COMPLETED_* statuses
+        valid_statuses = ['SECTION_REVIEWED', 'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT']
+        if inspection.current_status not in valid_statuses:
             return Response(
-                {'error': f'Cannot review from status {inspection.current_status}. Expected SECTION_REVIEWED.'},
+                {'error': f'Cannot review from status {inspection.current_status}. Expected one of: {", ".join(valid_statuses)}.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -1977,15 +1994,31 @@ class InspectionViewSet(viewsets.ModelViewSet):
         # Get or create form
         form, created = InspectionForm.objects.get_or_create(inspection=inspection)
         
-        # Update form with NOV data
-        form.nov_sent_date = timezone.now().date()
-        form.nov_violations = data['violations']
-        form.nov_compliance_instructions = data['compliance_instructions']
-        form.nov_compliance_date = data['compliance_deadline']
-        form.nov_remarks = data.get('remarks', '')
-        # Also update legacy fields for backward compatibility
+        # Create or update NOV record
+        nov, nov_created = NoticeOfViolation.objects.get_or_create(
+            inspection_form=form,
+            defaults={
+                'sent_date': timezone.now().date(),
+                'violations': data['violations'],
+                'compliance_instructions': data['compliance_instructions'],
+                'compliance_deadline': data['compliance_deadline'],
+                'remarks': data.get('remarks', ''),
+                'sent_by': user
+            }
+        )
+        
+        # If NOV already exists, update it
+        if not nov_created:
+            nov.sent_date = timezone.now().date()
+            nov.violations = data['violations']
+            nov.compliance_instructions = data['compliance_instructions']
+            nov.compliance_deadline = data['compliance_deadline']
+            nov.remarks = data.get('remarks', '')
+            nov.sent_by = user
+            nov.save()
+        
+        # Update violations_found for initial inspection tracking
         form.violations_found = data['violations']
-        form.compliance_plan = data['compliance_instructions']
         form.save()
         
         # Transition
@@ -2025,18 +2058,35 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         data = serializer.validated_data
         
-        # Get or create form and update with NOO data
+        # Get or create form
         form, created = InspectionForm.objects.get_or_create(inspection=inspection)
-        form.noo_sent_date = timezone.now().date()
-        form.noo_violation_breakdown = data['violation_breakdown']
-        form.noo_penalty_fees = data['penalty_fees']
-        form.noo_payment_deadline = data['payment_deadline']
-        form.noo_payment_instructions = data.get('payment_instructions', '')
-        form.noo_remarks = data.get('remarks', '')
-        form.save()
+        
+        # Create or update NOO record
+        noo, noo_created = NoticeOfOrder.objects.get_or_create(
+            inspection_form=form,
+            defaults={
+                'sent_date': timezone.now().date(),
+                'violation_breakdown': data['violation_breakdown'],
+                'penalty_fees': data['penalty_fees'],
+                'payment_deadline': data['payment_deadline'],
+                'payment_instructions': data.get('payment_instructions', ''),
+                'remarks': data.get('remarks', ''),
+                'sent_by': user
+            }
+        )
+        
+        # If NOO already exists, update it
+        if not noo_created:
+            noo.sent_date = timezone.now().date()
+            noo.violation_breakdown = data['violation_breakdown']
+            noo.penalty_fees = data['penalty_fees']
+            noo.payment_deadline = data['payment_deadline']
+            noo.payment_instructions = data.get('payment_instructions', '')
+            noo.remarks = data.get('remarks', '')
+            noo.sent_by = user
+            noo.save()
         
         # Create billing record
-        from .models import BillingRecord, BillingItem
         establishment = inspection.establishments.first()
         if not establishment:
             return Response(
@@ -2049,7 +2099,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
             establishment=establishment,
             establishment_name=establishment.name,
             contact_person=getattr(establishment, 'contact_person', ''),
-            contact_number=getattr(establishment, 'contact_number', ''),
             related_law=inspection.law,
             billing_type='PENALTY',
             description=data['violation_breakdown'],
@@ -2058,15 +2107,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
             recommendations=data.get('remarks', ''),
             issued_by=user
         )
-        
-        # Create billing items if provided
-        for idx, item_data in enumerate(data.get('billing_items', [])):
-            BillingItem.objects.create(
-                billing_record=billing,
-                violation=item_data.get('violation', ''),
-                amount=item_data.get('amount', 0),
-                order=idx
-            )
         
         # Transition
         prev_status = inspection.current_status
@@ -2528,9 +2568,6 @@ class BillingViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Billing Records
     """
-    from .models import BillingRecord, BillingItem
-    from .serializers import BillingRecordSerializer
-    
     queryset = BillingRecord.objects.all().order_by('-created_at')
     serializer_class = BillingRecordSerializer
     permission_classes = [permissions.IsAuthenticated]

@@ -30,13 +30,12 @@ import {
 } from "lucide-react";
 import {
   getProfile, 
-  getInspections, 
   deleteInspection
 } from "../../services/api";
 import StatusBadge from "./StatusBadge";
 import InspectionTabs from "./InspectionTabs";
 import InspectionActions from "./InspectionActions";
-import { roleTabs, tabDisplayNames, canUserSeeInspection, shouldShowInTab, canUserPerformActions } from "../../constants/inspectionConstants";
+import { roleTabs, tabDisplayNames, canUserPerformActions } from "../../constants/inspectionConstants";
 import ExportDropdown from "../ExportDropdown";
 import PrintPDF from "../PrintPDF";
 import DateRangeDropdown from "../DateRangeDropdown";
@@ -62,6 +61,188 @@ const useDebounce = (value, delay) => {
   }, [value, delay]);
 
   return debouncedValue;
+};
+
+// Helper function to calculate days until/past deadline
+const getDeadlineStatus = (deadline) => {
+  if (!deadline) return { status: 'none', days: null, text: 'No deadline', color: 'text-gray-400' };
+  
+  const now = new Date();
+  const deadlineDate = new Date(deadline);
+  const diffTime = deadlineDate - now;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays < 0) {
+    return { 
+      status: 'overdue', 
+      days: Math.abs(diffDays), 
+      text: `${Math.abs(diffDays)} days overdue`, 
+      color: 'text-red-600 font-bold',
+      bgColor: 'bg-red-50'
+    };
+  }
+  if (diffDays <= 3) {
+    return { 
+      status: 'urgent', 
+      days: diffDays, 
+      text: `${diffDays} days left`, 
+      color: 'text-orange-600 font-semibold',
+      bgColor: 'bg-orange-50'
+    };
+  }
+  if (diffDays <= 7) {
+    return { 
+      status: 'warning', 
+      days: diffDays, 
+      text: `${diffDays} days left`, 
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-50'
+    };
+  }
+  return { 
+    status: 'normal', 
+    days: diffDays, 
+    text: `${diffDays} days left`, 
+    color: 'text-green-600',
+    bgColor: ''
+  };
+};
+
+// Helper function to get compliance status from inspection
+const getComplianceStatusInfo = (inspection) => {
+  // First check form.compliance_decision
+  if (inspection.form?.compliance_decision) {
+    return {
+      status: inspection.form.compliance_decision,
+      color: inspection.form.compliance_decision === 'COMPLIANT' ? 'text-green-600 bg-green-50' :
+             inspection.form.compliance_decision === 'NON_COMPLIANT' ? 'text-red-600 bg-red-50' :
+             inspection.form.compliance_decision === 'PARTIALLY_COMPLIANT' ? 'text-yellow-600 bg-yellow-50' :
+             'text-gray-600 bg-gray-50',
+      label: inspection.form.compliance_decision === 'COMPLIANT' ? 'Compliant' :
+             inspection.form.compliance_decision === 'NON_COMPLIANT' ? 'Non-Compliant' :
+             inspection.form.compliance_decision === 'PARTIALLY_COMPLIANT' ? 'Partially Compliant' :
+             'Pending'
+    };
+  }
+  
+  // Fallback: extract from current_status
+  if (inspection.current_status) {
+    if (inspection.current_status.includes('_COMPLIANT') && !inspection.current_status.includes('NON')) {
+      return { status: 'COMPLIANT', color: 'text-green-600 bg-green-50', label: 'Compliant' };
+    } else if (inspection.current_status.includes('NON_COMPLIANT')) {
+      return { status: 'NON_COMPLIANT', color: 'text-red-600 bg-red-50', label: 'Non-Compliant' };
+    }
+  }
+  
+  return { status: 'PENDING', color: 'text-gray-600 bg-gray-50', label: 'Pending' };
+};
+
+// Helper function to calculate days since submission
+const getSubmissionAge = (date) => {
+  if (!date) return { days: null, text: 'Unknown', color: 'text-gray-400' };
+  
+  const now = new Date();
+  const submittedDate = new Date(date);
+  const diffTime = now - submittedDate;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) {
+    return { days: 0, text: 'Today', color: 'text-green-600' };
+  } else if (diffDays === 1) {
+    return { days: 1, text: '1 day ago', color: 'text-green-600' };
+  } else if (diffDays <= 2) {
+    return { days: diffDays, text: `${diffDays} days ago`, color: 'text-green-600' };
+  } else if (diffDays <= 7) {
+    return { days: diffDays, text: `${diffDays} days ago`, color: 'text-yellow-600' };
+  } else {
+    return { days: diffDays, text: `${diffDays} days ago`, color: 'text-red-600 font-semibold' };
+  }
+};
+
+// Helper function to get payment status for NOO
+const getPaymentStatus = (noo) => {
+  if (!noo) return { status: 'no_noo', text: 'No NOO', color: 'text-gray-400', daysOverdue: 0 };
+  
+  if (!noo.payment_deadline) {
+    return { status: 'no_deadline', text: 'No deadline', color: 'text-gray-400', daysOverdue: 0 };
+  }
+  
+  const now = new Date();
+  const deadline = new Date(noo.payment_deadline);
+  const diffTime = deadline - now;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  // Check if paid (you'll need payment status field)
+  if (noo.payment_status === 'PAID') {
+    return { status: 'paid', text: 'Paid', color: 'text-green-600 bg-green-50', daysOverdue: 0 };
+  }
+  
+  if (diffDays < 0) {
+    return { 
+      status: 'overdue', 
+      text: 'Overdue', 
+      color: 'text-red-600 bg-red-50 font-bold',
+      daysOverdue: Math.abs(diffDays)
+    };
+  }
+  
+  if (diffDays <= 7) {
+    return { status: 'urgent', text: 'Due Soon', color: 'text-orange-600 bg-orange-50', daysOverdue: 0 };
+  }
+  
+  return { status: 'pending', text: 'Unpaid', color: 'text-yellow-600 bg-yellow-50', daysOverdue: 0 };
+};
+
+// Helper function to calculate days since assignment
+const getAssignmentAge = (date) => {
+  if (!date) return { days: null, text: 'Unknown', color: 'text-gray-400' };
+  
+  const now = new Date();
+  const assignedDate = new Date(date);
+  const diffTime = now - assignedDate;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return { days: 0, text: 'Today', color: 'text-green-600' };
+  if (diffDays === 1) return { days: 1, text: '1 day', color: 'text-green-600' };
+  if (diffDays <= 3) return { days: diffDays, text: `${diffDays} days`, color: 'text-green-600' };
+  if (diffDays <= 7) return { days: diffDays, text: `${diffDays} days`, color: 'text-yellow-600' };
+  return { days: diffDays, text: `${diffDays} days`, color: 'text-red-600 font-semibold' };
+};
+
+// Helper function to determine priority
+const getPriority = (inspection) => {
+  // Priority logic based on law type or establishment category
+  const highPriorityLaws = ['RA-8749', 'RA-9275']; // Air & Water Quality Acts
+  
+  if (highPriorityLaws.includes(inspection.law)) {
+    return { level: 'HIGH', color: 'text-red-600 bg-red-50', label: 'High' };
+  }
+  
+  return { level: 'NORMAL', color: 'text-blue-600 bg-blue-50', label: 'Normal' };
+};
+
+// Helper function to format date as MM/DD/YYYY
+const formatDate = (date) => {
+  if (!date) return 'N/A';
+  return new Date(date).toLocaleDateString();
+};
+
+// Helper function to get column span for different tabs
+const getTabColspan = (activeTab) => {
+  const tabColspans = {
+    'nov_sent': 11,
+    'noo_sent': 12,
+    'review': 11,
+    'received': 12,
+    'my_inspections': 11,
+    'forwarded': 11,
+    'compliance': 11,
+    'assigned': 11,
+    'in_progress': 11,
+    'completed': 11,
+    'default': 8
+  };
+  return tabColspans[activeTab] || tabColspans['default'];
 };
 
 // Helper function to get empty state message based on tab and user level
@@ -544,6 +725,16 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     action: null 
   });
 
+  // Helper function to determine if actions should be shown
+  const shouldShowActions = useCallback((userLevel, activeTab, inspection) => {
+    // Legal Unit users in legal_review and noo_sent tabs should only see view buttons
+    if (userLevel === 'Legal Unit' && (activeTab === 'legal_review' || activeTab === 'noo_sent')) {
+      return false;
+    }
+    
+    return canUserPerformActions(userLevel);
+  }, []);
+
 
   // Handle action clicks with simple confirmation
   const handleActionClick = useCallback(async (action, inspectionId) => {
@@ -648,6 +839,12 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         inspection, 
         action 
       });
+      return;
+    }
+    
+    // 6. "Send NOO" button - Navigate to review page for NOO modal
+    if (action === 'send_noo') {
+      window.location.href = `/inspections/${inspectionId}/review`;
       return;
     }
     
@@ -1219,29 +1416,117 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
           <ExportDropdown
             title="Inspections Export Report"
-            fileName="inspections_export"
-            columns={["Code", "Establishments", "Law", "Status", "Inspected By", "Created Date"]}
+            fileName={
+              activeTab === 'nov_sent' ? 'nov_inspections_export' :
+              activeTab === 'review' ? 'review_inspections_export' :
+              'inspections_export'
+            }
+            columns={
+              activeTab === 'nov_sent' ? ["Code", "Establishments", "Law", "NOV Sent Date", "Compliance Deadline", "Deadline Status", "Status", "Created Date"]
+              : activeTab === 'noo_sent' ? ["Code", "Establishments", "Law", "NOO Sent Date", "Penalty Amount", "Payment Deadline", "Payment Status", "Status", "Created Date"]
+              : activeTab === 'review' ? ["Code", "Establishments", "Law", "Compliance", "Submitted By", "Submitted On", "Status", "Created Date"]
+              : activeTab === 'received' ? ["Code", "Establishments", "Law", "Assigned Date", "Assigned By", "Priority", "Days Waiting", "Status", "Created Date"]
+              : activeTab === 'my_inspections' ? ["Code", "Establishments", "Law", "Started Date", "Days Active", "Last Activity", "Status", "Created Date"]
+              : activeTab === 'forwarded' ? ["Code", "Establishments", "Law", "Forwarded To", "Forwarded Date", "Days Since Forward", "Status", "Created Date"]
+              : activeTab === 'compliance' ? ["Code", "Establishments", "Law", "Final Compliance", "Completion Date", "Days Since Completion", "Status", "Created Date"]
+              : activeTab === 'assigned' ? ["Code", "Establishments", "Law", "Assigned Date", "Assigned By", "Priority", "Status", "Created Date"]
+              : activeTab === 'in_progress' ? ["Code", "Establishments", "Law", "Started Date", "Days Active", "Last Activity", "Status", "Created Date"]
+              : activeTab === 'completed' ? ["Code", "Establishments", "Law", "Compliance", "Completed Date", "Review Status", "Status", "Created Date"]
+              : ["Code", "Establishments", "Law", "Status", "Inspected By", "Created Date"]
+            }
             rows={selectedInspections.length > 0 ? 
-              selectedInspections.map(inspection => [
-                inspection.code,
-                inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                  ? inspection.establishments_detail.map(est => est.name).join(', ')
-                  : 'No establishments',
-                inspection.law,
-                inspection.simplified_status || inspection.current_status,
-                inspection.inspected_by_name || 'Not Inspected',
-                new Date(inspection.created_at).toLocaleDateString()
-              ]) : 
-              inspections.map(inspection => [
-                inspection.code,
-                inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                  ? inspection.establishments_detail.map(est => est.name).join(', ')
-                  : 'No establishments',
-                inspection.law,
-                inspection.simplified_status || inspection.current_status,
-                inspection.inspected_by_name || 'Not Inspected',
-                new Date(inspection.created_at).toLocaleDateString()
-              ])
+              selectedInspections.map(inspection => {
+                if (activeTab === 'nov_sent') {
+                  const deadlineStatus = getDeadlineStatus(inspection.form?.nov?.compliance_deadline);
+                  return [
+                    inspection.code,
+                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                      ? inspection.establishments_detail.map(est => est.name).join(', ')
+                      : 'No establishments',
+                    inspection.law,
+                    inspection.form?.nov?.sent_date 
+                      ? new Date(inspection.form.nov.sent_date).toLocaleDateString()
+                      : 'Not sent',
+                    inspection.form?.nov?.compliance_deadline
+                      ? new Date(inspection.form.nov.compliance_deadline).toLocaleDateString()
+                      : 'No deadline',
+                    deadlineStatus.text,
+                    inspection.simplified_status || inspection.current_status,
+                    new Date(inspection.created_at).toLocaleDateString()
+                  ];
+                } else if (activeTab === 'review') {
+                  const complianceInfo = getComplianceStatusInfo(inspection);
+                  const submissionAge = getSubmissionAge(inspection.form?.updated_at || inspection.updated_at);
+                  return [
+                    inspection.code,
+                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                      ? inspection.establishments_detail.map(est => est.name).join(', ')
+                      : 'No establishments',
+                    inspection.law,
+                    complianceInfo.label,
+                    inspection.form?.inspected_by_name || inspection.assigned_to_name || 'Unknown',
+                    submissionAge.text,
+                    inspection.simplified_status || inspection.current_status,
+                    new Date(inspection.created_at).toLocaleDateString()
+                  ];
+                }
+                return [
+                  inspection.code,
+                  inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                    ? inspection.establishments_detail.map(est => est.name).join(', ')
+                    : 'No establishments',
+                  inspection.law,
+                  inspection.simplified_status || inspection.current_status,
+                  inspection.inspected_by_name || 'Not Inspected',
+                  new Date(inspection.created_at).toLocaleDateString()
+                ];
+              }) : 
+              inspections.map(inspection => {
+                if (activeTab === 'nov_sent') {
+                  const deadlineStatus = getDeadlineStatus(inspection.form?.nov?.compliance_deadline);
+                  return [
+                    inspection.code,
+                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                      ? inspection.establishments_detail.map(est => est.name).join(', ')
+                      : 'No establishments',
+                    inspection.law,
+                    inspection.form?.nov?.sent_date 
+                      ? new Date(inspection.form.nov.sent_date).toLocaleDateString()
+                      : 'Not sent',
+                    inspection.form?.nov?.compliance_deadline
+                      ? new Date(inspection.form.nov.compliance_deadline).toLocaleDateString()
+                      : 'No deadline',
+                    deadlineStatus.text,
+                    inspection.simplified_status || inspection.current_status,
+                    new Date(inspection.created_at).toLocaleDateString()
+                  ];
+                } else if (activeTab === 'review') {
+                  const complianceInfo = getComplianceStatusInfo(inspection);
+                  const submissionAge = getSubmissionAge(inspection.form?.updated_at || inspection.updated_at);
+                  return [
+                    inspection.code,
+                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                      ? inspection.establishments_detail.map(est => est.name).join(', ')
+                      : 'No establishments',
+                    inspection.law,
+                    complianceInfo.label,
+                    inspection.form?.inspected_by_name || inspection.assigned_to_name || 'Unknown',
+                    submissionAge.text,
+                    inspection.simplified_status || inspection.current_status,
+                    new Date(inspection.created_at).toLocaleDateString()
+                  ];
+                }
+                return [
+                  inspection.code,
+                  inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                    ? inspection.establishments_detail.map(est => est.name).join(', ')
+                    : 'No establishments',
+                  inspection.law,
+                  inspection.simplified_status || inspection.current_status,
+                  inspection.inspected_by_name || 'Not Inspected',
+                  new Date(inspection.created_at).toLocaleDateString()
+                ];
+              })
             }
             disabled={inspections.length === 0}
             className="flex items-center text-sm"
@@ -1318,6 +1603,99 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               </th>
               <th className="p-1 border-b border-gray-300">Establishments</th>
               <th className="p-1 border-b border-gray-300">Law</th>
+              
+              {/* Conditionally show NOV-specific columns */}
+              {activeTab === 'nov_sent' && (
+                <>
+                  <th className="p-1 border-b border-gray-300">NOV Sent Date</th>
+                  <th className="p-1 border-b border-gray-300">Compliance Deadline</th>
+                  <th className="p-1 text-center border-b border-gray-300">Deadline Status</th>
+                </>
+              )}
+              
+              {/* Conditionally show NOO-specific columns */}
+              {activeTab === 'noo_sent' && (
+                <>
+                  <th className="p-1 border-b border-gray-300">NOO Sent Date</th>
+                  <th className="p-1 border-b border-gray-300">Penalty Amount</th>
+                  <th className="p-1 border-b border-gray-300">Payment Deadline</th>
+                  <th className="p-1 text-center border-b border-gray-300">Payment Status</th>
+                </>
+              )}
+              
+              {/* Conditionally show Review-specific columns */}
+              {activeTab === 'review' && (
+                <>
+                  <th className="p-1 text-center border-b border-gray-300">Compliance</th>
+                  <th className="p-1 border-b border-gray-300">Submitted By</th>
+                  <th className="p-1 text-center border-b border-gray-300">Submitted On</th>
+                </>
+              )}
+              
+              {/* Conditionally show Received columns */}
+              {activeTab === 'received' && (
+                <>
+                  <th className="p-1 border-b border-gray-300">Assigned Date</th>
+                  <th className="p-1 border-b border-gray-300">Assigned By</th>
+                  <th className="p-1 text-center border-b border-gray-300">Priority</th>
+                  <th className="p-1 text-center border-b border-gray-300">Days Waiting</th>
+                </>
+              )}
+              
+              {/* Conditionally show My Inspections columns */}
+              {activeTab === 'my_inspections' && (
+                <>
+                  <th className="p-1 border-b border-gray-300">Started Date</th>
+                  <th className="p-1 text-center border-b border-gray-300">Days Active</th>
+                  <th className="p-1 border-b border-gray-300">Last Activity</th>
+                </>
+              )}
+              
+              {/* Conditionally show Forwarded columns */}
+              {activeTab === 'forwarded' && (
+                <>
+                  <th className="p-1 border-b border-gray-300">Forwarded To</th>
+                  <th className="p-1 border-b border-gray-300">Forwarded Date</th>
+                  <th className="p-1 text-center border-b border-gray-300">Days Since Forward</th>
+                </>
+              )}
+              
+              {/* Conditionally show Compliance columns */}
+              {activeTab === 'compliance' && (
+                <>
+                  <th className="p-1 text-center border-b border-gray-300">Final Compliance</th>
+                  <th className="p-1 border-b border-gray-300">Completion Date</th>
+                  <th className="p-1 text-center border-b border-gray-300">Days Since Completion</th>
+                </>
+              )}
+              
+              {/* Conditionally show Assigned columns (Monitoring Personnel) */}
+              {activeTab === 'assigned' && (
+                <>
+                  <th className="p-1 border-b border-gray-300">Assigned Date</th>
+                  <th className="p-1 border-b border-gray-300">Assigned By</th>
+                  <th className="p-1 text-center border-b border-gray-300">Priority</th>
+                </>
+              )}
+              
+              {/* Conditionally show In Progress columns (Monitoring Personnel) */}
+              {activeTab === 'in_progress' && (
+                <>
+                  <th className="p-1 border-b border-gray-300">Started Date</th>
+                  <th className="p-1 text-center border-b border-gray-300">Days Active</th>
+                  <th className="p-1 border-b border-gray-300">Last Activity</th>
+                </>
+              )}
+              
+              {/* Conditionally show Completed columns (Monitoring Personnel) */}
+              {activeTab === 'completed' && (
+                <>
+                  <th className="p-1 text-center border-b border-gray-300">Compliance</th>
+                  <th className="p-1 border-b border-gray-300">Completed Date</th>
+                  <th className="p-1 text-center border-b border-gray-300">Review Status</th>
+                </>
+              )}
+              
               <th className="p-1 text-center border-b border-gray-300">Status</th>
               <th className="p-1 border-b border-gray-300">Inspected By</th>
               <th className="p-1 text-center border-b border-gray-300 cursor-pointer" onClick={() => handleSort("created_at")}>
@@ -1330,7 +1708,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             {loading ? (
               <tr>
                 <td
-                  colSpan="8"
+                  colSpan={getTabColspan(activeTab)}
                   className="px-2 py-6 text-center text-gray-500 border-b border-gray-300"
                 >
                   <div
@@ -1346,7 +1724,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             ) : filteredInspections.length === 0 ? (
               <tr>
                 <td
-                  colSpan="8"
+                  colSpan={getTabColspan(activeTab)}
                   className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
                 >
                   {hasActiveFilters ? (
@@ -1366,46 +1744,265 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                 </td>
               </tr>
             ) : (
-              filteredInspections.map((inspection) => (
-                <tr
-                  key={inspection.id}
-                  ref={inspection.id === highlightedInspId ? highlightedRowRef : null}
-                  className={`p-1 text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors ${
-                    inspection.id === highlightedInspId ? 'search-highlight-persist' : ''
-                  }`}
-                  onClick={() => setHighlightedInspId(inspection.id)}
-                >
-                  <td className="p-1 text-center border-b border-gray-300">
-                    <input
-                      type="checkbox"
-                      checked={selectedInspections.includes(inspection.id)}
-                      onChange={() => toggleSelect(inspection.id)}
-                    />
-                  </td>
-                  <td className="p-1 font-semibold border-b border-gray-300">
-                    {inspection.code}
-                  </td>
-                  <td className="p-1 border-b border-gray-300">
-                    {inspection.establishments_detail && inspection.establishments_detail.length > 0
-                      ? inspection.establishments_detail.map(e => e.name).join(', ')
-                      : 'No establishments'}
-                  </td>
-                  <td className="p-1 border-b border-gray-300">
-                    {inspection.law}
-                  </td>
-                  <td className="p-1 text-center border-b border-gray-300">
-                    <StatusBadge 
-                      status={inspection.current_status}
-                    />
-                  </td>
-                  <td className="p-1 border-b border-gray-300">
-                    {inspection.inspected_by_name || 'Not Inspected'}
-                  </td>
-                  <td className="p-1 text-center border-b border-gray-300">
-                    {formatFullDate(inspection.created_at)}
-                  </td>
-                  <td className="p-1 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
-                    {canUserPerformActions(userLevel) ? (
+              filteredInspections.map((inspection) => {
+                // NOV tab data
+                const deadlineStatus = activeTab === 'nov_sent' 
+                  ? getDeadlineStatus(inspection.form?.nov?.compliance_deadline) 
+                  : null;
+                
+                // NOO tab data
+                const paymentStatus = activeTab === 'noo_sent' ? getPaymentStatus(inspection.form?.noo) : null;
+                
+                // Review tab data
+                const complianceInfo = activeTab === 'review' ? getComplianceStatusInfo(inspection) : null;
+                const submissionAge = activeTab === 'review' ? getSubmissionAge(inspection.form?.updated_at || inspection.updated_at) : null;
+                
+                // Received tab data
+                const assignmentAge = activeTab === 'received' ? getAssignmentAge(inspection.updated_at) : null;
+                const priority = (activeTab === 'received' || activeTab === 'assigned') ? getPriority(inspection) : null;
+                
+                // My Inspections / In Progress tab data
+                const daysActive = (activeTab === 'my_inspections' || activeTab === 'in_progress') 
+                  ? getAssignmentAge(inspection.updated_at) 
+                  : null;
+                
+                // Forwarded tab data
+                const forwardedAge = activeTab === 'forwarded' ? getAssignmentAge(inspection.updated_at) : null;
+                
+                // Compliance / Completed tab data
+                const completionAge = (activeTab === 'compliance' || activeTab === 'completed') 
+                  ? getSubmissionAge(inspection.form?.updated_at || inspection.updated_at) 
+                  : null;
+                const completionCompliance = (activeTab === 'compliance' || activeTab === 'completed') 
+                  ? getComplianceStatusInfo(inspection) 
+                  : null;
+                
+                return (
+                  <tr
+                    key={inspection.id}
+                    ref={inspection.id === highlightedInspId ? highlightedRowRef : null}
+                    className={`p-1 text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors ${
+                      inspection.id === highlightedInspId ? 'search-highlight-persist' : ''
+                    } ${deadlineStatus?.bgColor || ''}`}
+                    onClick={() => setHighlightedInspId(inspection.id)}
+                  >
+                    <td className="p-1 text-center border-b border-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={selectedInspections.includes(inspection.id)}
+                        onChange={() => toggleSelect(inspection.id)}
+                      />
+                    </td>
+                    <td className="p-1 font-semibold border-b border-gray-300">
+                      {inspection.code}
+                    </td>
+                    <td className="p-1 border-b border-gray-300">
+                      {inspection.establishments_detail && inspection.establishments_detail.length > 0
+                        ? inspection.establishments_detail.map(e => e.name).join(', ')
+                        : 'No establishments'}
+                    </td>
+                    <td className="p-1 border-b border-gray-300">
+                      {inspection.law}
+                    </td>
+                    
+                    {/* Conditionally show NOV-specific data */}
+                    {activeTab === 'nov_sent' && (
+                      <>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.form?.nov?.sent_date 
+                            ? new Date(inspection.form.nov.sent_date).toLocaleDateString() 
+                            : 'Not sent'}
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.form?.nov?.compliance_deadline
+                            ? new Date(inspection.form.nov.compliance_deadline).toLocaleDateString()
+                            : 'No deadline'}
+                        </td>
+                        <td className={`p-1 text-center border-b border-gray-300 ${deadlineStatus?.color}`}>
+                          <div className="flex items-center justify-center gap-1">
+                            {deadlineStatus?.status === 'overdue' && <AlertCircle className="w-3 h-3" />}
+                            {deadlineStatus?.status === 'urgent' && <Clock className="w-3 h-3" />}
+                            <span>{deadlineStatus?.text}</span>
+                          </div>
+                        </td>
+                      </>
+                    )}
+                    
+                    {/* Conditionally show NOO-specific data */}
+                    {activeTab === 'noo_sent' && (
+                      <>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.form?.noo?.sent_date 
+                            ? formatDate(inspection.form.noo.sent_date) 
+                            : 'Not sent'}
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.form?.noo?.penalty_fees 
+                            ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
+                            : 'No penalty'}
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.form?.noo?.payment_deadline
+                            ? formatDate(inspection.form.noo.payment_deadline)
+                            : 'No deadline'}
+                        </td>
+                        <td className="p-1 text-center border-b border-gray-300">
+                          <span className={`px-2 py-0.5 text-xs rounded-full ${paymentStatus?.color}`}>
+                            {paymentStatus?.text}
+                            {paymentStatus?.daysOverdue > 0 && ` (${paymentStatus.daysOverdue}d)`}
+                          </span>
+                        </td>
+                      </>
+                    )}
+                    
+                    {/* Conditionally show Review-specific data */}
+                    {activeTab === 'review' && (
+                      <>
+                        <td className="p-1 text-center border-b border-gray-300">
+                          <span className={`px-2 py-0.5 text-xs rounded-full ${complianceInfo?.color}`}>
+                            {complianceInfo?.label}
+                          </span>
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.form?.inspected_by_name || inspection.assigned_to_name || 'Unknown'}
+                        </td>
+                        <td className={`p-1 text-center border-b border-gray-300 ${submissionAge?.color}`}>
+                          {submissionAge?.text}
+                        </td>
+                      </>
+                    )}
+                    
+                    {/* Conditionally show Received columns */}
+                    {activeTab === 'received' && (
+                      <>
+                        <td className="p-1 border-b border-gray-300">
+                          {formatDate(inspection.updated_at)}
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.created_by_name || 'Unknown'}
+                        </td>
+                        <td className="p-1 text-center border-b border-gray-300">
+                          <span className={`px-2 py-0.5 text-xs rounded-full ${priority?.color}`}>
+                            {priority?.label}
+                          </span>
+                        </td>
+                        <td className={`p-1 text-center border-b border-gray-300 ${assignmentAge?.color}`}>
+                          {assignmentAge?.text}
+                        </td>
+                      </>
+                    )}
+                    
+                    {/* Conditionally show My Inspections columns */}
+                    {activeTab === 'my_inspections' && (
+                      <>
+                        <td className="p-1 border-b border-gray-300">
+                          {formatDate(inspection.updated_at)}
+                        </td>
+                        <td className={`p-1 text-center border-b border-gray-300 ${daysActive?.color}`}>
+                          {daysActive?.text}
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {formatDate(inspection.form?.updated_at || inspection.updated_at)}
+                        </td>
+                      </>
+                    )}
+                    
+                    {/* Conditionally show Forwarded columns */}
+                    {activeTab === 'forwarded' && (
+                      <>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.assigned_to_name || 'Not assigned'}
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {formatDate(inspection.updated_at)}
+                        </td>
+                        <td className={`p-1 text-center border-b border-gray-300 ${forwardedAge?.color}`}>
+                          {forwardedAge?.text}
+                        </td>
+                      </>
+                    )}
+                    
+                    {/* Conditionally show Compliance columns */}
+                    {activeTab === 'compliance' && (
+                      <>
+                        <td className="p-1 text-center border-b border-gray-300">
+                          <span className={`px-2 py-0.5 text-xs rounded-full ${completionCompliance?.color}`}>
+                            {completionCompliance?.label}
+                          </span>
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {formatDate(inspection.form?.updated_at || inspection.updated_at)}
+                        </td>
+                        <td className={`p-1 text-center border-b border-gray-300 ${completionAge?.color}`}>
+                          {completionAge?.text}
+                        </td>
+                      </>
+                    )}
+                    
+                    {/* Conditionally show Assigned columns (Monitoring Personnel) */}
+                    {activeTab === 'assigned' && (
+                      <>
+                        <td className="p-1 border-b border-gray-300">
+                          {formatDate(inspection.updated_at)}
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.created_by_name || 'Unknown'}
+                        </td>
+                        <td className="p-1 text-center border-b border-gray-300">
+                          <span className={`px-2 py-0.5 text-xs rounded-full ${priority?.color}`}>
+                            {priority?.label}
+                          </span>
+                        </td>
+                      </>
+                    )}
+                    
+                    {/* Conditionally show In Progress columns (Monitoring Personnel) */}
+                    {activeTab === 'in_progress' && (
+                      <>
+                        <td className="p-1 border-b border-gray-300">
+                          {formatDate(inspection.updated_at)}
+                        </td>
+                        <td className={`p-1 text-center border-b border-gray-300 ${daysActive?.color}`}>
+                          {daysActive?.text}
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {formatDate(inspection.form?.updated_at || inspection.updated_at)}
+                        </td>
+                      </>
+                    )}
+                    
+                    {/* Conditionally show Completed columns (Monitoring Personnel) */}
+                    {activeTab === 'completed' && (
+                      <>
+                        <td className="p-1 text-center border-b border-gray-300">
+                          <span className={`px-2 py-0.5 text-xs rounded-full ${completionCompliance?.color}`}>
+                            {completionCompliance?.label}
+                          </span>
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {formatDate(inspection.form?.updated_at || inspection.updated_at)}
+                        </td>
+                        <td className="p-1 text-center border-b border-gray-300">
+                          <span className="px-2 py-0.5 text-xs rounded-full text-blue-600 bg-blue-50">
+                            {inspection.current_status?.includes('REVIEWED') ? 'Under Review' : 'Awaiting Review'}
+                          </span>
+                        </td>
+                      </>
+                    )}
+                    
+                    <td className="p-1 text-center border-b border-gray-300">
+                      <StatusBadge 
+                        status={inspection.current_status}
+                      />
+                    </td>
+                    <td className="p-1 border-b border-gray-300">
+                      {inspection.inspected_by_name || 'Not Inspected'}
+                    </td>
+                    <td className="p-1 text-center border-b border-gray-300">
+                      {formatFullDate(inspection.created_at)}
+                    </td>
+                    <td className="p-1 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
+                    {shouldShowActions(userLevel, activeTab, inspection) ? (
                       <InspectionActions 
                         inspection={inspection}
                         availableActions={inspection.available_actions || []}
@@ -1424,7 +2021,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     )}
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

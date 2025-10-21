@@ -110,6 +110,11 @@ export const actionButtonConfig = {
     color: 'orange',
     icon: Scale
   },
+  send_noo: {
+    label: 'Send NOO',
+    color: 'orange',
+    icon: FileText
+  },
   close: {
     label: 'Close',
     color: 'green',
@@ -163,7 +168,8 @@ export const getActionButtonColorClass = (action) => {
   const colorMap = {
     sky: 'bg-sky-600 hover:bg-sky-700',
     green: 'bg-green-600 hover:bg-green-700',
-    red: 'bg-red-600 hover:bg-red-700'
+    red: 'bg-red-600 hover:bg-red-700',
+    orange: 'bg-orange-600 hover:bg-orange-700'
   };
   
   return colorMap[config.color] || 'bg-gray-500 hover:bg-gray-600';

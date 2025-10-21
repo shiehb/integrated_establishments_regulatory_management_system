@@ -15,7 +15,12 @@ import {
   CheckCircle,
   XCircle,
   Eye,
-  Scale
+  Scale,
+  AlertTriangle,
+  Mail,
+  DollarSign,
+  CreditCard,
+  Users
 } from 'lucide-react';
 import { 
   getRoleBasedStatusLabel, 
@@ -32,6 +37,9 @@ export default function InspectionView() {
   const [loading, setLoading] = useState(true);
   const [userLevel, setUserLevel] = useState('public');
   const [currentUser, setCurrentUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('details');
+  const [billingData, setBillingData] = useState(null);
+  const [loadingBilling, setLoadingBilling] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,6 +63,34 @@ export default function InspectionView() {
 
     fetchData();
   }, [id]);
+
+  // Fetch billing data when inspection is loaded
+  useEffect(() => {
+    const fetchBillingData = async () => {
+      if (!inspection || !inspection.id) return;
+      
+      try {
+        setLoadingBilling(true);
+        const response = await fetch(`/api/inspections/${inspection.id}/billing/`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setBillingData(data);
+        }
+      } catch (error) {
+        console.error('Error fetching billing data:', error);
+      } finally {
+        setLoadingBilling(false);
+      }
+    };
+
+    fetchBillingData();
+  }, [inspection]);
 
   const getStatusDisplay = (status) => {
     const label = (inspection && userLevel && currentUser) 
@@ -151,102 +187,345 @@ export default function InspectionView() {
             </span>
           </div>
 
-          {/* Main Content - Essential Info Only */}
-          <div className="bg-white rounded-lg shadow-sm p-3">
-            <div className="space-y-3">
-              {/* Key Information Grid */}
-              <div className="grid grid-cols-4 gap-3 text-sm">
-                <div className="flex items-start gap-2">
-                  <Scale className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="text-xs text-gray-500">Law</div>
-                    <div className="font-medium text-gray-900">{inspection.law || 'N/A'}</div>
-                  </div>
-                </div>
+          {/* Main Content with Tabs */}
+          <div className="bg-white rounded-lg shadow-sm">
+            {/* Tabs Navigation */}
+            <div className="border-b border-gray-200">
+              <nav className="flex space-x-8 px-4">
+                {[
+                  { id: 'details', label: 'Details', icon: FileText },
+                  { id: 'compliance', label: 'Compliance', icon: CheckCircle },
+                  { id: 'legal', label: 'Legal Actions', icon: AlertTriangle },
+                  { id: 'billing', label: 'Billing', icon: DollarSign }
+                ].map((tab) => {
+                  const IconComponent = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                        activeTab === tab.id
+                          ? 'border-sky-500 text-sky-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      <IconComponent className="h-4 w-4" />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
 
-                <div className="flex items-start gap-2">
-                  <User className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="text-xs text-gray-500">Assigned To</div>
-                    <div className="font-medium text-gray-900">{inspection.assigned_to_name || 'Unassigned'}</div>
-                  </div>
-                </div>
+            {/* Tab Content */}
+            <div className="p-4">
+              {activeTab === 'details' && (
+                <div className="space-y-4">
+                  {/* Basic Information */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-gray-900">Basic Information</h4>
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-gray-400" />
+                          <div>
+                            <p className="text-xs text-gray-500">Inspection Code</p>
+                            <p className="text-sm font-medium text-gray-900">{inspection.code}</p>
+                          </div>
+                        </div>
 
-                <div className="flex items-start gap-2">
-                  <User className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="text-xs text-gray-500">Inspected By</div>
-                    <div className="font-medium text-gray-900">{inspection.inspected_by_name || 'Not Inspected'}</div>
-                  </div>
-                </div>
+                        <div className="flex items-center gap-2">
+                          <Scale className="h-4 w-4 text-gray-400" />
+                          <div>
+                            <p className="text-xs text-gray-500">Law</p>
+                            <p className="text-sm font-medium text-gray-900">{inspection.law || 'N/A'}</p>
+                          </div>
+                        </div>
 
-                <div className="flex items-start gap-2">
-                  <Calendar className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <div className="text-xs text-gray-500">Created</div>
-                    <div className="font-medium text-gray-900 text-xs">
-                      {formatDateTime(inspection.created_at)}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <div>
+                            <p className="text-xs text-gray-500">Assigned To</p>
+                            <p className="text-sm font-medium text-gray-900">{inspection.assigned_to_name || 'Unassigned'}</p>
+                          </div>
+                        </div>
 
-              {/* Establishments */}
-              {inspection.establishments_detail && inspection.establishments_detail.length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-2">Establishments</label>
-                  <div className="space-y-2">
-                    {inspection.establishments_detail.map((est, idx) => (
-                      <div key={idx} className="p-2 bg-gray-50 rounded border border-gray-200 text-sm">
-                        <div className="font-medium text-gray-900">{est.name}</div>
-                        <div className="text-xs text-gray-600 mt-1">
-                          {[est.street_building, est.barangay, est.city, est.province]
-                            .filter(Boolean)
-                            .join(', ')}
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-400" />
+                          <div>
+                            <p className="text-xs text-gray-500">Inspected By</p>
+                            <p className="text-sm font-medium text-gray-900">{inspection.inspected_by_name || 'Not Inspected'}</p>
+                          </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Form Data - Only if exists */}
-              {inspection.form && (
-                <div className="pt-3 border-t">
-                  <div className="grid grid-cols-2 gap-3 text-sm mb-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Scheduled Date</label>
-                      <div className="text-gray-900">{formatDateTime(inspection.form.scheduled_at)}</div>
                     </div>
-                    
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Compliance Status</label>
-                      <div className="flex items-center gap-2">
-                        {inspection.form.compliance_decision === 'COMPLIANT' ? (
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                        ) : inspection.form.compliance_decision === 'NON_COMPLIANT' ? (
-                          <XCircle className="h-4 w-4 text-red-600" />
-                        ) : null}
-                        <span className="text-gray-900">{inspection.form.compliance_decision}</span>
+
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-gray-900">Timeline</h4>
+                      
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-gray-400" />
+                          <div>
+                            <p className="text-xs text-gray-500">Created</p>
+                            <p className="text-sm font-medium text-gray-900">{formatDateTime(inspection.created_at)}</p>
+                          </div>
+                        </div>
+
+                        {inspection.form?.scheduled_at && (
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-gray-400" />
+                            <div>
+                              <p className="text-xs text-gray-500">Scheduled Date</p>
+                              <p className="text-sm font-medium text-gray-900">{formatDateTime(inspection.form.scheduled_at)}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-gray-400" />
+                          <div>
+                            <p className="text-xs text-gray-500">Status</p>
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusDisplay.color}`}>
+                              {statusDisplay.label}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  {inspection.form.findings_summary && (
-                    <div className="mb-3">
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Findings Summary</label>
-                      <div className="text-sm text-gray-900 bg-gray-50 p-2 rounded border border-gray-200 whitespace-pre-line">
-                        {inspection.form.findings_summary}
+                  {/* Establishments */}
+                  {inspection.establishments_detail && inspection.establishments_detail.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-900 mb-2">Establishments</h4>
+                      <div className="space-y-2">
+                        {inspection.establishments_detail.map((est, idx) => (
+                          <div key={idx} className="p-3 bg-gray-50 rounded border border-gray-200">
+                            <div className="flex items-start gap-2">
+                              <Building className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <div className="font-medium text-gray-900">{est.name}</div>
+                                <div className="text-xs text-gray-600 mt-1">
+                                  {[est.street_building, est.barangay, est.city, est.province]
+                                    .filter(Boolean)
+                                    .join(', ')}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
+                </div>
+              )}
 
-                  {inspection.form.violations_found && (
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Violations Found</label>
-                      <div className="text-sm text-gray-900 bg-red-50 p-2 rounded border border-red-200 whitespace-pre-line">
-                        {inspection.form.violations_found}
+              {activeTab === 'compliance' && (
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-gray-900">Compliance Information</h4>
+                  
+                  {inspection.form ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Compliance Status</label>
+                          <div className="flex items-center gap-2">
+                            {inspection.form.compliance_decision === 'COMPLIANT' ? (
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                            ) : inspection.form.compliance_decision === 'NON_COMPLIANT' ? (
+                              <XCircle className="h-4 w-4 text-red-600" />
+                            ) : null}
+                            <span className="text-sm font-medium text-gray-900">{inspection.form.compliance_decision || 'PENDING'}</span>
+                          </div>
+                        </div>
                       </div>
+
+                      {inspection.form.findings_summary && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-2">Findings Summary</label>
+                          <div className="text-sm text-gray-900 bg-gray-50 p-3 rounded border border-gray-200 whitespace-pre-line">
+                            {inspection.form.findings_summary}
+                          </div>
+                        </div>
+                      )}
+
+                      {inspection.form.violations_found && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-2">Violations Found</label>
+                          <div className="text-sm text-gray-900 bg-red-50 p-3 rounded border border-red-200 whitespace-pre-line">
+                            {inspection.form.violations_found}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <CheckCircle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm text-gray-500">No compliance information available</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'legal' && (
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                    Legal Actions
+                  </h4>
+                  
+                  {/* NOV Section */}
+                  {inspection.nov && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Mail className="h-4 w-4 text-red-600" />
+                        <h5 className="text-sm font-semibold text-red-900">Notice of Violation (NOV)</h5>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <p className="text-red-700 font-medium">Sent Date</p>
+                          <p className="text-red-900">{formatDateTime(inspection.nov.sent_date)}</p>
+                        </div>
+                        <div>
+                          <p className="text-red-700 font-medium">Sent To</p>
+                          <p className="text-red-900">{inspection.nov.recipient_email}</p>
+                        </div>
+                        <div>
+                          <p className="text-red-700 font-medium">Contact Person</p>
+                          <p className="text-red-900">{inspection.nov.contact_person || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-red-700 font-medium">Compliance Deadline</p>
+                          <p className="text-red-900">{formatDateTime(inspection.nov.compliance_deadline)}</p>
+                        </div>
+                      </div>
+                      {inspection.nov.violations && (
+                        <div className="mt-3">
+                          <p className="text-red-700 font-medium text-xs mb-1">Violations</p>
+                          <div className="bg-white border border-red-200 rounded p-2">
+                            <p className="text-xs text-gray-900 whitespace-pre-wrap">{inspection.nov.violations}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* NOO Section */}
+                  {inspection.noo && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <FileText className="h-4 w-4 text-orange-600" />
+                        <h5 className="text-sm font-semibold text-orange-900">Notice of Order (NOO)</h5>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <p className="text-orange-700 font-medium">Sent Date</p>
+                          <p className="text-orange-900">{formatDateTime(inspection.noo.sent_date)}</p>
+                        </div>
+                        <div>
+                          <p className="text-orange-700 font-medium">Sent To</p>
+                          <p className="text-orange-900">{inspection.noo.recipient_email}</p>
+                        </div>
+                        <div>
+                          <p className="text-orange-700 font-medium">Contact Person</p>
+                          <p className="text-orange-900">{inspection.noo.contact_person || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-orange-700 font-medium">Payment Deadline</p>
+                          <p className="text-orange-900">{formatDateTime(inspection.noo.payment_deadline)}</p>
+                        </div>
+                        <div>
+                          <p className="text-orange-700 font-medium">Total Penalty</p>
+                          <p className="text-orange-900 font-bold">
+                            ₱{Number(inspection.noo.penalty_fees || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+                      {inspection.noo.violation_breakdown && (
+                        <div className="mt-3">
+                          <p className="text-orange-700 font-medium text-xs mb-1">Violation Breakdown</p>
+                          <div className="bg-white border border-orange-200 rounded p-2">
+                            <p className="text-xs text-gray-900 whitespace-pre-wrap">{inspection.noo.violation_breakdown}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {!inspection.nov && !inspection.noo && (
+                    <div className="text-center py-8">
+                      <AlertTriangle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm text-gray-500">No legal actions have been taken for this inspection.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'billing' && (
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-green-600" />
+                    Billing Information
+                  </h4>
+                  
+                  {loadingBilling ? (
+                    <div className="text-center py-8">
+                      <Clock className="h-12 w-12 text-gray-300 mx-auto mb-3 animate-spin" />
+                      <p className="text-sm text-gray-500">Loading billing information...</p>
+                    </div>
+                  ) : billingData ? (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <p className="text-green-700 font-medium">Billing Code</p>
+                          <p className="text-green-900 font-mono">{billingData.billing_code}</p>
+                        </div>
+                        <div>
+                          <p className="text-green-700 font-medium">Billing Type</p>
+                          <p className="text-green-900">{billingData.billing_type}</p>
+                        </div>
+                        <div>
+                          <p className="text-green-700 font-medium">Amount</p>
+                          <p className="text-green-900 font-bold">
+                            ₱{Number(billingData.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-green-700 font-medium">Due Date</p>
+                          <p className="text-green-900">{formatDateTime(billingData.due_date)}</p>
+                        </div>
+                        <div>
+                          <p className="text-green-700 font-medium">Contact Person</p>
+                          <p className="text-green-900">{billingData.contact_person || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-green-700 font-medium">Related Law</p>
+                          <p className="text-green-900">{billingData.related_law}</p>
+                        </div>
+                      </div>
+                      {billingData.description && (
+                        <div className="mt-3">
+                          <p className="text-green-700 font-medium text-xs mb-1">Description</p>
+                          <div className="bg-white border border-green-200 rounded p-2">
+                            <p className="text-xs text-gray-900 whitespace-pre-wrap">{billingData.description}</p>
+                          </div>
+                        </div>
+                      )}
+                      {billingData.recommendations && (
+                        <div className="mt-3">
+                          <p className="text-green-700 font-medium text-xs mb-1">Payment Instructions</p>
+                          <div className="bg-white border border-green-200 rounded p-2">
+                            <p className="text-xs text-gray-900 whitespace-pre-wrap">{billingData.recommendations}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <CreditCard className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm text-gray-500">No billing information available for this inspection.</p>
                     </div>
                   )}
                 </div>
