@@ -1,172 +1,333 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   BarChart3,
   TrendingUp,
   TrendingDown,
   Minus,
   RefreshCw,
+  Filter,
 } from "lucide-react";
+import { getQuarterlyComparison } from "../../../services/api";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 import LoadingSkeleton from "./LoadingSkeleton";
 
 /**
- * QuarterlyComparisonCard Component
- *
- * A reusable quarterly comparison card that displays quarterly trends and compliance breakdown.
- * Shows current vs last quarter performance with trend indicators and compliance metrics.
- *
- * @param {Object} props - Component props
- * @param {Object} props.data - Quarterly comparison data object
- * @param {Object} props.data.current_quarter - Current quarter data
- * @param {string} props.data.current_quarter.quarter - Quarter name (e.g., "Jan-Mar")
- * @param {number} props.data.current_quarter.year - Year
- * @param {number} props.data.current_quarter.compliant - Compliant inspections count
- * @param {number} props.data.current_quarter.non_compliant - Non-compliant inspections count
- * @param {number} props.data.current_quarter.total_finished - Total finished inspections
- * @param {Object} props.data.last_quarter - Last quarter data (same structure as current_quarter)
- * @param {number} props.data.change_percentage - Percentage change from last quarter
- * @param {string} props.data.trend - Trend direction ('up', 'down', 'stable')
- * @param {boolean} props.isLoading - Whether to show loading state
- * @param {Function} props.onRefresh - Handler for refresh button
- * @returns {JSX.Element} Quarterly comparison card component
+ * QuarterlyComparisonCard
+ * A compact, dashboard-friendly quarterly comparison component.
  */
 const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
-  if (isLoading) {
-    return <LoadingSkeleton />;
+  const [selectedLaw, setSelectedLaw] = useState('all');
+  const [filteredData, setFilteredData] = useState(null);
+  const [isLoadingFilter, setIsLoadingFilter] = useState(false);
+  
+  // Fetch filtered data when law changes
+  useEffect(() => {
+    const fetchFilteredData = async () => {
+      if (selectedLaw === 'all') {
+        setFilteredData(null); // Clear filtered data for 'all'
+        return;
+      }
+      
+      if (!data) return; // Don't fetch if no base data
+      
+      setIsLoadingFilter(true);
+      try {
+        const filteredResponse = await getQuarterlyComparison({ law: selectedLaw });
+        // Validate the response structure
+        if (filteredResponse && filteredResponse.current_quarter && filteredResponse.last_quarter) {
+          setFilteredData(filteredResponse);
+        } else {
+          setFilteredData(null);
+        }
+      } catch {
+        setFilteredData(null); // Clear filtered data on error
+      } finally {
+        setIsLoadingFilter(false);
+      }
+    };
+    
+    fetchFilteredData();
+  }, [selectedLaw, data]);
+  
+  if (isLoading || isLoadingFilter) return <LoadingSkeleton />;
+
+  if (!data || !data.current_quarter || !data.last_quarter) {
+    return (
+      <div className="bg-white border-b border-r border-gray-300 p-4 flex items-center justify-center text-gray-500 text-sm">
+        No data available
+      </div>
+    );
   }
 
+  // Use filtered data if available, otherwise use original data
+  const displayData = filteredData || data;
+  
+  // Add null checks to prevent errors
+  if (!displayData || !displayData.current_quarter || !displayData.last_quarter) {
+    return (
+      <div className="bg-white border-b border-r border-gray-300 p-4 flex items-center justify-center text-gray-500 text-sm">
+        {isLoadingFilter ? 'Loading filtered data...' : 'No data available'}
+      </div>
+    );
+  }
+  
   const noData =
-    data.current_quarter.total_finished === 0 &&
-    data.last_quarter.total_finished === 0;
+    displayData.current_quarter.total_finished === 0 &&
+    displayData.last_quarter.total_finished === 0;
 
   const getTrendIcon = () => {
     switch (data.trend) {
       case "up":
-        return <TrendingUp size={16} className="text-green-600" />;
+        return <TrendingUp size={14} className="text-emerald-400" />;
       case "down":
-        return <TrendingDown size={16} className="text-red-600" />;
+        return <TrendingDown size={14} className="text-red-400" />;
       default:
-        return <Minus size={16} className="text-gray-600" />;
+        return <Minus size={14} className="text-sky-600" />;
     }
-  };
-
-  const calculatePercentage = (value) => {
-    const total = data.current_quarter.total_finished;
-    return total > 0 ? Math.round((value / total) * 100) : 0;
   };
 
   const getTrendBadgeColor = () => {
     switch (data.trend) {
       case "up":
-        return "bg-green-100 text-green-700";
+        return "bg-emerald-50 text-emerald-700 border border-emerald-300";
       case "down":
-        return "bg-red-100 text-red-700";
+        return "bg-red-50 text-red-700 border border-red-300";
       default:
-        return "bg-gray-100 text-gray-700";
+        return "bg-sky-50 text-sky-700 border border-sky-300";
     }
   };
 
-  const handleRefresh = () => {
-    if (onRefresh) {
-      onRefresh();
+  const handleRefresh = () => onRefresh && onRefresh();
+
+  // Law options for filtering
+  const lawOptions = [
+    { value: 'all', label: 'All Laws' },
+    { value: 'PD-1586', label: 'PD-1586' },
+    { value: 'RA-6969', label: 'RA-6969' },
+    { value: 'RA-8749', label: 'RA-8749' },
+    { value: 'RA-9275', label: 'RA-9275' },
+    { value: 'RA-9003', label: 'RA-9003' }
+  ];
+
+  // Calculate totals for comparison using display data
+  const lastQuarterTotal = displayData.last_quarter.total_finished;
+  const currentQuarterTotal = displayData.current_quarter.total_finished;
+  const totalChange = currentQuarterTotal - lastQuarterTotal;
+  const totalChangePercent = lastQuarterTotal > 0 ? ((totalChange / lastQuarterTotal) * 100).toFixed(1) : 0;
+
+  const chartData = [
+    {
+      name: displayData.last_quarter.quarter,
+      compliant: displayData.last_quarter.compliant,
+      nonCompliant: displayData.last_quarter.non_compliant,
+      total: displayData.last_quarter.total_finished,
+      period: "Last Quarter",
+    },
+    {
+      name: displayData.current_quarter.quarter,
+      compliant: displayData.current_quarter.compliant,
+      nonCompliant: displayData.current_quarter.non_compliant,
+      total: displayData.current_quarter.total_finished,
+      period: "Current Quarter",
+    },
+  ];
+
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const d = payload[0].payload;
+      const total = d.compliant + d.nonCompliant;
+      const compliantPercent =
+        total > 0 ? ((d.compliant / total) * 100).toFixed(1) : 0;
+      const nonCompliantPercent =
+        total > 0 ? ((d.nonCompliant / total) * 100).toFixed(1) : 0;
+
+      return (
+        <div className="bg-white p-2 border-r border-b border-gray-300 text-xs">
+          <p className="font-medium text-gray-800 mb-1">{d.period}</p>
+          <div className="space-y-1">
+            <div className="flex justify-between text-gray-600">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-emerald-400 rounded-full"></span>
+                Compliant
+              </span>
+              <span className="text-gray-800 font-semibold">
+                {d.compliant} ({compliantPercent}%)
+              </span>
+            </div>
+            <div className="flex justify-between text-gray-600">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 bg-red-400 rounded-full"></span>
+                Non-Compliant
+              </span>
+              <span className="text-gray-800 font-semibold">
+                {d.nonCompliant} ({nonCompliantPercent}%)
+              </span>
+            </div>
+          </div>
+          <div className="border-t border-gray-200 mt-1 pt-1 flex justify-between font-medium text-gray-700">
+            <span>Total:</span>
+            <span className="text-gray-800">{total}</span>
+          </div>
+        </div>
+      );
     }
+    return null;
   };
 
   return (
-    <div className=" border-2 rounded-lg p-4 transition-all duration-300 hover:shadow-lg border-sky-200 bg-white group h-full flex flex-col">
+    <div className="bg-white border-b border-r border-gray-300 p-4 h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <BarChart3 size={18} className="text-sky-600" />
-          Quarterly
+          <BarChart3 size={20} className="text-sky-600" />
+            Comparison
         </h3>
+        <div className="flex items-center gap-3">
+          {/* Law Filter */}
         <div className="flex items-center gap-2">
-          {/* Trend Badge */}
+            <Filter size={16} className="text-gray-500" />
+            <select
+              value={selectedLaw}
+              onChange={(e) => setSelectedLaw(e.target.value)}
+              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+            >
+              {lawOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {selectedLaw !== 'all' && (
+              <span className="text-xs text-sky-600 bg-sky-50 px-2 py-1 rounded">
+                Filtered
+              </span>
+            )}
+          </div>
+          
           {!noData && (
-            <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-sm font-semibold ${getTrendBadgeColor()}`}>
+            <div
+              className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold ${getTrendBadgeColor()}`}
+            >
               {getTrendIcon()}
-              {data.change_percentage > 0 ? "+" : ""}{data.change_percentage}%
+              {data.change_percentage > 0 ? "+" : ""}
+              {data.change_percentage}%
             </div>
           )}
           <button
             onClick={handleRefresh}
-            className="p-1.5 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 opacity-0 group-hover:opacity-100"
-            title="Refresh Quarterly Data"
+            className="text-gray-600 hover:text-gray-800 p-1 hover:bg-gray-100 rounded"
+            title="Refresh Data"
           >
-            <RefreshCw size={14} className="text-sky-600" />
+            <RefreshCw size={18} />
           </button>
         </div>
       </div>
 
-      {noData ? (
-        <div className="flex-1 flex items-center justify-center text-gray-400">
-          <div className="text-center">
-            <BarChart3 size={40} className="mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No quarterly data available</p>
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 space-y-3">
-          {/* Quarter Comparison */}
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            {/* Last Quarter - Compact */}
-            <div>
-              <div className="text-xs text-gray-500">Last Quarter</div>
-              <div className="text-sm font-semibold text-gray-700">
-                {data.last_quarter.quarter}
-              </div>
-              <div className="text-xl font-bold text-sky-700">
-                {data.last_quarter.total_finished} <span className="text-xs font-normal text-gray-500">Inspected Establishments</span>
-              </div>
-            </div>
-            
-            {/* Current Quarter - Compact */}
-            <div>
-              <div className="text-xs text-gray-500">Current Quarter</div>
-              <div className="text-sm font-semibold text-gray-700">
-                {data.current_quarter.quarter}
-              </div>
-              <div className="text-xl font-bold text-sky-700">
-                {data.current_quarter.total_finished} <span className="text-xs font-normal text-gray-500">Inspected Establishments</span>
-              </div>
-            </div>
-          </div>
+      
 
-          {/* Compliance Breakdown with Progress Bars */}
-          <div className="space-y-2">
-            <div className="text-sm font-medium text-gray-700">Compliance Breakdown</div>
-            
-            {/* Compliant Progress Bar */}
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs text-gray-600 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  Compliant
-                </span>
-                <span className="text-xs font-semibold text-green-700">
-                  {data.current_quarter.compliant} ({calculatePercentage(data.current_quarter.compliant)}%)
-                </span>
+      {/* Chart */}
+      <div className="flex-1">
+      {noData ? (
+          <div className="flex items-center justify-center text-gray-400 h-40">
+          <div className="text-center">
+              <BarChart3 size={36} className="mx-auto mb-2 opacity-30" />
+              <p className="text-xs font-medium">No quarterly data</p>
+              {selectedLaw !== 'all' && (
+                <p className="text-xs text-gray-500 mt-1">Try selecting "All Laws" to see complete data</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="relative">
+            {selectedLaw !== 'all' && (
+              <div className="absolute top-2 right-2 z-10 bg-red-100 border border-red-300 text-red-700 px-3 py-1 rounded-full text-xs font-semibold shadow-sm animate-pulse">
+                Filtered: {selectedLaw}
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-green-500 h-2 rounded-full transition-all" 
-                     style={{ width: `${calculatePercentage(data.current_quarter.compliant)}%` }}></div>
+            )}
+          <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={0}>
+            <BarChart 
+              data={chartData} 
+              barGap={8}
+              margin={{ top: 20, right: 30, left: 20, bottom: 0 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="#e5e7eb"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="name"
+                tick={{ fill: "#6b7280", fontSize: 16, fontWeight: 500 }}
+                stroke="#9ca3af"
+                axisLine={{ stroke: "#d1d5db" }}
+                tickLine={{ stroke: "#d1d5db" }}
+              />
+              <YAxis
+                tick={{ fill: "#6b7280", fontSize: 16, fontWeight: 500 }}
+                stroke="#9ca3af"
+                axisLine={{ stroke: "#d1d5db" }}
+                tickLine={{ stroke: "#d1d5db" }}
+              />
+              <Tooltip 
+                content={<CustomTooltip />} 
+                cursor={{ fill: "#f9fafb" }} 
+                wrapperStyle={{ outline: 'none' }}
+              />
+              <Legend
+                verticalAlign="top"
+                height={30}
+                iconType="circle"
+                iconSize={10}
+                wrapperStyle={{ fontSize: "12px", fontWeight: 500 }}
+              />
+              <Bar 
+                dataKey="compliant" 
+                fill="#34D399"
+                name="Compliant" 
+                radius={[4, 4, 0, 0]}
+              />
+              <Bar 
+                dataKey="nonCompliant" 
+                fill="#F87171"
+                name="Non-Compliant" 
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+          </div>
+        )}
+        </div>
+      {/* Totals moved to bottom */}
+      {!noData && (
+        <div className=" p-3 bg-gray-100 border border-gray-200 rounded">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="text-sm">
+                <span className="text-gray-600">Last Quarter Total:</span>
+                <span className="ml-2 font-semibold text-gray-800">{lastQuarterTotal}</span>
+              </div>
+              <div className="text-sm">
+                <span className="text-gray-600">Current Quarter Total:</span>
+                <span className="ml-2 font-semibold text-gray-800">{currentQuarterTotal}</span>
               </div>
             </div>
-            
-            {/* Non-Compliant Progress Bar */}
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs text-gray-600 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                  Non-Compliant
-                </span>
-                <span className="text-xs font-semibold text-red-700">
-                  {data.current_quarter.non_compliant} ({calculatePercentage(data.current_quarter.non_compliant)}%)
-                </span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-red-500 h-2 rounded-full transition-all" 
-                     style={{ width: `${calculatePercentage(data.current_quarter.non_compliant)}%` }}></div>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">Change:</span>
+              <span className={`text-sm font-semibold ${
+                totalChange > 0 ? 'text-emerald-600' : 
+                totalChange < 0 ? 'text-red-400' : 'text-gray-600'
+              }`}>
+                {totalChange > 0 ? '+' : ''}{totalChange} ({totalChangePercent}%)
+              </span>
             </div>
           </div>
         </div>

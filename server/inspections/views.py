@@ -2311,26 +2311,39 @@ class InspectionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def quarterly_comparison(self, request):
         """
-        Get quarterly comparison data for finished inspections
+        Get quarterly comparison data for finished inspections with optional law filtering
         """
         from django.db.models import Count, Q
         from .models import InspectionForm
         from datetime import datetime, timedelta
+        from django.utils import timezone as tz
         
         # Get year parameter (default to current year)
         year = int(request.query_params.get('year', datetime.now().year))
+        
+        # Get law parameter for filtering
+        law_filter = request.query_params.get('law', 'all')
+        
+        # Define law choices
+        law_choices = [
+            ("PD-1586", "PD-1586 (EIA)"),
+            ("RA-6969", "RA-6969 (TOX)"),
+            ("RA-8749", "RA-8749 (CAA)"),
+            ("RA-9275", "RA-9275 (CWA)"),
+            ("RA-9003", "RA-9003 (SWM)")
+        ]
         
         # Calculate quarters
         def get_quarter_range(year, quarter):
             """Get start and end dates for a quarter"""
             if quarter == 1:
-                return datetime(year, 1, 1), datetime(year, 3, 31, 23, 59, 59)
+                return tz.datetime(year, 1, 1, 0, 0, 0), tz.datetime(year, 3, 31, 23, 59, 59)
             elif quarter == 2:
-                return datetime(year, 4, 1), datetime(year, 6, 30, 23, 59, 59)
+                return tz.datetime(year, 4, 1, 0, 0, 0), tz.datetime(year, 6, 30, 23, 59, 59)
             elif quarter == 3:
-                return datetime(year, 7, 1), datetime(year, 9, 30, 23, 59, 59)
+                return tz.datetime(year, 7, 1, 0, 0, 0), tz.datetime(year, 9, 30, 23, 59, 59)
             else:  # quarter == 4
-                return datetime(year, 10, 1), datetime(year, 12, 31, 23, 59, 59)
+                return tz.datetime(year, 10, 1, 0, 0, 0), tz.datetime(year, 12, 31, 23, 59, 59)
         
         # Get current quarter
         now = datetime.now()
@@ -2349,20 +2362,31 @@ class InspectionViewSet(viewsets.ModelViewSet):
         current_start, current_end = get_quarter_range(current_year, current_quarter)
         last_start, last_end = get_quarter_range(last_year, last_quarter)
         
+        # Build base query filters
+        base_filters = {
+            'compliance_decision__in': ['COMPLIANT', 'NON_COMPLIANT', 'PARTIALLY_COMPLIANT']
+        }
+        
+        # Add law filter if specified
+        if law_filter != 'all' and law_filter in [choice[0] for choice in law_choices]:
+            base_filters['inspection__law'] = law_filter
+        
         # Get current quarter stats (only finished inspections - not PENDING)
-        current_stats = InspectionForm.objects.filter(
-            created_at__range=[current_start, current_end],
-            compliance_decision__in=['COMPLIANT', 'NON_COMPLIANT', 'PARTIALLY_COMPLIANT']
-        ).aggregate(
+        current_filters = {
+            'created_at__range': [current_start, current_end],
+            **base_filters
+        }
+        current_stats = InspectionForm.objects.filter(**current_filters).aggregate(
             compliant=Count('inspection_id', filter=Q(compliance_decision='COMPLIANT')),
             non_compliant=Count('inspection_id', filter=Q(compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT']))
         )
         
         # Get last quarter stats (only finished inspections - not PENDING)
-        last_stats = InspectionForm.objects.filter(
-            created_at__range=[last_start, last_end],
-            compliance_decision__in=['COMPLIANT', 'NON_COMPLIANT', 'PARTIALLY_COMPLIANT']
-        ).aggregate(
+        last_filters = {
+            'created_at__range': [last_start, last_end],
+            **base_filters
+        }
+        last_stats = InspectionForm.objects.filter(**last_filters).aggregate(
             compliant=Count('inspection_id', filter=Q(compliance_decision='COMPLIANT')),
             non_compliant=Count('inspection_id', filter=Q(compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT']))
         )
@@ -2395,6 +2419,14 @@ class InspectionViewSet(viewsets.ModelViewSet):
             }
             return f"{quarter_names[quarter_num]} {year}"
 
+        # Get law name for display
+        law_name = None
+        if law_filter != 'all':
+            for choice in law_choices:
+                if choice[0] == law_filter:
+                    law_name = choice[1]
+                    break
+        
         return Response({
             'current_quarter': {
                 'quarter': get_quarter_name(current_quarter, current_year),
@@ -2411,7 +2443,12 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 'total_finished': last_total
             },
             'change_percentage': round(change_percentage, 1),
-            'trend': trend
+            'trend': trend,
+            'filter': {
+                'law': law_filter,
+                'law_name': law_name,
+                'is_filtered': law_filter != 'all'
+            }
         })
     
     @action(detail=False, methods=['get'])
@@ -2562,6 +2599,129 @@ class InspectionViewSet(viewsets.ModelViewSet):
         self.request._request.GET = original_params
         
         return Response(counts)
+
+    @action(detail=False, methods=['get'])
+    def get_quotas(self, request):
+        """Get quotas for current or specified quarter"""
+        from datetime import datetime
+        from .models import ComplianceQuota
+        
+        year = int(request.query_params.get('year', datetime.now().year))
+        quarter = int(request.query_params.get('quarter', ((datetime.now().month - 1) // 3) + 1))
+        
+        quotas = ComplianceQuota.objects.filter(year=year, quarter=quarter)
+        
+        quota_data = []
+        for quota in quotas:
+            quota_data.append({
+                'id': quota.id,
+                'law': quota.law,
+                'year': quota.year,
+                'quarter': quota.quarter,
+                'target': quota.target,
+                'accomplished': quota.accomplished,
+                'auto_adjusted': quota.auto_adjusted,
+                'percentage': quota.percentage,
+                'exceeded': quota.exceeded,
+                'created_at': quota.created_at,
+                'updated_at': quota.updated_at
+            })
+        
+        return Response(quota_data)
+
+    @action(detail=False, methods=['post'])
+    def set_quota(self, request):
+        """Set or update quota for a law+quarter"""
+        from .models import ComplianceQuota
+        
+        law = request.data.get('law')
+        year = int(request.data.get('year'))
+        quarter = int(request.data.get('quarter'))
+        target = int(request.data.get('target'))
+        
+        if not law or not target:
+            return Response(
+                {'error': 'Law and target are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate law code
+        valid_laws = ['PD-1586', 'RA-6969', 'RA-8749', 'RA-9275', 'RA-9003']
+        if law not in valid_laws:
+            return Response(
+                {'error': f'Invalid law code. Must be one of: {", ".join(valid_laws)}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate quarter
+        if quarter not in [1, 2, 3, 4]:
+            return Response(
+                {'error': 'Quarter must be 1, 2, 3, or 4'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate target
+        if target <= 0:
+            return Response(
+                {'error': 'Target must be greater than 0'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        quota, created = ComplianceQuota.objects.update_or_create(
+            law=law,
+            year=year,
+            quarter=quarter,
+            defaults={
+                'target': target,
+                'created_by': request.user,
+                'auto_adjusted': False  # Manual setting overrides auto-adjustment
+            }
+        )
+        
+        return Response({
+            'id': quota.id,
+            'law': quota.law,
+            'year': quota.year,
+            'quarter': quota.quarter,
+            'target': quota.target,
+            'accomplished': quota.accomplished,
+            'auto_adjusted': quota.auto_adjusted,
+            'percentage': quota.percentage,
+            'exceeded': quota.exceeded,
+            'created': created,
+            'message': 'Quota created successfully' if created else 'Quota updated successfully'
+        })
+
+    @action(detail=False, methods=['post'])
+    def auto_adjust_quotas(self, request):
+        """Auto-adjust next quarter quotas based on current accomplishments"""
+        from datetime import datetime
+        from .models import ComplianceQuota
+        
+        year = int(request.data.get('year', datetime.now().year))
+        quarter = int(request.data.get('quarter', ((datetime.now().month - 1) // 3) + 1))
+        
+        current_quotas = ComplianceQuota.objects.filter(year=year, quarter=quarter)
+        adjusted_quotas = []
+        
+        for quota in current_quotas:
+            if quota.accomplished > quota.target:
+                next_quota = quota.auto_adjust_next_quarter()
+                if next_quota:
+                    adjusted_quotas.append({
+                        'law': quota.law,
+                        'current_quarter': f"Q{quota.quarter} {quota.year}",
+                        'accomplished': quota.accomplished,
+                        'next_quarter': f"Q{next_quota.quarter} {next_quota.year}",
+                        'new_target': next_quota.target,
+                        'auto_adjusted': next_quota.auto_adjusted
+                    })
+        
+        return Response({
+            'adjusted_quotas': adjusted_quotas,
+            'message': f"Auto-adjusted {len(adjusted_quotas)} quotas for next quarter",
+            'total_adjusted': len(adjusted_quotas)
+        })
 
 
 class BillingViewSet(viewsets.ModelViewSet):

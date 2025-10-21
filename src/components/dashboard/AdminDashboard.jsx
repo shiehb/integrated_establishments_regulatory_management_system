@@ -18,25 +18,13 @@ import {
   ArrowDown,
   X,
 } from "lucide-react";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ArcElement,
-  Tooltip,
-  Legend,
-} from 'chart.js';
 import { useDashboardData } from "./shared/useDashboardData";
-import { useComplianceChart } from "./shared/useComplianceChart";
 import ComplianceCard from "./shared/ComplianceCard";
 import QuarterlyComparisonCard from "./shared/QuarterlyComparisonCard";
 import ComplianceByLawCard from "./shared/ComplianceByLawCard";
+import QuotaCard from "./shared/QuotaCard";
 import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
 import DateRangeDropdown from "../DateRangeDropdown";
-
-// Register Chart.js components
-ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
 // Status display mapping using standardized labels
 const getInspectionStatusDisplay = (status) => {
@@ -192,10 +180,7 @@ export default function AdminDashboard() {
   const [activityDateTo, setActivityDateTo] = useState('');
 
   // Use shared dashboard data hook (no role parameter for admin - sees all data)
-  const { isLoading, stats, complianceStats, quarterlyData, refetch } = useDashboardData();
-  
-  // Use shared compliance chart hook
-  const complianceData = useComplianceChart(complianceStats);
+  const { isLoading, complianceStats, quarterlyData, refetch } = useDashboardData();
   
   
 
@@ -472,36 +457,33 @@ export default function AdminDashboard() {
 
 
   return (
-    <div className="p-4 bg-gray-50">
-      {/* Main Grid - 5 Column Layout */}
-      <div className="grid grid-cols-5 grid-rows-3 gap-2 mb-6">
-        {/* Compliance by Law (spans 3 columns, 2 rows) */}
-        <div className="col-span-3 row-span-2">
-          <ComplianceByLawCard
-            userRole={null} // Admin sees all data
-            onViewAll={handleViewAll}
-          />
-        </div>
-
-        {/* Quarterly Trend (spans 3 columns, starts at row 3) */}
-        <div className="col-span-3 col-start-1 row-start-3">
+    <div>
+          <QuotaCard userRole="Admin" />
+      <div className="grid grid-cols-2">
+        {/* Quarterly Comparison */}
+        <div >
           <QuarterlyComparisonCard
             data={quarterlyData}
             isLoading={isLoading}
             onRefresh={refetch}
           />
         </div>
-
-        {/* Compliance Status (spans 2 columns, 3 rows, starts at column 4, row 1) */}
-        <div className="col-span-2 row-span-3 col-start-4 row-start-1">
+        {/* Compliance Status */}
+        <div>
           <ComplianceCard
             stats={complianceStats}
-            chartData={complianceData}
             isLoading={isLoading}
             onViewAll={handleViewAll}
           />
         </div>
       </div>
+        {/* Compliance by Law */}
+        <div>
+          <ComplianceByLawCard
+            userRole={null} // Admin sees all data
+            onViewAll={handleViewAll}
+          />
+        </div>
       
       {/* Second Grid - Activity and Inspection Panels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">

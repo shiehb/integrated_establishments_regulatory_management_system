@@ -1,12 +1,20 @@
 import React from "react";
 import {
-  Bar,
-} from 'react-chartjs-2';
-import {
   BarChart3,
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
 import { useComplianceByLawChart } from "./useComplianceByLawChart";
 import LoadingSkeleton from "./LoadingSkeleton";
 
@@ -42,91 +50,67 @@ const ComplianceByLawCard = ({ userRole = null, onViewAll }) => {
     }
   };
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    indexAxis: 'x', // Vertical bars
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: {
-          usePointStyle: true,
-          padding: 20,
-          font: {
-            size: 12
-          }
-        }
-      },
-      tooltip: {
-        mode: 'index',
-        intersect: false,
-        callbacks: {
-          label: function(context) {
-            const dataset = context.dataset;
-            const value = dataset.data[context.dataIndex];
-            const total = data[context.dataIndex]?.total || 0;
-            const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-            return `${dataset.label}: ${value} (${percentage}%)`;
-          }
-        }
-      }
-    },
-    scales: {
-      x: {
-        stacked: true,
-        beginAtZero: true,
-        grid: {
-          display: false
-        },
-        ticks: {
-          font: {
-            size: 11
-          }
-        }
-      },
-      y: {
-        stacked: true,
-        grid: {
-          display: false
-        },
-        ticks: {
-          font: {
-            size: 11
-          }
-        }
-      }
-    },
-    elements: {
-      bar: {
-        borderWidth: 1
-      }
+  // Custom tooltip
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const total = payload.reduce((sum, entry) => sum + entry.value, 0);
+      
+      return (
+        <div className="bg-white px-3 py-2 border border-gray-300 shadow-sm">
+          <p className="font-medium text-gray-800 text-sm mb-1">{label}</p>
+          {payload.map((entry, index) => {
+            const percentage = total > 0 ? ((entry.value / total) * 100).toFixed(1) : 0;
+            return (
+              <div key={index} className="flex items-center justify-between gap-3 mb-1">
+                <span className="flex items-center gap-1">
+                  <span 
+                    className="w-2 h-2" 
+                    style={{ backgroundColor: entry.color }}
+                  ></span>
+                  <span className="text-xs text-gray-600">{entry.name}:</span>
+                </span>
+                <span className="text-xs font-semibold text-gray-800">
+                  {entry.value} ({percentage}%)
+                </span>
+              </div>
+            );
+          })}
+          <div className="pt-1 mt-1 border-t border-gray-200">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-700">Total:</span>
+              <span className="text-xs font-semibold text-gray-800">{total}</span>
+            </div>
+          </div>
+        </div>
+      );
     }
+    return null;
   };
 
   return (
-    <div className="border-2 rounded-lg p-4 transition-all duration-300 hover:shadow-lg border-sky-200 bg-white group h-full flex flex-col">
+    <div className="bg-white border-b border-gray-300 p-6 h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-6 pb-3 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <BarChart3 size={18} className="text-sky-600" />
+          <BarChart3 size={20} className="text-gray-600" />
           Compliance by Law
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           {onViewAll && (
             <button
               onClick={handleViewAll}
-              className="p-1.5 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 opacity-0 group-hover:opacity-100"
+              className="text-gray-600 hover:text-gray-800 p-1"
               title="View All Inspections"
             >
-              <BarChart3 size={14} className="text-sky-600" />
+              <BarChart3 size={18} />
             </button>
           )}
           <button
             onClick={handleRefresh}
-            className="p-1.5 rounded-lg bg-white shadow-sm hover:shadow-md transition-all duration-200 opacity-0 group-hover:opacity-100"
+            className="text-gray-600 hover:text-gray-800 p-1"
             title="Refresh Compliance Data"
           >
-            <RefreshCw size={14} className="text-sky-600" />
+            <RefreshCw size={18} />
           </button>
         </div>
       </div>
@@ -156,34 +140,52 @@ const ComplianceByLawCard = ({ userRole = null, onViewAll }) => {
         <div className="flex-1 flex flex-col">
           {/* Chart Container */}
           <div className="flex-1 min-h-0">
-            <div style={{ height: '300px', width: '100%' }}>
-              <Bar data={chartData} options={chartOptions} />
-            </div>
+            <ResponsiveContainer width="100%" height={400} minWidth={0} minHeight={0}>
+              <BarChart
+                data={chartData}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#d1d5db" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  height={60}
+                  tick={{ fill: '#6b7280', fontSize: 16 }}
+                  stroke="#9ca3af"
+                  axisLine={{ stroke: '#d1d5db' }}
+                />
+                <YAxis 
+                  tick={{ fill: '#6b7280', fontSize: 16 }}
+                  stroke="#9ca3af"
+                  axisLine={{ stroke: '#d1d5db' }}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f3f4f6' }} />
+                <Legend 
+                  verticalAlign="top" 
+                  height={30}
+                  iconType="square"
+                  iconSize={10}
+                  wrapperStyle={{ fontSize: '12px' }}
+                />
+                <Bar 
+                  dataKey="pending" 
+                  stackId="a" 
+                  fill="#F59E0B"
+                  name="Pending"
+                />
+                <Bar 
+                  dataKey="compliant" 
+                  stackId="a" 
+                  fill="#34D399"
+                  name="Compliant"
+                />
+                <Bar 
+                  dataKey="nonCompliant" 
+                  stackId="a" 
+                  fill="#F87171"
+                  name="Non-Compliant"
+                />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-
-          {/* Summary Stats */}
-          {/* <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-xs text-gray-500">Total Laws</div>
-                <div className="text-lg font-semibold text-gray-700">
-                  {data.filter(item => item.total > 0).length}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500">Total Inspections</div>
-                <div className="text-lg font-semibold text-sky-700">
-                  {data.reduce((sum, item) => sum + item.total, 0)}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-gray-500">Avg per Law</div>
-                <div className="text-lg font-semibold text-gray-700">
-                  {data.length > 0 ? Math.round(data.reduce((sum, item) => sum + item.total, 0) / data.length) : 0}
-                </div>
-              </div>
-            </div>
-          </div> */}
         </div>
       )}
     </div>
