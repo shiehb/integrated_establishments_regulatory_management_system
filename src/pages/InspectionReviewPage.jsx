@@ -3,10 +3,13 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../components/NotificationManager';
 import api from '../services/api';
+import { sendNOV, sendNOO } from '../services/api';
 import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck, Printer, Edit, X, UserCheck, Users, Building, CheckSquare, Scale, Mail, FileText, CornerDownLeft, Camera } from 'lucide-react';
 import LayoutForm from '../components/LayoutForm';
 import { getButtonVisibility as getRoleStatusButtonVisibility, canUserAccessInspection } from '../utils/roleStatusMatrix';
 import ImageLightbox from '../components/inspection-form/ImageLightbox';
+import NOVModal from '../components/inspections/NOVModal';
+import NOOModal from '../components/inspections/NOOModal';
 
 const InspectionReviewPage = () => {
   const { id } = useParams();
@@ -37,6 +40,63 @@ const InspectionReviewPage = () => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  
+  // NOV modal state
+  const [showNOVModal, setShowNOVModal] = useState(false);
+  
+  // NOO modal state
+  const [showNOOModal, setShowNOOModal] = useState(false);
+  
+  // Violations found state - automatically populated from non-compliance data
+  const [violationsFound, setViolationsFound] = useState('');
+
+  // Function to automatically extract violations from non-compliant items
+  const extractViolationsFromData = useCallback((formData) => {
+    if (!formData) return '';
+    
+    const violations = [];
+    const violationsByLaw = {};
+    
+    // Extract violations from non-compliant compliance items
+    if (formData.complianceItems) {
+      formData.complianceItems.forEach((item) => {
+        if (item.compliant === 'No' && item.remarks) {
+          const lawInfo = item.lawCitation || item.lawId || 'General Compliance';
+          const requirement = item.complianceRequirement || 'Compliance Requirement';
+          
+          if (!violationsByLaw[lawInfo]) {
+            violationsByLaw[lawInfo] = [];
+          }
+          violationsByLaw[lawInfo].push(`• ${requirement}: ${item.remarks}`);
+        }
+      });
+    }
+    
+    // Extract violations from non-compliant systems
+    if (formData.systems) {
+      formData.systems.forEach((system) => {
+        if (system.nonCompliant && system.remarks) {
+          const lawInfo = system.lawId || 'General Findings';
+          
+          if (!violationsByLaw[lawInfo]) {
+            violationsByLaw[lawInfo] = [];
+          }
+          violationsByLaw[lawInfo].push(`• ${system.system}: ${system.remarks}`);
+        }
+      });
+    }
+    
+    // Format violations by law category with professional structure
+    Object.keys(violationsByLaw).forEach((law) => {
+      violations.push(`${law}:`);
+      violationsByLaw[law].forEach((violation) => {
+        violations.push(`  ${violation}`);
+      });
+      violations.push(''); // Add blank line between categories
+    });
+    
+    return violations.join('\n').trim();
+  }, []);
 
   // Process compliance items for merged law citations (moved to top level)
   const processedComplianceItems = useMemo(() => {
@@ -176,6 +236,23 @@ const InspectionReviewPage = () => {
     }
   }, [mode, fetchInspectionData]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-populate violations when form data changes
+  useEffect(() => {
+    if (formData) {
+      // First check if there are existing violations from the database
+      const existingViolations = inspectionData?.form?.violations_found;
+      
+      if (existingViolations) {
+        // Use existing violations from database
+        setViolationsFound(existingViolations);
+      } else {
+        // Auto-generate violations from non-compliant items
+        const autoViolations = extractViolationsFromData(formData);
+        setViolationsFound(autoViolations);
+      }
+    }
+  }, [formData, inspectionData, extractViolationsFromData]);
+
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
@@ -202,6 +279,22 @@ const InspectionReviewPage = () => {
     if (mode === 'preview' && location.state?.compliance) {
       return location.state.compliance;
     }
+    
+    // Check form.compliance_decision if it exists in review mode (highest priority)
+    if (mode === 'review' && inspectionData?.form?.compliance_decision) {
+      return inspectionData.form.compliance_decision;
+    }
+    
+    // Fallback: extract from inspection status
+    if (mode === 'review' && inspectionData?.current_status) {
+      const status = inspectionData.current_status;
+      if (status.includes('_COMPLIANT')) {
+        return 'COMPLIANT';
+      } else if (status.includes('_NON_COMPLIANT')) {
+        return 'NON_COMPLIANT';
+      }
+    }
+    
     return formData?.compliance_status || 'PENDING';
   };
 
@@ -265,7 +358,7 @@ const InspectionReviewPage = () => {
       payload = {
         form_data: formData,
         compliance_decision: complianceDecision,
-        violations_found: [],
+        violations_found: violationsFound ? violationsFound.split('\n').filter(line => line.trim()) : ['None'],
         findings_summary: 'Inspection completed',
         remarks: `Inspection completed by ${userLevel}`
       };
@@ -305,7 +398,7 @@ const InspectionReviewPage = () => {
         payload = {
           form_data: formData,
           compliance_decision: complianceDecision,
-          violations_found: [],
+          violations_found: violationsFound ? violationsFound.split('\n').filter(line => line.trim()) : ['None'],
           findings_summary: 'Inspection completed and approved',
           remarks: 'Inspection completed and approved by reviewer'
         };
@@ -315,7 +408,6 @@ const InspectionReviewPage = () => {
     try {
       console.log('🚀 Making API call:', { endpoint, payload });
       await api.post(endpoint, payload);
-      notifications.success('Action completed successfully!');
       setShowConfirm(false);
       navigate('/inspections');
     } catch (error) {
@@ -328,8 +420,62 @@ const InspectionReviewPage = () => {
   };
 
   const handleActionClick = (type) => {
-    setActionType(type);
-    setShowConfirm(true);
+    if (type === 'send_nov') {
+      setShowNOVModal(true);
+    } else if (type === 'send_noo') {
+      setShowNOOModal(true);
+    } else {
+      setActionType(type);
+      setShowConfirm(true);
+    }
+  };
+
+  const handleNOVConfirm = async (novData) => {
+    try {
+      setLoading(true);
+      await sendNOV(id, {
+        violations: novData.violations,
+        compliance_instructions: novData.complianceInstructions,
+        compliance_deadline: new Date(novData.complianceDeadline).toISOString(),
+        remarks: novData.remarks || 'Notice of Violation sent'
+      });
+      
+      notifications.success('Notice of Violation sent successfully!');
+      setShowNOVModal(false);
+      navigate('/inspections');
+    } catch (error) {
+      console.error('Error sending NOV:', error);
+      notifications.error(
+        error.response?.data?.error || error.response?.data?.message || 'Failed to send NOV'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNOOConfirm = async (nooData) => {
+    try {
+      setLoading(true);
+      await sendNOO(id, {
+        violation_breakdown: nooData.violationBreakdown,
+        penalty_fees: nooData.penaltyFees,
+        payment_deadline: new Date(nooData.paymentDeadline).toISOString().split('T')[0],
+        payment_instructions: nooData.paymentInstructions,
+        remarks: nooData.remarks || 'Notice of Order sent',
+        billing_items: nooData.billingItems
+      });
+      
+      notifications.success('Notice of Order sent successfully!');
+      setShowNOOModal(false);
+      navigate('/inspections?tab=noo_sent');
+    } catch (error) {
+      console.error('Error sending NOO:', error);
+      notifications.error(
+        error.response?.data?.error || error.response?.data?.message || 'Failed to send NOO'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading && !inspectionData) {
@@ -484,8 +630,9 @@ const InspectionReviewPage = () => {
                   <X className="w-4 h-4 mr-1" />
                   Close
                 </button>
-                {/* Hide Edit Inspection button for Division Chief */}
-                {currentUser?.userlevel !== 'Division Chief' && (
+                {/* Hide Edit Inspection button for Division Chief and Legal Unit with LEGAL_REVIEW or NOV_SENT status */}
+                {currentUser?.userlevel !== 'Division Chief' && 
+                 !(currentUser?.userlevel === 'Legal Unit' && (inspectionData?.current_status === 'LEGAL_REVIEW' || inspectionData?.current_status === 'NOV_SENT')) && (
                 <button
                   onClick={() => navigate(`/inspections/${id}/form?returnTo=review&reviewMode=true`)}
                   className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
@@ -528,12 +675,10 @@ const InspectionReviewPage = () => {
                   inspectionData?.current_status === 'SECTION_REVIEWED' ||
                   inspectionData?.current_status === 'DIVISION_REVIEWED') && (
                   <>
-                    {/* For SECTION_REVIEWED and SECTION_COMPLETED_* statuses */}
-                    {(inspectionData?.current_status === 'SECTION_REVIEWED' ||
-                      inspectionData?.current_status === 'SECTION_COMPLETED_COMPLIANT' ||
-                      inspectionData?.current_status === 'SECTION_COMPLETED_NON_COMPLIANT') && (
+                    {/* For SECTION_REVIEWED status - Division Chief can review */}
+                    {inspectionData?.current_status === 'SECTION_REVIEWED' && (
                       <>
-                        {/* Always show "Reviewed" button for these statuses */}
+                        {/* Show "Reviewed" button to transition to DIVISION_REVIEWED */}
                         <button
                           onClick={() => handleActionClick('review_division')}
                           className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
@@ -542,27 +687,22 @@ const InspectionReviewPage = () => {
                           <CheckCircle className="w-4 h-4 mr-1" />
                           Reviewed
                         </button>
-                        
-                        {/* Show compliance-based action button */}
-                        {complianceStatus === 'COMPLIANT' ? (
-                          <button
-                            onClick={() => handleActionClick('mark_compliant')}
-                            className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
-                            disabled={loading}
-                          >
-                            <CheckSquare className="w-4 h-4 mr-1" />
-                            Mark as Compliant
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleActionClick('forward_legal')}
-                            className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
-                            disabled={loading}
-                          >
-                            <Scale className="w-4 h-4 mr-1" />
-                            Send to Legal
-                          </button>
-                        )}
+                      </>
+                    )}
+                    
+                    {/* For SECTION_COMPLETED_* statuses - show Reviewed button */}
+                    {(inspectionData?.current_status === 'SECTION_COMPLETED_COMPLIANT' ||
+                      inspectionData?.current_status === 'SECTION_COMPLETED_NON_COMPLIANT') && (
+                      <>
+                        {/* Show "Reviewed" button to transition to DIVISION_REVIEWED */}
+                        <button
+                          onClick={() => handleActionClick('review_division')}
+                          className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
+                          disabled={loading}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Reviewed
+                        </button>
                       </>
                     )}
                     
@@ -592,6 +732,35 @@ const InspectionReviewPage = () => {
                     )}
                   </>
                 )}
+                {/* Legal Unit buttons for LEGAL_REVIEW status */}
+                {!userLoading && currentUser?.userlevel === 'Legal Unit' && 
+                 inspectionData?.current_status === 'LEGAL_REVIEW' && (
+                  <>
+                    <button
+                      onClick={() => handleActionClick('send_nov')}
+                      className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
+                      disabled={loading}
+                    >
+                      <Mail className="w-4 h-4 mr-1" />
+                      Send NOV
+                    </button>
+                  </>
+                )}
+                
+                {/* Legal Unit buttons for NOV_SENT status */}
+                {!userLoading && currentUser?.userlevel === 'Legal Unit' && 
+                 inspectionData?.current_status === 'NOV_SENT' && (
+                  <>
+                    <button
+                      onClick={() => handleActionClick('send_noo')}
+                      className="flex items-center px-3 py-1 text-sm text-white bg-orange-600 rounded hover:bg-orange-700 transition-colors"
+                      disabled={loading}
+                    >
+                      <FileText className="w-4 h-4 mr-1" />
+                      Send NOO
+                    </button>
+                  </>
+                )}
               </>
             ) : null}
           </div>
@@ -614,7 +783,8 @@ const InspectionReviewPage = () => {
   }
 
   return (
-    <LayoutForm headerHeight="small" inspectionHeader={reviewHeader}>
+    <>
+      <LayoutForm headerHeight="small" inspectionHeader={reviewHeader}>
       <div className="w-full">
         {/* PDF Document Container */}
         <div className="bg-white shadow-lg print:shadow-none p-10">
@@ -1087,7 +1257,6 @@ const InspectionReviewPage = () => {
             </div>
           </section>
 
-
           {/* VI. RECOMMENDATIONS */}
           {complianceStatus !== 'COMPLIANT' && recommendations.checked && recommendations.checked.length > 0 && (
             <section className="mb-8 page-break-before">
@@ -1118,11 +1287,56 @@ const InspectionReviewPage = () => {
             </section>
           )}
 
-          {/* VII. PHOTO DOCUMENTATION */}
+          {/* VII. VIOLATIONS FOUND */}
+          {violationsFound && (
+            <section className="mb-8 page-break-before">
+              <h2 className="text-lg font-bold uppercase border-b-2 border-gray-800 pb-2 mb-4">
+                VII. VIOLATIONS FOUND
+              </h2>
+              
+              <div className="space-y-4">
+                <p className="text-sm text-gray-700 mb-4" style={{ textAlign: 'justify' }}>
+                  During the course of the inspection conducted at the establishment, the following violations 
+                  of environmental laws, rules, and regulations were observed and documented. These violations 
+                  require immediate attention and corrective action by the establishment management to ensure 
+                  compliance with applicable environmental standards and requirements.
+                </p>
+                
+                {/* Editable violations textarea for preview mode or authorized users */}
+                {mode === 'preview' || buttonVisibility.showSaveSubmitButton ? (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-800 mb-2">
+                      Documented Violations:
+                    </label>
+                    <textarea
+                      value={violationsFound}
+                      onChange={(e) => setViolationsFound(e.target.value)}
+                      className="w-full border-2 border-gray-400 rounded-md px-4 py-3 text-gray-900 min-h-[300px] font-sans text-sm leading-relaxed resize-y focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                      placeholder="Violations will be automatically populated from non-compliant items..."
+                      style={{ whiteSpace: 'pre-wrap', fontFamily: 'system-ui, -apple-system, sans-serif' }}
+                    />
+                    <p className="text-xs text-gray-600 italic bg-blue-50 border-l-4 border-blue-400 px-3 py-2 rounded">
+                      <strong>Note:</strong> This field is automatically populated from non-compliant items identified during the inspection. 
+                      You may edit or add additional details as necessary to provide a comprehensive record of violations.
+                    </p>
+                  </div>
+                ) : (
+                  /* Read-only display for review mode with professional formatting */
+                  <div className="border-2 border-gray-300 rounded-md px-4 py-4 bg-gray-50">
+                    <div className="text-gray-900 text-sm leading-relaxed" style={{ whiteSpace: 'pre-wrap', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+                      {violationsFound}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* VIII. PHOTO DOCUMENTATION */}
           {formData.generalFindings && Array.isArray(formData.generalFindings) && formData.generalFindings.length > 0 && (
             <section className="mb-8 page-break-before">
               <h2 className="text-lg font-bold uppercase border-b-2 border-gray-800 pb-2 mb-4">
-                VII. PHOTO DOCUMENTATION
+                VIII. PHOTO DOCUMENTATION
               </h2>
               
               <div className="grid grid-cols-3 gap-4">
@@ -1246,7 +1460,27 @@ const InspectionReviewPage = () => {
           }
         }
       `}</style>
-    </LayoutForm>
+
+      </LayoutForm>
+      
+      {/* NOV Modal - Outside LayoutForm for proper z-index */}
+      <NOVModal
+        open={showNOVModal}
+        onClose={() => setShowNOVModal(false)}
+        onConfirm={handleNOVConfirm}
+        inspection={inspectionData}
+        loading={loading}
+      />
+      
+      {/* NOO Modal - Outside LayoutForm for proper z-index */}
+      <NOOModal
+        open={showNOOModal}
+        onClose={() => setShowNOOModal(false)}
+        onConfirm={handleNOOConfirm}
+        inspection={inspectionData}
+        loading={loading}
+      />
+    </>
   );
 };
 

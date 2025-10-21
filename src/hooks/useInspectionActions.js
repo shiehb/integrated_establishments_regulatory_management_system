@@ -66,7 +66,6 @@ export const useInspectionActions = (refreshInspections) => {
           throw new Error(`Unknown action: ${action}`);
       }
 
-      notifications.success(`Action completed successfully!`, { title: 'Success' });
       refreshInspections();
       return result;
     } catch (error) {

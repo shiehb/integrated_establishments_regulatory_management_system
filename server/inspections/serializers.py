@@ -4,7 +4,7 @@ Serializers for Refactored Inspection Models
 from rest_framework import serializers
 from .models import (
     Inspection, InspectionForm, InspectionDocument, InspectionHistory,
-    BillingRecord, BillingItem
+    BillingRecord, NoticeOfViolation, NoticeOfOrder
 )
 from establishments.models import Establishment
 
@@ -69,9 +69,49 @@ class InspectionDocumentSerializer(serializers.ModelSerializer):
         return None
 
 
+class NoticeOfViolationSerializer(serializers.ModelSerializer):
+    """Serializer for Notice of Violation"""
+    sent_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = NoticeOfViolation
+        fields = [
+            'inspection_form', 'sent_date', 'compliance_deadline',
+            'violations', 'compliance_instructions', 'remarks',
+            'sent_by', 'sent_by_name', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+    
+    def get_sent_by_name(self, obj):
+        if obj.sent_by:
+            return f"{obj.sent_by.first_name} {obj.sent_by.last_name}".strip() or obj.sent_by.email
+        return None
+
+
+class NoticeOfOrderSerializer(serializers.ModelSerializer):
+    """Serializer for Notice of Order"""
+    sent_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = NoticeOfOrder
+        fields = [
+            'inspection_form', 'sent_date', 'violation_breakdown',
+            'penalty_fees', 'payment_deadline', 'payment_instructions', 'remarks',
+            'sent_by', 'sent_by_name', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+    
+    def get_sent_by_name(self, obj):
+        if obj.sent_by:
+            return f"{obj.sent_by.first_name} {obj.sent_by.last_name}".strip() or obj.sent_by.email
+        return None
+
+
 class InspectionFormSerializer(serializers.ModelSerializer):
     """Serializer for inspection form"""
     documents = InspectionDocumentSerializer(many=True, read_only=True)
+    nov = NoticeOfViolationSerializer(read_only=True)
+    noo = NoticeOfOrderSerializer(read_only=True)
     inspected_by_name = serializers.SerializerMethodField()
     inspector_info = serializers.SerializerMethodField()
     
@@ -79,9 +119,8 @@ class InspectionFormSerializer(serializers.ModelSerializer):
         model = InspectionForm
         fields = [
             'inspection', 'scheduled_at', 'checklist',
-            'findings_summary', 'compliance_decision', 'violations_found',
-            'compliance_plan', 'compliance_deadline', 'documents',
-            'inspected_by', 'inspected_by_name', 'inspector_info',
+            'compliance_decision', 'violations_found', 'documents',
+            'nov', 'noo', 'inspected_by', 'inspected_by_name', 'inspector_info',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
@@ -246,9 +285,9 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('DIVISION_REVIEWED', 'Division Chief'): [],
             
             # Legal Unit actions
-            ('LEGAL_REVIEW', 'Legal Unit'): ['review', 'close'],
-            ('NOV_SENT', 'Legal Unit'): ['review', 'close'],
-            ('NOO_SENT', 'Legal Unit'): ['review', 'close'],
+            ('LEGAL_REVIEW', 'Legal Unit'): ['review'],
+            ('NOV_SENT', 'Legal Unit'): ['review'],
+            ('NOO_SENT', 'Legal Unit'): ['review'],
         }
         
         key = (status, user.userlevel)
@@ -458,16 +497,15 @@ class BillingRecordSerializer(serializers.ModelSerializer):
     """Serializer for Billing Records"""
     inspection_code = serializers.CharField(source='inspection.code', read_only=True)
     issued_by_name = serializers.SerializerMethodField()
-    items = serializers.SerializerMethodField()
     
     class Meta:
         model = BillingRecord
         fields = [
             'id', 'billing_code', 'inspection', 'inspection_code',
             'establishment', 'establishment_name', 'contact_person',
-            'contact_number', 'related_law', 'billing_type',
+            'related_law', 'billing_type',
             'description', 'amount', 'due_date', 'recommendations',
-            'issued_by', 'issued_by_name', 'sent_date', 'items',
+            'issued_by', 'issued_by_name', 'sent_date',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'billing_code', 'sent_date', 'created_at', 'updated_at']
@@ -477,14 +515,3 @@ class BillingRecordSerializer(serializers.ModelSerializer):
             return f"{obj.issued_by.first_name} {obj.issued_by.last_name}".strip() or obj.issued_by.email
         return None
     
-    def get_items(self, obj):
-        return BillingItemSerializer(obj.items.all(), many=True).data
-
-
-class BillingItemSerializer(serializers.ModelSerializer):
-    """Serializer for Billing Items"""
-    
-    class Meta:
-        model = BillingItem
-        fields = ['id', 'violation', 'amount', 'order']
-        read_only_fields = ['id']

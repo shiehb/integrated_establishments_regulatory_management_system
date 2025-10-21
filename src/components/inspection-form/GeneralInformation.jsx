@@ -618,7 +618,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
-              Product Lines
+              Product Lines<span className="text-red-600">*</span>
             </label>
             <input
               className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
@@ -630,7 +630,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
-              Declared Production Rate
+              Declared Production Rate<span className="text-red-600">*</span>
             </label>
             <input
               className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
@@ -642,7 +642,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
-              Actual Production Rate
+              Actual Production Rate<span className="text-red-600">*</span>
             </label>
             <input
               className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
@@ -659,7 +659,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
       <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
         <div>
           <label className="block mb-1 text-sm font-medium text-gray-700">
-            Managing Head
+            Managing Head<span className="text-red-600">*</span>
           </label>
           <input
             className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
@@ -672,7 +672,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
-              PCO Name
+              PCO Name<span className="text-red-600">*</span>
             </label>
             <input
               className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
@@ -684,7 +684,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
-              Interviewed Person
+              Interviewed Person<span className="text-red-600">*</span>
             </label>
             <input
               className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
@@ -698,7 +698,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
-              PCO Accreditation No.
+              PCO Accreditation No.<span className="text-red-600">*</span>
             </label>
             <input
               className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
@@ -710,7 +710,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
-              Effectivity Date
+              Effectivity Date<span className="text-red-600">*</span>
             </label>
             <input
               type="date"

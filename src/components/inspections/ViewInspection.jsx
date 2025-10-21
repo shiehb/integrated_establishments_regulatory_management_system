@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   X, 
   Edit, 
@@ -12,7 +12,10 @@ import {
   FileText,
   Clock,
   AlertTriangle,
-  Eye
+  Eye,
+  Mail,
+  DollarSign,
+  CreditCard
 } from "lucide-react";
 import { getRoleBasedStatusLabel, statusDisplayMap, getStatusColorClass, getStatusBgColorClass, canUserPerformActions } from "../../constants/inspectionConstants";
 import InspectionTimeline from "./InspectionTimeline";
@@ -21,6 +24,36 @@ import { canViewInspectionTracking } from "../../utils/permissions";
 export default function ViewInspection({ inspection, onClose, onEdit, userLevel, currentUser }) {
   const [activeTab, setActiveTab] = useState('details');
   const [showTimeline, setShowTimeline] = useState(false);
+  const [billingData, setBillingData] = useState(null);
+  const [loadingBilling, setLoadingBilling] = useState(false);
+
+  // Fetch billing data when component mounts
+  useEffect(() => {
+    const fetchBillingData = async () => {
+      if (!inspection || !inspection.id) return;
+      
+      try {
+        setLoadingBilling(true);
+        const response = await fetch(`/api/inspections/${inspection.id}/billing/`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setBillingData(data);
+        }
+      } catch (error) {
+        console.error('Error fetching billing data:', error);
+      } finally {
+        setLoadingBilling(false);
+      }
+    };
+
+    fetchBillingData();
+  }, [inspection]);
 
   const getStatusDisplay = (status) => {
     // Use standardized status label from statusDisplayMap
@@ -175,6 +208,8 @@ export default function ViewInspection({ inspection, onClose, onEdit, userLevel,
             { id: 'details', label: 'Details' },
             { id: 'workflow', label: 'Workflow' },
             { id: 'compliance', label: 'Compliance' },
+            { id: 'legal', label: 'Legal Actions' },
+            { id: 'billing', label: 'Billing' },
             { id: 'documents', label: 'Documents' }
           ].map((tab) => (
             <button
@@ -410,6 +445,193 @@ export default function ViewInspection({ inspection, onClose, onEdit, userLevel,
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'legal' && (
+          <div className="space-y-6">
+            <h4 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+              Legal Actions
+            </h4>
+            
+            {/* NOV Section */}
+            {inspection.nov && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Mail className="h-5 w-5 text-red-600" />
+                  <h5 className="text-md font-semibold text-red-900">Notice of Violation (NOV)</h5>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-red-700">Sent Date</p>
+                    <p className="text-sm text-red-900">{formatDate(inspection.nov.sent_date)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-red-700">Sent To</p>
+                    <p className="text-sm text-red-900">{inspection.nov.recipient_email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-red-700">Contact Person</p>
+                    <p className="text-sm text-red-900">{inspection.nov.contact_person || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-red-700">Compliance Deadline</p>
+                    <p className="text-sm text-red-900">
+                      {formatDate(inspection.nov.compliance_deadline)}
+                      {inspection.nov.compliance_deadline && (
+                        <span className="ml-2 text-xs text-red-600">
+                          ({Math.ceil((new Date(inspection.nov.compliance_deadline) - new Date()) / (1000 * 60 * 60 * 24))} days remaining)
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                    <Clock className="h-3 w-3 mr-1" />
+                    Pending Compliance
+                  </span>
+                </div>
+                {inspection.nov.violations && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-red-700 mb-2">Violations</p>
+                    <div className="bg-white border border-red-200 rounded p-3">
+                      <p className="text-sm text-gray-900 whitespace-pre-wrap">{inspection.nov.violations}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* NOO Section */}
+            {inspection.noo && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText className="h-5 w-5 text-orange-600" />
+                  <h5 className="text-md font-semibold text-orange-900">Notice of Order (NOO)</h5>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-orange-700">Sent Date</p>
+                    <p className="text-sm text-orange-900">{formatDate(inspection.noo.sent_date)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-orange-700">Sent To</p>
+                    <p className="text-sm text-orange-900">{inspection.noo.recipient_email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-orange-700">Contact Person</p>
+                    <p className="text-sm text-orange-900">{inspection.noo.contact_person || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-orange-700">Payment Deadline</p>
+                    <p className="text-sm text-orange-900">{formatDate(inspection.noo.payment_deadline)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-orange-700">Total Penalty</p>
+                    <p className="text-lg font-bold text-orange-900">
+                      ₱{Number(inspection.noo.penalty_fees || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Payment Overdue
+                  </span>
+                </div>
+                {inspection.noo.violation_breakdown && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-orange-700 mb-2">Violation Breakdown</p>
+                    <div className="bg-white border border-orange-200 rounded p-3">
+                      <p className="text-sm text-gray-900 whitespace-pre-wrap">{inspection.noo.violation_breakdown}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {!inspection.nov && !inspection.noo && (
+              <div className="bg-gray-50 rounded-lg p-6 text-center">
+                <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">No legal actions have been taken for this inspection.</p>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {activeTab === 'billing' && (
+          <div className="space-y-6">
+            <h4 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-green-600" />
+              Billing Information
+            </h4>
+            
+            {loadingBilling ? (
+              <div className="bg-gray-50 rounded-lg p-6 text-center">
+                <Clock className="h-12 w-12 text-gray-400 mx-auto mb-3 animate-spin" />
+                <p className="text-sm text-gray-500">Loading billing information...</p>
+              </div>
+            ) : billingData ? (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-green-700">Billing Code</p>
+                    <p className="text-sm text-green-900 font-mono">{billingData.billing_code}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-green-700">Billing Type</p>
+                    <p className="text-sm text-green-900">{billingData.billing_type}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-green-700">Amount</p>
+                    <p className="text-lg font-bold text-green-900">
+                      ₱{Number(billingData.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-green-700">Due Date</p>
+                    <p className="text-sm text-green-900">{formatDate(billingData.due_date)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-green-700">Contact Person</p>
+                    <p className="text-sm text-green-900">{billingData.contact_person || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-green-700">Related Law</p>
+                    <p className="text-sm text-green-900">{billingData.related_law}</p>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Unpaid
+                  </span>
+                </div>
+                {billingData.description && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-green-700 mb-2">Description</p>
+                    <div className="bg-white border border-green-200 rounded p-3">
+                      <p className="text-sm text-gray-900 whitespace-pre-wrap">{billingData.description}</p>
+                    </div>
+                  </div>
+                )}
+                {billingData.recommendations && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-green-700 mb-2">Payment Instructions</p>
+                    <div className="bg-white border border-green-200 rounded p-3">
+                      <p className="text-sm text-gray-900 whitespace-pre-wrap">{billingData.recommendations}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-lg p-6 text-center">
+                <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-sm text-gray-500">No billing information available for this inspection.</p>
+              </div>
+            )}
           </div>
         )}
 

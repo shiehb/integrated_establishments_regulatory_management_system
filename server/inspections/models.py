@@ -346,9 +346,6 @@ class InspectionForm(models.Model):
     # Checklist (JSON field)
     checklist = models.JSONField(default=dict, blank=True)
     
-    # Findings
-    findings_summary = models.TextField(blank=True)
-    
     # Compliance decision
     COMPLIANCE_CHOICES = [
         ('PENDING', 'Pending'),
@@ -362,32 +359,8 @@ class InspectionForm(models.Model):
         default='PENDING'
     )
     
-    # Additional compliance tracking
-    violations_found = models.TextField(blank=True, help_text='List of violations if non-compliant')
-    compliance_plan = models.TextField(blank=True, help_text='Establishment compliance plan')
-    compliance_deadline = models.DateField(null=True, blank=True)
-    
-    # NOV (Notice of Violation) fields
-    nov_sent_date = models.DateField(null=True, blank=True, help_text='Date NOV was sent')
-    nov_compliance_date = models.DateTimeField(null=True, blank=True, 
-        help_text='Deadline for establishment to comply with NOV')
-    nov_violations = models.TextField(blank=True, 
-        help_text='Detailed list of violations found')
-    nov_compliance_instructions = models.TextField(blank=True,
-        help_text='Required compliance actions for establishment')
-    nov_remarks = models.TextField(blank=True, help_text='Additional remarks for NOV')
-    
-    # NOO (Notice of Order) fields
-    noo_sent_date = models.DateField(null=True, blank=True, help_text='Date NOO was sent')
-    noo_violation_breakdown = models.TextField(blank=True,
-        help_text='Detailed breakdown of violations for NOO')
-    noo_penalty_fees = models.DecimalField(max_digits=10, decimal_places=2, 
-        null=True, blank=True, help_text='Total penalty fees assessed')
-    noo_payment_deadline = models.DateField(null=True, blank=True,
-        help_text='Deadline for penalty payment')
-    noo_payment_instructions = models.TextField(blank=True,
-        help_text='Instructions for paying penalties')
-    noo_remarks = models.TextField(blank=True, help_text='Additional remarks for NOO')
+    # Violations tracking (initial inspection findings)
+    violations_found = models.TextField(blank=True, help_text='List of violations found during inspection')
     
     # Inspector tracking (first fill-out only)
     inspected_by = models.ForeignKey(
@@ -412,6 +385,96 @@ class InspectionForm(models.Model):
             raise ValidationError({
                 'violations_found': 'Violations must be specified for non-compliant inspections'
             })
+
+
+class NoticeOfViolation(models.Model):
+    """
+    Notice of Violation (NOV) - separate table for normalized data
+    """
+    inspection_form = models.OneToOneField(
+        InspectionForm,
+        on_delete=models.CASCADE,
+        related_name='nov',
+        primary_key=True
+    )
+    
+    # NOV fields
+    sent_date = models.DateField(null=True, blank=True, help_text='Date NOV was sent')
+    compliance_deadline = models.DateTimeField(null=True, blank=True, 
+        help_text='Deadline for establishment to comply with NOV')
+    violations = models.TextField(blank=True, 
+        help_text='Detailed list of violations found')
+    compliance_instructions = models.TextField(blank=True,
+        help_text='Required compliance actions for establishment')
+    remarks = models.TextField(blank=True, help_text='Additional remarks for NOV')
+    
+    # Tracking
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='nov_sent',
+        help_text='User who sent this NOV'
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Notice of Violation'
+        verbose_name_plural = 'Notices of Violation'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"NOV for {self.inspection_form.inspection.code}"
+
+
+class NoticeOfOrder(models.Model):
+    """
+    Notice of Order (NOO) - separate table for normalized data
+    """
+    inspection_form = models.OneToOneField(
+        InspectionForm,
+        on_delete=models.CASCADE,
+        related_name='noo',
+        primary_key=True
+    )
+    
+    # NOO fields
+    sent_date = models.DateField(null=True, blank=True, help_text='Date NOO was sent')
+    violation_breakdown = models.TextField(blank=True,
+        help_text='Detailed breakdown of violations for NOO')
+    penalty_fees = models.DecimalField(max_digits=10, decimal_places=2, 
+        null=True, blank=True, help_text='Total penalty fees assessed')
+    payment_deadline = models.DateField(null=True, blank=True,
+        help_text='Deadline for penalty payment')
+    payment_instructions = models.TextField(blank=True,
+        help_text='Instructions for paying penalties')
+    remarks = models.TextField(blank=True, help_text='Additional remarks for NOO')
+    
+    # Tracking
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='noo_sent',
+        help_text='User who sent this NOO'
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Notice of Order'
+        verbose_name_plural = 'Notices of Order'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"NOO for {self.inspection_form.inspection.code}"
 
 
 class InspectionDocument(models.Model):
@@ -529,7 +592,6 @@ class BillingRecord(models.Model):
     # Establishment info (snapshot at time of billing)
     establishment_name = models.CharField(max_length=255)
     contact_person = models.CharField(max_length=255, blank=True)
-    contact_number = models.CharField(max_length=50, blank=True)
     related_law = models.CharField(max_length=50)
     
     # Billing details
@@ -591,25 +653,3 @@ class BillingRecord(models.Model):
             self.billing_code = candidate
         super().save(*args, **kwargs)
 
-
-class BillingItem(models.Model):
-    """
-    Individual violation line items in a billing record
-    Allows breaking down total penalties by violation type
-    """
-    billing_record = models.ForeignKey(BillingRecord, on_delete=models.CASCADE,
-        related_name='items')
-    violation = models.CharField(max_length=255, 
-        help_text='Description of specific violation')
-    amount = models.DecimalField(max_digits=10, decimal_places=2,
-        help_text='Penalty amount for this violation')
-    order = models.IntegerField(default=0, 
-        help_text='Display order (for sorting line items)')
-    
-    class Meta:
-        ordering = ['order', 'id']
-        verbose_name = 'Billing Item'
-        verbose_name_plural = 'Billing Items'
-    
-    def __str__(self):
-        return f"{self.violation}: ₱{self.amount}"

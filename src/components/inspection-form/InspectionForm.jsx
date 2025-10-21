@@ -186,9 +186,9 @@ export default function InspectionForm({ inspectionData }) {
       console.log('✅ Result: COMPLIANT');
       return 'COMPLIANT';
     } else {
-      // If no compliance data is filled, assume non-compliant for safety
-      console.log('⚠️ Result: NON_COMPLIANT (default - no data)');
-      return 'NON_COMPLIANT';
+      // If no compliance data is filled, assume compliant (user hasn't marked anything as non-compliant)
+      console.log('✅ Result: COMPLIANT (default - no violations found)');
+      return 'COMPLIANT';
     }
   };
 
@@ -685,6 +685,22 @@ export default function InspectionForm({ inspectionData }) {
     };
   };
 
+  // Auto-clear recommendations when inspection becomes compliant
+  useEffect(() => {
+    const complianceStatus = determineOverallCompliance();
+    
+    // If inspection is compliant and recommendations exist, clear them
+    if (complianceStatus.isCompliant) {
+      const hasRecommendations = recommendationState.checked?.length > 0 || recommendationState.otherText?.trim();
+      
+      if (hasRecommendations) {
+        console.log('✅ Inspection is compliant - clearing recommendations');
+        setRecommendationState({ checked: [], otherText: "" });
+        setHasFormChanges(true);
+      }
+    }
+  }, [complianceItems, systems]); // Watch for changes in compliance data
+
   /* ======================
      Validation
      ====================== */
@@ -744,6 +760,46 @@ export default function InspectionForm({ inspectionData }) {
       errs.operating_days_per_year = "Operating Days/Year is required.";
     } else if (general.operating_days_per_year < 1 || general.operating_days_per_year > 365) {
       errs.operating_days_per_year = "Operating Days/Year must be between 1 and 365.";
+    }
+
+    // Product Lines (now required)
+    if (!general.product_lines || !general.product_lines.trim()) {
+      errs.product_lines = "Product Lines is required.";
+    }
+
+    // Declared Production Rate (now required)
+    if (!general.declared_production_rate || !general.declared_production_rate.trim()) {
+      errs.declared_production_rate = "Declared Production Rate is required.";
+    }
+
+    // Actual Production Rate (now required)
+    if (!general.actual_production_rate || !general.actual_production_rate.trim()) {
+      errs.actual_production_rate = "Actual Production Rate is required.";
+    }
+
+    // Managing Head (now required)
+    if (!general.managing_head || !general.managing_head.trim()) {
+      errs.managing_head = "Managing Head is required.";
+    }
+
+    // PCO Name (now required)
+    if (!general.pco_name || !general.pco_name.trim()) {
+      errs.pco_name = "PCO Name is required.";
+    }
+
+    // PCO Accreditation No. (now required)
+    if (!general.pco_accreditation_no || !general.pco_accreditation_no.trim()) {
+      errs.pco_accreditation_no = "PCO Accreditation No. is required.";
+    }
+
+    // Interviewed Person (now required)
+    if (!general.interviewed_person || !general.interviewed_person.trim()) {
+      errs.interviewed_person = "Interviewed Person is required.";
+    }
+
+    // Effectivity Date (now required)
+    if (!general.effectivity_date || !general.effectivity_date.trim()) {
+      errs.effectivity_date = "Effectivity Date is required.";
     }
 
     // Phone/Fax No. (now required)
@@ -1255,7 +1311,7 @@ export default function InspectionForm({ inspectionData }) {
       await completeInspection(inspectionId, {
         form_data: formData,
         compliance_decision: compliance.toUpperCase(),
-        violations_found: autoViolations,
+        violations_found: autoViolations ? autoViolations.split('\n').filter(line => line.trim()) : ['None'],
         findings_summary: autoFindings,
         remarks: remarks
       });
