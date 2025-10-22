@@ -10,21 +10,31 @@ export default function SectionChiefDashboard() {
   };
 
   return (
-    <div className="p-6 bg-gray-50">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Compliance by Law Chart */}
+    <div className='grid grid-cols-5'>
+      <div className='col-span-3'>
+      <div className="grid grid-cols-3">
+        {/* Quota Management */}
+        <div className="col-span-3">
+          <QuotaCard userRole="Section Chief" />
+        </div>
+      </div>
+          {/* Compliance by Law Chart */}
         <div>
           <ComplianceByLawCard
             userRole="Section Chief"
             onViewAll={handleViewAll}
           />
         </div>
-        
-        {/* Quota Management */}
-        <div>
-          <QuotaCard userRole="Section Chief" />
         </div>
-      </div>
+        <div className='col-span-2 grid grid-cols-2 row-span-2'>
+          <div className='col-span-2 '>
+            {/* Blank for now */}
+          </div>
+          <div className='col-span-2 '>
+            {/* Blank for now  */}
+          </div>
+        </div>
+
     </div>
   );
 }

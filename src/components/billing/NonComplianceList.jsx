@@ -3,10 +3,15 @@ import { mockApi } from "../../services/mockApi";
 import { Search, Filter, X, Eye, Download, ArrowUpDown, ChevronDown } from "lucide-react";
 import ExportDropdown from "../ExportDropdown";
 import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
+import { getProfile } from "../../services/api";
+import { canExportAndPrint } from "../../utils/permissions";
 
 export default function NonComplianceList({ onSelectReport }) {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // 🔒 User level for permissions
+  const [userLevel, setUserLevel] = useState(null);
 
   // State for filtering
   const [search, setSearch] = useState("");
@@ -22,6 +27,21 @@ export default function NonComplianceList({ onSelectReport }) {
   const savedPagination = useLocalStoragePagination("noncompliance_list");
   const [currentPage, setCurrentPage] = useState(savedPagination.page);
   const [pageSize, setPageSize] = useState(savedPagination.pageSize);
+
+  // Fetch user level on mount
+  useEffect(() => {
+    const fetchUserLevel = async () => {
+      try {
+        const profile = await getProfile();
+        setUserLevel(profile.userlevel);
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+        // Fallback to localStorage
+        setUserLevel(localStorage.getItem('userLevel') || null);
+      }
+    };
+    fetchUserLevel();
+  }, []);
 
   useEffect(() => {
     mockApi.getNonCompliantReports().then((data) => {
@@ -348,32 +368,34 @@ export default function NonComplianceList({ onSelectReport }) {
             )}
           </div>
 
-          <ExportDropdown
-            title="Non-Compliance Reports"
-            fileName="non_compliance_reports"
-            columns={["ID", "Establishment", "Date", "Status", "Violations"]}
-            rows={selectedReports.length > 0 ? 
-              selectedReports.map(id => {
-                const report = reports.find(r => r.id === id);
-                return [
+          {canExportAndPrint(userLevel, 'billing') && (
+            <ExportDropdown
+              title="Non-Compliance Reports"
+              fileName="non_compliance_reports"
+              columns={["ID", "Establishment", "Date", "Status", "Violations"]}
+              rows={selectedReports.length > 0 ? 
+                selectedReports.map(id => {
+                  const report = reports.find(r => r.id === id);
+                  return [
+                    report.id,
+                    report.establishment_name,
+                    report.date,
+                    report.status,
+                    report.violations.length
+                  ];
+                }) : 
+                reports.map(report => [
                   report.id,
                   report.establishment_name,
                   report.date,
                   report.status,
                   report.violations.length
-                ];
-              }) : 
-              reports.map(report => [
-                report.id,
-                report.establishment_name,
-                report.date,
-                report.status,
-                report.violations.length
-              ])
-            }
-            disabled={reports.length === 0}
-            className="flex items-center text-sm"
-          />
+                ])
+              }
+              disabled={reports.length === 0}
+              className="flex items-center text-sm"
+            />
+          )}
         </div>
       </div>
 

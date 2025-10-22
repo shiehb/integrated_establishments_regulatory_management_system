@@ -1,7 +1,7 @@
 import React from 'react';
 import { PieChart as PieChartIcon, TrendingUp } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import LoadingSkeleton from './LoadingSkeleton';
+import ComplianceOverviewSkeleton from './ComplianceOverviewSkeleton';
 
 /**
  * ComplianceCard Component
@@ -21,7 +21,7 @@ import LoadingSkeleton from './LoadingSkeleton';
  */
 const ComplianceCard = ({ stats, isLoading, onViewAll }) => {
   if (isLoading) {
-    return <LoadingSkeleton />;
+    return <ComplianceOverviewSkeleton />;
   }
 
   const noData = stats.total === 0 && stats.pending === 0;
@@ -74,7 +74,7 @@ const ComplianceCard = ({ stats, isLoading, onViewAll }) => {
       <div className="flex items-center justify-between mb-6 pb-3 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
           <PieChartIcon size={20} className="text-gray-600" />
-          Compliance Status
+          Compliance Overview
         </h3>
         <button 
           onClick={handleViewAll}

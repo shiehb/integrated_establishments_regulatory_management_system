@@ -16,13 +16,14 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
-import api, { toggleUserActive } from "../../services/api";
+import api, { toggleUserActive, getProfile } from "../../services/api";
 import ExportDropdown from "../ExportDropdown";
 import PrintPDF from "../PrintPDF";
 import DateRangeDropdown from "../DateRangeDropdown";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
+import { canExportAndPrint } from "../../utils/permissions";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -130,6 +131,9 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
 
+  // 🔒 User level for permissions
+  const [userLevel, setUserLevel] = useState(null);
+
   // 🔍 Search state
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
@@ -200,6 +204,21 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
       setLoading(false);
     }
   }, [currentPage, pageSize, debouncedSearchQuery, roleFilter, statusFilter]);
+
+  // Fetch user level on mount
+  useEffect(() => {
+    const fetchUserLevel = async () => {
+      try {
+        const profile = await getProfile();
+        setUserLevel(profile.userlevel);
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+        // Fallback to localStorage
+        setUserLevel(localStorage.getItem('userLevel') || null);
+      }
+    };
+    fetchUserLevel();
+  }, []);
 
   // Fetch all users on component mount and when pagination/filters change
   useEffect(() => {
@@ -659,62 +678,70 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
             className=" absolute right-0 flex items-center text-sm"
           />
 
-          <ExportDropdown
-            title="Users Export Report"
-            fileName="users_export"
-            columns={["ID", "Name", "Email", "User Level", "Section", "Status", "Date Created"]}
-            rows={selectedUsers.length > 0 ? 
-              selectedUsers.map(user => [
-                user.id,
-                `${user.first_name} ${user.last_name}`,
-                user.email,
-                user.userlevel,
-                user.section || "N/A",
-                user.is_active ? "Active" : "Inactive",
-                new Date(user.date_joined).toLocaleDateString()
-              ]) : 
-              users.map(user => [
-                user.id,
-                `${user.first_name} ${user.last_name}`,
-                user.email,
-                user.userlevel,
-                user.section || "N/A",
-                user.is_active ? "Active" : "Inactive",
-                new Date(user.date_joined).toLocaleDateString()
-              ])
-            }
-            disabled={users.length === 0}
-            className="flex items-center text-sm"
-          />
+          {canExportAndPrint(userLevel, 'users') && (
+            <>
+              <ExportDropdown
+                title="Users Export Report"
+                fileName="users_export"
+                columns={["ID", "Name", "Email", "User Level", "Section", "Status", "Date Created"]}
+                rows={selectedUsers.length > 0 ? 
+                  filteredUsers
+                    .filter(user => selectedUsers.includes(user.id))
+                    .map(user => [
+                      user.id,
+                      `${user.first_name} ${user.last_name}`,
+                      user.email,
+                      user.userlevel,
+                      user.section || "N/A",
+                      user.is_active ? "Active" : "Inactive",
+                      new Date(user.date_joined).toLocaleDateString()
+                    ]) : 
+                  filteredUsers.map(user => [
+                    user.id,
+                    `${user.first_name} ${user.last_name}`,
+                    user.email,
+                    user.userlevel,
+                    user.section || "N/A",
+                    user.is_active ? "Active" : "Inactive",
+                    new Date(user.date_joined).toLocaleDateString()
+                  ])
+                }
+                disabled={users.length === 0}
+                className="flex items-center text-sm"
+              />
 
-          <PrintPDF
-            title="Users Report"
-            fileName="users_report"
-            columns={["ID", "Name", "Email", "User Level", "Section", "Status", "Date Created"]}
-            rows={selectedUsers.length > 0 ? 
-              selectedUsers.map(user => [
-                user.id,
-                `${user.first_name} ${user.last_name}`,
-                user.email,
-                user.userlevel,
-                user.section || "N/A",
-                user.is_active ? "Active" : "Inactive",
-                new Date(user.date_joined).toLocaleDateString()
-              ]) : 
-              users.map(user => [
-                user.id,
-                `${user.first_name} ${user.last_name}`,
-                user.email,
-                user.userlevel,
-                user.section || "N/A",
-                user.is_active ? "Active" : "Inactive",
-                new Date(user.date_joined).toLocaleDateString()
-              ])
-            }
-            selectedCount={selectedUsers.length}
-            disabled={users.length === 0}
-            className="flex items-center px-3 py-1 text-sm"
-          />
+              <PrintPDF
+                title="Users Report"
+                fileName="users_report"
+                columns={["ID", "Name", "Email", "User Level", "Section", "Status", "Date Created"]}
+                rows={selectedUsers.length > 0 ? 
+                  filteredUsers
+                    .filter(user => selectedUsers.includes(user.id))
+                    .map(user => [
+                      user.id,
+                      `${user.first_name} ${user.last_name}`,
+                      user.email,
+                      user.userlevel,
+                      user.section || "N/A",
+                      user.is_active ? "Active" : "Inactive",
+                      new Date(user.date_joined).toLocaleDateString()
+                    ]) : 
+                  filteredUsers.map(user => [
+                    user.id,
+                    `${user.first_name} ${user.last_name}`,
+                    user.email,
+                    user.userlevel,
+                    user.section || "N/A",
+                    user.is_active ? "Active" : "Inactive",
+                    new Date(user.date_joined).toLocaleDateString()
+                  ])
+                }
+                selectedCount={selectedUsers.length}
+                disabled={users.length === 0}
+                className="flex items-center px-3 py-1 text-sm"
+              />
+            </>
+          )}
 
           <button
             onClick={onAdd}

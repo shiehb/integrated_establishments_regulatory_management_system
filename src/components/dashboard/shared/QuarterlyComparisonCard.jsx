@@ -18,7 +18,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import LoadingSkeleton from "./LoadingSkeleton";
+import QuarterlyComparisonSkeleton from "./QuarterlyComparisonSkeleton";
 
 /**
  * QuarterlyComparisonCard
@@ -58,7 +58,7 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
     fetchFilteredData();
   }, [selectedLaw, data]);
   
-  if (isLoading || isLoadingFilter) return <LoadingSkeleton />;
+  if (isLoading || isLoadingFilter) return <QuarterlyComparisonSkeleton />;
 
   if (!data || !data.current_quarter || !data.last_quarter) {
     return (
@@ -79,7 +79,7 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
       </div>
     );
   }
-  
+
   const noData =
     displayData.current_quarter.total_finished === 0 &&
     displayData.last_quarter.total_finished === 0;
@@ -189,7 +189,7 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
           <BarChart3 size={20} className="text-sky-600" />
-            Comparison
+            Quarterly Performance Comparison
         </h3>
         <div className="flex items-center gap-3">
           {/* Law Filter */}
@@ -251,8 +251,8 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
             {selectedLaw !== 'all' && (
               <div className="absolute top-2 right-2 z-10 bg-red-100 border border-red-300 text-red-700 px-3 py-1 rounded-full text-xs font-semibold shadow-sm animate-pulse">
                 Filtered: {selectedLaw}
-              </div>
-            )}
+                        </div>
+                      )}
           <ResponsiveContainer width="100%" height={280} minWidth={0} minHeight={0}>
             <BarChart 
               data={chartData} 
@@ -327,7 +327,7 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
                 totalChange < 0 ? 'text-red-400' : 'text-gray-600'
               }`}>
                 {totalChange > 0 ? '+' : ''}{totalChange} ({totalChangePercent}%)
-              </span>
+                </span>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ExternalLink } from 'lucide-react';
-import LoadingSkeleton from './LoadingSkeleton';
+import SummarySkeleton from './SummarySkeleton';
 
 /**
  * SummaryCard Component
@@ -33,7 +33,7 @@ const SummaryCard = ({
   onNavigate 
 }) => {
   if (isLoading) {
-    return <LoadingSkeleton />;
+    return <SummarySkeleton />;
   }
 
   const handleCardClick = () => {

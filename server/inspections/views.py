@@ -231,7 +231,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
         elif tab == 'compliance':
             # Show final status inspections (completed work through entire workflow)
             # Filter by Section Chief's own work or their section's work
-            from django.db.models import Q
             return queryset.filter(
                 law_filter,
                 Q(form__inspected_by=user) | 
@@ -2602,14 +2601,31 @@ class InspectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def get_quotas(self, request):
-        """Get quotas for current or specified quarter"""
+        """Get quotas for current or specified quarter with user-based filtering"""
         from datetime import datetime
         from .models import ComplianceQuota
         
+        user = request.user
         year = int(request.query_params.get('year', datetime.now().year))
         quarter = int(request.query_params.get('quarter', ((datetime.now().month - 1) // 3) + 1))
         
+        # Base queryset
         quotas = ComplianceQuota.objects.filter(year=year, quarter=quarter)
+        
+        # Apply role-based filtering
+        if user.userlevel == 'Section Chief':
+            if hasattr(user, 'section') and user.section:
+                if user.section == 'PD-1586,RA-8749,RA-9275':
+                    # Combined section: show 3 laws
+                    quotas = quotas.filter(law__in=['PD-1586', 'RA-8749', 'RA-9275'])
+                else:
+                    # Individual section: show only their law
+                    quotas = quotas.filter(law=user.section)
+        elif user.userlevel == 'Unit Head':
+            if hasattr(user, 'section') and user.section:
+                # Unit Heads always see only their specific law
+                quotas = quotas.filter(law=user.section)
+        # Admin and Division Chief see all quotas (no filter)
         
         quota_data = []
         for quota in quotas:

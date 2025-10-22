@@ -16,7 +16,7 @@ import {
   Cell
 } from 'recharts';
 import { useComplianceByLawChart } from "./useComplianceByLawChart";
-import LoadingSkeleton from "./LoadingSkeleton";
+import ComplianceByLawSkeleton from "./ComplianceByLawSkeleton";
 
 /**
  * ComplianceByLawCard Component
@@ -33,7 +33,7 @@ const ComplianceByLawCard = ({ userRole = null, onViewAll }) => {
   const { isLoading, data, chartData, error, refetch } = useComplianceByLawChart(userRole);
 
   if (isLoading) {
-    return <LoadingSkeleton />;
+    return <ComplianceByLawSkeleton />;
   }
 
   const noData = !data || data.length === 0 || data.every(item => item.total === 0);
@@ -87,13 +87,31 @@ const ComplianceByLawCard = ({ userRole = null, onViewAll }) => {
     return null;
   };
 
+  // Custom label component to show values above bars
+  const CustomLabel = ({ x, y, width, value, fill }) => {
+    if (value === 0) return null;
+    
+    return (
+      <text
+        x={x + width / 2}
+        y={y - 5}
+        textAnchor="middle"
+        fill={fill}
+        fontSize="12"
+        fontWeight="600"
+      >
+        {value}
+      </text>
+    );
+  };
+
   return (
     <div className="bg-white border-b border-gray-300 p-6 h-full flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 pb-3 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
           <BarChart3 size={20} className="text-gray-600" />
-          Compliance by Law
+          Compliance Status by Law
         </h3>
         <div className="flex items-center gap-3">
           {onViewAll && (
@@ -167,21 +185,21 @@ const ComplianceByLawCard = ({ userRole = null, onViewAll }) => {
                 />
                 <Bar 
                   dataKey="pending" 
-                  stackId="a" 
                   fill="#F59E0B"
                   name="Pending"
+                  label={<CustomLabel />}
                 />
                 <Bar 
                   dataKey="compliant" 
-                  stackId="a" 
                   fill="#34D399"
                   name="Compliant"
+                  label={<CustomLabel />}
                 />
                 <Bar 
                   dataKey="nonCompliant" 
-                  stackId="a" 
                   fill="#F87171"
                   name="Non-Compliant"
+                  label={<CustomLabel />}
                 />
               </BarChart>
             </ResponsiveContainer>

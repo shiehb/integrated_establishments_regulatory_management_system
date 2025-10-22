@@ -15,12 +15,13 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { getEstablishments } from "../../services/api";
+import { getEstablishments, getProfile } from "../../services/api";
 import ExportDropdown from "../ExportDropdown";
 import PrintPDF from "../PrintPDF";
 import DateRangeDropdown from "../DateRangeDropdown";
 import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
 import { useNotifications } from "../NotificationManager";
+import { canExportAndPrint } from "../../utils/permissions";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -50,6 +51,9 @@ export default function EstablishmentList({
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
   const notifications = useNotifications();
+
+  // 🔒 User level for permissions
+  const [userLevel, setUserLevel] = useState(null);
 
   // 🎯 Search highlighting
   const location = useLocation();
@@ -124,6 +128,21 @@ export default function EstablishmentList({
       setLoading(false);
     }
   }, [currentPage, pageSize, debouncedSearchQuery, provinceFilter, businessTypeFilter]);
+
+  // Fetch user level on mount
+  useEffect(() => {
+    const fetchUserLevel = async () => {
+      try {
+        const profile = await getProfile();
+        setUserLevel(profile.userlevel);
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+        // Fallback to localStorage
+        setUserLevel(localStorage.getItem('userLevel') || null);
+      }
+    };
+    fetchUserLevel();
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -505,68 +524,72 @@ export default function EstablishmentList({
             )}
           </div>
 
-          <ExportDropdown
-            title="Establishments Export Report"
-            fileName={`establishments_export${searchQuery ? `_${searchQuery}` : ""}`}
-            columns={["ID", "Name", "Nature of Business", "Province", "City", "Year Established", "Status"]}
-            rows={selectedEstablishments.length > 0 ? 
-              selectedEstablishments.map(id => {
-                const establishment = establishments.find(e => e.id === id);
-                return [
-                  establishment.id,
-                  establishment.name,
-                  establishment.nature_of_business,
-                  establishment.province,
-                  establishment.city,
-                  establishment.year_established,
-                  "Active"
-                ];
-              }) : 
-              establishments.map(establishment => [
-                establishment.id,
-                establishment.name,
-                establishment.nature_of_business,
-                establishment.province,
-                establishment.city,
-                establishment.year_established,
-                "Active"
-              ])
-            }
-            disabled={establishments.length === 0}
-            className="flex items-center text-sm"
-          />
+          {canExportAndPrint(userLevel, 'establishments') && (
+            <>
+              <ExportDropdown
+                title="Establishments Export Report"
+                fileName={`establishments_export${searchQuery ? `_${searchQuery}` : ""}`}
+                columns={["ID", "Name", "Nature of Business", "Province", "City", "Year Established", "Status"]}
+                rows={selectedEstablishments.length > 0 ? 
+                  selectedEstablishments.map(id => {
+                    const establishment = filteredEstablishments.find(e => e.id === id);
+                    return establishment ? [
+                      establishment.id,
+                      establishment.name,
+                      establishment.nature_of_business,
+                      establishment.province,
+                      establishment.city,
+                      establishment.year_established,
+                      "Active"
+                    ] : [];
+                  }).filter(row => row.length > 0) : 
+                  filteredEstablishments.map(establishment => [
+                    establishment.id,
+                    establishment.name,
+                    establishment.nature_of_business,
+                    establishment.province,
+                    establishment.city,
+                    establishment.year_established,
+                    "Active"
+                  ])
+                }
+                disabled={establishments.length === 0}
+                className="flex items-center text-sm"
+              />
 
-          <PrintPDF
-            title="Establishments Report"
-            fileName="establishments_report"
-            columns={["ID", "Name", "Nature of Business", "Province", "City", "Year Established", "Status"]}
-            rows={selectedEstablishments.length > 0 ? 
-              selectedEstablishments.map(id => {
-                const establishment = establishments.find(e => e.id === id);
-                return establishment ? [
-                  establishment.id,
-                  establishment.name,
-                  establishment.nature_of_business,
-                  establishment.province,
-                  establishment.city,
-                  establishment.year_established,
-                  "Active"
-                ] : [];
-              }).filter(row => row.length > 0) : 
-              establishments.map(establishment => [
-                establishment.id,
-                establishment.name,
-                establishment.nature_of_business,
-                establishment.province,
-                establishment.city,
-                establishment.year_established,
-                "Active"
-              ])
-            }
-            selectedCount={selectedEstablishments.length}
-            disabled={establishments.length === 0}
-            className="flex items-center text-sm"
-          />
+              <PrintPDF
+                title="Establishments Report"
+                fileName="establishments_report"
+                columns={["ID", "Name", "Nature of Business", "Province", "City", "Year Established", "Status"]}
+                rows={selectedEstablishments.length > 0 ? 
+                  selectedEstablishments.map(id => {
+                    const establishment = filteredEstablishments.find(e => e.id === id);
+                    return establishment ? [
+                      establishment.id,
+                      establishment.name,
+                      establishment.nature_of_business,
+                      establishment.province,
+                      establishment.city,
+                      establishment.year_established,
+                      "Active"
+                    ] : [];
+                  }).filter(row => row.length > 0) : 
+                  filteredEstablishments.map(establishment => [
+                    establishment.id,
+                    establishment.name,
+                    establishment.nature_of_business,
+                    establishment.province,
+                    establishment.city,
+                    establishment.year_established,
+                    "Active"
+                  ])
+                }
+                selectedCount={selectedEstablishments.length}
+                disabled={establishments.length === 0}
+                className="flex items-center text-sm"
+              />
+            </>
+          )}
 
           {canEditEstablishments && (
             <button

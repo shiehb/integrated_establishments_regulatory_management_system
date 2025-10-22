@@ -3,7 +3,7 @@ import { Target, TrendingUp, Edit3, AlertCircle, FileCheck, AlertTriangle, Wind,
 import { useQuotaData } from "./useQuotaData";
 import { getQuotaColor, formatQuotaDisplay } from "../../../constants/quotaConstants";
 import QuotaModal from "./QuotaModal";
-import LoadingSkeleton from "./LoadingSkeleton";
+import QuotaSkeleton from "./QuotaSkeleton";
 
 const QuotaCard = ({ userRole = null, year = null, quarter = null }) => {
   const { quotas, isLoading, error, refetch, updateQuota } = useQuotaData(userRole, year, quarter);
@@ -82,7 +82,7 @@ const QuotaCard = ({ userRole = null, year = null, quarter = null }) => {
   };
 
   if (isLoading) {
-    return <LoadingSkeleton />;
+    return <QuotaSkeleton />;
   }
 
   if (error) {
@@ -116,7 +116,13 @@ const QuotaCard = ({ userRole = null, year = null, quarter = null }) => {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-5 gap-4">
+        <div className={`grid gap-4 ${
+          sortedQuotas.length === 1 ? 'grid-cols-1 max-w-md mx-auto' :
+          sortedQuotas.length === 2 ? 'grid-cols-2 max-w-2xl mx-auto' :
+          sortedQuotas.length === 3 ? 'grid-cols-3  mx-auto' :
+          sortedQuotas.length === 4 ? 'grid-cols-4' :
+          'grid-cols-5'
+        }`}>
           {sortedQuotas.map((quota) => {
             const style = getProgressBarStyle(quota);
             const exceeded = quota.accomplished > quota.target;
