@@ -15,7 +15,9 @@ import {
   Filter,
   X,
   ChevronDown,
-  Loader2
+  Loader2,
+  Building,
+  Eye
 } from "lucide-react";
 import PaginationControls, { useLocalStoragePagination } from "../components/PaginationControls";
 import DateRangeDropdown from "../components/DateRangeDropdown";
@@ -72,6 +74,10 @@ export default function Billing() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  // Modal state
+  const [selectedBilling, setSelectedBilling] = useState(null);
+  const [showBillingModal, setShowBillingModal] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -144,6 +150,44 @@ export default function Billing() {
   const getLawDisplayName = (lawValue) => {
     const law = lawOptions.find(l => l.value === lawValue);
     return law ? law.fullLabel : lawValue;
+  };
+
+  // Get payment status
+  const getPaymentStatus = (record) => {
+    if (record.payment_status) {
+      return record.payment_status.toLowerCase();
+    }
+    // Calculate status based on due date if payment_status not available
+    if (!record.due_date) return 'pending';
+    const dueDate = new Date(record.due_date);
+    const today = new Date();
+    if (today > dueDate) {
+      return 'overdue';
+    }
+    return 'pending';
+  };
+
+  // Get status badge styling
+  const getStatusBadge = (status) => {
+    const badges = {
+      paid: { bg: 'bg-green-100', text: 'text-green-800', label: 'Paid' },
+      pending: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending' },
+      overdue: { bg: 'bg-red-100', text: 'text-red-800', label: 'Overdue' },
+      unpaid: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Unpaid' }
+    };
+    return badges[status] || badges.pending;
+  };
+
+  // Handle view details
+  const handleViewDetails = (record) => {
+    setSelectedBilling(record);
+    setShowBillingModal(true);
+  };
+
+  // Close modal
+  const closeModal = () => {
+    setShowBillingModal(false);
+    setSelectedBilling(null);
   };
 
   // Filter and sort billing records
@@ -555,21 +599,12 @@ export default function Billing() {
                           {formatDate(record.sent_date)}
                         </td>
                         <td className="p-1 border-b border-gray-300 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => navigate(`/inspections/${record.inspection}/review`)}
-                              className="text-sky-600 hover:text-sky-800 font-medium text-xs"
-                            >
-                              View Inspection
-                            </button>
-                            <button
-                              onClick={() => {/* TODO: Print receipt */}}
-                              className="text-gray-600 hover:text-gray-800"
-                              title="Print Receipt"
-                            >
-                              <Printer className="w-4 h-4" />
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => handleViewDetails(record)}
+                            className="px-3 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
+                          >
+                            View Details
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -597,6 +632,138 @@ export default function Billing() {
         </div>
       </LayoutWithSidebar>
       <Footer />
+
+      {/* Billing Details Modal */}
+      {showBillingModal && selectedBilling && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={closeModal}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-sky-600 to-sky-700 text-white p-4 rounded-t-lg flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-6 h-6" />
+                <h2 className="text-xl font-bold">Billing Details</h2>
+              </div>
+              <button
+                onClick={closeModal}
+                className="text-white hover:bg-sky-800 rounded-full p-1 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Status Badge */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {selectedBilling.billing_code}
+                  </h3>
+                  <p className="text-sm text-gray-500">Billing Code</p>
+                </div>
+                {(() => {
+                  const status = getPaymentStatus(selectedBilling);
+                  const badge = getStatusBadge(status);
+                  return (
+                    <span className={`px-4 py-2 rounded-full text-sm font-semibold ${badge.bg} ${badge.text}`}>
+                      {badge.label}
+                    </span>
+                  );
+                })()}
+              </div>
+
+              {/* Establishment Information */}
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Building className="w-5 h-5 text-sky-600" />
+                  Establishment Information
+                </h4>
+                <div className="grid grid-cols-1 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Establishment Name</p>
+                    <p className="text-sm text-gray-900 font-semibold">
+                      {selectedBilling.establishment_name}
+                    </p>
+                  </div>
+                  {selectedBilling.contact_person && (
+                    <div>
+                      <p className="text-xs text-gray-600 font-medium">Contact Person</p>
+                      <p className="text-sm text-gray-900">
+                        {selectedBilling.contact_person}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Billing Information */}
+              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-sky-600" />
+                  Billing Information
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Related Law</p>
+                    <p className="text-sm text-gray-900 font-semibold">
+                      {selectedBilling.related_law}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {getLawDisplayName(selectedBilling.related_law)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Amount Due</p>
+                    <p className="text-xl text-green-600 font-bold">
+                      {formatCurrency(selectedBilling.amount)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Due Date</p>
+                    <p className="text-sm text-gray-900 flex items-center gap-1">
+                      <Calendar className="w-4 h-4 text-gray-400" />
+                      {formatDate(selectedBilling.due_date)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">Issued Date</p>
+                    <p className="text-sm text-gray-900">
+                      {formatDate(selectedBilling.sent_date)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => navigate(`/inspections/${selectedBilling.inspection}/review`)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
+                >
+                  <Eye className="w-4 h-4" />
+                  View Related Inspection
+                </button>
+                <button
+                  onClick={() => {
+                    // TODO: Implement print functionality
+                    console.log('Print billing:', selectedBilling);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+                >
+                  <Printer className="w-4 h-4" />
+                  Print Receipt
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

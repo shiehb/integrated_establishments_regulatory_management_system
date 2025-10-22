@@ -232,7 +232,7 @@ const formatDate = (date) => {
 const getTabColspan = (activeTab) => {
   const tabColspans = {
     'nov_sent': 11,
-    'noo_sent': 12,
+    'noo_sent': 11,
     'review': 11,
     'received': 12,
     'my_inspections': 11,
@@ -641,7 +641,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     loading, 
   
     fetchInspections, 
-    fetchTabCounts, 
     refreshData 
   } = useOptimizedInspections(userLevel, currentUser);
 
@@ -727,7 +726,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   });
 
   // Helper function to determine if actions should be shown
-  const shouldShowActions = useCallback((userLevel, activeTab, inspection) => {
+  const shouldShowActions = useCallback((userLevel, activeTab) => {
     // Legal Unit users in legal_review and noo_sent tabs should only see view buttons
     if (userLevel === 'Legal Unit' && (activeTab === 'legal_review' || activeTab === 'noo_sent')) {
       return false;
@@ -1426,8 +1425,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             }
             columns={
               activeTab === 'nov_sent' ? ["Code", "Establishments", "Law", "NOV Sent Date", "Compliance Deadline", "Deadline Status", "Status", "Created Date"]
-              : activeTab === 'noo_sent' && userLevel !== 'Legal Unit' ? ["Code", "Establishments", "Law", "NOO Sent Date", "Penalty Amount", "Payment Deadline", "Payment Status", "Status", "Created Date"]
-              : activeTab === 'noo_sent' && userLevel === 'Legal Unit' ? ["Code", "Establishments", "Law", "NOO Sent Date", "Penalty Amount", "Payment Deadline", "Status", "Created Date"]
+              : activeTab === 'noo_sent' && userLevel !== 'Legal Unit' ? ["Code", "Establishments", "Law", "NOO Sent Date", "Payment Deadline", "Payment Status", "Status", "Created Date"]
+              : activeTab === 'noo_sent' && userLevel === 'Legal Unit' ? ["Code", "Establishments", "Law", "NOO Sent Date", "Payment Deadline", "Status", "Created Date"]
               : activeTab === 'review' ? ["Code", "Establishments", "Law", "Compliance", "Submitted By", "Submitted On", "Status", "Created Date"]
               : activeTab === 'received' ? ["Code", "Establishments", "Law", "Assigned Date", "Assigned By", "Priority", "Days Waiting", "Status", "Created Date"]
               : activeTab === 'my_inspections' ? ["Code", "Establishments", "Law", "Started Date", "Days Active", "Last Activity", "Status", "Created Date"]
@@ -1469,9 +1468,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     inspection.form?.noo?.sent_date 
                       ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
                       : 'Not sent',
-                    inspection.form?.noo?.penalty_fees 
-                      ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
-                      : 'No penalty',
                     inspection.form?.noo?.payment_deadline
                       ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
                       : 'No deadline',
@@ -1489,9 +1485,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     inspection.form?.noo?.sent_date 
                       ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
                       : 'Not sent',
-                    inspection.form?.noo?.penalty_fees 
-                      ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
-                      : 'No penalty',
                     inspection.form?.noo?.payment_deadline
                       ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
                       : 'No deadline',
@@ -1555,9 +1548,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     inspection.form?.noo?.sent_date 
                       ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
                       : 'Not sent',
-                    inspection.form?.noo?.penalty_fees 
-                      ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
-                      : 'No penalty',
                     inspection.form?.noo?.payment_deadline
                       ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
                       : 'No deadline',
@@ -1575,9 +1565,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     inspection.form?.noo?.sent_date 
                       ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
                       : 'Not sent',
-                    inspection.form?.noo?.penalty_fees 
-                      ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
-                      : 'No penalty',
                     inspection.form?.noo?.payment_deadline
                       ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
                       : 'No deadline',
@@ -1703,7 +1690,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               {activeTab === 'noo_sent' && userLevel !== 'Legal Unit' && (
                 <>
                   <th className="p-1 border-b border-gray-300">NOO Sent Date</th>
-                  <th className="p-1 border-b border-gray-300">Penalty Amount</th>
                   <th className="p-1 border-b border-gray-300">Payment Deadline</th>
                   <th className="p-1 text-center border-b border-gray-300">Payment Status</th>
                 </>
@@ -1711,7 +1697,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               {activeTab === 'noo_sent' && userLevel === 'Legal Unit' && (
                 <>
                   <th className="p-1 border-b border-gray-300">NOO Sent Date</th>
-                  <th className="p-1 border-b border-gray-300">Penalty Amount</th>
                   <th className="p-1 border-b border-gray-300">Payment Deadline</th>
                 </>
               )}
@@ -1930,11 +1915,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                             : 'Not sent'}
                         </td>
                         <td className="p-1 border-b border-gray-300">
-                          {inspection.form?.noo?.penalty_fees 
-                            ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
-                            : 'No penalty'}
-                        </td>
-                        <td className="p-1 border-b border-gray-300">
                           {inspection.form?.noo?.payment_deadline
                             ? formatDate(inspection.form.noo.payment_deadline)
                             : 'No deadline'}
@@ -1953,11 +1933,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                           {inspection.form?.noo?.sent_date 
                             ? formatDate(inspection.form.noo.sent_date) 
                             : 'Not sent'}
-                        </td>
-                        <td className="p-1 border-b border-gray-300">
-                          {inspection.form?.noo?.penalty_fees 
-                            ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
-                            : 'No penalty'}
                         </td>
                         <td className="p-1 border-b border-gray-300">
                           {inspection.form?.noo?.payment_deadline
@@ -2114,7 +2089,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                       {formatFullDate(inspection.created_at)}
                     </td>
                     <td className="p-1 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
-                    {shouldShowActions(userLevel, activeTab, inspection) ? (
+                    {shouldShowActions(userLevel, activeTab) ? (
                       <InspectionActions 
                         inspection={inspection}
                         availableActions={inspection.available_actions || []}
