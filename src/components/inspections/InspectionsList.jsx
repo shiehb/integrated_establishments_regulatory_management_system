@@ -45,6 +45,7 @@ import PaginationControls, { useLocalStoragePagination, useLocalStorageTab } fro
 import { useInspectionActions } from "../../hooks/useInspectionActions";
 import { useOptimizedInspections } from "../../hooks/useOptimizedInspections";
 import MonitoringPersonnelModal from "./modals/MonitoringPersonnelModal";
+import { canExportAndPrint } from "../../utils/permissions";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -638,7 +639,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     tabCounts, 
     paginationMeta,
     loading, 
-    error, 
+  
     fetchInspections, 
     fetchTabCounts, 
     refreshData 
@@ -1414,8 +1415,10 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             className=" absolute right-0 flex items-center text-sm"
           />
 
-          <ExportDropdown
-            title="Inspections Export Report"
+          {canExportAndPrint(userLevel, 'inspections') && (
+            <>
+              <ExportDropdown
+                title="Inspections Export Report"
             fileName={
               activeTab === 'nov_sent' ? 'nov_inspections_export' :
               activeTab === 'review' ? 'review_inspections_export' :
@@ -1643,6 +1646,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             disabled={inspections.length === 0}
             className="flex items-center px-3 py-1 text-sm"
           />
+            </>
+          )}
 
           {/* Only show Add Inspection button for Division Chief */}
           {userLevel === 'Division Chief' && (
