@@ -1423,7 +1423,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             }
             columns={
               activeTab === 'nov_sent' ? ["Code", "Establishments", "Law", "NOV Sent Date", "Compliance Deadline", "Deadline Status", "Status", "Created Date"]
-              : activeTab === 'noo_sent' ? ["Code", "Establishments", "Law", "NOO Sent Date", "Penalty Amount", "Payment Deadline", "Payment Status", "Status", "Created Date"]
+              : activeTab === 'noo_sent' && userLevel !== 'Legal Unit' ? ["Code", "Establishments", "Law", "NOO Sent Date", "Penalty Amount", "Payment Deadline", "Payment Status", "Status", "Created Date"]
+              : activeTab === 'noo_sent' && userLevel === 'Legal Unit' ? ["Code", "Establishments", "Law", "NOO Sent Date", "Penalty Amount", "Payment Deadline", "Status", "Created Date"]
               : activeTab === 'review' ? ["Code", "Establishments", "Law", "Compliance", "Submitted By", "Submitted On", "Status", "Created Date"]
               : activeTab === 'received' ? ["Code", "Establishments", "Law", "Assigned Date", "Assigned By", "Priority", "Days Waiting", "Status", "Created Date"]
               : activeTab === 'my_inspections' ? ["Code", "Establishments", "Law", "Started Date", "Days Active", "Last Activity", "Status", "Created Date"]
@@ -1451,6 +1452,46 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                       ? new Date(inspection.form.nov.compliance_deadline).toLocaleDateString()
                       : 'No deadline',
                     deadlineStatus.text,
+                    inspection.simplified_status || inspection.current_status,
+                    new Date(inspection.created_at).toLocaleDateString()
+                  ];
+                } else if (activeTab === 'noo_sent' && userLevel !== 'Legal Unit') {
+                  const paymentStatus = getPaymentStatus(inspection.form?.noo);
+                  return [
+                    inspection.code,
+                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                      ? inspection.establishments_detail.map(est => est.name).join(', ')
+                      : 'No establishments',
+                    inspection.law,
+                    inspection.form?.noo?.sent_date 
+                      ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
+                      : 'Not sent',
+                    inspection.form?.noo?.penalty_fees 
+                      ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
+                      : 'No penalty',
+                    inspection.form?.noo?.payment_deadline
+                      ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
+                      : 'No deadline',
+                    paymentStatus.text,
+                    inspection.simplified_status || inspection.current_status,
+                    new Date(inspection.created_at).toLocaleDateString()
+                  ];
+                } else if (activeTab === 'noo_sent' && userLevel === 'Legal Unit') {
+                  return [
+                    inspection.code,
+                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                      ? inspection.establishments_detail.map(est => est.name).join(', ')
+                      : 'No establishments',
+                    inspection.law,
+                    inspection.form?.noo?.sent_date 
+                      ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
+                      : 'Not sent',
+                    inspection.form?.noo?.penalty_fees 
+                      ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
+                      : 'No penalty',
+                    inspection.form?.noo?.payment_deadline
+                      ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
+                      : 'No deadline',
                     inspection.simplified_status || inspection.current_status,
                     new Date(inspection.created_at).toLocaleDateString()
                   ];
@@ -1497,6 +1538,46 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                       ? new Date(inspection.form.nov.compliance_deadline).toLocaleDateString()
                       : 'No deadline',
                     deadlineStatus.text,
+                    inspection.simplified_status || inspection.current_status,
+                    new Date(inspection.created_at).toLocaleDateString()
+                  ];
+                } else if (activeTab === 'noo_sent' && userLevel !== 'Legal Unit') {
+                  const paymentStatus = getPaymentStatus(inspection.form?.noo);
+                  return [
+                    inspection.code,
+                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                      ? inspection.establishments_detail.map(est => est.name).join(', ')
+                      : 'No establishments',
+                    inspection.law,
+                    inspection.form?.noo?.sent_date 
+                      ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
+                      : 'Not sent',
+                    inspection.form?.noo?.penalty_fees 
+                      ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
+                      : 'No penalty',
+                    inspection.form?.noo?.payment_deadline
+                      ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
+                      : 'No deadline',
+                    paymentStatus.text,
+                    inspection.simplified_status || inspection.current_status,
+                    new Date(inspection.created_at).toLocaleDateString()
+                  ];
+                } else if (activeTab === 'noo_sent' && userLevel === 'Legal Unit') {
+                  return [
+                    inspection.code,
+                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
+                      ? inspection.establishments_detail.map(est => est.name).join(', ')
+                      : 'No establishments',
+                    inspection.law,
+                    inspection.form?.noo?.sent_date 
+                      ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
+                      : 'Not sent',
+                    inspection.form?.noo?.penalty_fees 
+                      ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
+                      : 'No penalty',
+                    inspection.form?.noo?.payment_deadline
+                      ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
+                      : 'No deadline',
                     inspection.simplified_status || inspection.current_status,
                     new Date(inspection.created_at).toLocaleDateString()
                   ];
@@ -1614,12 +1695,19 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               )}
               
               {/* Conditionally show NOO-specific columns */}
-              {activeTab === 'noo_sent' && (
+              {activeTab === 'noo_sent' && userLevel !== 'Legal Unit' && (
                 <>
                   <th className="p-1 border-b border-gray-300">NOO Sent Date</th>
                   <th className="p-1 border-b border-gray-300">Penalty Amount</th>
                   <th className="p-1 border-b border-gray-300">Payment Deadline</th>
                   <th className="p-1 text-center border-b border-gray-300">Payment Status</th>
+                </>
+              )}
+              {activeTab === 'noo_sent' && userLevel === 'Legal Unit' && (
+                <>
+                  <th className="p-1 border-b border-gray-300">NOO Sent Date</th>
+                  <th className="p-1 border-b border-gray-300">Penalty Amount</th>
+                  <th className="p-1 border-b border-gray-300">Payment Deadline</th>
                 </>
               )}
               
@@ -1829,7 +1917,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     )}
                     
                     {/* Conditionally show NOO-specific data */}
-                    {activeTab === 'noo_sent' && (
+                    {activeTab === 'noo_sent' && userLevel !== 'Legal Unit' && (
                       <>
                         <td className="p-1 border-b border-gray-300">
                           {inspection.form?.noo?.sent_date 
@@ -1851,6 +1939,25 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                             {paymentStatus?.text}
                             {paymentStatus?.daysOverdue > 0 && ` (${paymentStatus.daysOverdue}d)`}
                           </span>
+                        </td>
+                      </>
+                    )}
+                    {activeTab === 'noo_sent' && userLevel === 'Legal Unit' && (
+                      <>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.form?.noo?.sent_date 
+                            ? formatDate(inspection.form.noo.sent_date) 
+                            : 'Not sent'}
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.form?.noo?.penalty_fees 
+                            ? `₱${Number(inspection.form.noo.penalty_fees).toLocaleString()}` 
+                            : 'No penalty'}
+                        </td>
+                        <td className="p-1 border-b border-gray-300">
+                          {inspection.form?.noo?.payment_deadline
+                            ? formatDate(inspection.form.noo.payment_deadline)
+                            : 'No deadline'}
                         </td>
                       </>
                     )}
