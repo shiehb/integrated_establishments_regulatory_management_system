@@ -10,6 +10,10 @@ export default function InspectionPolygonMap({ inspectionData, currentUser, onCl
   const [establishment, setEstablishment] = useState(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [mapKey, setMapKey] = useState(0);
+  
+  // Add state for pending polygon changes
+  const [pendingPolygon, setPendingPolygon] = useState(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Check if user can edit polygons (exclude Division Chief)
   const canEditPolygon = () => {
@@ -86,6 +90,10 @@ export default function InspectionPolygonMap({ inspectionData, currentUser, onCl
         polygon: polygonData
       }));
 
+      // Clear pending changes
+      setPendingPolygon(null);
+      setHasUnsavedChanges(false);
+
       notifications.success("Polygon boundary updated successfully", {
         title: "Polygon Saved"
       });
@@ -101,6 +109,19 @@ export default function InspectionPolygonMap({ inspectionData, currentUser, onCl
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle polygon changes (don't auto-save)
+  const handlePolygonChange = (polygonData, isValid) => {
+    setPendingPolygon(polygonData);
+    setHasUnsavedChanges(true);
+  };
+
+  // Manual save function
+  const handleManualSave = async () => {
+    if (pendingPolygon) {
+      await handlePolygonSave(pendingPolygon, true);
     }
   };
 
@@ -143,31 +164,56 @@ export default function InspectionPolygonMap({ inspectionData, currentUser, onCl
           </h3>
           <div className="flex items-center gap-2">
             {canEditPolygon() && (
-              <button
-                onClick={() => setIsEditMode(!isEditMode)}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                  isEditMode
-                    ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                {isEditMode ? (
-                  <>
-                    <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    View Mode
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit Mode
-                  </>
+              <>
+                <button
+                  onClick={() => setIsEditMode(!isEditMode)}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    isEditMode
+                      ? 'bg-green-600 text-white hover:bg-green-700'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {isEditMode ? (
+                    <>
+                      <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      View Mode
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Edit Mode
+                    </>
+                  )}
+                </button>
+                
+                {/* Manual Save Button - only show in edit mode with changes */}
+                {isEditMode && hasUnsavedChanges && (
+                  <button
+                    onClick={handleManualSave}
+                    disabled={loading}
+                    className="px-3 py-1 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Save Polygon
+                      </>
+                    )}
+                  </button>
                 )}
-              </button>
+              </>
             )}
             <button
               onClick={onClose}
@@ -185,7 +231,7 @@ export default function InspectionPolygonMap({ inspectionData, currentUser, onCl
           <p className={`text-xs mt-1 ${
             isEditMode ? 'text-orange-600' : 'text-green-600'
           }`}>
-            {isEditMode ? '✏️ Edit mode active - Draw or modify polygon' : '✓ Click "Edit Mode" to modify boundary'}
+            {isEditMode ? '✏️ Edit mode active - Draw or modify polygon, then click "Save Polygon"' : '✓ Click "Edit Mode" to modify boundary'}
           </p>
         )}
         {!canEditPolygon() && currentUser?.userlevel && (
@@ -221,7 +267,7 @@ export default function InspectionPolygonMap({ inspectionData, currentUser, onCl
           <InspectionMap
             key={`inspection-map-${establishment.id}-${isEditMode ? 'edit' : 'view'}-${mapKey}`}
             establishment={establishment}
-            onSave={handlePolygonSave}
+            onSave={handlePolygonChange}
             userRole={currentUser?.userlevel}
             editMode={canEditPolygon() && isEditMode}
             showOtherPolygons={true}

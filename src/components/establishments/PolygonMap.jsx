@@ -20,6 +20,7 @@ import {
   subtractOverlappingPolygons,
   snapToNearbyEdges
 } from "../../utils/polygonUtils";
+import { calculatePolygonArea, formatArea } from "../../utils/polygonMeasurements";
 import SnapIndicator from "./map-overlays/SnapIndicator";
 import MarkerSnapZone from "./map-overlays/MarkerSnapZone";
 
@@ -60,6 +61,9 @@ export default function PolygonMap({
   const [isPolygonValid, setIsPolygonValid] = useState(true);
   const [validationError, setValidationError] = useState("");
 
+  // Area calculation state
+  const [polygonArea, setPolygonArea] = useState(null);
+
   // Role check
   const canEditEstablishments = () => {
     return [
@@ -92,6 +96,17 @@ export default function PolygonMap({
       .filter((point) => !isNaN(point.lat) && !isNaN(point.lng));
   };
 
+  // Calculate and update polygon area
+  const updatePolygonArea = (latlngs) => {
+    if (latlngs && latlngs.length >= 3) {
+      const polygonData = latlngs.map(pt => [pt.lat, pt.lng]);
+      const area = calculatePolygonArea(polygonData);
+      setPolygonArea(area);
+    } else {
+      setPolygonArea(null);
+    }
+  };
+
   // Load existing polygon into FeatureGroup when entering edit mode
   useEffect(() => {
     const fg = featureGroupRef.current;
@@ -118,6 +133,7 @@ export default function PolygonMap({
         const polygon = L.polygon(latlngs);
         fg.addLayer(polygon);
         setDisplayPolygon(latlngs);
+        updatePolygonArea(latlngs);
       }
     } else if (!editMode && establishment?.polygon && establishment.polygon.length > 0) {
       // Set display polygon for view mode
@@ -127,10 +143,12 @@ export default function PolygonMap({
         const latlngs = convertToLatLngs(validPolygon);
         console.log('View mode - setting displayPolygon:', latlngs);
         setDisplayPolygon(latlngs);
+        updatePolygonArea(latlngs);
       }
     } else {
       console.log('No polygon data or invalid polygon');
       setDisplayPolygon(null);
+      setPolygonArea(null);
     }
   }, [editMode, establishment]);
 
@@ -143,6 +161,7 @@ export default function PolygonMap({
         const latlngs = convertToLatLngs(validPolygon);
         console.log('Force setting displayPolygon:', latlngs);
         setDisplayPolygon(latlngs);
+        updatePolygonArea(latlngs);
       }
     }
   }, [establishment?.polygon, editMode]);
@@ -353,6 +372,7 @@ export default function PolygonMap({
         
         // Update state and notify parent
         setDisplayPolygon(validLatLngs);
+        updatePolygonArea(validLatLngs);
         notifyParent(validLatLngs, validationResult.isValid);
         
         // Reset visual feedback
@@ -427,6 +447,7 @@ export default function PolygonMap({
         
         // Update state and notify parent
         setDisplayPolygon(latlngs);
+        updatePolygonArea(latlngs);
         notifyParent(latlngs, validationResult.isValid);
       });
       
@@ -438,6 +459,7 @@ export default function PolygonMap({
   const _onDelete = () => {
     if (!canEditEstablishments() || !editMode) return;
     setDisplayPolygon(null);
+    setPolygonArea(null);
     notifyParent([], true);
   };
 
@@ -565,6 +587,23 @@ export default function PolygonMap({
           </FeatureGroup>
         )}
         </MapContainer>
+
+        {/* Polygon Area Display */}
+        {polygonArea !== null && (
+          <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 shadow-lg border">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+              </svg>
+              <div>
+                <div className="text-xs text-gray-600">Polygon Area</div>
+                <div className="text-sm font-semibold text-gray-800">
+                  {formatArea(polygonArea)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Snap Indicator */}
         {snapIndicator.active && (
