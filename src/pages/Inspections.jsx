@@ -26,8 +26,10 @@ import CompleteModal from "../components/inspections/modals/CompleteModal";
 import ReviewModal from "../components/inspections/modals/ReviewModal";
 import NOVModal from "../components/inspections/modals/NOVModal";
 import NOOModal from "../components/inspections/modals/NOOModal";
+import { useNotifications } from "../components/NotificationManager";
 
 export default function Inspections() {
+  const notifications = useNotifications();
   const [showAdd, setShowAdd] = useState(false);
   const [workflowInspection, setWorkflowInspection] = useState(null);
   const [complianceModal, setComplianceModal] = useState({ open: false, inspection: null });
@@ -89,7 +91,7 @@ export default function Inspections() {
       }
       
       // Show success message
-      alert(actionMessage);
+      notifications.success(actionMessage);
       setWorkflowInspection(null);
       
       // Refresh the inspections list to show updated data
@@ -97,7 +99,7 @@ export default function Inspections() {
       
     } catch (error) {
       console.error('Workflow action error:', error);
-      alert(`Error performing workflow action: ${error.message}`);
+      notifications.error(`Error performing workflow action: ${error.message}`);
       setWorkflowInspection(null);
     }
   };
@@ -109,10 +111,10 @@ export default function Inspections() {
       await completeInspection(complianceModal.inspection.id, complianceData);
       setComplianceModal({ open: false, inspection: null });
       refreshInspections();
-      alert('Compliance status updated successfully!');
+      notifications.success('Compliance status updated successfully!');
     } catch (error) {
       console.error('Error updating compliance:', error);
-      alert(`Error updating compliance: ${error.message}`);
+      notifications.error(`Error updating compliance: ${error.message}`);
     }
   };
 
@@ -132,10 +134,10 @@ export default function Inspections() {
       
       setLegalUnitModal({ open: false, inspection: null });
       refreshInspections();
-      alert(`${actionType.replace('_', ' ').toUpperCase()} action completed successfully!`);
+      notifications.success(`${actionType.replace('_', ' ').toUpperCase()} action completed successfully!`);
     } catch (error) {
       console.error('Error performing Legal Unit action:', error);
-      alert(`Error performing action: ${error.message}`);
+      notifications.error(`Error performing action: ${error.message}`);
     }
   };
 
@@ -145,10 +147,10 @@ export default function Inspections() {
       await forwardInspection(inspectionId, formData);
       setForwardModal({ open: false, inspection: null });
       refreshInspections();
-      alert('Inspection forwarded successfully!');
+      notifications.success('Inspection forwarded successfully!');
     } catch (error) {
       console.error('Error forwarding inspection:', error);
-      alert(`Error forwarding inspection: ${error.message}`);
+      notifications.error(`Error forwarding inspection: ${error.message}`);
     }
   };
 
@@ -158,10 +160,10 @@ export default function Inspections() {
       await completeInspection(inspectionId, formData);
       setCompleteModal({ open: false, inspection: null });
       refreshInspections();
-      alert('Inspection completed successfully!');
+      notifications.success('Inspection completed successfully!');
     } catch (error) {
       console.error('Error completing inspection:', error);
-      alert(`Error completing inspection: ${error.message}`);
+      notifications.error(`Error completing inspection: ${error.message}`);
     }
   };
 
@@ -171,10 +173,10 @@ export default function Inspections() {
       await reviewInspection(inspectionId, formData);
       setReviewModal({ open: false, inspection: null });
       refreshInspections();
-      alert('Review submitted successfully!');
+      notifications.success('Review submitted successfully!');
     } catch (error) {
       console.error('Error submitting review:', error);
-      alert(`Error submitting review: ${error.message}`);
+      notifications.error(`Error submitting review: ${error.message}`);
     }
   };
 
@@ -185,10 +187,10 @@ export default function Inspections() {
       await sendNOV(novModal.inspection.id, formData);
       setNovModal({ open: false, inspection: null });
       refreshInspections();
-      alert('Notice of Violation sent successfully!');
+      notifications.success('Notice of Violation sent successfully!');
     } catch (error) {
       console.error('Error sending NOV:', error);
-      alert(`Error sending NOV: ${error.message}`);
+      notifications.error(`Error sending NOV: ${error.message}`);
     }
   };
 
@@ -199,10 +201,10 @@ export default function Inspections() {
       await sendNOO(nooModal.inspection.id, formData);
       setNooModal({ open: false, inspection: null });
       refreshInspections();
-      alert('Notice of Order sent successfully!');
+      notifications.success('Notice of Order sent successfully!');
     } catch (error) {
       console.error('Error sending NOO:', error);
-      alert(`Error sending NOO: ${error.message}`);
+      notifications.error(`Error sending NOO: ${error.message}`);
     }
   };
 
@@ -364,11 +366,11 @@ export default function Inspections() {
             refreshInspections();
             
             // Show success message
-            alert(`Successfully created ${establishmentCount} inspection(s) for ${selectedLaw?.name || formData.law_code}!`);
+            notifications.success(`Successfully created ${establishmentCount} inspection(s) for ${selectedLaw?.name || formData.law_code}!`);
             
           } catch (error) {
             console.error('Error creating inspections:', error);
-            alert(`Error creating inspections: ${error.message}`);
+            notifications.error(`Error creating inspections: ${error.message}`);
           }
         }}
         userProfile={{ userlevel: userLevel }}
