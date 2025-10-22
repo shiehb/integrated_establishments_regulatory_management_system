@@ -1,5 +1,6 @@
 import React from 'react';
 import ComplianceByLawCard from './shared/ComplianceByLawCard';
+import QuotaCard from './shared/QuotaCard';
 
 export default function UnitHeadDashboard() {
   // Navigation handlers
@@ -10,6 +11,7 @@ export default function UnitHeadDashboard() {
 
   return (
     <div className="p-6 bg-gray-50">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Compliance by Law Chart */}
         <div>
           <ComplianceByLawCard
@@ -17,6 +19,12 @@ export default function UnitHeadDashboard() {
             onViewAll={handleViewAll}
           />
         </div>
+        
+        {/* Quota Management */}
+        <div>
+          <QuotaCard userRole="Unit Head" />
+        </div>
       </div>
+    </div>
   );
 }

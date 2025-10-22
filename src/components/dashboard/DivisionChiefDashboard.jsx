@@ -1,22 +1,13 @@
 import React from 'react';
-import { 
-  ClipboardList,
-  Building2,
-  Users
-} from 'lucide-react';
 import { useDashboardData } from './shared/useDashboardData';
-import { useComplianceChart } from './shared/useComplianceChart';
-import SummaryCard from './shared/SummaryCard';
 import ComplianceCard from './shared/ComplianceCard';
 import QuarterlyComparisonCard from './shared/QuarterlyComparisonCard';
 import ComplianceByLawCard from './shared/ComplianceByLawCard';
+import QuotaCard from './shared/QuotaCard';
 
 export default function DivisionChiefDashboard() {
   // Use shared dashboard data hook with Division Chief role filtering
   const { isLoading, complianceStats, quarterlyData, refetch } = useDashboardData('Division Chief');
-  
-  // Use shared compliance chart hook
-  const complianceData = useComplianceChart(complianceStats);
 
   // Navigation handlers
   const handleViewAll = (route) => {
@@ -25,35 +16,34 @@ export default function DivisionChiefDashboard() {
   };
 
   return (
-    <div className="p-6 bg-gray-50">
-      {/* Main Grid - 5 Column Layout */}
-      <div className="grid grid-cols-5 grid-rows-5 gap-4 mb-6">
-        {/* 1. Compliance by Law Chart (spans 3 columns) */}
-        <div className="col-span-3">
-          <ComplianceByLawCard
-            userRole="Division Chief"
-            onViewAll={handleViewAll}
-          />
-        </div>
+    <div>
+      {/* Quotas on top (same positioning as Admin) */}
+      <QuotaCard userRole="Division Chief" />
 
-        {/* 2. QuarterlyComparisonCard (spans 3 columns, starts at row 2) */}
-        <div className="col-span-3 col-start-1 row-start-2">
+      {/* Two-column overview like Admin (no tables) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2">
+        <div>
           <QuarterlyComparisonCard
             data={quarterlyData}
             isLoading={isLoading}
             onRefresh={refetch}
           />
         </div>
-
-        {/* 3. ComplianceCard (spans 2 columns, 2 rows, starts at column 4, row 1) */}
-        <div className="col-span-2 row-span-2 col-start-4 row-start-1">
+        <div>
           <ComplianceCard
             stats={complianceStats}
-            chartData={complianceData}
             isLoading={isLoading}
             onViewAll={handleViewAll}
           />
         </div>
+      </div>
+
+      {/* Compliance by Law (matches Admin; no tables below) */}
+      <div>
+        <ComplianceByLawCard
+          userRole="Division Chief"
+          onViewAll={handleViewAll}
+        />
       </div>
     </div>
   );

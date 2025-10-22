@@ -4,7 +4,6 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from establishments.views import EstablishmentViewSet
-from inspections.views import InspectionViewSet
 from audit.views import ActivityLogViewSet
 from .views import GlobalSearchView, SearchFilterOptionsView, SearchSuggestionsView  
 
@@ -12,7 +11,7 @@ from .views import GlobalSearchView, SearchFilterOptionsView, SearchSuggestionsV
 router = DefaultRouter()
 router.register(r'establishments', EstablishmentViewSet, basename='establishment')
 router.register(r'activity-logs', ActivityLogViewSet, basename='activitylog')
-router.register(r'inspections', InspectionViewSet, basename='inspection')
+# Note: InspectionViewSet is registered in inspections/urls.py to allow custom endpoints
 
 urlpatterns = [
     path('admin/', admin.site.urls),

@@ -653,6 +653,22 @@ export const getComplianceByLaw = async (params = {}) => {
   return res.data;
 };
 
+// Quota management functions
+export const getQuotas = async (params = {}) => {
+  const res = await api.get('inspections/get_quotas/', { params });
+  return res.data;
+};
+
+export const setQuota = async (quotaData) => {
+  const res = await api.post('inspections/set_quota/', quotaData);
+  return res.data;
+};
+
+export const autoAdjustQuotas = async (params = {}) => {
+  const res = await api.post('inspections/auto_adjust_quotas/', params);
+  return res.data;
+};
+
 // Get tab counts for role-based dashboards
 export const getTabCounts = async () => {
   try {
