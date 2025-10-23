@@ -247,25 +247,25 @@ export default function ExportDropdown({
         
         doc.setFontSize(8);
         doc.setFont("times", "bold");
-        doc.text(`${exportId}`, pageWidth - 15, 12, { align: "right" });
-        doc.text(`${safeDate}`, pageWidth - 15, 16, { align: "right" });
+        doc.text(`${exportId}`, pageWidth - 10, 10, { align: "right" });
+        doc.text(`${safeDate}`, pageWidth - 10, 14, { align: "right" });
         doc.setFont("times", "normal");
 
         // Load and add logos
         const logo1Data = await loadImageAsBase64('/assets/document/logo1.png');
         const logo2Data = await loadImageAsBase64('/assets/document/logo2.png');
         
-        const logoWidth = 15; // mm
-        const logoHeight = 15; // mm
-        const logoY = 20; // Y position for logos
+        const logoWidth = 20; // mm
+        const logoHeight = 20; // mm
+        const logoY = 17; // Y position for logos
         
         // Calculate title text width to position logos closer
         const titleText = "Integrated Establishment Regulatory Management System";
         const titleTextWidth = doc.getTextWidth(titleText);
         
         // Position logos with more spacing from the title text
-        const leftLogoX = (pageWidth / 2) - (titleTextWidth / 2) - logoWidth - 10; // 10mm gap
-        const rightLogoX = (pageWidth / 2) + (titleTextWidth / 2) + 10; // 10mm gap
+        const leftLogoX = (pageWidth / 2) - (titleTextWidth / 2) - logoWidth - 30; // 10mm gap
+        const rightLogoX = (pageWidth / 2) + (titleTextWidth / 2) + 30; // 10mm gap
         
         // Add logo1 on the left (closer to title)
         if (logo1Data) {
@@ -278,27 +278,29 @@ export default function ExportDropdown({
         }
 
         // Header text (centered)
-        doc.setFontSize(12);
+        doc.setFontSize(14);
         doc.setTextColor(0, 0, 0);
         doc.text(
           "Integrated Establishment Regulatory Management System",
           pageWidth / 2,
-          28,
+          24,
           { align: "center" }
         );
         doc.text(
           "Department of Environmental and Natural Resources",
           pageWidth / 2,
-          33,
+          29,
           { align: "center" }
         );
         doc.text(
           "Environmental Management Bureau Region I",
           pageWidth / 2,
-          38,
+          34,
           { align: "center" }
         );
 
+        // add line here up to 70 mm
+        
         // Report title
         doc.setFont("times", "bold");
         doc.setFontSize(12);
@@ -322,7 +324,7 @@ export default function ExportDropdown({
             fontSize: 8,
             font: "times",
             cellPadding: 1,
-            lineWidth: 0.5,
+            lineWidth: 0.2,
             lineColor: [0, 0, 0],
             textColor: [0, 0, 0],
             fillColor: [255, 255, 255],
@@ -334,11 +336,11 @@ export default function ExportDropdown({
             font: "times",
             cellPadding: 1,
             fontStyle: "bold",
-            lineWidth: 0.5,
+            lineWidth: 0.2,
             lineColor: [0, 0, 0],
           },
-          margin: { left: 10, right: 10 },
-          tableLineWidth: 0.5,
+          margin: { left: 20, right: 20 },
+          tableLineWidth: 0.2,
           tableLineColor: [0, 0, 0],
         });
 
