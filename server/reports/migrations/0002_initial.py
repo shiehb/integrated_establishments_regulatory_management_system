@@ -11,13 +11,13 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('audit', '0001_initial'),
+        ('reports', '0001_initial'),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='activitylog',
-            name='user',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL),
+            model_name='accomplishmentreport',
+            name='created_by',
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='created_reports', to=settings.AUTH_USER_MODEL),
         ),
     ]
