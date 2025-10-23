@@ -300,7 +300,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
         elif tab == 'compliance':
             # Show final status inspections (completed work through entire workflow)
             # Filter by Unit Head's own work or their section's work
-            from django.db.models import Q
             return queryset.filter(
                 law_filter,
                 Q(form__inspected_by=user) | 
@@ -337,7 +336,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
         elif tab == 'completed':
             # Show inspections that this Monitoring Personnel has completed and those in review
             # Filter by who actually performed the inspection, not current assignee
-            from django.db.models import Q
             return queryset.filter(
                 Q(form__inspected_by=user) | Q(assigned_to=user, form__inspected_by__isnull=True),
                 current_status__in=[
@@ -408,8 +406,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
         Apply comprehensive search across multiple fields
         Searches: Code, Establishment names, Law, Status, Assigned To
         """
-        from django.db.models import Q
-        
         # Build complex Q query for OR search
         search_query = Q()
         
@@ -844,6 +840,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'complianceItems': form_data.get('complianceItems', []),
             'systems': form_data.get('systems', []),
             'recommendationState': form_data.get('recommendationState', {}),
+            'lawFilter': form_data.get('lawFilter', []),
+            'findingImages': form_data.get('findingImages', {}),
+            'generalFindings': form_data.get('generalFindings', []),
             'is_draft': True,
             'last_saved': timezone.now().isoformat(),
             'saved_by': user.id
@@ -851,14 +850,10 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Update direct fields from general data
         general_data = form_data.get('general', {})
-        if general_data.get('findings_summary'):
-            form.findings_summary = general_data['findings_summary']
         if general_data.get('violations_found'):
             form.violations_found = general_data['violations_found']
         if general_data.get('compliance_observations'):
             form.compliance_decision = general_data['compliance_observations']
-        if general_data.get('recommendations'):
-            form.compliance_plan = general_data['recommendations']
         
         # Update scheduled_at if provided
         if 'general' in form_data and form_data['general'].get('inspectionDateTime'):
@@ -942,6 +937,8 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'systems': form_data.get('systems', []),
             'recommendationState': form_data.get('recommendationState', {}),
             'lawFilter': form_data.get('lawFilter', []),
+            'findingImages': form_data.get('findingImages', {}),
+            'generalFindings': form_data.get('generalFindings', []),
             'is_draft': True,
             'last_saved': timezone.now().isoformat(),
             'saved_by': user.id,
@@ -950,14 +947,10 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Update direct fields from general data
         general_data = form_data.get('general', {})
-        if general_data.get('findings_summary'):
-            form.findings_summary = general_data['findings_summary']
         if general_data.get('violations_found'):
             form.violations_found = general_data['violations_found']
         if general_data.get('compliance_observations'):
             form.compliance_decision = general_data['compliance_observations']
-        if general_data.get('recommendations'):
-            form.compliance_plan = general_data['recommendations']
         
         # Update scheduled_at if provided
         if 'general' in form_data and form_data['general'].get('inspection_date_time'):
@@ -1126,10 +1119,10 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Handle form data for Monitoring Personnel
+        # Handle form data for all roles
         form_data = request.data.get('form_data', {})
-        if form_data and inspection.current_status == 'MONITORING_IN_PROGRESS':
-            # Save form data as part of completion
+        if form_data:
+            # Save form data as part of completion for all roles
             form, created = InspectionForm.objects.get_or_create(inspection=inspection)
             
             # Store all form data in the checklist JSON field
@@ -1140,6 +1133,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 'complianceItems': form_data.get('complianceItems', []),
                 'systems': form_data.get('systems', []),
                 'recommendationState': form_data.get('recommendationState', {}),
+                'lawFilter': form_data.get('lawFilter', []),
+                'findingImages': form_data.get('findingImages', {}),
+                'generalFindings': form_data.get('generalFindings', []),
                 'is_draft': False,
                 'completed_at': timezone.now().isoformat(),
                 'completed_by': user.id
@@ -1490,19 +1486,27 @@ class InspectionViewSet(viewsets.ModelViewSet):
             # - If user is in combined section: look for Unit Head by specific law
             # - If user is in individual section: go directly to Monitoring Personnel
             if user.section == 'PD-1586,RA-8749,RA-9275':
-                # Combined section: look for Unit Head by specific law
+                # Combined section: look for Unit Head by specific law first, then by combined section
                 unit_head = User.objects.filter(
                     userlevel='Unit Head',
-                    section=inspection.law,  # Use the specific law, not combined section
+                    section=inspection.law,  # Try specific law first
                     is_active=True
                 ).first()
+                
+                # If no Unit Head found for specific law, try combined section
+                if not unit_head:
+                    unit_head = User.objects.filter(
+                        userlevel='Unit Head',
+                        section='PD-1586,RA-8749,RA-9275',  # Try combined section
+                        is_active=True
+                    ).first()
                 
                 if unit_head:
                     next_status = 'UNIT_ASSIGNED'
                 else:
-                    # No Unit Head found for combined section - return error
+                    # No Unit Head found - return error with more helpful message
                     return Response(
-                        {'error': f'No Unit Head assigned for {inspection.law}. Please assign a Unit Head before forwarding.'},
+                        {'error': f'No Unit Head assigned for {inspection.law} or combined section. Please assign a Unit Head before forwarding.'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
             else:
@@ -1529,12 +1533,20 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Get next assignee
         if next_status == 'UNIT_ASSIGNED' and user.section == 'PD-1586,RA-8749,RA-9275':
-            # Special case: For combined section forwarding to Unit Head, use specific law
+            # Special case: For combined section forwarding to Unit Head, try specific law first, then combined section
             next_assignee = User.objects.filter(
                 userlevel='Unit Head',
-                section=inspection.law,  # Use the specific law, not combined section
+                section=inspection.law,  # Try specific law first
                 is_active=True
             ).first()
+            
+            # If no Unit Head found for specific law, try combined section
+            if not next_assignee:
+                next_assignee = User.objects.filter(
+                    userlevel='Unit Head',
+                    section='PD-1586,RA-8749,RA-9275',  # Try combined section
+                    is_active=True
+                ).first()
         elif next_status == 'MONITORING_ASSIGNED':
             # Special case: For Monitoring Personnel, use specific law and prefer same district
             monitoring_query = User.objects.filter(
@@ -1726,6 +1738,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 'complianceItems': form_data.get('complianceItems', []),
                 'systems': form_data.get('systems', []),
                 'recommendationState': form_data.get('recommendationState', {}),
+                'lawFilter': form_data.get('lawFilter', []),
+                'findingImages': form_data.get('findingImages', {}),
+                'generalFindings': form_data.get('generalFindings', []),
                 'is_draft': False,
                 'completed_at': timezone.now().isoformat(),
                 'completed_by': user.id
@@ -1820,6 +1835,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 'complianceItems': form_data.get('complianceItems', []),
                 'systems': form_data.get('systems', []),
                 'recommendationState': form_data.get('recommendationState', {}),
+                'lawFilter': form_data.get('lawFilter', []),
+                'findingImages': form_data.get('findingImages', {}),
+                'generalFindings': form_data.get('generalFindings', []),
                 'is_draft': False,
                 'completed_at': timezone.now().isoformat(),
                 'completed_by': user.id

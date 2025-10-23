@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'inspections',
     'system_config.apps.SystemConfigConfig',
     'system',
+    'reports',
 ]
 
 
@@ -179,7 +180,7 @@ if not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD:
     print("   - DEFAULT_FROM_EMAIL (sender email address)")
     print("   Emails will be printed to console instead of sent.")
 else:
-    print("✅ Email configuration loaded successfully")
+    print("Email configuration loaded successfully")
     print(f"   SMTP Host: {EMAIL_HOST}:{EMAIL_PORT}")
     print(f"   From Email: {DEFAULT_FROM_EMAIL}")
 

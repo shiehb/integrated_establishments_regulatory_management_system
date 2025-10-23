@@ -60,6 +60,14 @@ export const MENU_CONFIG = [
     category: "Management"
   },
   {
+    id: "reports",
+    name: "Reports",
+    path: "/reports",
+    icon: FileText,
+    roles: ["Section Chief", "Unit Head", "Monitoring Personnel"],
+    category: "Management"
+  },
+  {
     id: "billing",
     name: "Billing Records",
     path: "/billing",
