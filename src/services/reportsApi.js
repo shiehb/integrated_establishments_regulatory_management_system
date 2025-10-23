@@ -67,10 +67,10 @@ export const getCurrentQuarter = () => {
 // Helper function to get quarter date range
 export const getQuarterDates = (quarter, year) => {
   const quarters = {
-    1: { start: `${year}-01-01`, end: `${year}-03-31` },
-    2: { start: `${year}-04-01`, end: `${year}-06-30` },
-    3: { start: `${year}-07-01`, end: `${year}-09-30` },
-    4: { start: `${year}-10-01`, end: `${year}-12-31` }
+    1: { start: `${year}-01-01T00:00:00`, end: `${year}-03-31T23:59:59` },
+    2: { start: `${year}-04-01T00:00:00`, end: `${year}-06-30T23:59:59` },
+    3: { start: `${year}-07-01T00:00:00`, end: `${year}-09-30T23:59:59` },
+    4: { start: `${year}-10-01T00:00:00`, end: `${year}-12-31T23:59:59` }
   };
   return quarters[quarter];
 };

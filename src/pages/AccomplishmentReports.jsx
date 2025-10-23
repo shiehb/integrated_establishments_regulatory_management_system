@@ -68,10 +68,23 @@ export default function AccomplishmentReports() {
         page: 1,
         page_size: 1000, // Get all inspections for the quarter
         date_from: quarterDates.start,
-        date_to: quarterDates.end
+        date_to: quarterDates.end,
+        tab: 'completed' // Get completed inspections that the user inspected
       };
       
+      // Debug: Let's see what parameters we're sending
+      console.log('=== DEBUGGING ACCOMPLISHMENT REPORT ===');
+      console.log('API Parameters:', params);
+      console.log('Current user:', {
+        id: user?.id,
+        username: user?.username,
+        first_name: user?.first_name,
+        last_name: user?.last_name
+      });
+      
       const data = await getInspections(params);
+      
+      console.log('Total inspections from API:', data.results?.length || 0);
       
       // Filter for completed inspections AND inspected by current user
       const completedInspections = data.results?.filter(inspection => {
@@ -87,16 +100,22 @@ export default function AccomplishmentReports() {
                status === 'CLOSED_COMPLIANT' ||
                status === 'CLOSED_NON_COMPLIANT';
         
-        // Check if current user is the one who inspected it
-        const isInspectedByCurrentUser = 
-          inspection.inspected_by === user?.id ||
-          inspection.form?.inspected_by === user?.id ||
-          inspection.inspected_by_name?.toLowerCase() === user?.username?.toLowerCase() ||
-          inspection.inspected_by_name === `${user?.first_name} ${user?.last_name}`;
+        // Check if current user is the one who inspected it - simplified logic
+        const isInspectedByCurrentUser = inspection.form?.inspected_by === user?.id;
+        
+        // Debug logging
+        console.log(`Inspection ${inspection.code}:`, {
+          status,
+          isCompleted,
+          form_inspected_by: inspection.form?.inspected_by,
+          current_user_id: user?.id,
+          isInspectedByCurrentUser
+        });
         
         return isCompleted && isInspectedByCurrentUser;
       }) || [];
       
+      console.log(`Final result: ${completedInspections.length} inspections for user ${user?.username}`);
       setInspections(completedInspections);
     } catch (error) {
       console.error('Error fetching inspections:', error);
