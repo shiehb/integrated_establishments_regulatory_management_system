@@ -30,8 +30,8 @@ class AccomplishmentReport(models.Model):
     period_end = models.DateField(help_text="End date of the reporting period")
     
     # Content fields
-    summary = models.TextField(help_text="Executive summary of accomplishments")
-    key_achievements = models.TextField(help_text="Key achievements during the period")
+    summary = models.TextField(help_text="Executive summary of accomplishments", blank=True, null=True)
+    key_achievements = models.TextField(help_text="Key achievements during the period", blank=True, null=True)
     
     # Metadata
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_reports')
@@ -40,6 +40,10 @@ class AccomplishmentReport(models.Model):
     
     # Completed inspections for this report
     completed_inspections = models.ManyToManyField('inspections.Inspection', blank=True, help_text="Inspections included in this report")
+    
+    # PDF file for generated reports
+    pdf_file = models.FileField(upload_to='reports/', blank=True, null=True, help_text="Generated PDF file")
+    status = models.CharField(max_length=20, choices=[('DRAFT', 'Draft'), ('COMPLETED', 'Completed'), ('ARCHIVED', 'Archived')], default='DRAFT')
     
     class Meta:
         ordering = ['-created_at']

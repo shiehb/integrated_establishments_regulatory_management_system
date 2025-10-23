@@ -2,6 +2,7 @@ import React from 'react';
 import ComplianceByLawCard from './shared/ComplianceByLawCard';
 import QuotaCard from './shared/QuotaCard';
 import InspectionSummaryCards from './shared/InspectionSummaryCards';
+import InspectionReportsTable from './shared/InspectionReportsTable';
 import useInspectionStats from '../../hooks/useInspectionStats';
 
 export default function SectionChiefDashboard() {
@@ -15,12 +16,11 @@ export default function SectionChiefDashboard() {
   };
 
   return (
-    <div className='space-y-6'>
+    <div>
       {/* Inspection Summary Cards */}
       <InspectionSummaryCards 
         stats={stats} 
         loading={loading}
-        period="Current Period"
       />
 
       <div className='grid grid-cols-5'>
@@ -39,14 +39,13 @@ export default function SectionChiefDashboard() {
             />
           </div>
           </div>
-          <div className='col-span-2 grid grid-cols-2 row-span-2'>
-            <div className='col-span-2 '>
-              {/* Blank for now */}
-            </div>
-            <div className='col-span-2 '>
-              {/* Blank for now  */}
-            </div>
-          </div>
+           <div className='col-span-2'>
+             {/* Pending/Received Reports Table */}
+             <InspectionReportsTable 
+               userLevel="Section Chief"
+               userProfile={null}
+             />
+           </div>
       </div>
     </div>
   );

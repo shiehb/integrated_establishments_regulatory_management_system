@@ -21,4 +21,7 @@ urlpatterns = [
     # Export endpoints
     path('export/pdf/<int:report_id>/', views.export_report_pdf, name='export-report-pdf'),
     path('export/inspections-pdf/', views.export_inspections_pdf, name='export-inspections-pdf'),
+    
+    # Save generated report endpoint
+    path('save/', views.save_generated_report, name='save-generated-report'),
 ]

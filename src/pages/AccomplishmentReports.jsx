@@ -7,9 +7,10 @@ import LayoutWithSidebar from '../components/LayoutWithSidebar';
 import CompletedInspectionsList from '../components/reports/CompletedInspectionsList';
 import ReportsList from '../components/reports/ReportsList';
 import ExportModal from '../components/reports/ExportModal';
+import AccomplishmentReportPDF from '../components/reports/AccomplishmentReportPDF';
 import { getCurrentQuarter, getQuarterDates, exportInspectionsPDF } from '../services/reportsApi';
 import { getInspections } from '../services/api';
-import { Download, Printer, Building, CheckCircle, XCircle, TrendingUp, Search, Filter, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
+import { Download, Building, CheckCircle, XCircle, TrendingUp, Search, Filter, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
 
 export default function AccomplishmentReports() {
   const { user } = useAuth();
@@ -43,6 +44,7 @@ export default function AccomplishmentReports() {
   const [pageSize] = useState(20);
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exportError, setExportError] = useState(null);
 
   // Stable callback for summary change
   const handleSummaryChange = useCallback((stats) => {
@@ -77,7 +79,7 @@ export default function AccomplishmentReports() {
       console.log('API Parameters:', params);
       console.log('Current user:', {
         id: user?.id,
-        username: user?.username,
+        email: user?.email,
         first_name: user?.first_name,
         last_name: user?.last_name
       });
@@ -115,7 +117,7 @@ export default function AccomplishmentReports() {
         return isCompleted && isInspectedByCurrentUser;
       }) || [];
       
-      console.log(`Final result: ${completedInspections.length} inspections for user ${user?.username}`);
+      console.log(`Final result: ${completedInspections.length} inspections for user ${user?.email}`);
       setInspections(completedInspections);
     } catch (error) {
       console.error('Error fetching inspections:', error);
@@ -123,7 +125,7 @@ export default function AccomplishmentReports() {
     } finally {
       setLoading(false);
     }
-  }, [selectedQuarter, selectedYear, user?.id, user?.username, user?.first_name, user?.last_name]);
+  }, [selectedQuarter, selectedYear, user?.id, user?.email, user?.first_name, user?.last_name]);
 
   // Filter and sort data
   const filteredAndSortedData = useMemo(() => {
@@ -261,30 +263,35 @@ export default function AccomplishmentReports() {
 
 
   const handleExport = async (exportOptions) => {
+    setExportError(null);
     try {
-      if (exportOptions.format === 'pdf') {
-        const params = {
-          quarter: selectedQuarter,
-          year: selectedYear,
-          date_from: exportOptions.customDateRange ? exportOptions.dateFrom : null,
-          date_to: exportOptions.customDateRange ? exportOptions.dateTo : null
-        };
-        
-        const blob = await exportInspectionsPDF(params);
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `accomplishment_report_${getQuarterLabel(selectedQuarter).toLowerCase().replace(' ', '_')}_${selectedYear}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else if (exportOptions.format === 'print') {
-        window.print();
+      const params = {
+        quarter: selectedQuarter,
+        year: selectedYear,
+        date_from: exportOptions.customDateRange ? exportOptions.dateFrom : null,
+        date_to: exportOptions.customDateRange ? exportOptions.dateTo : null
+      };
+      
+      console.log('Exporting PDF with params:', params);
+      console.log('Summary stats:', summaryStats);
+      
+      const blob = await exportInspectionsPDF(params);
+      
+      if (!blob || blob.size === 0) {
+        throw new Error('Empty PDF generated. Please check your data.');
       }
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `accomplishment_report_${getQuarterLabel(selectedQuarter).toLowerCase().replace(' ', '_')}_${selectedYear}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Export failed. Please try again.');
+      setExportError(error.message || 'Export failed. Please try again.');
     }
   };
 
@@ -330,6 +337,19 @@ export default function AccomplishmentReports() {
         <div className="mb-3">
           <h1 className="text-2xl font-bold text-sky-600">Accomplishment Report</h1>
         </div>
+
+        {/* Export Error Display */}
+        {exportError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 text-sm">{exportError}</p>
+            <button 
+              onClick={() => setExportError(null)}
+              className="text-red-500 text-xs underline mt-1"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
@@ -629,22 +649,14 @@ export default function AccomplishmentReports() {
               )}
             </div>
 
-            {/* Export Buttons */}
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="flex items-center gap-2 px-3 py-1 text-sm text-white bg-sky-600 hover:bg-sky-700 rounded transition-colors"
-            >
-              <Download size={16} />
-              Export PDF
-            </button>
-
-            <button
-              onClick={() => window.print()}
-              className="flex items-center gap-2 px-3 py-1 text-sm text-white bg-gray-600 hover:bg-gray-700 rounded transition-colors"
-            >
-              <Printer size={16} />
-              Print
-            </button>
+            {/* Enhanced Export Buttons */}
+            <AccomplishmentReportPDF
+              title="Accomplishment Report"
+              quarter={selectedQuarter}
+              year={selectedYear}
+              className="flex items-center gap-2"
+              showExportOptions={true}
+            />
           </div>
         </div>
 
@@ -697,7 +709,7 @@ export default function AccomplishmentReports() {
             onExport={handleExport}
             quarter={selectedQuarter}
             year={selectedYear}
-            totalInspections={0}
+            totalInspections={summaryStats.total}
           />
         )}
       </div>

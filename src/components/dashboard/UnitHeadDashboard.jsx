@@ -2,6 +2,7 @@ import React from 'react';
 import ComplianceByLawCard from './shared/ComplianceByLawCard';
 import QuotaCard from './shared/QuotaCard';
 import InspectionSummaryCards from './shared/InspectionSummaryCards';
+import InspectionReportsTable from './shared/InspectionReportsTable';
 import useInspectionStats from '../../hooks/useInspectionStats';
 
 export default function UnitHeadDashboard() {
@@ -15,16 +16,26 @@ export default function UnitHeadDashboard() {
   };
 
   return (
-    <div className="p-6 bg-gray-50">
-      <div className="space-y-6">
-        {/* Inspection Summary Cards */}
-        <InspectionSummaryCards 
-          stats={stats} 
-          loading={loading}
-          period="Current Period"
-        />
+    <div>
+      <div>
+        {/* Top Row: Quota Management and Summary Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-5">
+          {/* Quota Management */}
+          <div>
+            <QuotaCard userRole="Unit Head" />
+          </div>
+          
+          {/* Inspection Summary Cards */}
+          <div className="col-span-4">
+            <InspectionSummaryCards 
+              stats={stats} 
+              loading={loading}
+            />
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Bottom Row: Compliance Chart and Reports Table */}
+        <div className="grid grid-cols-1 lg:grid-cols-2">
           {/* Compliance by Law Chart */}
           <div>
             <ComplianceByLawCard
@@ -33,9 +44,12 @@ export default function UnitHeadDashboard() {
             />
           </div>
           
-          {/* Quota Management */}
+          {/* Pending/Received Reports Table */}
           <div>
-            <QuotaCard userRole="Unit Head" />
+            <InspectionReportsTable 
+              userLevel="Unit Head"
+              userProfile={null}
+            />
           </div>
         </div>
       </div>

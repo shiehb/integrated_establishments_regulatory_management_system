@@ -52,6 +52,21 @@ export const exportInspectionsPDF = async (params) => {
   return res.data;
 };
 
+export const saveGeneratedReport = async (reportData, pdfBlob) => {
+  const formData = new FormData();
+  formData.append('title', reportData.title);
+  formData.append('quarter', reportData.quarter);
+  formData.append('year', reportData.year);
+  if (reportData.date_from) formData.append('date_from', reportData.date_from);
+  if (reportData.date_to) formData.append('date_to', reportData.date_to);
+  formData.append('pdf_file', pdfBlob, `report_q${reportData.quarter}_${reportData.year}.pdf`);
+  
+  const res = await api.post('reports/save/', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return res.data;
+};
+
 // Helper function to get current quarter
 export const getCurrentQuarter = () => {
   const now = new Date();
