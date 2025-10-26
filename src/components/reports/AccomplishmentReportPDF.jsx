@@ -44,6 +44,10 @@ export default function AccomplishmentReportPDF({
       if (customDateRange && dateFrom && dateTo) {
         exportParams.date_from = dateFrom;
         exportParams.date_to = dateTo;
+      } else {
+        // Clear date_from and date_to when using quarter selection
+        delete exportParams.date_from;
+        delete exportParams.date_to;
       }
 
       console.log('Exporting PDF with params:', exportParams);
@@ -138,7 +142,7 @@ export default function AccomplishmentReportPDF({
             `}
           >
             <Download size={16} />
-            Export PDF
+            Generate PDF
           </button>
         )}
       </div>
@@ -161,17 +165,13 @@ export default function AccomplishmentReportPDF({
 
       {/* Export Modal */}
       {showExportModal && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-opacity-50 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
+            <div className="flex items-center justify-between p-4 border-b shadow-sm border-gray-400">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-green-100 rounded-xl">
-                  <FileText className="w-6 h-6 text-green-600" />
-                </div>
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">Export Accomplishment Report</h2>
-                  <p className="text-sm text-gray-600">Select period and generate PDF</p>
                 </div>
               </div>
               <button
@@ -185,83 +185,76 @@ export default function AccomplishmentReportPDF({
             {/* Modal Content */}
             <div className="p-6 space-y-6">
               {/* Date Range Selection */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-4">Select Period</label>
-                <div className="space-y-4">
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Select Report Period</label>
+                <div className="space-y-3">
                   {/* Quarter Selection */}
-                  <div className="flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:bg-gray-50">
+                  <div className="flex items-center gap-4">
                     <input
                       type="radio"
                       name="dateRange"
                       checked={!customDateRange}
                       onChange={() => setCustomDateRange(false)}
-                      className="w-4 h-4 text-green-600 focus:ring-green-500"
+                      className="w-4 h-4 text-blue-600"
                     />
-                    <div className="ml-3 flex items-center gap-4">
-                      <span className="font-medium text-gray-900">Quarter:</span>
-                      <select
-                        value={selectedQuarter}
-                        onChange={(e) => setSelectedQuarter(parseInt(e.target.value))}
-                        className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 border border-gray-300 rounded-lg hover:bg-gray-300 transition-colors"
-                      >
-                        <option value={1}>First Quarter</option>
-                        <option value={2}>Second Quarter</option>
-                        <option value={3}>Third Quarter</option>
-                        <option value={4}>Fourth Quarter</option>
-                      </select>
-                      <select
-                        value={selectedYear}
-                        onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                        className="px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 border border-gray-300 rounded-lg hover:bg-gray-300 transition-colors"
-                      >
-                        {Array.from({ length: 5 }, (_, i) => {
-                          const year = new Date().getFullYear() - i;
-                          return (
-                            <option key={year} value={year}>
-                              {year}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
+                    <span className="text-sm font-medium text-gray-900">Quarter:</span>
+                    <select
+                      value={selectedQuarter}
+                      onChange={(e) => setSelectedQuarter(parseInt(e.target.value))}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm"
+                    >
+                      <option value={1}>First Quarter</option>
+                      <option value={2}>Second Quarter</option>
+                      <option value={3}>Third Quarter</option>
+                      <option value={4}>Fourth Quarter</option>
+                    </select>
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                      className="px-3 py-1 border border-gray-300 rounded text-sm"
+                    >
+                      {Array.from({ length: 5 }, (_, i) => {
+                        const year = new Date().getFullYear() - i;
+                        return (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
                   
                   {/* Custom Date Range */}
-                  <div className="flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:bg-gray-50">
+                  <div className="flex items-center gap-4">
                     <input
                       type="radio"
                       name="dateRange"
                       checked={customDateRange}
                       onChange={() => setCustomDateRange(true)}
-                      className="w-4 h-4 text-green-600 focus:ring-green-500"
+                      className="w-4 h-4 text-green-600"
                     />
-                    <div className="ml-3">
-                      <p className="font-medium text-gray-900">Custom date range</p>
-                      <p className="text-sm text-gray-600">Specify your own date range</p>
-                    </div>
+                    <span className="text-sm font-medium text-gray-900">Custom date range</span>
                   </div>
 
                   {customDateRange && (
-                    <div className="ml-8 p-4 bg-gray-50 rounded-lg">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">From Date</label>
-                          <input
-                            type="date"
-                            value={dateFrom}
-                            onChange={(e) => setDateFrom(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">To Date</label>
-                          <input
-                            type="date"
-                            value={dateTo}
-                            onChange={(e) => setDateTo(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                          />
-                        </div>
+                    <div className="ml-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">From Date</label>
+                        <input
+                          type="date"
+                          value={dateFrom}
+                          onChange={(e) => setDateFrom(e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">To Date</label>
+                        <input
+                          type="date"
+                          value={dateTo}
+                          onChange={(e) => setDateTo(e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        />
                       </div>
                     </div>
                   )}
@@ -269,55 +262,40 @@ export default function AccomplishmentReportPDF({
               </div>
 
               {/* Export Preview */}
-              <div className="bg-gradient-to-r from-blue-50 to-green-50 p-4 rounded-xl border border-blue-200">
-                <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="w-5 h-5 text-blue-600" />
-                  <span className="font-semibold text-gray-800">Export Preview</span>
+              <div className="mb-6 p-3 bg-gray-50 rounded border">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="w-4 h-4 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-800">Export Preview</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span className="text-gray-700">
-                        <span className="font-medium">All</span> completed inspections will be included
-                      </span>
+                      <span className="text-gray-600">All completed inspections</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-gray-700">Format: <span className="font-medium">PDF</span></span>
+                      <span className="text-gray-600">Format: PDF</span>
                     </div>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                      <span className="text-gray-700">
-                        Period: <span className="font-medium">
-                          {customDateRange ? `${dateFrom} to ${dateTo}` : `Q${selectedQuarter} ${selectedYear}`}
-                        </span>
+                      <span className="text-gray-600">
+                        Period: {customDateRange ? `${dateFrom} to ${dateTo}` : `Q${selectedQuarter} ${selectedYear}`}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                      <span className="text-gray-700">
-                        Content: <span className="font-medium">Summary Statistics, Detailed List</span>
-                      </span>
+                      <span className="text-gray-600">Summary & Details</span>
                     </div>
-                  </div>
-                </div>
-                
-                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm text-blue-800">
-                      The backend will generate the PDF with all completed inspections for the selected period.
-                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-between p-4 border-t border-gray-200 bg-gray-50">
               <div className="text-sm text-gray-600">
                 {isGeneratingPdf && (
                   <div className="flex items-center gap-2">
@@ -329,14 +307,14 @@ export default function AccomplishmentReportPDF({
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setShowExportModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={generatePDF}
                   disabled={isGeneratingPdf}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <FileText className="w-4 h-4" />
                   {isGeneratingPdf ? 'Generating...' : 'Generate PDF'}
@@ -349,30 +327,29 @@ export default function AccomplishmentReportPDF({
 
       {/* PDF Preview Modal */}
       {showPdfPreview && pdfUrl && (
-        <div className="fixed inset-0 z-[60] bg-black bg-opacity-75 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-[90vw] h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-[60] bg-opacity-75 flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-2xl w-full h-screen flex flex-col">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-green-50">
+            <div className="flex items-center justify-between p-2 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-green-50">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
-                  <FileText className="w-6 h-6 text-blue-600" />
+                  <FileText className="w-4 h-4 text-blue-600" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">PDF Preview</h2>
-                  <p className="text-sm text-gray-600">Accomplishment Report - Q{selectedQuarter} {selectedYear}</p>
+                  <p className="text-base text-gray-600">Accomplishment Report - Quarter {selectedQuarter} {selectedYear}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleDownloadPDF}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+                  className="flex items-center gap-2 px-2 py-1 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
                 >
                   <Download className="w-4 h-4" />
                   Download
                 </button>
                 <button
                   onClick={handleClosePdfPreview}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
@@ -390,14 +367,14 @@ export default function AccomplishmentReportPDF({
             </div>
             
             {/* Modal Footer */}
-            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+            {/* <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
               <div className="text-sm text-gray-600">
                 <span className="font-medium">Report saved to Generated Reports</span>
               </div>
               <div className="text-sm text-gray-500">
                 Press ESC to close preview
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       )}

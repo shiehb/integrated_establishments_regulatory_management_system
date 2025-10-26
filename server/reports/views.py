@@ -354,7 +354,7 @@ def export_report_pdf(request, report_id):
 @permission_classes([permissions.IsAuthenticated])
 def export_inspections_pdf(request):
     """
-    Export completed inspections to PDF
+    Export completed inspections to PDF using professional generator
     """
     try:
         # Get parameters
@@ -375,13 +375,10 @@ def export_inspections_pdf(request):
             current_status__in=completed_statuses
         ).select_related('form').prefetch_related('establishments')
         
-        # Apply date filters
+        # Apply date filters - prioritize quarter over custom dates
         print(f"Date filter params - quarter: {quarter}, year: {year}, date_from: {date_from}, date_to: {date_to}")
         
-        if date_from and date_to:
-            queryset = queryset.filter(updated_at__date__range=[date_from, date_to])
-            print(f"After custom date filter ({date_from} to {date_to}): {queryset.count()}")
-        elif quarter and year:
+        if quarter and year:
             quarter = int(quarter)
             year = int(year)
             if quarter == 1:
@@ -397,6 +394,7 @@ def export_inspections_pdf(request):
                 start_date = f"{year}-10-01"
                 end_date = f"{year}-12-31"
             
+            period_text = f"Q{quarter} {year}"
             print(f"Applying quarter filter: {start_date} to {end_date}")
             # Try filtering by updated_at first
             queryset = queryset.filter(updated_at__date__range=[start_date, end_date])
@@ -410,7 +408,12 @@ def export_inspections_pdf(request):
                 ).select_related('form').prefetch_related('establishments')
                 queryset = queryset.filter(created_at__date__range=[start_date, end_date])
                 print(f"After quarter date filter (created_at): {queryset.count()}")
+        elif date_from and date_to:
+            queryset = queryset.filter(updated_at__date__range=[date_from, date_to])
+            period_text = f"{date_from} to {date_to}"
+            print(f"After custom date filter ({date_from} to {date_to}): {queryset.count()}")
         else:
+            period_text = "All Time"
             print("No date filters applied")
         
         # Debug: Print user info and initial queryset count
@@ -428,10 +431,10 @@ def export_inspections_pdf(request):
             )
             print(f"After Section Chief/Unit Head filter: {queryset.count()}")
         else:
-            # For other user levels, show all completed inspections
+            # For other user levels, show all Enriching inspections
             print(f"User level '{request.user.userlevel}' - showing all completed inspections")
         
-        inspections = queryset[:100]  # Limit to 100 for PDF
+        inspections = list(queryset[:100])  # Limit to 100 for PDF
         print(f"Final inspections count: {len(inspections)}")
         
         # If no inspections found with date filter, try without date filter for debugging
@@ -472,164 +475,40 @@ def export_inspections_pdf(request):
         
         compliance_rate = (compliant_count / total_inspections * 100) if total_inspections > 0 else 0
         
-        # Create PDF
+        # Prepare report data for PDF generator
+        stats = {
+            'total': total_inspections,
+            'compliant': compliant_count,
+            'non_compliant': non_compliant_count,
+            'compliance_rate': compliance_rate
+        }
+        
+        report_data = {
+            'quarter': quarter,
+            'year': year,
+            'date_from': date_from,
+            'date_to': date_to,
+            'period_text': period_text,
+            'inspections': inspections,
+            'stats': stats
+        }
+        
+        # Use professional PDF generator
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
-        story = []
+        from .pdf_generator import AccomplishmentReportPDFGenerator
         
-        # Get styles
-        styles = getSampleStyleSheet()
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=16,
-            spaceAfter=15,
-            alignment=TA_CENTER,
-            textColor=colors.black,
-            fontName='Helvetica-Bold'
+        generator = AccomplishmentReportPDFGenerator(
+            buffer=buffer,
+            report_data=report_data,
+            user_info=request.user
         )
+        generator.generate()
         
-        subtitle_style = ParagraphStyle(
-            'CustomSubtitle',
-            parent=styles['Heading2'],
-            fontSize=14,
-            spaceAfter=10,
-            alignment=TA_CENTER,
-            textColor=colors.black,
-            fontName='Helvetica-Bold'
-        )
-        
-        # Professional Header Section
-        story.append(Paragraph("REPUBLIC OF THE PHILIPPINES", title_style))
-        story.append(Paragraph("DEPARTMENT OF ENVIRONMENT AND NATURAL RESOURCES", subtitle_style))
-        story.append(Paragraph("ENVIRONMENTAL MANAGEMENT BUREAU", subtitle_style))
-        story.append(Paragraph("REGION I", subtitle_style))
-        story.append(Spacer(1, 15))
-        
-        # Report title
-        period_text = f"Q{quarter} {year}" if quarter and year else f"{date_from} to {date_to}"
-        story.append(Paragraph("<b>ACCOMPLISHMENT REPORT</b>", subtitle_style))
-        story.append(Paragraph(f"Period: {period_text}", styles['Normal']))
-        story.append(Spacer(1, 20))
-        
-        # Summary Statistics Section - 2x2 Grid Layout
-        story.append(Paragraph("<b>SUMMARY STATISTICS</b>", styles['Heading3']))
-        
-        # Create 2x2 summary grid
-        summary_grid_data = [
-            ['Total Inspections:', str(total_inspections), 'Compliant:', str(compliant_count)],
-            ['Non-Compliant:', str(non_compliant_count), 'Compliance Rate:', f'{compliance_rate:.1f}%']
-        ]
-        
-        summary_grid = Table(summary_grid_data, colWidths=[2*inch, 1*inch, 2*inch, 1*inch])
-        summary_grid.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, 0), colors.lightblue),
-            ('BACKGROUND', (2, 0), (2, 0), colors.lightgreen),
-            ('BACKGROUND', (0, 1), (0, 1), colors.lightcoral),
-            ('BACKGROUND', (2, 1), (2, 1), colors.lightyellow),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('PADDING', (0, 0), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ]))
-        
-        story.append(summary_grid)
-        story.append(Spacer(1, 20))
-        
-        # Inspections table
-        if inspections:
-            story.append(Paragraph("<b>DETAILED INSPECTION LIST</b>", styles['Heading3']))
-            
-            table_data = [['Code', 'Establishment', 'Law', 'Date', 'Compliance']]
-            for inspection in inspections:
-                establishment_name = 'N/A'
-                if inspection.establishments.exists():
-                    establishment_names = [est.name for est in inspection.establishments.all()]
-                    establishment_name = ', '.join(establishment_names) if establishment_names else 'N/A'
-                
-                compliance = 'N/A'
-                if hasattr(inspection, 'form') and inspection.form:
-                    compliance = getattr(inspection.form, 'compliance_decision', 'N/A')
-                
-                table_data.append([
-                    inspection.code or 'N/A',
-                    establishment_name,
-                    inspection.law or 'N/A',
-                    inspection.updated_at.strftime('%Y-%m-%d') if inspection.updated_at else 'N/A',
-                    compliance
-                ])
-            
-            # Create professional table with alternating row colors
-            table = Table(table_data, colWidths=[1.2*inch, 2.5*inch, 1*inch, 1*inch, 1.3*inch])
-            table.setStyle(TableStyle([
-                # Header styling
-                ('BACKGROUND', (0, 0), (-1, 0), colors.darkgreen),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('TOPPADDING', (0, 0), (-1, 0), 12),
-                
-                # Data row styling
-                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 9),
-                ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
-                ('ALIGN', (1, 1), (1, -1), 'LEFT'),  # Left align establishment names
-                ('PADDING', (0, 1), (-1, -1), 8),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                
-                # Alternating row colors
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
-                
-                # Borders
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                
-                # Compliance status color coding
-                ('TEXTCOLOR', (4, 1), (4, -1), colors.black),
-            ]))
-            
-            story.append(table)
-        
-        # Professional Footer Section
-        story.append(Spacer(1, 30))
-        
-        # Footer table with metadata
-        from datetime import datetime
-        current_time = datetime.now()
-        report_id = f"ACCOMP-RPT-{int(current_time.timestamp() * 1000)}"
-        
-        footer_data = [
-            ['Report ID:', report_id, 'Generated on:', current_time.strftime('%Y-%m-%d %H:%M')],
-            ['Total Records:', str(total_inspections), 'Prepared by:', request.user.email or 'System'],
-        ]
-        
-        footer_table = Table(footer_data, colWidths=[1.5*inch, 2*inch, 1.5*inch, 2*inch])
-        footer_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
-            ('ALIGN', (2, 0), (2, -1), 'LEFT'),
-            ('ALIGN', (3, 0), (3, -1), 'LEFT'),
-            ('PADDING', (0, 0), (-1, -1), 6),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
-        ]))
-        
-        story.append(footer_table)
-        story.append(Spacer(1, 15))
-        story.append(Paragraph("*** End of Report ***", styles['Normal']))
-        
-        # Build PDF
-        doc.build(story)
         buffer.seek(0)
         
         # Return PDF response
         response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-        filename = f"accomplishment_report_{period_text.replace(' ', '_')}.pdf"
+        filename = f"accomplishment_report_{period_text.replace(' ', '_').replace('/', '_')}.pdf"
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
         
@@ -713,22 +592,41 @@ def save_generated_report(request):
             'CLOSED_COMPLIANT', 'CLOSED_NON_COMPLIANT'
         ]
         
-        # Get inspections for the period
+        # Get inspections for the period - prioritize quarter over custom dates
         if quarter and year:
             from .utils import getQuarterDates
-            period_start = getQuarterDates(quarter, year)['start']
-            period_end = getQuarterDates(quarter, year)['end']
+            quarter_start, quarter_end = getQuarterDates(quarter, year)['start'], getQuarterDates(quarter, year)['end']
             inspections = Inspection.objects.filter(
                 current_status__in=completed_statuses,
-                updated_at__date__range=[period_start, period_end]
+                updated_at__date__range=[quarter_start, quarter_end]
             )
+            print(f"Quarter filter - Q{quarter} {year}: {quarter_start} to {quarter_end}")
+            print(f"Found {inspections.count()} inspections in date range")
+            
+            # Debug: Check if any inspections exist at all
+            all_inspections = Inspection.objects.filter(current_status__in=completed_statuses)
+            print(f"Total completed inspections in database: {all_inspections.count()}")
+            
+            # Debug: Check if any inspections exist for this user
+            user_inspections = all_inspections.filter(form__inspected_by=request.user)
+            print(f"User's completed inspections: {user_inspections.count()}")
+            
+            # Debug: Check if any inspections exist in the date range without user filter
+            date_range_inspections = Inspection.objects.filter(
+                current_status__in=completed_statuses,
+                updated_at__date__range=[quarter_start, quarter_end]
+            )
+            print(f"Inspections in date range (no user filter): {date_range_inspections.count()}")
+            
         elif date_from and date_to:
             inspections = Inspection.objects.filter(
                 current_status__in=completed_statuses,
                 updated_at__date__range=[date_from, date_to]
             )
+            print(f"Custom date filter: {date_from} to {date_to}")
         else:
             inspections = Inspection.objects.filter(current_status__in=completed_statuses)
+            print("No date filter applied")
         
         # Filter by user level
         if request.user.userlevel == 'Monitoring Personnel':

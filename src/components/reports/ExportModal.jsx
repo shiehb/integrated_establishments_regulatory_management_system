@@ -10,10 +10,8 @@ export default function ExportModal({
   year,
   totalInspections = 0
 }) {
-  const [exportFormat, setExportFormat] = useState('pdf');
   const [includeSummary, setIncludeSummary] = useState(true);
   const [includeDetails, setIncludeDetails] = useState(true);
-  const [includeCharts, setIncludeCharts] = useState(false);
   const [customDateRange, setCustomDateRange] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -25,10 +23,9 @@ export default function ExportModal({
     setExporting(true);
     try {
       const exportOptions = {
-        format: exportFormat,
+        format: 'pdf', // Always PDF
         includeSummary,
         includeDetails,
-        includeCharts,
         customDateRange,
         dateFrom: customDateRange ? dateFrom : null,
         dateTo: customDateRange ? dateTo : null,
@@ -60,8 +57,8 @@ export default function ExportModal({
   const canExport = hasValidDateRange && totalInspections > 0;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-white">
+      <div className="h-full flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
           <div className="flex items-center gap-3">
@@ -82,120 +79,80 @@ export default function ExportModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
-          {/* Export Format */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-4">Export Format</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
-                exportFormat === 'pdf' 
-                  ? 'border-green-500 bg-green-50 shadow-md' 
-                  : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-              }`}>
-                <input
-                  type="radio"
-                  name="format"
-                  value="pdf"
-                  checked={exportFormat === 'pdf'}
-                  onChange={(e) => setExportFormat(e.target.value)}
-                  className="sr-only"
-                />
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <FileText className="w-5 h-5 text-red-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">PDF Document</p>
-                    <p className="text-sm text-gray-600">Official report format</p>
-                  </div>
-                  {exportFormat === 'pdf' && (
-                    <CheckCircle className="w-5 h-5 text-green-600 ml-auto" />
-                  )}
+        <div className="flex-1 p-8 space-y-8 overflow-y-auto">
+          {/* Export Format - PDF Only */}
+          <div className="bg-gradient-to-r from-blue-50 to-green-50 p-6 rounded-2xl border border-blue-200">
+            <label className="block text-lg font-bold text-gray-800 mb-4">Export Format</label>
+            <div className="flex items-center p-6 border-2 border-green-500 bg-white rounded-xl shadow-lg">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-red-100 rounded-xl">
+                  <FileText className="w-8 h-8 text-red-600" />
                 </div>
-              </label>
-
-              <label className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
-                exportFormat === 'print' 
-                  ? 'border-green-500 bg-green-50 shadow-md' 
-                  : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
-              }`}>
-                <input
-                  type="radio"
-                  name="format"
-                  value="print"
-                  checked={exportFormat === 'print'}
-                  onChange={(e) => setExportFormat(e.target.value)}
-                  className="sr-only"
-                />
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gray-100 rounded-lg">
-                    <Settings className="w-5 h-5 text-gray-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">Print Preview</p>
-                    <p className="text-sm text-gray-600">Browser print dialog</p>
-                  </div>
-                  {exportFormat === 'print' && (
-                    <CheckCircle className="w-5 h-5 text-green-600 ml-auto" />
-                  )}
+                <div className="flex-1">
+                  <p className="text-xl font-bold text-gray-900">PDF Document (Backend Generated)</p>
+                  <p className="text-base text-gray-600 mt-1">Professional government-standard reports with official branding</p>
                 </div>
-              </label>
+                <CheckCircle className="w-8 h-8 text-green-600" />
+              </div>
             </div>
+            <p className="text-sm text-gray-600 mt-4 bg-white p-3 rounded-lg border">
+              ✨ All PDF reports are generated by the backend system with professional styling, government branding, and official formatting standards
+            </p>
           </div>
 
           {/* Date Range */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-4">Date Range</label>
-            <div className="space-y-4">
-              <label className="flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:bg-gray-50">
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-2xl border border-purple-200">
+            <label className="block text-lg font-bold text-gray-800 mb-6">Date Range Selection</label>
+            <div className="space-y-6">
+              <label className="flex items-center p-6 border-2 border-blue-300 bg-white rounded-xl cursor-pointer transition-all duration-200 hover:bg-blue-50 hover:border-blue-400 shadow-md">
                 <input
                   type="radio"
                   name="dateRange"
                   checked={!customDateRange}
                   onChange={() => setCustomDateRange(false)}
-                  className="w-4 h-4 text-green-600 focus:ring-green-500"
+                  className="w-5 h-5 text-blue-600 focus:ring-blue-500"
                 />
-                <div className="ml-3">
-                  <p className="font-medium text-gray-900">
+                <div className="ml-4">
+                  <p className="text-lg font-bold text-gray-900">
                     Q{quarter} {year} ({quarterDates.start} to {quarterDates.end})
                   </p>
-                  <p className="text-sm text-gray-600">Use predefined quarter dates</p>
+                  <p className="text-sm text-gray-600 mt-1">Use predefined quarter dates</p>
                 </div>
               </label>
               
-              <label className="flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 hover:bg-gray-50">
+              <label className="flex items-center p-6 border-2 border-purple-300 bg-white rounded-xl cursor-pointer transition-all duration-200 hover:bg-purple-50 hover:border-purple-400 shadow-md">
                 <input
                   type="radio"
                   name="dateRange"
                   checked={customDateRange}
                   onChange={() => setCustomDateRange(true)}
-                  className="w-4 h-4 text-green-600 focus:ring-green-500"
+                  className="w-5 h-5 text-purple-600 focus:ring-purple-500"
                 />
-                <div className="ml-3">
-                  <p className="font-medium text-gray-900">Custom date range</p>
-                  <p className="text-sm text-gray-600">Specify your own date range</p>
+                <div className="ml-4">
+                  <p className="text-lg font-bold text-gray-900">Custom date range</p>
+                  <p className="text-sm text-gray-600 mt-1">Specify your own date range</p>
                 </div>
               </label>
 
               {customDateRange && (
-                <div className="ml-8 p-4 bg-gray-50 rounded-lg">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="ml-8 p-6 bg-white rounded-xl border-2 border-purple-200 shadow-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">From Date</label>
+                      <label className="block text-base font-bold text-gray-700 mb-3">From Date</label>
                       <input
                         type="date"
                         value={dateFrom}
                         onChange={(e) => setDateFrom(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-lg"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">To Date</label>
+                      <label className="block text-base font-bold text-gray-700 mb-3">To Date</label>
                       <input
                         type="date"
                         value={dateTo}
                         onChange={(e) => setDateTo(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-lg"
                       />
                     </div>
                   </div>
@@ -205,86 +162,78 @@ export default function ExportModal({
           </div>
 
           {/* Content Options */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-4">Include Content</label>
-            <div className="space-y-3">
-              <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+          <div className="bg-gradient-to-r from-green-50 to-teal-50 p-6 rounded-2xl border border-green-200">
+            <label className="block text-lg font-bold text-gray-800 mb-6">Content Options</label>
+            <div className="space-y-4">
+              <label className="flex items-center p-5 border-2 border-green-300 bg-white rounded-xl hover:bg-green-50 hover:border-green-400 transition-all duration-200 shadow-md">
                 <input
                   type="checkbox"
                   checked={includeSummary}
                   onChange={(e) => setIncludeSummary(e.target.checked)}
-                  className="w-4 h-4 text-green-600 focus:ring-green-500 rounded"
+                  className="w-5 h-5 text-green-600 focus:ring-green-500 rounded"
                 />
-                <div className="ml-3">
-                  <p className="font-medium text-gray-900">Summary statistics and metrics</p>
-                  <p className="text-sm text-gray-600">Include compliance rates and totals</p>
+                <div className="ml-4">
+                  <p className="text-lg font-bold text-gray-900">Summary statistics and metrics</p>
+                  <p className="text-sm text-gray-600 mt-1">Include compliance rates and totals</p>
                 </div>
               </label>
               
-              <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <label className="flex items-center p-5 border-2 border-green-300 bg-white rounded-xl hover:bg-green-50 hover:border-green-400 transition-all duration-200 shadow-md">
                 <input
                   type="checkbox"
                   checked={includeDetails}
                   onChange={(e) => setIncludeDetails(e.target.checked)}
-                  className="w-4 h-4 text-green-600 focus:ring-green-500 rounded"
+                  className="w-5 h-5 text-green-600 focus:ring-green-500 rounded"
                 />
-                <div className="ml-3">
-                  <p className="font-medium text-gray-900">Detailed inspection list</p>
-                  <p className="text-sm text-gray-600">Include individual inspection records</p>
+                <div className="ml-4">
+                  <p className="text-lg font-bold text-gray-900">Detailed inspection list</p>
+                  <p className="text-sm text-gray-600 mt-1">Include individual inspection records</p>
                 </div>
               </label>
               
-              <label className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={includeCharts}
-                  onChange={(e) => setIncludeCharts(e.target.checked)}
-                  className="w-4 h-4 text-green-600 focus:ring-green-500 rounded"
-                />
-                <div className="ml-3">
-                  <p className="font-medium text-gray-900">Charts and visualizations</p>
-                  <p className="text-sm text-gray-600">Include graphs and charts (PDF only)</p>
-                </div>
-              </label>
             </div>
           </div>
 
           {/* Export Preview */}
-          <div className="bg-gradient-to-r from-blue-50 to-green-50 p-4 rounded-xl border border-blue-200">
-            <div className="flex items-center gap-2 mb-3">
-              <Calendar className="w-5 h-5 text-blue-600" />
-              <span className="font-semibold text-gray-800">Export Preview</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span className="text-gray-700">
-                    <span className="font-medium">{totalInspections}</span> inspections will be included
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-gray-700">Format: <span className="font-medium">{exportFormat.toUpperCase()}</span></span>
-                </div>
+          <div className="bg-gradient-to-r from-orange-50 to-yellow-50 p-6 rounded-2xl border border-orange-200">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Calendar className="w-6 h-6 text-orange-600" />
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                  <span className="text-gray-700">
-                    Period: <span className="font-medium">
-                      {customDateRange ? `${dateFrom} to ${dateTo}` : `Q${quarter} ${year}`}
+              <span className="text-xl font-bold text-gray-800">Export Preview</span>
+            </div>
+            <div className="bg-white p-6 rounded-xl border border-orange-200">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-base">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <span className="text-gray-700">
+                      <span className="font-bold text-lg">{totalInspections}</span> inspections will be included
                     </span>
-                  </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span className="text-gray-700">Format: <span className="font-bold">PDF</span></span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                  <span className="text-gray-700">
-                    Content: <span className="font-medium">
-                      {[includeSummary && 'Summary', includeDetails && 'Details', includeCharts && 'Charts']
-                        .filter(Boolean).join(', ') || 'None'}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                    <span className="text-gray-700">
+                      Period: <span className="font-bold">
+                        {customDateRange ? `${dateFrom} to ${dateTo}` : `Q${quarter} ${year}`}
+                      </span>
                     </span>
-                  </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                    <span className="text-gray-700">
+                      Content: <span className="font-bold">
+                        {[includeSummary && 'Summary', includeDetails && 'Details']
+                          .filter(Boolean).join(', ') || 'None'}
+                      </span>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -303,28 +252,28 @@ export default function ExportModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
-          <div className="text-sm text-gray-600">
+        <div className="flex items-center justify-between p-8 border-t-2 border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+          <div className="text-base text-gray-600">
             {exporting && (
-              <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                <span>Generating report...</span>
+              <div className="flex items-center gap-3">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+                <span className="font-semibold">Generating report...</span>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-6 py-3 text-base font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 shadow-md"
             >
               Cancel
             </button>
             <button
               onClick={handleExport}
               disabled={exporting || !canExport}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-3 px-8 py-3 text-base font-semibold text-white bg-gradient-to-r from-green-600 to-green-700 rounded-xl hover:from-green-700 hover:to-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
             >
-              <Download className="w-4 h-4" />
+              <Download className="w-5 h-5" />
               {exporting ? 'Exporting...' : 'Export Report'}
             </button>
           </div>
