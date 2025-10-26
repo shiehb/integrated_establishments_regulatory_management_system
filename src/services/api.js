@@ -262,6 +262,34 @@ export const getAvailableEstablishments = async (params = {}) => {
   return res.data;
 };
 
+/**
+ * Check if an establishment name already exists
+ * @param {string} name - The establishment name to check
+ * @returns {Promise<boolean>} - True if name exists, false otherwise
+ */
+export const checkEstablishmentNameExists = async (name) => {
+  try {
+    if (!name || name.trim().length === 0) {
+      return false;
+    }
+    
+    const res = await api.get("establishments/search/", {
+      params: { 
+        q: name.trim(),
+        page_size: 1 
+      }
+    });
+    
+    // Check if any result has the exact same name (case-insensitive)
+    return res.data.results && res.data.results.some(
+      est => est.name.toUpperCase() === name.toUpperCase()
+    );
+  } catch (error) {
+    console.error('Error checking establishment name:', error);
+    return false; // Don't block on error
+  }
+};
+
 // -------------------------------------------------
 // Inspections - Updated for new backend
 // -------------------------------------------------

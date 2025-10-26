@@ -1,9 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents, LayersControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import { updateEstablishment } from "../../services/api";
+import { updateEstablishment, checkEstablishmentNameExists } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
+import SearchableSelect from "../common/SearchableSelect";
 import osm from "../map/osm-provider"; // ✅ use OSM provider
 import { 
   ALLOWED_PROVINCES, 
@@ -266,7 +267,19 @@ export default function EditEstablishment({
   const [showPolygonPrompt, setShowPolygonPrompt] = useState(false);
   const [updatedEstablishment, setUpdatedEstablishment] = useState(null);
   const [mapZoom, setMapZoom] = useState(8); // Track zoom level for different selection types
+  const [validatingName, setValidatingName] = useState(false);
+  const [nameExists, setNameExists] = useState(false);
+  const nameCheckTimeoutRef = useRef(null);
   const notifications = useNotifications();
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (nameCheckTimeoutRef.current) {
+        clearTimeout(nameCheckTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Track if address/coordinate fields have changed
   const hasLocationChanged = 
@@ -303,15 +316,65 @@ export default function EditEstablishment({
     "Are you sure you want to save changes to this establishment?"
   );
 
+  const handleNameValidation = async (name) => {
+    // Clear existing timeout
+    if (nameCheckTimeoutRef.current) {
+      clearTimeout(nameCheckTimeoutRef.current);
+    }
+    
+    // Don't check if name is empty or same as original
+    if (!name || name.trim().length === 0 || name === establishmentData?.name) {
+      setNameExists(false);
+      setErrors((prev) => ({ ...prev, name: "" }));
+      return;
+    }
+    
+    // Debounce the check by 500ms
+    nameCheckTimeoutRef.current = setTimeout(async () => {
+      setValidatingName(true);
+      try {
+        const exists = await checkEstablishmentNameExists(name);
+        setNameExists(exists);
+        
+        if (exists) {
+          setErrors((prev) => ({ 
+            ...prev, 
+            name: "An establishment with this name already exists." 
+          }));
+        } else {
+          setErrors((prev) => ({ ...prev, name: "" }));
+        }
+      } catch (error) {
+        console.error('Error validating name:', error);
+      } finally {
+        setValidatingName(false);
+      }
+    }, 500);
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value.toUpperCase(),
-    }));
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
+    
+    // Handle name field specially
+    if (name === 'name') {
+      const upperValue = value.toUpperCase();
+      setFormData((prev) => ({
+        ...prev,
+        [name]: upperValue,
+      }));
+      
+      // Trigger validation
+      handleNameValidation(upperValue);
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value.toUpperCase(),
+      }));
+      
+      // Clear error when user starts typing (for other fields)
+      if (errors[name]) {
+        setErrors((prev) => ({ ...prev, [name]: "" }));
+      }
     }
   };
 
@@ -342,12 +405,22 @@ export default function EditEstablishment({
   };
 
   const handleYearChange = (e) => {
-    let val = e.target.value.replace(/\D/g, ""); // only digits
-    if (val.length > 4) val = val.slice(0, 4); // max 4 digits
-    if (parseInt(val) > new Date().getFullYear()) {
-      val = new Date().getFullYear().toString(); // cap at current year
+    const { value } = e.target;
+    setFormData((prev) => ({ ...prev, yearEstablished: value }));
+    // Clear error when user starts typing
+    if (errors.yearEstablished) {
+      setErrors((prev) => ({ ...prev, yearEstablished: "" }));
     }
-    setFormData((prev) => ({ ...prev, yearEstablished: val }));
+  };
+
+  // Get available years (from 1900 to current year)
+  const getAvailableYears = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let year = currentYear; year >= 1900; year--) {
+      years.push(year.toString());
+    }
+    return years;
   };
 
   const handleAddressChange = async (e) => {
@@ -469,6 +542,17 @@ export default function EditEstablishment({
     e.preventDefault();
     setSubmitted(true);
     setErrors({});
+
+    // Don't proceed if name exists or is being validated
+    if (nameExists || validatingName) {
+      if (nameExists) {
+        setErrors((prev) => ({ 
+          ...prev, 
+          name: "An establishment with this name already exists." 
+        }));
+      }
+      return;
+    }
 
     // Validate province
     const provinceError = validateProvince(formData.address.province);
@@ -615,17 +699,69 @@ export default function EditEstablishment({
           {/* Name of Establishment */}
           <div>
             <Label field="name">Name of Establishment</Label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              className={`w-full p-2 border rounded-lg uppercase-input ${
-                errors.name ? "border-red-500" : ""
-              }`}
-            />
+            <div className="relative">
+              <input
+                type="text"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                className={`w-full p-2 pr-10 border rounded-lg uppercase-input ${
+                  errors.name 
+                    ? "border-red-500" 
+                    : nameExists 
+                    ? "border-amber-400 bg-amber-50" 
+                    : validatingName
+                    ? "border-blue-400"
+                    : ""
+                }`}
+                placeholder="Enter establishment name"
+              />
+              
+              {/* Validation Status Icons */}
+              {validatingName && (
+                <div className="absolute right-3 top-3">
+                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+              {nameExists && !validatingName && (
+                <div className="absolute right-3 top-3">
+                  <svg className="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              )}
+              {!nameExists && !validatingName && formData.name.trim() && !errors.name && formData.name !== establishmentData?.name && (
+                <div className="absolute right-3 top-3">
+                  <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              )}
+            </div>
+            
+            {/* Error Message */}
             {errors.name && (
               <p className="mt-1 text-xs text-red-500">{errors.name}</p>
+            )}
+            
+            {/* Warning Message */}
+            {nameExists && !validatingName && !errors.name && (
+              <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                This name already exists in the system.
+              </p>
+            )}
+            
+            {/* Success Message */}
+            {!nameExists && !validatingName && formData.name.trim() && !errors.name && formData.name !== establishmentData?.name && (
+              <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                Name is available
+              </p>
             )}
           </div>
 
@@ -633,19 +769,14 @@ export default function EditEstablishment({
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <Label field="natureOfBusiness">Nature of Business</Label>
-              <select
+              <SearchableSelect
                 name="natureOfBusiness"
+                options={NATURE_OF_BUSINESS_OPTIONS}
                 value={formData.natureOfBusiness}
                 onChange={handleNatureOfBusinessChange}
-                className="w-full p-2 border rounded-lg uppercase-input"
-              >
-                <option value="">Select Nature of Business</option>
-                {NATURE_OF_BUSINESS_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                placeholder="Select Nature of Business"
+                className="w-full uppercase-input"
+              />
               {formData.natureOfBusiness === "OTHERS" && (
                 <input
                   type="text"
@@ -659,15 +790,13 @@ export default function EditEstablishment({
             </div>
             <div>
               <Label field="yearEstablished">Year Established</Label>
-              <input
-                type="number"
+              <SearchableSelect
                 name="yearEstablished"
+                options={getAvailableYears()}
                 value={formData.yearEstablished}
                 onChange={handleYearChange}
-                min="1900"
-                max={new Date().getFullYear()}
-                placeholder="YYYY"
-                className="w-full p-2 border rounded-lg uppercase-input"
+                placeholder="Select Year"
+                className="w-full uppercase-input"
               />
             </div>
           </div>
@@ -676,43 +805,31 @@ export default function EditEstablishment({
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <Label field="address.province">Province</Label>
-              <select
+              <SearchableSelect
                 name="province"
+                options={ALLOWED_PROVINCES}
                 value={formData.address.province}
                 onChange={handleAddressChange}
-                className={`w-full p-2 border rounded-lg uppercase-input ${
+                placeholder="Select Province"
+                className={`w-full uppercase-input ${
                   errors.province ? "border-red-500" : ""
                 }`}
-              >
-                <option value="">Select Province</option>
-                {ALLOWED_PROVINCES.map((province) => (
-                  <option key={province} value={province}>
-                    {province}
-                  </option>
-                ))}
-              </select>
+              />
               {errors.province && (
                 <p className="mt-1 text-xs text-red-500">{errors.province}</p>
               )}
             </div>
             <div>
               <Label field="address.city">City/Municipality</Label>
-              <select
+              <SearchableSelect
                 name="city"
+                options={getAvailableCities()}
                 value={formData.address.city}
                 onChange={handleAddressChange}
-                className="w-full p-2 border rounded-lg uppercase-input"
-                disabled={!formData.address.province}
-              >
-                <option value="">
-                  {formData.address.province ? "Select City/Municipality" : "Select Province first"}
-                </option>
-                {getAvailableCities().map((city) => (
-                  <option key={city} value={city}>
-                    {city}
-                  </option>
-                ))}
-              </select>
+                placeholder={formData.address.province ? "Select City/Municipality" : "Select Province first"}
+                isDisabled={!formData.address.province}
+                className="w-full uppercase-input"
+              />
             </div>
           </div>
 
@@ -720,22 +837,15 @@ export default function EditEstablishment({
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <Label field="address.barangay">Barangay</Label>
-              <select
+              <SearchableSelect
                 name="barangay"
+                options={getAvailableBarangays()}
                 value={formData.address.barangay}
                 onChange={handleAddressChange}
-                className="w-full p-2 border rounded-lg uppercase-input"
-                disabled={!formData.address.city}
-              >
-                <option value="">
-                  {formData.address.city ? "Select Barangay" : "Select City first"}
-                </option>
-                {getAvailableBarangays().map((barangay) => (
-                  <option key={barangay} value={barangay}>
-                    {barangay}
-                  </option>
-                ))}
-              </select>
+                placeholder={formData.address.city ? "Select Barangay" : "Select City first"}
+                isDisabled={!formData.address.city}
+                className="w-full uppercase-input"
+              />
             </div>
             <div>
               <Label field="address.streetBuilding">Street/Building</Label>
