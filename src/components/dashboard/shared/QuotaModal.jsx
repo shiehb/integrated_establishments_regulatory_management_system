@@ -1,17 +1,29 @@
 import React, { useState, useEffect } from "react";
 import { X, Target, TrendingUp, AlertCircle } from "lucide-react";
 import { LAWS, QUARTERS } from "../../../constants/quotaConstants";
+import ConfirmationDialog from "../../common/ConfirmationDialog";
 
 const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
+  // Calculate current period
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth();
+  const currentQuarter = Math.floor(currentMonth / 3) + 1;
+  
+  // Calculate next period
+  const nextQuarter = currentQuarter === 4 ? 1 : currentQuarter + 1;
+  const nextYear = currentQuarter === 4 ? currentYear + 1 : currentYear;
+
   const [formData, setFormData] = useState({
     law: '',
-    year: new Date().getFullYear(),
-    quarter: 1,
+    year: currentYear,
+    quarter: currentQuarter,
     target: '',
     auto_adjust: true
   });
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   useEffect(() => {
     if (quota) {
@@ -23,17 +35,39 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
         auto_adjust: quota.auto_adjusted
       });
     } else {
-      // Reset form for new quota
+      // Reset form for new quota - defaults to current quarter
       setFormData({
         law: '',
-        year: new Date().getFullYear(),
-        quarter: 1,
+        year: currentYear,
+        quarter: currentQuarter,
         target: 25,
         auto_adjust: true
       });
     }
     setErrors({});
-  }, [quota, isOpen]);
+  }, [quota, isOpen, currentYear, currentQuarter]);
+
+  // Get available years (only current and possibly next)
+  const getAvailableYears = () => {
+    return currentQuarter === 4 
+      ? [{ value: currentYear, label: `${currentYear}` }, { value: nextYear, label: `${nextYear}` }]
+      : [{ value: currentYear, label: `${currentYear}` }];
+  };
+
+  // Get available quarters based on selected year
+  const getAvailableQuarters = () => {
+    if (formData.year === currentYear) {
+      // Current year: show current and next quarter only
+      return QUARTERS.filter(q => q.value === currentQuarter || q.value === nextQuarter);
+    } else if (formData.year === nextYear) {
+      // Next year: only Q1 available (when current is Q4)
+      if (currentQuarter === 4) {
+        return QUARTERS.filter(q => q.value === 1);
+      }
+      return [];
+    }
+    return [];
+  };
 
   const validateForm = () => {
     const newErrors = {};
@@ -44,10 +78,6 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
     
     if (!formData.target || formData.target <= 0) {
       newErrors.target = 'Target must be greater than 0';
-    }
-    
-    if (formData.year < 2020 || formData.year > 2030) {
-      newErrors.year = 'Year must be between 2020 and 2030';
     }
     
     setErrors(newErrors);
@@ -61,6 +91,11 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
       return;
     }
     
+    // Show confirmation dialog instead of directly saving
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmSave = async () => {
     setIsSubmitting(true);
     
     try {
@@ -70,6 +105,7 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
         quarter: parseInt(formData.quarter),
         target: parseInt(formData.target)
       });
+      setShowConfirmDialog(false);
       onClose();
     } catch (err) {
       console.error('Error saving quota:', err);
@@ -95,7 +131,7 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
             <Target size={20} className="text-sky-600" />
-            {quota ? 'Edit Quota' : 'Set New Quota'}
+            {quota ? 'Update Quota Target' : 'Set Inspection Quota'}
           </h3>
           <button 
             onClick={onClose} 
@@ -107,32 +143,7 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Law <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.law}
-              onChange={(e) => handleInputChange('law', e.target.value)}
-              className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
-                errors.law ? 'border-red-300' : 'border-gray-300'
-              }`}
-              required
-              disabled={isSubmitting}
-            >
-              <option value="">Select Law</option>
-              {LAWS.map(law => (
-                <option key={law.id} value={law.id}>{law.name}</option>
-              ))}
-            </select>
-            {errors.law && (
-              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                <AlertCircle size={12} />
-                {errors.law}
-              </p>
-            )}
-          </div>
-
+          {/* Year and Quarter - First Row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -143,18 +154,15 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
                 onChange={(e) => handleInputChange('year', parseInt(e.target.value))}
                 className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
                   errors.year ? 'border-red-300' : 'border-gray-300'
-                }`}
+                } ${quota ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                 required
-                disabled={isSubmitting}
+                disabled={isSubmitting || !!quota}
               >
-                {Array.from({ length: 11 }, (_, i) => {
-                  const year = 2020 + i;
-                  return (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  );
-                })}
+                {getAvailableYears().map(year => (
+                  <option key={year.value} value={year.value}>
+                    {year.label}
+                  </option>
+                ))}
               </select>
               {errors.year && (
                 <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
@@ -170,33 +178,77 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
               <select
                 value={formData.quarter}
                 onChange={(e) => handleInputChange('quarter', parseInt(e.target.value))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  quota ? 'bg-gray-100 cursor-not-allowed' : ''
+                }`}
                 required
-                disabled={isSubmitting}
+                disabled={isSubmitting || !!quota}
               >
-                {QUARTERS.map(q => (
+                {getAvailableQuarters().map(q => (
                   <option key={q.value} value={q.value}>{q.label}</option>
                 ))}
               </select>
             </div>
           </div>
 
+          {/* Law - Second Row */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Law <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.law}
+              onChange={(e) => handleInputChange('law', e.target.value)}
+              className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
+                errors.law ? 'border-red-300' : 'border-gray-300'
+              } ${quota ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+              required
+              disabled={isSubmitting || !!quota}
+            >
+              <option value="">Select Law</option>
+              {LAWS.map(law => (
+                <option key={law.id} value={law.id}>{law.name}</option>
+              ))}
+            </select>
+            {errors.law && (
+              <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                <AlertCircle size={12} />
+                {errors.law}
+              </p>
+            )}
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Target Inspections <span className="text-red-500">*</span>
             </label>
-            <input
-              type="number"
-              value={formData.target}
-              onChange={(e) => handleInputChange('target', parseInt(e.target.value))}
-              className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                errors.target ? 'border-red-300' : 'border-gray-300'
-              }`}
-              min="1"
-              placeholder="Enter target number"
-              required
-              disabled={isSubmitting}
-            />
+            <div className="flex items-start gap-3">
+              <input
+                type="number"
+                value={formData.target}
+                onChange={(e) => handleInputChange('target', parseInt(e.target.value))}
+                className={`w-32 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  errors.target ? 'border-red-300' : 'border-gray-300'
+                }`}
+                min="1"
+                placeholder="Enter target"
+                required
+                disabled={isSubmitting}
+              />
+              <div className="flex items-start gap-2 flex-1">
+                <input
+                  type="checkbox"
+                  id="auto_adjust"
+                  checked={formData.auto_adjust}
+                  onChange={(e) => handleInputChange('auto_adjust', e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 mt-2"
+                  disabled={isSubmitting}
+                />
+                <label htmlFor="auto_adjust" className="text-sm text-gray-700 cursor-pointer leading-relaxed">
+                  Auto-adjust next quarter based on accomplishments
+                </label>
+              </div>
+            </div>
             {errors.target && (
               <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
                 <AlertCircle size={12} />
@@ -215,20 +267,6 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
               </div>
             </div>
           )}
-
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="auto_adjust"
-              checked={formData.auto_adjust}
-              onChange={(e) => handleInputChange('auto_adjust', e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              disabled={isSubmitting}
-            />
-            <label htmlFor="auto_adjust" className="text-sm text-gray-700">
-              Auto-adjust next quarter based on accomplishments
-            </label>
-          </div>
 
           {errors.submit && (
             <div className="bg-red-50 p-3 rounded-lg">
@@ -268,6 +306,41 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
           </div>
         </form>
       </div>
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showConfirmDialog}
+        title={quota ? "Confirm Quota Update" : "Confirm Quota Creation"}
+        message={
+          <div>
+            <p className="mb-2">
+              {quota 
+                ? "You are about to update the quota target for this inspection program." 
+                : "You are about to create a new quota for this inspection program."
+              }
+            </p>
+            <div className="bg-gray-50 p-3 rounded-lg mt-3">
+              <div className="text-sm space-y-1">
+                <p><strong>Inspection Program:</strong> {LAWS.find(l => l.id === formData.law)?.name}</p>
+                <p><strong>Period:</strong> Q{formData.quarter}, {formData.year} ({QUARTERS.find(q => q.value === formData.quarter)?.months})</p>
+                <p><strong>Target:</strong> {formData.target} inspections</p>
+                {formData.auto_adjust && (
+                  <p className="text-blue-600 mt-1">✓ Auto-adjust next quarter enabled</p>
+                )}
+              </div>
+            </div>
+          </div>
+        }
+        onCancel={() => setShowConfirmDialog(false)}
+        onConfirm={handleConfirmSave}
+        confirmText={quota ? "Update" : "Set"}
+        cancelText="Cancel"
+        confirmColor="sky"
+        loading={isSubmitting}
+        icon={<Target size={20} className="text-sky-600" />}
+        headerColor="sky"
+        size="md"
+      />
     </div>
   );
 };
