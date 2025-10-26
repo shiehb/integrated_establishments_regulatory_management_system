@@ -18,6 +18,8 @@ import L from "leaflet";
 import { getEstablishments, getMyEstablishments } from "../services/api";
 import { useNotifications } from "../components/NotificationManager";
 import { useAuth } from "../contexts/AuthContext";
+import { getIconByNatureOfBusiness } from '../constants/markerIcons';
+import { createCustomMarkerIcon } from '../components/map/CustomMarkerIcon';
 import {
   Search,
   X,
@@ -543,9 +545,11 @@ export default function MapPage() {
                         parseFloat(e.latitude),
                         parseFloat(e.longitude),
                       ]}
-                      icon={
-                        focusedEstablishment?.id === e.id ? greenIcon : blueIcon
-                      }
+                      icon={(() => {
+                        // Get custom icon based on establishment type
+                        const iconData = getIconByNatureOfBusiness(e.marker_icon || e.nature_of_business);
+                        return createCustomMarkerIcon(iconData.icon, iconData.color, 28);
+                      })()}
                       eventHandlers={{
                         click: () => {
                           setFocusedEstablishment(e);

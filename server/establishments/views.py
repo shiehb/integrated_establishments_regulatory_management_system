@@ -131,6 +131,7 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
     def set_polygon(self, request, pk=None):
         establishment = self.get_object()
         polygon_data = request.data.get('polygon')
+        marker_icon = request.data.get('marker_icon')
         
         if polygon_data is not None:
             if not isinstance(polygon_data, list):
@@ -202,11 +203,17 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
                             adjustment_message = "No valid polygon pieces found after adjustment"
 
             establishment.polygon = result_polygon
+            
+            # Update marker icon if provided
+            if marker_icon is not None:
+                establishment.marker_icon = marker_icon
+            
             establishment._action_user = request.user  # log who updated polygon
             establishment.save()
             return Response({
                 'status': 'polygon set', 
                 'polygon': establishment.polygon,
+                'marker_icon': establishment.marker_icon,
                 'was_adjusted': was_adjusted,
                 'adjustment_message': adjustment_message
             })

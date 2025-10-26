@@ -125,19 +125,26 @@ export default function Establishments() {
     try {
       const response = await setEstablishmentPolygon(
         polygonEstablishment.id,
-        polygonEstablishment.polygon || []
+        polygonEstablishment.polygon || [],
+        polygonEstablishment.marker_icon || null
       );
       
       // Use the polygon from response (backend may have adjusted it)
       const savedPolygon = response.polygon || polygonEstablishment.polygon || [];
+      const savedIcon = response.marker_icon || polygonEstablishment.marker_icon;
       
-      // Update local state with the saved polygon
-      setPolygonEstablishment(prev => ({...prev, polygon: savedPolygon}));
+      // Update local state with the saved polygon and icon
+      setPolygonEstablishment(prev => ({
+        ...prev, 
+        polygon: savedPolygon,
+        marker_icon: savedIcon,
+        originalPolygon: [...savedPolygon]
+      }));
       
       setEstablishments((prev) =>
         prev.map((e) =>
           e.id === polygonEstablishment.id
-            ? { ...e, polygon: savedPolygon }
+            ? { ...e, polygon: savedPolygon, marker_icon: savedIcon }
             : e
         )
       );
@@ -176,6 +183,7 @@ export default function Establishments() {
     setPolygonEstablishment({
       ...est,
       originalPolygon: est.polygon ? [...est.polygon] : [],
+      originalIcon: est.marker_icon || est.nature_of_business,
     });
     setCurrentView("polygon");
     setPolygonEditMode(false);
@@ -194,11 +202,12 @@ export default function Establishments() {
   const handleCancelPolygonEdit = () => {
     setPolygonEditMode(false);
     setHasPolygonChanges(false);
-    // Reset polygon to original state
+    // Reset polygon and icon to original state
     if (polygonEstablishment && polygonEstablishment.originalPolygon) {
       setPolygonEstablishment((prev) => ({
         ...prev,
         polygon: [...prev.originalPolygon],
+        marker_icon: prev.originalIcon || prev.marker_icon || prev.nature_of_business,
       }));
     }
   };
@@ -209,8 +218,15 @@ export default function Establishments() {
   };
 
   // 🔹 handle polygon changes
-  const handlePolygonChange = (polygon, isValid = true) => {
-    setPolygonEstablishment((prev) => (prev ? { ...prev, polygon } : prev));
+  const handlePolygonChange = (polygon, isValid = true, markerIcon = null) => {
+    setPolygonEstablishment((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, polygon };
+      if (markerIcon) {
+        updated.marker_icon = markerIcon;
+      }
+      return updated;
+    });
 
     // Check if there are changes compared to original
     const hasChanges = checkPolygonChanges(polygon);
@@ -235,6 +251,7 @@ export default function Establishments() {
     setPolygonEstablishment({
       ...establishment,
       originalPolygon: establishment.polygon ? [...establishment.polygon] : [],
+      originalIcon: establishment.marker_icon || establishment.nature_of_business,
     });
     setCurrentView("polygon");
     setPolygonEditMode(true);

@@ -231,10 +231,16 @@ export const deleteEstablishment = async (id) => {
   return res.data;
 };
 
-export const setEstablishmentPolygon = async (id, polygonData) => {
-  const res = await api.post(`establishments/${id}/set_polygon/`, {
+export const setEstablishmentPolygon = async (id, polygonData, markerIcon = null) => {
+  const data = {
     polygon: polygonData || [],
-  });
+  };
+  
+  if (markerIcon) {
+    data.marker_icon = markerIcon;
+  }
+  
+  const res = await api.post(`establishments/${id}/set_polygon/`, data);
   return res.data;
 };
 

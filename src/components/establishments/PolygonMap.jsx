@@ -23,6 +23,9 @@ import {
 import { calculatePolygonArea, formatArea } from "../../utils/polygonMeasurements";
 import SnapIndicator from "./map-overlays/SnapIndicator";
 import MarkerSnapZone from "./map-overlays/MarkerSnapZone";
+import { getIconByNatureOfBusiness } from '../../constants/markerIcons';
+import { createCustomMarkerIcon } from '../map/CustomMarkerIcon';
+import IconSelector from '../establishments/IconSelector';
 
 // Fix Leaflet marker icons
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -63,6 +66,11 @@ export default function PolygonMap({
 
   // Area calculation state
   const [polygonArea, setPolygonArea] = useState(null);
+
+  // Icon selection state
+  const [selectedIconKey, setSelectedIconKey] = useState(
+    establishment?.marker_icon || establishment?.nature_of_business || 'DEFAULT'
+  );
 
   // Role check
   const canEditEstablishments = () => {
@@ -286,7 +294,7 @@ export default function PolygonMap({
   const notifyParent = (latlngs, isValid = true) => {
     const polygonData = latlngs.map(pt => [pt.lat, pt.lng]);
     if (onSave) {
-      onSave(polygonData, isValid);
+      onSave(polygonData, isValid, selectedIconKey);
     }
   };
 
@@ -489,6 +497,10 @@ export default function PolygonMap({
 
   const markerPosition = getMarkerPosition();
 
+  // Get custom icon for marker
+  const iconData = getIconByNatureOfBusiness(selectedIconKey);
+  const customIcon = createCustomMarkerIcon(iconData.icon, iconData.color, 36);
+
   return (
     <div className="w-full">
       <div className="relative h-[calc(100vh-238px)] w-full">
@@ -522,10 +534,19 @@ export default function PolygonMap({
 
           {/* Establishment marker */}
         {markerPosition && (
-          <Marker position={markerPosition}>
+          <Marker position={markerPosition} icon={customIcon}>
             <Popup>{establishment.name}</Popup>
           </Marker>
         )}
+
+          {/* Icon Selector */}
+          {editMode && canEditEstablishments() && (
+            <IconSelector
+              selectedIconKey={selectedIconKey}
+              onIconChange={setSelectedIconKey}
+              natureOfBusiness={establishment?.nature_of_business}
+            />
+          )}
 
           {/* Marker Snap Zone */}
           {markerPosition && snapEnabled && (
@@ -607,7 +628,7 @@ export default function PolygonMap({
 
         {/* Snap Indicator */}
         {snapIndicator.active && (
-          <div className="absolute top-20 left-4 z-[1000]">
+          <div className="absolute bottom-5 left-1/2 transform -translate-x-1/2 z-[1000]">
             <SnapIndicator 
               distance={snapIndicator.distance}
               type={snapIndicator.type}

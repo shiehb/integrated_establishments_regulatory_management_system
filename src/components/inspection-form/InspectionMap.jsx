@@ -23,6 +23,8 @@ import {
 import { calculatePolygonArea, formatArea } from "../../utils/polygonMeasurements";
 import SnapIndicator from "../establishments/map-overlays/SnapIndicator";
 import MarkerSnapZone from "../establishments/map-overlays/MarkerSnapZone";
+import { getIconByNatureOfBusiness } from '../../constants/markerIcons';
+import { createCustomMarkerIcon } from '../map/CustomMarkerIcon';
 
 // Fix Leaflet marker icons
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -492,6 +494,10 @@ export default function InspectionMap({
     center: getCenter()
   });
 
+  // Get custom icon for marker
+  const iconData = getIconByNatureOfBusiness(establishment?.marker_icon || establishment?.nature_of_business || 'DEFAULT');
+  const customIcon = createCustomMarkerIcon(iconData.icon, iconData.color, 36);
+
   return (
     <div className="w-full">
       <div className="relative h-[400px] w-full">
@@ -525,7 +531,7 @@ export default function InspectionMap({
 
           {/* Establishment marker */}
         {markerPosition && (
-          <Marker position={markerPosition}>
+          <Marker position={markerPosition} icon={customIcon}>
             <Popup>{establishment.name}</Popup>
           </Marker>
         )}

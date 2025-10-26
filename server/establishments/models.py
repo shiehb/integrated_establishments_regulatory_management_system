@@ -21,6 +21,9 @@ class Establishment(models.Model):
     # Store polygon as JSON in database
     polygon = models.JSONField(blank=True, null=True)
     
+    # Marker icon type (stores the key from ESTABLISHMENT_ICON_MAP)
+    marker_icon = models.CharField(max_length=100, blank=True, null=True)
+    
     # Status and timestamps
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
