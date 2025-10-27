@@ -58,31 +58,36 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         
         console.log("🏢 Has user data:", hasUserData);
         
-        // Only auto-fill if we don't have user-entered data (not a draft)
+        // Build address from establishment data
+        const street = establishment.street_building || "";
+        const barangay = establishment.barangay || "";
+        const city = establishment.city || "";
+        const province = establishment.province || "";
+        const postalCode = establishment.postal_code || "";
+
+        const fullAddress =
+          `${street}, ${barangay}, ${city}, ${province}, ${postalCode}`.toUpperCase();
+
+        // Build coordinates from establishment data
+        const coordsString =
+          establishment.latitude && establishment.longitude
+            ? `${establishment.latitude}, ${establishment.longitude}`
+            : "";
+
+        // Always auto-fill establishment fields regardless of user data
+        const establishmentData = {
+          establishment_name: formatInput.upper(establishment.name || ""),
+          address: formatInput.upper(fullAddress),
+          coordinates: formatInput.coords(coordsString),
+          nature_of_business: formatInput.upper(establishment.nature_of_business || ""),
+          year_established: establishment.year_established || "",
+        };
+        
         if (!hasUserData) {
-          // Build address from establishment data
-          const street = establishment.street_building || "";
-          const barangay = establishment.barangay || "";
-          const city = establishment.city || "";
-          const province = establishment.province || "";
-          const postalCode = establishment.postal_code || "";
-
-          const fullAddress =
-            `${street}, ${barangay}, ${city}, ${province}, ${postalCode}`.toUpperCase();
-
-          // Build coordinates from establishment data
-          const coordsString =
-            establishment.latitude && establishment.longitude
-              ? `${establishment.latitude}, ${establishment.longitude}`
-              : "";
-
+          // Auto-fill all fields including establishment data
           const newData = {
             ...currentData,
-            establishment_name: formatInput.upper(establishment.name || ""),
-            address: formatInput.upper(fullAddress),
-            coordinates: formatInput.coords(coordsString),
-            nature_of_business: formatInput.upper(establishment.nature_of_business || ""),
-            year_established: establishment.year_established || "",
+            ...establishmentData,
             operating_hours: establishment.operating_hours || "",
             operating_days_per_week: establishment.operating_days_per_week || "",
             operating_days_per_year: establishment.operating_days_per_year || "",
@@ -98,14 +103,19 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           
           return newData;
         } else {
-          console.log("🏢 Skipping auto-fill - user data already exists");
+          // Only update establishment fields, preserve user data for other fields
+          const newData = {
+            ...currentData,
+            ...establishmentData, // Always update establishment fields
+          };
+          
           // Still set the law filter if not already set
           if (!currentData.environmental_laws || currentData.environmental_laws.length === 0) {
             setTimeout(() => {
               if (onLawFilterChange) onLawFilterChange([inspectionData.law]);
             }, 0);
           }
-          return currentData;
+          return newData;
         }
       });
       
@@ -395,7 +405,9 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           {data.inspection_date_time && data.inspection_date_time.trim() !== "" && dateTimeValidation.message && (
             <p className={`text-xs mt-1 ${
               dateTimeValidation.isValid
-                ? "text-green-600"
+                ? dateTimeValidation.warning
+                  ? "text-yellow-600"
+                  : "text-green-600"
                 : "text-red-600"
             }`}>
               {dateTimeValidation.message}

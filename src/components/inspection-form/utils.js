@@ -339,8 +339,11 @@ export const validateInspectionDateTime = (dateTimeValue, inspectionCreatedAt = 
         creationDateTime.getMinutes()
       );
       
-      if (inspectionDateTimeRounded < creationDateTimeRounded) {
-        return { isValid: false, message: "Inspection date cannot be before the creation date" };
+      // Allow inspection date to be before creation date
+      // Only warn if it's significantly before (more than 30 days)
+      const daysDifference = (creationDateTimeRounded - inspectionDateTimeRounded) / (1000 * 60 * 60 * 24);
+      if (daysDifference > 30) {
+        return { isValid: true, message: "Note: Inspection date is more than 30 days before creation date", warning: true };
       }
     }
   }

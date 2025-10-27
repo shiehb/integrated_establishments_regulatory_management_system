@@ -200,6 +200,32 @@ export default function InspectionForm({ inspectionData }) {
     // Check if we're in preview mode
     const isPreviewMode = urlParams.get('mode') === 'preview';
     
+    // If status is null or user is not loaded yet, show default buttons for Section Chief
+    if (!status || !userLevel) {
+      console.warn(`⚠️ Status or user not loaded yet: status=${status}, userLevel=${userLevel}`);
+      // Return default permissions for Section Chief while data loads
+      if (userLevel === 'Section Chief') {
+        return {
+          showCloseButton: true,
+          showBackButton: false,
+          showDraftButton: true,
+          showSubmitButton: true,
+          isReadOnly: false,
+          canEditRecommendation: false,
+          isDivisionChief: false
+        };
+      }
+      return {
+        showCloseButton: false,
+        showBackButton: false,
+        showDraftButton: false,
+        showSubmitButton: false,
+        isReadOnly: true,
+        canEditRecommendation: false,
+        isDivisionChief: false
+      };
+    }
+    
     // Check if user can access this inspection
     const canAccess = canUserAccessInspection(userLevel, status);
     if (!canAccess) {
@@ -221,14 +247,14 @@ export default function InspectionForm({ inspectionData }) {
     // Additional role-specific logic
     const isDivisionChief = userLevel === 'Division Chief';
     
-    console.log('🔍 Unified button visibility debug:', {
-      userLevel,
-      status,
-      isPreviewMode,
-      returnTo,
-      canAccess,
-      roleStatusConfig
-    });
+    // console.log('🔍 Unified button visibility debug:', {
+    //   userLevel,
+    //   status,
+    //   isPreviewMode,
+    //   returnTo,
+    //   canAccess,
+    //   roleStatusConfig
+    // });
 
     const buttonVisibility = {
       // Use unified role-status matrix configuration
@@ -245,12 +271,18 @@ export default function InspectionForm({ inspectionData }) {
       isDivisionChief: isDivisionChief
     };
 
-    console.log('🎯 Final unified button visibility result:', buttonVisibility);
+    // console.log('🎯 Final unified button visibility result:', buttonVisibility);
     
     return buttonVisibility;
   };
 
-  const buttonVisibility = getButtonVisibility();
+  const buttonVisibility = useMemo(() => getButtonVisibility(), [
+    currentUser?.userlevel,
+    inspectionStatus,
+    urlParams.get('mode'),
+    returnTo,
+    reviewMode
+  ]);
 
 
   // Local storage autosave (30-second interval)
@@ -390,7 +422,7 @@ export default function InspectionForm({ inspectionData }) {
         setFullInspectionData(inspectionData);
         
         // Store inspection status for completion logic
-        setInspectionStatus(inspectionData.current_status);
+        setInspectionStatus(inspectionData.current_status || inspectionData.status);
         
         // Check if we have localStorage data and determine loading priority
         const hasLocalStorageData = savedData && Object.keys(savedData).length > 0;
@@ -1687,10 +1719,47 @@ export default function InspectionForm({ inspectionData }) {
                 setSystems(newSystems);
                 setHasFormChanges(true);
               }}
-              onComplianceChange={() => {
-                // This callback triggers when compliance changes
-                // Used to update recommendations visibility
-                console.log('🔄 Compliance changed, checking recommendations visibility');
+              onComplianceChange={(updatedComplianceItems) => {
+                // Auto-sync compliance status to findings systems
+                const updatedSystems = systems.map(system => {
+                  // Find corresponding compliance items for this system
+                  const relatedComplianceItems = updatedComplianceItems.filter(item => {
+                    // Match by law ID or system name
+                    return item.lawId === system.lawId || 
+                           system.system.includes(item.lawId) ||
+                           item.lawId?.includes(system.system);
+                  });
+                  
+                  if (relatedComplianceItems.length > 0) {
+                    // PRIORITY: Check for non-compliant first (No takes priority over Yes)
+                    const hasNonCompliant = relatedComplianceItems.some(item => item.compliant === "No");
+                    const hasCompliant = relatedComplianceItems.some(item => item.compliant === "Yes");
+                    
+                    // If ANY item is non-compliant, mark system as non-compliant
+                    if (hasNonCompliant) {
+                      return {
+                        ...system,
+                        compliant: "No",
+                        nonCompliant: true
+                      };
+                    } 
+                    // Only mark as compliant if ALL items are compliant (no non-compliant items)
+                    else if (hasCompliant && !hasNonCompliant) {
+                      return {
+                        ...system,
+                        compliant: "Yes",
+                        nonCompliant: false
+                      };
+                    }
+                  }
+                  
+                  return system;
+                });
+                
+                setSystems(updatedSystems);
+                setHasFormChanges(true);
+                
+                console.log('🔄 Compliance changed, synced to findings systems');
               }}
             />
             <SummaryOfFindingsAndObservations
@@ -1798,6 +1867,7 @@ export default function InspectionForm({ inspectionData }) {
                 }
               }}
               onDeletePhoto={deletePhotoFromBackend}
+              complianceItems={complianceItems}
             />
           </>
         )}

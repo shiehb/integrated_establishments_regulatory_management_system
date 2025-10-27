@@ -1,4 +1,4 @@
-import React, { useMemo, forwardRef, useState } from "react";
+import React, { useMemo, forwardRef, useState, useEffect } from "react";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import { formatInput } from "./utils";
 import SectionHeader from "./SectionHeader";
@@ -23,12 +23,13 @@ const SummaryOfFindingsAndObservations = forwardRef(function SummaryOfFindingsAn
   setGeneralFindings,
   onUploadFinding,
   onDeletePhoto,
+  complianceItems = [], // Add this prop
 }, ref) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState([]);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [expandedFindings, setExpandedFindings] = useState({});
-  const [isPhotoDocExpanded, setIsPhotoDocExpanded] = useState(false);
+  // Removed isPhotoDocExpanded state - photo documentation is now always visible
   const filteredSystems = useMemo(() => {
     if (!lawFilter || lawFilter.length === 0) return systems;
     return systems.filter(
@@ -38,26 +39,71 @@ const SummaryOfFindingsAndObservations = forwardRef(function SummaryOfFindingsAn
     );
   }, [systems, lawFilter]);
 
+  // Add useEffect to sync with compliance items
+  useEffect(() => {
+    if (!complianceItems || complianceItems.length === 0) return;
+    
+    const updatedSystems = systems.map(system => {
+      // Find related compliance items
+      const relatedItems = complianceItems.filter(item => {
+        return item.lawId === system.lawId || 
+               system.system.includes(item.lawId) ||
+               item.lawId?.includes(system.system);
+      });
+      
+      if (relatedItems.length > 0) {
+        const hasNonCompliant = relatedItems.some(item => item.compliant === "No");
+        const hasCompliant = relatedItems.some(item => item.compliant === "Yes");
+        
+        // PRIORITY: Non-compliant takes precedence over compliant
+        if (hasNonCompliant && system.compliant !== "No") {
+          return {
+            ...system,
+            compliant: "No",
+            nonCompliant: true
+          };
+        } else if (hasCompliant && !hasNonCompliant && system.compliant !== "Yes") {
+          return {
+            ...system,
+            compliant: "Yes",
+            nonCompliant: false
+          };
+        }
+      }
+      
+      return system;
+    });
+    
+    // Only update if there are actual changes to prevent loops
+    const hasChanges = updatedSystems.some((sys, index) => 
+      sys.compliant !== systems[index]?.compliant ||
+      sys.nonCompliant !== systems[index]?.nonCompliant
+    );
+    
+    if (hasChanges) {
+      setSystems(updatedSystems);
+    }
+  }, [complianceItems]); // Remove systems and setSystems to prevent infinite loops
+
   const updateSystem = (index, field, value, formatter = (v) => v) => {
     const clone = [...systems];
     const system = clone[index];
 
     if (field === "compliant") {
       if (value === "Yes") {
-        // ✅ Auto-set when compliant
+        // ✅ Clear remarks when user selects Compliant - let them input their own
         clone[index] = {
           ...system,
           compliant: "Yes",
           nonCompliant: false,
-          remarks: "Compliant"
+          remarks: ""
         };
       } else if (value === "No") {
-        // ✅ Reset when non-compliant
+        // ✅ Keep existing remarks when non-compliant
         clone[index] = {
           ...system,
           compliant: "No",
-          nonCompliant: true,
-          remarks: ""
+          nonCompliant: true
         };
       }
     } else {
@@ -220,60 +266,37 @@ const SummaryOfFindingsAndObservations = forwardRef(function SummaryOfFindingsAn
         })}
       </div>
 
-      {/* Photo Documentation Section */}
+      {/* Photo Documentation Section - Always Visible */}
       {setGeneralFindings && (
         <div className="mt-6 pt-6 border-t-2 border-gray-300">
-          <button
-            onClick={() => setIsPhotoDocExpanded(!isPhotoDocExpanded)}
-            className="flex items-center justify-between w-full p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
-            disabled={isReadOnly}
-          >
-            <div className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-gray-700" />
-              <h3 className="text-base font-semibold text-gray-800">Photo Documentation</h3>
-              {generalFindings.length > 0 && (
-                <span className="px-2 py-0.5 bg-sky-100 text-sky-800 text-xs rounded-full">
-                  {generalFindings.length} file{generalFindings.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {!isReadOnly && (
-                <span className="text-xs text-gray-500">
-                  {isPhotoDocExpanded ? 'Click to collapse' : 'Click to expand'}
-                </span>
-              )}
-              <svg
-                className={`w-4 h-4 text-gray-500 transition-transform ${isPhotoDocExpanded ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
-          </button>
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="w-5 h-5 text-gray-700" />
+            <h3 className="text-base font-semibold text-gray-800">Photo Documentation</h3>
+            {generalFindings.length > 0 && (
+              <span className="px-2 py-0.5 bg-sky-100 text-sky-800 text-xs rounded-full">
+                {generalFindings.length} file{generalFindings.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
           
-          {isPhotoDocExpanded && (
-            <div className="mt-3">
-              <p className="text-sm text-gray-600 mb-3">
-                Upload general inspection photos or documents not specific to individual findings.
-              </p>
-              <AdvancedImageUpload
-                images={generalFindings}
-                setImages={setGeneralFindings}
-                onUpload={onUploadFinding ? (imgs) => onUploadFinding('general', imgs) : null}
-                onDelete={onDeletePhoto}
-                maxFileSize={5 * 1024 * 1024}
-                allowedFormats={['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf']}
-                maxFiles={20}
-                showCaptions={true}
-                isReadOnly={isReadOnly}
-                label="Upload Photo Documentation"
-                systemId="general"
-              />
-            </div>
-          )}
+          <div className="mt-3">
+            <p className="text-sm text-gray-600 mb-3">
+              Upload general inspection photos or documents not specific to individual findings.
+            </p>
+            <AdvancedImageUpload
+              images={generalFindings}
+              setImages={setGeneralFindings}
+              onUpload={onUploadFinding ? (imgs) => onUploadFinding('general', imgs) : null}
+              onDelete={onDeletePhoto}
+              maxFileSize={5 * 1024 * 1024}
+              allowedFormats={['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf']}
+              maxFiles={20}
+              showCaptions={true}
+              isReadOnly={isReadOnly}
+              label="Upload Photo Documentation"
+              systemId="general"
+            />
+          </div>
         </div>
       )}
 

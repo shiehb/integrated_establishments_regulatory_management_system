@@ -45,10 +45,12 @@ export default function ConfirmationDialog({
     amber: "bg-amber-50 border-b border-amber-200",
   };
 
-  // Check if message is a React element or string
+  // Check if message is a React element, string, or function
   const renderMessage = () => {
     if (typeof message === "string") {
       return <p className="mb-4 text-gray-600">{message}</p>;
+    } else if (typeof message === "function") {
+      return <div className="mb-4 text-gray-600">{message()}</div>;
     } else {
       return <div className="mb-4 text-gray-600">{message}</div>;
     }

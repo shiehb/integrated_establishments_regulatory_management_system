@@ -100,7 +100,7 @@ export default function UnifiedInspectionHeader({
               {autoSaveStatus === 'saved' && (
                 <>
                   <span>✅</span>
-                  <span>Saved</span>
+                  <span>{isDraft ? 'Draft Saved' : 'Saved'}</span>
                 </>
               )}
               {autoSaveStatus === 'error' && (
@@ -114,8 +114,8 @@ export default function UnifiedInspectionHeader({
             {/* Last Save Time */}
             <div className="text-sm text-gray-600">
               {lastSaveTime
-                ? `Last saved: ${new Date(lastSaveTime).toLocaleString()}`
-                : "Not saved yet"}
+                ? `${isDraft ? 'Draft last saved' : 'Last saved'}: ${new Date(lastSaveTime).toLocaleString()}`
+                : isDraft ? "Draft not saved yet" : "Not saved yet"}
             </div>
           </div>
           

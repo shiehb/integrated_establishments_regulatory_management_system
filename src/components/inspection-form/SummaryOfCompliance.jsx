@@ -42,6 +42,28 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
     if (changed) setItems(clone);
   }, [lawFilter, items, setItems]);
 
+  // Ensure textareas start with single-line height
+  useEffect(() => {
+    const textareas = document.querySelectorAll('textarea[min-h-40px]');
+    textareas.forEach(textarea => {
+      if (!textarea.value.trim()) {
+        textarea.style.height = '40px';
+      }
+    });
+  }, [items]);
+
+  // Ensure all items have default "N/A" compliant value
+  useEffect(() => {
+    const needsUpdate = items.some(item => !item.compliant || item.compliant === "");
+    if (needsUpdate) {
+      const updatedItems = items.map(item => ({
+        ...item,
+        compliant: item.compliant || "N/A"
+      }));
+      setItems(updatedItems);
+    }
+  }, [items, setItems]);
+
 
   const updateItem = (
     index,
@@ -102,34 +124,32 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
     const rowsToValidate = pd1586Items.filter(item => 
       item.conditionNumber?.trim() || 
       item.complianceRequirement?.trim() || 
-      item.compliant ||
+      item.compliant !== "N/A" ||
       item.remarks?.trim() ||
       item.remarksOption?.trim()
     );
     
     const invalidRows = rowsToValidate.filter(item => {
-      // Check basic required fields
-      if (!item.conditionNumber?.trim() || 
-          !item.complianceRequirement?.trim()) {
+      // Check basic required fields only if user has started filling them
+      if (item.conditionNumber?.trim() && !item.complianceRequirement?.trim()) {
+        return true;
+      }
+      if (item.complianceRequirement?.trim() && !item.conditionNumber?.trim()) {
         return true;
       }
       
-      // For compliant field, N/A is now the default (empty state)
-      // So we don't need to check if compliant is set
-      
       // For remarks validation:
-      // If compliant is "Yes", remarks should be "Compliant" (handled automatically)
+      // If compliant is "Yes", remarks should be filled
       // If compliant is "No", need both remarksOption and remarks text
       if (item.compliant === "Yes") {
-        // For "Yes", we just need to ensure remarksOption is set to "Compliant"
-        return item.remarksOption !== "Compliant";
+        // For "Yes", just need some remarks text
+        return !item.remarks?.trim();
       } else if (item.compliant === "No") {
         // For "No", need both dropdown selection and text input
         return !item.remarksOption?.trim() || !item.remarks?.trim();
       }
       
-      // For "N/A" or other values, just check if there's some remark
-      return !item.remarks?.trim() && !item.remarksOption?.trim();
+      return false;
     });
     
     return {
@@ -215,7 +235,7 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                     </th>
                     <th className="py-2 px-3 border border-gray-300 w-15 text-sm font-semibold text-gray-700">Compliant</th>
                     <th className="py-2 px-3 border border-gray-300 w-50 text-sm font-semibold text-gray-700">Remarks</th>
-                    {lawId === "PD-1586" && !isReadOnly && (
+                    {lawId === "PD-1586" && !isReadOnly && lawItems.length >= 2 && (
                       <th className="py-2 px-3 border border-gray-300 w-20 text-sm font-semibold text-gray-700">Actions</th>
                     )}
                   </tr>
@@ -297,9 +317,17 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                                   e.target.value,
                                   formatInput.upper
                                 );
+                                // Auto-resize textarea
+                                e.target.style.height = 'auto';
+                                e.target.style.height = Math.max(40, e.target.scrollHeight) + 'px';
+                              }}
+                              ref={(el) => {
+                                if (el && !el.value.trim()) {
+                                  el.style.height = '40px';
+                                }
                               }}
                               placeholder="Enter compliance requirement"
-                              className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md min-h-[60px] uppercase focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                              className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md min-h-[40px] uppercase focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-none overflow-hidden"
                               disabled={isReadOnly}
                             />
                           ) : (
@@ -309,7 +337,7 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
 
                         {/* Compliant checkboxes */}
                         <td className="py-1.5 px-3 border border-gray-300">
-                          <div className="space-y-1">
+                          <div className="flex items-center gap-3">
                             <label className="flex items-center text-sm text-gray-900">
                               <input
                                 type="checkbox"
@@ -348,9 +376,25 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                               />
                               No
                             </label>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {item.compliant === "N/A" && "Default: N/A"}
-                            </div>
+                            <label className="flex items-center text-sm text-gray-900">
+                              <input
+                                type="checkbox"
+                                checked={item.compliant === "N/A"}
+                                onChange={() => {
+                                  const itemIndex = items.findIndex(i => i.conditionId === item.conditionId);
+                                  const newValue = item.compliant === "N/A" ? "N/A" : "N/A";
+                                  updateItem(
+                                    itemIndex,
+                                    "compliant",
+                                    newValue,
+                                    (v) => v
+                                  );
+                                }}
+                                className="mr-2 text-sky-600 focus:ring-sky-500"
+                                disabled={isReadOnly}
+                              />
+                              N/A
+                            </label>
                           </div>
                           {errors[`compliant-${items.findIndex(i => i.conditionId === item.conditionId)}`] && (
                             <p className="text-sm text-red-600">
@@ -373,9 +417,17 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                                   e.target.value,
                                   (v) => v
                                 );
+                                // Auto-resize textarea
+                                e.target.style.height = 'auto';
+                                e.target.style.height = Math.max(40, e.target.scrollHeight) + 'px';
                               }}
-                              placeholder="Enter remarks for compliant item..."
-                              className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[80px]"
+                              ref={(el) => {
+                                if (el && !el.value.trim()) {
+                                  el.style.height = '40px';
+                                }
+                              }}
+                              placeholder="Enter remarks"
+                              className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[40px] resize-none overflow-hidden"
                               disabled={isReadOnly}
                             />
                           ) : (
@@ -418,9 +470,17 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                                       e.target.value,
                                       formatInput.upper
                                     );
+                                    // Auto-resize textarea
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = Math.max(40, e.target.scrollHeight) + 'px';
+                                  }}
+                                  ref={(el) => {
+                                    if (el && !el.value.trim()) {
+                                      el.style.height = '40px';
+                                    }
                                   }}
                                   placeholder={`ENTER DETAILS FOR: ${item.remarksOption.toUpperCase()}...`}
-                                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-gray-900 min-h-[60px] uppercase mt-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-gray-900 min-h-[40px] uppercase mt-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-none overflow-hidden"
                                   disabled={isReadOnly}
                                 />
                               )}
@@ -435,16 +495,16 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                         </td>
 
                         {/* Actions column - Delete button for PD-1586 */}
-                        {lawId === "PD-1586" && !isReadOnly && (
+                        {lawId === "PD-1586" && !isReadOnly && lawItems.length >= 2 && (
                           <td className="py-1.5 px-2 border border-gray-300 text-center align-middle">
                             {item.conditionId !== "PD-1586-1" && (
                               <button
                                 type="button"
                                 onClick={() => handleDeletePD1586Row(item.conditionId)}
-                                className="text-red-600 hover:text-red-800 font-bold text-lg"
-                                title="Delete row"
+                                className="px-3 py-1.5 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium transition-colors flex items-center gap-1"
+                                title="Remove this compliance requirement"
                               >
-                                ✕
+                                <span>×</span> Remove
                               </button>
                             )}
                           </td>
@@ -463,8 +523,9 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                   type="button"
                   onClick={handleAddPD1586Row}
                   className="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                  title="Add new compliance requirement row"
                 >
-                  + Add Row
+                  + Add New Compliance Requirements
                 </button>
                 {!validatePD1586Rows().isValid && (
                   <span className="text-sm text-red-600 font-medium">
