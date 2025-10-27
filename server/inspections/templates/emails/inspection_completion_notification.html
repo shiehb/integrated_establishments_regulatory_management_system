@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Inspection Completed - IERMS</title>
+  <style>
+    body { font-family: 'Arial', 'Helvetica', sans-serif; line-height: 1.5; color: #1f2937; margin: 0; padding: 20px; background-color: #f3f4f6; }
+    .container { max-width: 650px; margin: 0 auto; background-color: #ffffff; border: 1px solid #d1d5db; }
+    
+    /* Content */
+    .content { padding: 30px; }
+    
+    /* Assignment details table */
+    .assignment-table { width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #d1d5db; }
+    .assignment-table th { background-color: #f3f4f6; padding: 10px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; color: #374151; border-bottom: 2px solid #d1d5db; }
+    .assignment-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #e5e7eb; }
+    .assignment-table td:first-child { font-weight: 600; color: #374151; width: 180px; }
+    .assignment-table td:last-child { font-family: 'Arial', sans-serif; background-color: #f9fafb; color: #0c4a6e; font-weight: 600; }
+    
+    /* Alert boxes */
+    .alert-info { background-color: #f0f9ff; border: 2px solid #0284c7; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    .alert-warning { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; padding: 18px; margin: 20px 0; border-radius: 8px; }
+    .alert-success { background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 2px solid #16a34a; padding: 15px; margin: 20px 0; border-radius: 8px; }
+    .alert-danger { background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%); border: 2px solid #dc2626; padding: 18px; margin: 20px 0; border-radius: 8px; }
+    
+    /* CTA Button */
+    .cta-button { display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 700; font-size: 14px; margin: 20px 0; box-shadow: 0 4px 6px rgba(220, 38, 38, 0.3); }
+    
+    /* Support info box */
+    .support-box { background-color: #f9fafb; border: 1px dashed #d1d5db; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .support-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #374151; font-weight: 700; }
+    .support-box p { margin: 5px 0; font-size: 12px; color: #6b7280; }
+    
+    /* Establishment list */
+    .establishment-list { background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .establishment-list h4 { margin: 0 0 10px 0; font-size: 13px; color: #991b1b; font-weight: 700; }
+    .establishment-list p { margin: 5px 0; font-size: 12px; color: #991b1b; line-height: 1.6; }
+    
+    /* Completed by box */
+    .completed-box { background: linear-gradient(135deg, #fef2f2 0%, #fecaca 100%); border: 2px solid #dc2626; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center; }
+    .completed-box h3 { margin: 0 0 10px 0; font-size: 14px; color: #991b1b; font-weight: 700; }
+    .completed-box p { margin: 5px 0; font-size: 13px; color: #991b1b; }
+    .completed-box .name { font-size: 16px; font-weight: 700; color: #7f1d1d; margin: 10px 0; }
+    
+    /* Violations box */
+    .violations-box { background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 6px; }
+    .violations-box h4 { margin: 0 0 10px 0; font-size: 13px; color: #92400e; font-weight: 700; }
+    .violations-box p { margin: 0; font-size: 12px; color: #92400e; line-height: 1.6; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Urgent Banner -->
+    <div class="urgent-banner" style="background-color: #ff4444; color: white; padding: 15px; text-align: center; font-weight: bold; font-size: 16px; margin: 0;">
+      🚨 URGENT: NON-COMPLIANT INSPECTION REQUIRES IMMEDIATE ATTENTION 🚨
+    </div>
+
+    <!-- Header -->
+    <div class="header">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding: 20px; background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td width="80">
+                  {% if logo_url %}
+                  <img src="{{ logo_url }}" alt="IERMS Logo" style="height:60px; width:auto;" />
+                  {% endif %}
+                </td>
+                <td style="padding-left: 15px; color: white;">
+                  <h1 style="margin:0; font-size:20px; font-weight:700; color:white;">INSPECTION COMPLETED</h1>
+                  <p style="margin:3px 0 0 0; font-size:11px; opacity:0.9; color:#fecaca;">Non-Compliant Inspection Notification</p>
+                  <p style="margin:2px 0 0 0; font-size:10px; opacity:0.8; color:#fca5a5;">Document No: IERMS-COMPLETION-{% now "YmdHis" %}</p>
+                </td>
+                <td width="100" style="text-align: right; color: white; font-size: 10px;">
+                  <div style="border: 1px solid rgba(255,255,255,0.3); padding: 8px; border-radius: 6px;">
+                    <div style="font-weight: 600; color: #fca5a5;">URGENT</div>
+                    <div style="margin-top: 2px; color: #fecaca;">REVIEW REQUIRED</div>
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="content">
+      <!-- Reference & Timestamp -->
+      <div style="text-align: right; font-size: 11px; color: #6b7280; margin-bottom: 15px; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px;">
+        <strong>Completion ID:</strong> COMP-{{ inspection.id|default:'NEW' }}-{% now "YmdHis" %}<br/>
+        <strong>Generated:</strong> {% now "F j, Y, g:i A" %}
+      </div>
+
+      <!-- Salutation -->
+      <p style="font-size: 14px; margin-bottom: 20px;">
+        <strong>Dear {% if next_assignee.first_name %}{{ next_assignee.first_name }} {{ next_assignee.last_name }}{% else %}{{ next_assignee.email }}{% endif %},</strong>
+      </p>
+
+      <!-- Completion Notice -->
+      <div class="alert-danger">
+        <p style="margin: 0; font-size: 13px; color: #991b1b;">
+          A <strong>NON-COMPLIANT</strong> inspection has been completed and requires your immediate review in the 
+          <strong>Integrated Establishments Regulatory Management System (IERMS)</strong>. 
+          This inspection involves compliance violations that need urgent attention.
+        </p>
+      </div>
+
+      <!-- Completed By Information -->
+      <div class="completed-box">
+        <h3>👤 COMPLETED BY</h3>
+        {% if completed_by %}
+        <div class="name">{{ completed_by.first_name }} {{ completed_by.last_name }}</div>
+        <p>{{ completed_by.userlevel }}</p>
+        <p style="font-size: 11px; margin-top: 5px;">{{ completed_by.email }}</p>
+        {% if completed_by.section %}
+        <p style="font-size: 11px;">Section: {{ completed_by.section }}</p>
+        {% endif %}
+        {% else %}
+        <div class="name">System Administrator</div>
+        {% endif %}
+      </div>
+
+      <!-- Violations Found -->
+      {% if violations_found %}
+      <div class="violations-box">
+        <h4>⚠️ VIOLATIONS FOUND</h4>
+        <p>{{ violations_found }}</p>
+      </div>
+      {% endif %}
+
+      <!-- Inspection Details -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #dc2626; margin: 25px 0 12px 0; border-bottom: 2px solid #dc2626; padding-bottom: 6px;">
+        INSPECTION DETAILS
+      </h3>
+      <table class="assignment-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Inspection Code</td>
+            <td>{{ inspection.code }}</td>
+          </tr>
+          <tr>
+            <td>Law/Regulation</td>
+            <td>{{ law }}</td>
+          </tr>
+          <tr>
+            <td>Compliance Status</td>
+            <td style="color: #dc2626; font-weight: bold;">NON-COMPLIANT</td>
+          </tr>
+          <tr>
+            <td>Action Required</td>
+            <td>{{ action_required }}</td>
+          </tr>
+          {% if inspection.district %}
+          <tr>
+            <td>District</td>
+            <td>{{ inspection.district }}</td>
+          </tr>
+          {% endif %}
+          {% if inspection.scheduled_date %}
+          <tr>
+            <td>Scheduled Date</td>
+            <td>{{ inspection.scheduled_date|date:"F j, Y" }}</td>
+          </tr>
+          {% endif %}
+          <tr>
+            <td>Priority</td>
+            <td style="color: #dc2626; font-weight: bold;">HIGH (Non-Compliant)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Establishment Information -->
+      <div class="establishment-list">
+        <h4>🏢 ESTABLISHMENT(S) INSPECTED</h4>
+        <p>{{ establishment_list }}</p>
+      </div>
+
+      <!-- Action Required -->
+      <div class="alert-warning">
+        <p style="margin: 0 0 10px 0; font-size: 13px; color: #92400e; font-weight: 700;">
+          ⚠️ IMMEDIATE ACTION REQUIRED
+        </p>
+        <p style="margin: 0; font-size: 12px; color: #92400e; line-height: 1.6;">
+          This inspection has been completed with non-compliance findings. Please review the inspection details, 
+          check all violations found, and proceed with the necessary actions according to DENR guidelines.
+        </p>
+      </div>
+
+      <!-- Next Steps -->
+      <div class="alert-success">
+        <p style="margin: 0 0 10px 0; font-size: 13px; color: #166534; font-weight: 700;">
+          ✅ NEXT STEPS
+        </p>
+        <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 12px; color: #166534; line-height: 1.6;">
+          <li>Review the completed inspection and all findings</li>
+          <li>Examine violations found and compliance issues</li>
+          <li>Determine appropriate enforcement actions</li>
+          <li>Complete your review and forward as needed</li>
+          <li>Document all actions taken for compliance tracking</li>
+        </ol>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="{{ site_url }}/inspections/{{ inspection.id }}/review" class="cta-button">REVIEW INSPECTION NOW</a>
+        <p style="font-size: 11px; color: #6b7280; margin-top: 10px;">
+          Or copy and paste this URL: <span style="color: #dc2626; word-break: break-all;">{{ site_url }}/inspections/{{ inspection.id }}/review</span>
+        </p>
+      </div>
+
+      <!-- Important Reminders -->
+      <h3 style="font-size: 14px; font-weight: 700; color: #dc2626; margin: 25px 0 12px 0; border-bottom: 2px solid #dc2626; padding-bottom: 6px;">
+        IMPORTANT REMINDERS
+      </h3>
+      <ul style="font-size: 12px; color: #374151; line-height: 1.8; padding-left: 20px;">
+        <li>This inspection involves non-compliance violations requiring immediate attention</li>
+        <li>Review all findings and violations before taking action</li>
+        <li>Coordinate with legal unit if enforcement actions are needed</li>
+        <li>Document all review actions and decisions thoroughly</li>
+        <li>Follow all DENR protocols for non-compliant establishments</li>
+      </ul>
+
+      <!-- Support Information -->
+      <div class="support-box">
+        <h4>📞 TECHNICAL SUPPORT & ASSISTANCE</h4>
+        <p><strong>IT Help Desk:</strong> support@ierms.denr.gov.ph | Tel: (02) 8888-4376</p>
+        <p><strong>Office Hours:</strong> Monday - Friday, 8:00 AM - 5:00 PM (Philippine Time)</p>
+        <p><strong>Emergency Support:</strong> For urgent issues, contact your immediate supervisor</p>
+      </div>
+
+      <!-- Legal Disclaimer -->
+      <div style="font-size: 10px; color: #9ca3af; margin-top: 25px; padding-top: 15px; border-top: 1px solid #e5e7eb; text-align: justify;">
+        <p style="margin: 0;">
+          This inspection completion notification is generated by the IERMS system in accordance with DENR inspection protocols. 
+          All inspection activities must comply with DENR regulations and the Data Privacy Act of 2012 (R.A. 10173).
+        </p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding: 20px; background-color: #f9fafb; border-top: 2px solid #e5e7eb;">
+            <!-- Contact Information -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 15px;">
+              <tr>
+                <td style="text-align: center; font-size: 11px; color: #374151;">
+                  <strong style="display: block; margin-bottom: 8px; font-size: 12px; color: #1f2937;">INTEGRATED ESTABLISHMENTS REGULATORY MANAGEMENT SYSTEM</strong>
+                  <div style="margin-bottom: 4px;">📧 Email: support@ierms.gov.ph | ☎️ Hotline: (02) 8888-IERMS (4376)</div>
+                  <div style="margin-bottom: 4px;">🏢 Address: DENR Region 1, San Fernando City, La Union, Philippines</div>
+                  <div>🌐 Website: www.ierms.denr.gov.ph</div>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Legal Disclaimer -->
+            <div style="background-color: #fef3c7; border: 1px solid #f59e0b; padding: 12px; border-radius: 6px; margin-bottom: 15px;">
+              <p style="margin: 0; font-size: 10px; color: #92400e; text-align: center;">
+                <strong>CONFIDENTIALITY NOTICE:</strong> This email and any attachments are confidential and intended solely for the addressee. 
+                If you are not the intended recipient, please delete this email and notify the sender immediately. 
+                Unauthorized use, disclosure, or distribution is strictly prohibited.
+              </p>
+            </div>
+
+            <!-- Copyright and Links -->
+            <div style="text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px;">
+              <p style="margin: 0 0 8px 0;">
+                <a href="#" style="color: #dc2626; text-decoration: none;">Help Center</a> | 
+                <a href="#" style="color: #dc2626; text-decoration: none;">Privacy Policy</a> | 
+                <a href="#" style="color: #dc2626; text-decoration: none;">Terms of Use</a>
+              </p>
+              <p style="margin: 0; color: #9ca3af;">© 2025 DENR Region 1 - IERMS. All rights reserved.</p>
+              <p style="margin: 4px 0 0 0; font-size: 9px; color: #d1d5db;">
+                This is an automated system-generated email. Please do not reply directly to this message.
+              </p>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

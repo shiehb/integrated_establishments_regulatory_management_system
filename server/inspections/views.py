@@ -1233,6 +1233,36 @@ class InspectionViewSet(viewsets.ModelViewSet):
             remarks=data.get('remarks', 'Completed inspection')
         )
         
+        # Send notifications based on completion status
+        try:
+            # Determine if this is a non-compliant path
+            is_non_compliant = 'NON_COMPLIANT' in next_status
+            
+            # Get next assignee based on completion status
+            next_assignee = None
+            if next_status in ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']:
+                next_assignee = inspection.get_next_assignee('UNIT_REVIEWED')
+            elif next_status in ['UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT']:
+                next_assignee = inspection.get_next_assignee('SECTION_REVIEWED')
+            elif next_status in ['SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT']:
+                next_assignee = inspection.get_next_assignee('DIVISION_REVIEWED')
+            
+            if next_assignee:
+                # For non-compliant: send email + system notification
+                if is_non_compliant:
+                    from .utils import send_inspection_completion_notification
+                    send_inspection_completion_notification(inspection, user, next_assignee, next_status)
+                
+                # For all: create system notification
+                from .utils import create_completion_notification
+                create_completion_notification(next_assignee, inspection, user, next_status, data.get('remarks'))
+                
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send completion notifications for {inspection.code}: {str(e)}")
+            # Don't fail the completion if notifications fail
+        
         # Auto-assign completed inspections to appropriate reviewers
         if next_status in ['SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT']:
             self._auto_assign_to_division_chief(inspection, user)
@@ -1793,6 +1823,26 @@ class InspectionViewSet(viewsets.ModelViewSet):
             remarks=request.data.get('remarks', 'Unit Head reviewed and forwarded to Section Chief')
         )
         
+        # Send notifications to Section Chief
+        try:
+            # Check if inspection is on non-compliant path
+            is_non_compliant = 'NON_COMPLIANT' in prev_status
+            
+            # For non-compliant: send email + system notification
+            if is_non_compliant:
+                from .utils import send_inspection_review_notification
+                send_inspection_review_notification(inspection, user, next_assignee, 'UNIT_REVIEWED', False)
+            
+            # For all: create system notification
+            from .utils import create_review_notification
+            create_review_notification(next_assignee, inspection, user, 'UNIT_REVIEWED', 
+                                     request.data.get('remarks', 'Unit Head reviewed'))
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send review notifications for {inspection.code}: {str(e)}")
+            # Don't fail the review if notifications fail
+        
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
     
@@ -1889,6 +1939,26 @@ class InspectionViewSet(viewsets.ModelViewSet):
             changed_by=user,
             remarks=request.data.get('remarks', 'Section Chief reviewed and forwarded to Division Chief')
         )
+        
+        # Send notifications to Division Chief
+        try:
+            # Check if inspection is on non-compliant path
+            is_non_compliant = 'NON_COMPLIANT' in prev_status
+            
+            # For non-compliant: send email + system notification
+            if is_non_compliant:
+                from .utils import send_inspection_review_notification
+                send_inspection_review_notification(inspection, user, next_assignee, 'SECTION_REVIEWED', False)
+            
+            # For all: create system notification
+            from .utils import create_review_notification
+            create_review_notification(next_assignee, inspection, user, 'SECTION_REVIEWED', 
+                                     request.data.get('remarks', 'Section Chief reviewed'))
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to send review notifications for {inspection.code}: {str(e)}")
+            # Don't fail the review if notifications fail
         
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)

@@ -12,6 +12,9 @@ class Notification(models.Model):
         ('NOV_SENT', 'Notice of Violation Sent'),
         ('NOO_SENT', 'Notice of Order Sent'),
         ('INSPECTION_COMPLETED', 'Inspection Completed'),
+        ('inspection_completed', 'Inspection Completed'),
+        ('inspection_review', 'Inspection Review Required'),
+        ('inspection_forward', 'Inspection Forwarded'),
         # Add other types as needed
     ]
     
