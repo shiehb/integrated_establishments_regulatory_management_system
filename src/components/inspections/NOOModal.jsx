@@ -27,8 +27,9 @@ const NOOModal = ({ open, onClose, onConfirm, inspection, loading }) => {
       // Get compliance status from inspection form
       const complianceStatus = inspection?.form?.checklist?.compliance_status;
       
-      // Get violations found from inspection form
-      const violationsFound = inspection?.form?.checklist?.general?.violations_found ||
+      // Get violations found from inspection form - check direct field first
+      const violationsFound = inspection?.form?.violations_found ||
+                             inspection?.form?.checklist?.general?.violations_found ||
                              inspection?.form?.checklist?.compliance_status?.violations_found ||
                              inspection?.form?.checklist?.findings?.violations_found ||
                              inspection?.form?.checklist?.summary_compliance?.violations_found ||
@@ -46,6 +47,7 @@ const NOOModal = ({ open, onClose, onConfirm, inspection, loading }) => {
         recipientName: establishment?.name || '',
         contactPerson, // Auto-populate contact person
         violationBreakdown: violationsFound, // Auto-populate violation breakdown
+        penaltyFees: '15000', // Default payment amount (15,000) - editable by user
         complianceStatus,
         paymentDeadline: getDefaultDeadline(60) // 60 days from now
       }));

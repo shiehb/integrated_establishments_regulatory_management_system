@@ -26,8 +26,9 @@ const NOVModal = ({ open, onClose, onConfirm, inspection, loading }) => {
       // Get compliance status from inspection form
       const complianceStatus = inspection?.form?.checklist?.compliance_status;
       
-      // Get violations found from inspection form
-      const violationsFound = inspection?.form?.checklist?.general?.violations_found ||
+      // Get violations found from inspection form - check direct field first
+      const violationsFound = inspection?.form?.violations_found ||
+                             inspection?.form?.checklist?.general?.violations_found ||
                              inspection?.form?.checklist?.compliance_status?.violations_found ||
                              inspection?.form?.checklist?.findings?.violations_found ||
                              inspection?.form?.checklist?.summary_compliance?.violations_found ||
