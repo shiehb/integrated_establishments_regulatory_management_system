@@ -1229,6 +1229,17 @@ export default function InspectionForm({ inspectionData }) {
     try {
       setLoading(true);
       
+      // Show loading notification for long operations
+      if (['send_nov', 'send_noo', 'mark_compliant'].includes(action)) {
+        notifications.info(
+          'Processing your request...', 
+          { 
+            title: 'Please Wait',
+            duration: 2000
+          }
+        );
+      }
+      
       if (action === 'send_nov') {
         await sendNOV(inspection.id, {
           violation_breakdown: generateViolationsSummary(),

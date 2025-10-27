@@ -409,9 +409,70 @@ const InspectionReviewPage = () => {
     }
 
     try {
+      setLoading(true);
+      
+      // Show loading notification for long operations
+      if (['save_and_submit', 'save_and_approve', 'mark_compliant', 'mark_non_compliant'].includes(actionType)) {
+        notifications.info(
+          'Processing your request...', 
+          { 
+            title: 'Please Wait',
+            duration: 2000
+          }
+        );
+      }
+      
       console.log('🚀 Making API call:', { endpoint, payload });
       await api.post(endpoint, payload);
       setShowConfirm(false);
+      
+      // Add success notifications based on action type
+      let successMessage = '';
+      let successTitle = '';
+      
+      switch (actionType) {
+        case 'save_and_submit':
+          successMessage = 'Inspection completed and submitted successfully!';
+          successTitle = 'Inspection Submitted';
+          break;
+        case 'save_and_approve':
+          successMessage = 'Inspection completed and approved successfully!';
+          successTitle = 'Inspection Approved';
+          break;
+        case 'mark_compliant':
+          successMessage = 'Inspection marked as compliant and closed successfully!';
+          successTitle = 'Marked as Compliant';
+          break;
+        case 'mark_non_compliant':
+          successMessage = 'Inspection marked as non-compliant and closed successfully!';
+          successTitle = 'Marked as Non-Compliant';
+          break;
+        case 'approve_unit':
+          successMessage = 'Inspection approved by Unit Head and forwarded to Section Chief!';
+          successTitle = 'Unit Head Approved';
+          break;
+        case 'approve_section':
+          successMessage = 'Inspection approved by Section Chief and forwarded to Division Chief!';
+          successTitle = 'Section Chief Approved';
+          break;
+        case 'review_division':
+          successMessage = 'Inspection reviewed by Division Chief successfully!';
+          successTitle = 'Division Chief Reviewed';
+          break;
+        case 'forward_legal':
+          successMessage = 'Inspection forwarded to Legal Unit for enforcement!';
+          successTitle = 'Forwarded to Legal';
+          break;
+        default:
+          successMessage = 'Action completed successfully!';
+          successTitle = 'Action Complete';
+      }
+      
+      notifications.success(successMessage, {
+        title: successTitle,
+        duration: 5000
+      });
+      
       navigate('/inspections');
     } catch (error) {
       console.error('❌ Error executing review action:', error);
@@ -419,6 +480,8 @@ const InspectionReviewPage = () => {
       notifications.error(
         error.response?.data?.error || error.response?.data?.message || 'Action failed'
       );
+    } finally {
+      setLoading(false);
     }
   };
 

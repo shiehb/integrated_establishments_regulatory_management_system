@@ -792,6 +792,16 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       try {
         // First call the backend review action to verify access
         await handleAction(action, inspectionId);
+        
+        // Add success notification
+        notifications.success(
+          `Review access granted for inspection ${inspection.code}`, 
+          { 
+            title: 'Review Access Granted',
+            duration: 3000
+          }
+        );
+        
         // Then navigate to inspection review page
         window.location.href = `/inspections/${inspectionId}/review`;
         return;
