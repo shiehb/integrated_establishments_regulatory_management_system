@@ -334,9 +334,9 @@ const InspectionReviewPage = () => {
     // Prepare payload based on action type
     let payload = {};
     if (actionType === 'mark_compliant') {
-      payload = { final_status: 'CLOSED_COMPLIANT' };
+      payload = { final_status: 'CLOSED_COMPLIANT', remarks: 'Marked as compliant by Legal Unit' };
     } else if (actionType === 'mark_non_compliant') {
-      payload = { final_status: 'CLOSED_NON_COMPLIANT' };
+      payload = { final_status: 'CLOSED_NON_COMPLIANT', remarks: 'Marked as non-compliant by Legal Unit' };
     } else if (actionType === 'forward_legal') {
       payload = { remarks: 'Forwarded to Legal Unit for enforcement' };
     } else if (actionType === 'approve_unit') {
@@ -838,8 +838,7 @@ const InspectionReviewPage = () => {
                 
                 {/* Legal Unit buttons for NOO_SENT status */}
                 {!userLoading && currentUser?.userlevel === 'Legal Unit' && 
-                 inspectionData?.current_status === 'NOO_SENT' && 
-                 complianceStatus !== 'NON_COMPLIANT' && (
+                 inspectionData?.current_status === 'NOO_SENT' && (
                   <>
                     <button
                       onClick={() => handleActionClick('mark_non_compliant')}

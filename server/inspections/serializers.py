@@ -285,7 +285,7 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('DIVISION_REVIEWED', 'Division Chief'): [],
             
             # Legal Unit actions
-            ('LEGAL_REVIEW', 'Legal Unit'): ['review', 'close'],
+            ('LEGAL_REVIEW', 'Legal Unit'): ['review'],
             ('NOV_SENT', 'Legal Unit'): ['review'],
             ('NOO_SENT', 'Legal Unit'): ['review', 'close'],
         }
