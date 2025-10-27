@@ -2191,7 +2191,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 remarks=request.data.get('remarks', 'Closed by Division Chief')
             )
             
-        elif user.userlevel == 'Legal Unit' and inspection.current_status == 'LEGAL_REVIEW':
+        elif user.userlevel == 'Legal Unit' and inspection.current_status in ['LEGAL_REVIEW', 'NOO_SENT']:
             # Legal Unit finalizing
             final_status = request.data.get('final_status', 'CLOSED_NON_COMPLIANT')
             

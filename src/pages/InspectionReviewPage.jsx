@@ -320,6 +320,7 @@ const InspectionReviewPage = () => {
       send_noo: `inspections/${id}/send_noo/`,
       reject: `inspections/${id}/return_to_division/`,
       mark_compliant: `inspections/${id}/close/`,
+      mark_non_compliant: `inspections/${id}/close/`,
       save_and_submit: `inspections/${id}/complete/`,
       save_and_approve: `inspections/${id}/complete/`
     };
@@ -334,6 +335,8 @@ const InspectionReviewPage = () => {
     let payload = {};
     if (actionType === 'mark_compliant') {
       payload = { final_status: 'CLOSED_COMPLIANT' };
+    } else if (actionType === 'mark_non_compliant') {
+      payload = { final_status: 'CLOSED_NON_COMPLIANT' };
     } else if (actionType === 'forward_legal') {
       payload = { remarks: 'Forwarded to Legal Unit for enforcement' };
     } else if (actionType === 'approve_unit') {
@@ -630,9 +633,9 @@ const InspectionReviewPage = () => {
                   <X className="w-4 h-4 mr-1" />
                   Close
                 </button>
-                {/* Hide Edit Inspection button for Division Chief and Legal Unit with LEGAL_REVIEW or NOV_SENT status */}
+                {/* Hide Edit Inspection button for Division Chief and Legal Unit with LEGAL_REVIEW, NOV_SENT, or NOO_SENT status */}
                 {currentUser?.userlevel !== 'Division Chief' && 
-                 !(currentUser?.userlevel === 'Legal Unit' && (inspectionData?.current_status === 'LEGAL_REVIEW' || inspectionData?.current_status === 'NOV_SENT')) && (
+                 !(currentUser?.userlevel === 'Legal Unit' && (inspectionData?.current_status === 'LEGAL_REVIEW' || inspectionData?.current_status === 'NOV_SENT' || inspectionData?.current_status === 'NOO_SENT')) && (
                 <button
                   onClick={() => navigate(`/inspections/${id}/form?returnTo=review&reviewMode=true`)}
                   className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
@@ -766,6 +769,22 @@ const InspectionReviewPage = () => {
                     >
                       <FileText className="w-4 h-4 mr-1" />
                       Send NOO
+                    </button>
+                  </>
+                )}
+                
+                {/* Legal Unit buttons for NOO_SENT status */}
+                {!userLoading && currentUser?.userlevel === 'Legal Unit' && 
+                 inspectionData?.current_status === 'NOO_SENT' && 
+                 complianceStatus !== 'NON_COMPLIANT' && (
+                  <>
+                    <button
+                      onClick={() => handleActionClick('mark_non_compliant')}
+                      className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
+                      disabled={loading}
+                    >
+                      <XCircle className="w-4 h-4 mr-1" />
+                      Mark as Non-Compliant
                     </button>
                   </>
                 )}
@@ -1389,6 +1408,7 @@ const InspectionReviewPage = () => {
                 {actionType === 'save_and_submit' ? 'Confirm Save & Submit' :
                  actionType === 'save_and_approve' ? 'Confirm Save & Approve' :
                  actionType === 'mark_compliant' ? 'Mark as Compliant' :
+                 actionType === 'mark_non_compliant' ? 'Mark as Non-Compliant' :
                  actionType === 'forward_legal' ? 'Send to Legal' :
                  actionType === 'approve_unit' ? 'Approve & Forward' :
                  actionType === 'approve_section' ? 'Approve & Forward' :
@@ -1402,6 +1422,8 @@ const InspectionReviewPage = () => {
                     ? 'This will save the inspection changes and approve it for the next review level. Please ensure all information is correct before proceeding.'
                     : actionType === 'mark_compliant' 
                       ? 'This will mark the inspection as compliant and close the case. The establishment will be considered in full compliance.'
+                      : actionType === 'mark_non_compliant' 
+                        ? 'This will mark the inspection as non-compliant and close the case. The establishment will be considered in violation of regulations.'
                       : actionType === 'forward_legal' 
                         ? 'This will forward the inspection to the Legal Unit for enforcement action. The case will be marked for legal review.'
                         : actionType === 'approve_unit' 
@@ -1429,6 +1451,7 @@ const InspectionReviewPage = () => {
                    actionType === 'save_and_submit' ? 'Save & Submit' :
                    actionType === 'save_and_approve' ? 'Save & Approve' :
                    actionType === 'mark_compliant' ? 'Mark as Compliant' :
+                   actionType === 'mark_non_compliant' ? 'Mark as Non-Compliant' :
                    actionType === 'forward_legal' ? 'Send to Legal' :
                    actionType === 'approve_unit' ? 'Approve & Forward' :
                    actionType === 'approve_section' ? 'Approve & Forward' :

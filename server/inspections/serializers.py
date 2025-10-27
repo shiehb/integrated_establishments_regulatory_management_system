@@ -285,9 +285,9 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('DIVISION_REVIEWED', 'Division Chief'): [],
             
             # Legal Unit actions
-            ('LEGAL_REVIEW', 'Legal Unit'): ['review'],
+            ('LEGAL_REVIEW', 'Legal Unit'): ['review', 'close'],
             ('NOV_SENT', 'Legal Unit'): ['review'],
-            ('NOO_SENT', 'Legal Unit'): ['review'],
+            ('NOO_SENT', 'Legal Unit'): ['review', 'close'],
         }
         
         key = (status, user.userlevel)
