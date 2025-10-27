@@ -149,6 +149,8 @@ export default function InspectionReportsTable({ userLevel, userProfile }) {
         return { ...baseParams, tab: 'received' };
       case 'Monitoring Personnel':
         return { ...baseParams, tab: 'assigned' };
+      case 'Legal Unit':
+        return { ...baseParams, tab: 'legal_review' };
       default:
         return baseParams;
     }
@@ -164,6 +166,8 @@ export default function InspectionReportsTable({ userLevel, userProfile }) {
         return { ...baseParams, tab: 'my_inspections' };
       case 'Monitoring Personnel':
         return { ...baseParams, tab: 'in_progress' };
+      case 'Legal Unit':
+        return { ...baseParams, tab: 'nov_sent' };
       default:
         return baseParams;
     }
@@ -270,6 +274,24 @@ export default function InspectionReportsTable({ userLevel, userProfile }) {
     );
   };
 
+  // Get tab labels based on user level
+  const getTabLabels = () => {
+    switch (userLevel) {
+      case 'Legal Unit':
+        return {
+          pending: 'Legal Review',
+          received: 'NOV Sent'
+        };
+      default:
+        return {
+          pending: 'Pending',
+          received: 'Received'
+        };
+    }
+  };
+
+  const tabLabels = getTabLabels();
+
   return (
     <div className="bg-white border border-gray-200 shadow-sm">
       <div className="p-4 border-b border-gray-200">
@@ -285,7 +307,7 @@ export default function InspectionReportsTable({ userLevel, userProfile }) {
             }`}
           >
             <Clock className="w-4 h-4 inline mr-2" />
-            Pending ({pendingReports.length})
+            {tabLabels.pending} ({pendingReports.length})
           </button>
           <button
             onClick={() => setActiveTab('received')}
@@ -296,7 +318,7 @@ export default function InspectionReportsTable({ userLevel, userProfile }) {
             }`}
           >
             <FileText className="w-4 h-4 inline mr-2" />
-            Received ({receivedReports.length})
+            {tabLabels.received} ({receivedReports.length})
           </button>
         </div>
       </div>
