@@ -82,6 +82,18 @@ class InspectionViewSet(viewsets.ModelViewSet):
         # Call the parent update method for other fields
         return super().update(request, *args, **kwargs)
     
+    def list(self, request, *args, **kwargs):
+        """List inspections with pagination"""
+        queryset = self.filter_queryset(self.get_queryset())
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
     def get_queryset(self):
         """Filter inspections based on user role and tab"""
         user = self.request.user

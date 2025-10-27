@@ -389,5 +389,6 @@ export const shouldShowInTab = (status, userLevel, tab) => {
 // Check if user can perform actions on inspections
 export const canUserPerformActions = (userLevel) => {
   // Admin users can view all inspections but cannot perform any actions
-  return userLevel !== 'Admin';
+  // Division Chief users can view all inspections but cannot perform any actions
+  return userLevel !== 'Admin' && userLevel !== 'Division Chief';
 };
