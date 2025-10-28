@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Pencil,
   Map,
@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  FileText,
 } from "lucide-react";
 import { getEstablishments, getProfile } from "../../services/api";
 import ExportDropdown from "../ExportDropdown";
@@ -44,8 +45,10 @@ export default function EstablishmentList({
   onAdd,
   onEdit,
   onPolygon,
+  onViewInspections,
   refreshTrigger,
   canEditEstablishments,
+  canEditPolygons,
 }) {
   const [establishments, setEstablishments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,7 @@ export default function EstablishmentList({
 
   // 🎯 Search highlighting
   const location = useLocation();
+  const navigate = useNavigate();
   const [highlightedEstId, setHighlightedEstId] = useState(null);
   const highlightedRowRef = useRef(null);
 
@@ -756,13 +760,23 @@ export default function EstablishmentList({
                           Edit
                         </button>
                       )}
+                      {canEditPolygons && (
+                        <button
+                          onClick={() => onPolygon(e)}
+                          className="flex items-center gap-1 px-2 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
+                          title="Polygon"
+                        >
+                          <Map size={14} />
+                          Polygon
+                        </button>
+                      )}
                       <button
-                        onClick={() => onPolygon(e)}
-                        className="flex items-center gap-1 px-2 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700"
-                        title="Polygon"
+                        onClick={() => onViewInspections(e)}
+                        className="flex items-center gap-1 px-2 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
+                        title="View Closed Inspections"
                       >
-                        <Map size={14} />
-                        Polygon
+                        <FileText size={14} />
+                        Inspections
                       </button>
                     </div>
                   </td>

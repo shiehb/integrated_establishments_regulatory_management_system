@@ -25,10 +25,9 @@ export default function OfficialInspectionTable({
           <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
             <th className="p-1 border-b border-gray-300">Code</th>
             <th className="p-1 border-b border-gray-300">Establishment</th>
-            <th className="p-1 border-b border-gray-300">Law</th>
-            <th className="p-1 border-b border-gray-300">Date</th>
-            <th className="p-1 text-center border-b border-gray-300">Compliance</th>
-            <th className="p-1 border-b border-gray-300">Inspected By</th>
+            <th className="p-1 border-b text-center border-gray-300">Law</th>
+            <th className="p-1 border-b text-center border-gray-300">Compliance</th>
+            <th className="p-1 border-b text-center border-gray-300">Date</th>
           </tr>
         </thead>
         <tbody>
@@ -53,27 +52,25 @@ export default function OfficialInspectionTable({
               return (
                 <tr 
                   key={inspection.id} 
-                  className="text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors"
+                  className=" text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors"
                 >
-                  <td className="p-1 font-semibold border-b border-gray-300">
+                  <td className="p-1 px-2 font-semibold border-b border-gray-300">
                     {inspection.code || 'N/A'}
                   </td>
-                  <td className="p-1 border-b border-gray-300">
+                  <td className="p-1 px-2 border-b border-gray-300">
                     {inspection.establishments_detail?.map(est => est.name).join(', ') || 'N/A'}
                   </td>
-                  <td className="p-1 border-b border-gray-300">
+                  <td className="p-1 px-2 text-center border-b border-gray-300">
                     {inspection.law || 'N/A'}
                   </td>
-                  <td className="p-1 border-b border-gray-300">
-                    {formatDate(inspection.updated_at)}
-                  </td>
-                  <td className="p-1 text-center border-b border-gray-300">
+
+                  <td className="p-1 px-2 text-center border-b border-gray-300">
                     <span className={`px-2 py-0.5 text-xs rounded-full ${compliance.color}`}>
                       {compliance.status}
                     </span>
                   </td>
-                  <td className="p-1 border-b border-gray-300">
-                    {inspection.inspected_by_name || 'Unknown'}
+                  <td className="p-1 px-2 text-center border-b border-gray-300">
+                    {formatDate(inspection.updated_at)}
                   </td>
                 </tr>
               );

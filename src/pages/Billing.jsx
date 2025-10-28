@@ -208,10 +208,6 @@ export default function Billing() {
             compareA = a.establishment_name || '';
             compareB = b.establishment_name || '';
             break;
-          case 'amount':
-            compareA = parseFloat(a.amount || 0);
-            compareB = parseFloat(b.amount || 0);
-            break;
           case 'due_date':
             compareA = new Date(a.due_date || '');
             compareB = new Date(b.due_date || '');
@@ -499,19 +495,8 @@ export default function Billing() {
                       </button>
                     </th>
                     {showAllLaws && (
-                      <th className="p-1 border-b border-gray-300">Law</th>
+<th className="p-1 border-b border-gray-300">Law</th>
                     )}
-                    <th className="p-1 border-b border-gray-300">
-                      <button
-                        onClick={() => handleSort('amount')}
-                        className="flex items-center gap-1 hover:text-gray-200"
-                      >
-                        Amount
-                        {sortConfig.key === 'amount' && (
-                          sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
-                        )}
-                      </button>
-                    </th>
                     <th className="p-1 border-b border-gray-300">
                       <button
                         onClick={() => handleSort('due_date')}
@@ -585,11 +570,6 @@ export default function Billing() {
                           </td>
                         )}
                         <td className="p-1 border-b border-gray-300">
-                          <span className="text-sm font-bold text-green-600">
-                            {formatCurrency(record.amount)}
-                          </span>
-                        </td>
-                        <td className="p-1 border-b border-gray-300">
                           <div className="flex items-center text-sm text-gray-900">
                             <Calendar className="w-4 h-4 mr-1 text-gray-400" />
                             {formatDate(record.due_date)}
@@ -636,7 +616,7 @@ export default function Billing() {
       {/* Billing Details Modal */}
       {showBillingModal && selectedBilling && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 backdrop-blur-sm bg-white/20 flex items-center justify-center z-50 p-4"
           onClick={closeModal}
         >
           <div 
@@ -738,27 +718,6 @@ export default function Billing() {
                     </p>
                   </div>
                 </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
-                <button
-                  onClick={() => navigate(`/inspections/${selectedBilling.inspection}/review`)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
-                >
-                  <Eye className="w-4 h-4" />
-                  View Related Inspection
-                </button>
-                <button
-                  onClick={() => {
-                    // TODO: Implement print functionality
-                    console.log('Print billing:', selectedBilling);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded hover:bg-gray-300 transition-colors"
-                >
-                  <Printer className="w-4 h-4" />
-                  Print Receipt
-                </button>
               </div>
             </div>
           </div>

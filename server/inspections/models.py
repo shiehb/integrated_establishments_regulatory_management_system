@@ -792,5 +792,75 @@ class ComplianceQuota(models.Model):
         return self.accomplished > self.target
 
 
-
-
+class ReinspectionSchedule(models.Model):
+    """
+    Track reinspection schedules for establishments based on compliance status
+    """
+    establishment = models.ForeignKey(
+        'establishments.Establishment',
+        on_delete=models.CASCADE,
+        related_name='reinspection_schedules'
+    )
+    
+    # Reference to the original inspection that triggered this schedule
+    original_inspection = models.ForeignKey(
+        'Inspection',
+        on_delete=models.CASCADE,
+        related_name='reinspection_schedules'
+    )
+    
+    # Compliance status from the original inspection
+    compliance_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('COMPLIANT', 'Compliant'),
+            ('NON_COMPLIANT', 'Non-Compliant'),
+        ]
+    )
+    
+    # Reinspection due date (calculated based on compliance status)
+    due_date = models.DateField()
+    
+    # Reminder settings
+    reminder_sent = models.BooleanField(default=False)
+    reminder_sent_date = models.DateTimeField(null=True, blank=True)
+    
+    # Status tracking
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('SCHEDULED', 'Scheduled'),
+        ('COMPLETED', 'Completed'),
+        ('OVERDUE', 'Overdue'),
+        ('CANCELLED', 'Cancelled'),
+    ]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='PENDING'
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['due_date']
+        indexes = [
+            models.Index(fields=['due_date']),
+            models.Index(fields=['status']),
+            models.Index(fields=['establishment']),
+        ]
+        unique_together = ['establishment', 'original_inspection']
+    
+    def __str__(self):
+        return f"{self.establishment.name} - Reinspection due {self.due_date}"
+    
+    def is_overdue(self):
+        """Check if reinspection is overdue"""
+        from django.utils import timezone
+        return self.due_date < timezone.now().date() and self.status == 'PENDING'
+    
+    def get_reminder_recipients(self):
+        """Get Division Chiefs who should receive reminders"""
+        from users.models import User
+        return User.objects.filter(userlevel='Division Chief', is_active=True)

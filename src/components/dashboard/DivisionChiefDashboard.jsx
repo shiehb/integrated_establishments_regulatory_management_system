@@ -4,6 +4,9 @@ import ComplianceCard from './shared/ComplianceCard';
 import QuarterlyComparisonCard from './shared/QuarterlyComparisonCard';
 import ComplianceByLawCard from './shared/ComplianceByLawCard';
 import QuotaCard from './shared/QuotaCard';
+import ReinspectionReminders from './ReinspectionReminders';
+import { FileText, BarChart3 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function DivisionChiefDashboard() {
   // Use shared dashboard data hook with Division Chief role filtering
@@ -44,6 +47,11 @@ export default function DivisionChiefDashboard() {
           userRole="Division Chief"
           onViewAll={handleViewAll}
         />
+      </div>
+
+      {/* Reinspection Reminders - New section for Division Chiefs */}
+      <div className="mb-6">
+        <ReinspectionReminders />
       </div>
     </div>
   );

@@ -166,7 +166,7 @@ export default function AccomplishmentReportPDF({
       {/* Export Modal */}
       {showExportModal && (
         <div className="fixed inset-0 flex items-center justify-center z-50 bg-opacity-50 backdrop-blur-sm">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[ 60vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 border-b shadow-sm border-gray-400">
               <div className="flex items-center gap-3">
@@ -262,7 +262,7 @@ export default function AccomplishmentReportPDF({
               </div>
 
               {/* Export Preview */}
-              <div className="mb-6 p-3 bg-gray-50 rounded border">
+              {/* <div className="mb-6 p-3 bg-gray-50 rounded border">
                 <div className="flex items-center gap-2 mb-2">
                   <Calendar className="w-4 h-4 text-gray-600" />
                   <span className="text-sm font-medium text-gray-800">Export Preview</span>
@@ -291,7 +291,7 @@ export default function AccomplishmentReportPDF({
                     </div>
                   </div>
                 </div>
-              </div>
+              </div> */}
             </div>
 
             {/* Modal Footer */}

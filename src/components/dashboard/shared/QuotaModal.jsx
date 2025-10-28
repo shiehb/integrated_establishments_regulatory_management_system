@@ -57,14 +57,11 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
   // Get available quarters based on selected year
   const getAvailableQuarters = () => {
     if (formData.year === currentYear) {
-      // Current year: show current and next quarter only
-      return QUARTERS.filter(q => q.value === currentQuarter || q.value === nextQuarter);
+      // Current year: show only future quarters (exclude current quarter)
+      return QUARTERS.filter(q => q.value > currentQuarter);
     } else if (formData.year === nextYear) {
-      // Next year: only Q1 available (when current is Q4)
-      if (currentQuarter === 4) {
-        return QUARTERS.filter(q => q.value === 1);
-      }
-      return [];
+      // Next year: show all quarters (Q1-Q4)
+      return QUARTERS;
     }
     return [];
   };

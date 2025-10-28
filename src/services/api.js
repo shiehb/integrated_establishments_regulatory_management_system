@@ -310,6 +310,11 @@ export const getInspection = async (id) => {
   return res.data;
 };
 
+export const getReinspectionReminders = async () => {
+  const res = await api.get("inspections/reinspection-reminders/");
+  return res.data;
+};
+
 export const createInspection = async (inspectionData) => {
   try {
     console.log("Sending inspection data:", inspectionData);

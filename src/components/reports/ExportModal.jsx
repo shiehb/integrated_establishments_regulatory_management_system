@@ -195,7 +195,7 @@ export default function ExportModal({
           </div>
 
           {/* Export Preview */}
-          <div className="bg-gradient-to-r from-orange-50 to-yellow-50 p-6 rounded-2xl border border-orange-200">
+          {/* <div className="bg-gradient-to-r from-orange-50 to-yellow-50 p-6 rounded-2xl border border-orange-200">
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2 bg-orange-100 rounded-lg">
                 <Calendar className="w-6 h-6 text-orange-600" />
@@ -248,7 +248,7 @@ export default function ExportModal({
                 </div>
               </div>
             )}
-          </div>
+          </div> */}
         </div>
 
         {/* Footer */}

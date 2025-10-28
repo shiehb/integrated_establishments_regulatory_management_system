@@ -8,6 +8,7 @@ import CompletedInspectionsList from '../components/reports/CompletedInspections
 import ReportsList from '../components/reports/ReportsList';
 import ExportModal from '../components/reports/ExportModal';
 import AccomplishmentReportPDF from '../components/reports/AccomplishmentReportPDF';
+import DivisionChiefAccomplishmentReport from '../components/reports/DivisionChiefAccomplishmentReport';
 import { getCurrentQuarter, getQuarterDates, exportInspectionsPDF } from '../services/reportsApi';
 import { getInspections } from '../services/api';
 import { Download, Building, CheckCircle, XCircle, TrendingUp, Search, Filter, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
@@ -238,7 +239,7 @@ export default function AccomplishmentReports() {
   }, [fetchInspections]);
 
   // Check if user has access
-  const allowedUserLevels = ['Section Chief', 'Unit Head', 'Monitoring Personnel'];
+  const allowedUserLevels = ['Division Chief', 'Section Chief', 'Unit Head', 'Monitoring Personnel'];
   if (!allowedUserLevels.includes(user?.userlevel)) {
     return (
       <LayoutWithSidebar>
@@ -686,11 +687,17 @@ export default function AccomplishmentReports() {
 
         {/* Tab Content */}
         {activeTab === 'inspections' && (
-          <CompletedInspectionsList
-            inspections={paginatedData}
-            loading={loading}
-            onSummaryChange={handleSummaryChange}
-          />
+          <>
+            {user?.userlevel === 'Division Chief' ? (
+              <DivisionChiefAccomplishmentReport />
+            ) : (
+              <CompletedInspectionsList
+                inspections={paginatedData}
+                loading={loading}
+                onSummaryChange={handleSummaryChange}
+              />
+            )}
+          </>
         )}
 
         {activeTab === 'reports' && (

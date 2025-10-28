@@ -1,7 +1,9 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth import get_user_model
-from .models import Inspection, InspectionHistory
+from django.utils import timezone
+from datetime import timedelta
+from .models import Inspection, InspectionHistory, ReinspectionSchedule
 from audit.utils import log_activity
 import logging
 
@@ -29,6 +31,51 @@ def log_inspection_creation(sender, instance, created, **kwargs):
             
         except Exception as e:
             logger.error(f"Failed to log inspection creation: {str(e)}")
+
+
+@receiver(post_save, sender=Inspection)
+def create_reinspection_schedule(sender, instance, created, **kwargs):
+    """Create reinspection schedule when inspection is closed"""
+    if not created and instance.current_status in ['CLOSED_COMPLIANT', 'CLOSED_NON_COMPLIANT']:
+        try:
+            # Determine compliance status and reinspection period
+            if instance.current_status == 'CLOSED_COMPLIANT':
+                compliance_status = 'COMPLIANT'
+                # 2-3 years for compliant (using 2.5 years as default)
+                reinspection_period = timedelta(days=912)  # ~2.5 years
+            else:  # CLOSED_NON_COMPLIANT
+                compliance_status = 'NON_COMPLIANT'
+                # 1 year for non-compliant
+                reinspection_period = timedelta(days=365)
+            
+            # Create reinspection schedule for each establishment
+            for establishment in instance.establishments.all():
+                due_date = timezone.now().date() + reinspection_period
+                
+                # Create or update reinspection schedule
+                schedule, created = ReinspectionSchedule.objects.get_or_create(
+                    establishment=establishment,
+                    original_inspection=instance,
+                    defaults={
+                        'compliance_status': compliance_status,
+                        'due_date': due_date,
+                        'status': 'PENDING'
+                    }
+                )
+                
+                if not created:
+                    # Update existing schedule if inspection was reopened and closed again
+                    schedule.compliance_status = compliance_status
+                    schedule.due_date = due_date
+                    schedule.status = 'PENDING'
+                    schedule.reminder_sent = False
+                    schedule.reminder_sent_date = None
+                    schedule.save()
+                
+                logger.info(f"Reinspection schedule created for {establishment.name} due {due_date}")
+                
+        except Exception as e:
+            logger.error(f"Failed to create reinspection schedule for {instance.code}: {str(e)}")
 
 
 @receiver(post_save, sender=InspectionHistory)

@@ -7,6 +7,7 @@ import AddEstablishment from "../components/establishments/AddEstablishment";
 import EditEstablishment from "../components/establishments/EditEstablishment";
 import PolygonMap from "../components/establishments/PolygonMap";
 import EstablishmentDetailsPanel from "../components/establishments/EstablishmentDetailsPanel";
+import EstablishmentInspectionsContent from "../components/establishments/EstablishmentInspectionsContent";
 import {
   getEstablishments,
   getProfile,
@@ -21,7 +22,10 @@ export default function Establishments() {
   const [userRole, setUserRole] = useState("");
   const notifications = useNotifications();
 
-  // 🔹 View state: 'list' or 'polygon'
+  // 🔹 Inspection view state
+  const [inspectionsEstablishment, setInspectionsEstablishment] = useState(null);
+
+  // 🔹 View state: 'list', 'polygon', or 'inspections'
   const [currentView, setCurrentView] = useState("list");
   const [polygonEstablishment, setPolygonEstablishment] = useState(null);
   const [polygonEditMode, setPolygonEditMode] = useState(false);
@@ -241,6 +245,18 @@ export default function Establishments() {
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  // 🔹 handle view inspections
+  const handleViewInspections = (establishment) => {
+    setInspectionsEstablishment(establishment);
+    setCurrentView("inspections");
+  };
+
+  // 🔹 handle back to establishments
+  const handleBackToEstablishments = () => {
+    setCurrentView("list");
+    setInspectionsEstablishment(null);
+  };
+
   // 🔹 handle polygon creation redirect
   const handlePolygonCreate = (establishment) => {
     // Close modals
@@ -264,17 +280,18 @@ export default function Establishments() {
       <Header />
       <LayoutWithSidebar userLevel="admin">
         <div>
-          {/* Show either the list view or polygon view */}
+          {/* Show either the list view, polygon view, or inspections view */}
           {currentView === "list" ? (
             <EstablishmentList
               onAdd={() => setShowAdd(true)}
               onEdit={(est) => setEditEstablishment(est)}
               onPolygon={handleShowPolygon}
+              onViewInspections={handleViewInspections}
               refreshTrigger={refreshTrigger}
               canEditEstablishments={canEditEstablishments()}
               canEditPolygons={canEditPolygons()}
             />
-          ) : (
+          ) : currentView === "polygon" ? (
             <div className="p-4 bg-white rounded shadow">
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
@@ -369,7 +386,27 @@ export default function Establishments() {
                 </div>
               </div>
             </div>
-          )}
+          ) : currentView === "inspections" ? (
+            <div className="p-4 bg-white rounded shadow">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-2xl font-bold text-sky-600">
+                  Inspection Records
+                </h1>
+                <button
+                  onClick={handleBackToEstablishments}
+                  className="px-3 py-1 text-gray-700 bg-gray-300 rounded hover:bg-gray-400"
+                >
+                  Back to List
+                </button>
+              </div>
+              
+              {/* Inspection Records Content */}
+              <EstablishmentInspectionsContent 
+                establishment={inspectionsEstablishment}
+              />
+            </div>
+          ) : null}
         </div>
       </LayoutWithSidebar>
       <Footer />

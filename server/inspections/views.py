@@ -136,6 +136,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
             if laws:
                 queryset = queryset.filter(law__in=laws)
         
+        # Establishment filter
+        establishment_id = self.request.query_params.get('establishment')
+        if establishment_id:
+            queryset = queryset.filter(establishments__id=establishment_id)
+        
         # Date range filters
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
@@ -2838,6 +2843,54 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'message': f"Auto-adjusted {len(adjusted_quotas)} quotas for next quarter",
             'total_adjusted': len(adjusted_quotas)
         })
+
+    @action(detail=False, methods=['get'], url_path='reinspection-reminders')
+    def reinspection_reminders(self, request):
+        """Get all reinspection schedules for Division Chiefs"""
+        from django.utils import timezone
+        from datetime import timedelta
+        from .models import ReinspectionSchedule
+        
+        # Only allow Division Chiefs
+        if request.user.userlevel != 'Division Chief':
+            return Response(
+                {'error': 'Access denied. Only Division Chiefs can view reinspection reminders.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get all reinspection schedules (not just upcoming ones)
+        schedules = ReinspectionSchedule.objects.filter(
+            status='PENDING'
+        ).select_related('establishment', 'original_inspection')
+        
+        reminders = []
+        today = timezone.now().date()
+        
+        for schedule in schedules:
+            days_until_due = (schedule.due_date - today).days
+            
+            # Construct address manually since get_full_address doesn't exist
+            establishment = schedule.establishment
+            address_parts = [
+                establishment.street_building,
+                establishment.barangay,
+                establishment.city,
+                establishment.province
+            ]
+            full_address = ', '.join(filter(None, address_parts))
+            
+            reminders.append({
+                'id': schedule.id,
+                'establishment_name': establishment.name,
+                'establishment_address': full_address,
+                'original_inspection_code': schedule.original_inspection.code,
+                'compliance_status': schedule.compliance_status,
+                'due_date': schedule.due_date,
+                'days_until_due': days_until_due,
+                'is_overdue': days_until_due < 0
+            })
+        
+        return Response(reminders)
 
 
 class BillingViewSet(viewsets.ModelViewSet):

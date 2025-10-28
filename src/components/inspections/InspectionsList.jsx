@@ -727,9 +727,9 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
   // Helper function to determine if actions should be shown
   const shouldShowActions = useCallback((userLevel, activeTab) => {
-    // Division Chief users cannot perform any actions
+    // Division Chief users can perform actions in review and reviewed tabs
     if (userLevel === 'Division Chief') {
-      return false;
+      return activeTab === 'review' || activeTab === 'reviewed';
     }
     
     // Legal Unit users in legal_review tab should see review buttons, but noo_sent tab should only see view buttons
@@ -2121,6 +2121,10 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                         Mark as Non-Compliance
                       </button>
                     ) : userLevel === 'Legal Unit' && activeTab === 'noo_sent' && inspection.current_status === 'CLOSED_NON_COMPLIANT' ? (
+                      <div className="text-sm text-gray-500">
+                        No actions available
+                      </div>
+                    ) : userLevel === 'Division Chief' ? (
                       <div className="text-sm text-gray-500">
                         No actions available
                       </div>

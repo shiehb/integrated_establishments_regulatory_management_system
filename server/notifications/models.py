@@ -15,6 +15,7 @@ class Notification(models.Model):
         ('inspection_completed', 'Inspection Completed'),
         ('inspection_review', 'Inspection Review Required'),
         ('inspection_forward', 'Inspection Forwarded'),
+        ('reinspection_reminder', 'Reinspection Reminder'),
         # Add other types as needed
     ]
     
