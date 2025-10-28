@@ -95,15 +95,15 @@ const QuotaCard = ({ userRole = null }) => {
       colors = getQuotaColor('exceeded');
     } else if (met) {
       colors = {
-        background: 'bg-gradient-to-r from-sky-400 to-sky-500',
+        background: 'bg-gradient-to-r from-emerald-400 to-emerald-500',
         border: 'border-sky-300',
         text: 'text-sky-600'
       };
     } else {
       colors = {
-        background: 'bg-gradient-to-r from-emerald-400 to-emerald-500',
-        border: 'border-emerald-300',
-        text: 'text-emerald-600'
+        background: 'bg-gradient-to-r from-sky-400 to-sky-500',
+        border: 'border-sky-300',
+        text: 'text-sky-600'
       };
     }
     
@@ -273,7 +273,7 @@ const QuotaCard = ({ userRole = null }) => {
                     {display.display}
                   </div>
                   <div className={`text-xl font-bold ${
-                    exceeded ? 'text-amber-600' : 
+                    exceeded ? 'text-green-600' : 
                     quota.accomplished >= quota.target ? 'text-sky-600' : 'text-emerald-600'
                   }`}>
                     {display.percentage}
@@ -291,7 +291,7 @@ const QuotaCard = ({ userRole = null }) => {
                     </div>
                   </div>
                   {exceeded && (
-                    <div className="absolute -top-6 right-0 text-xs font-semibold text-amber-600">
+                    <div className="absolute -top-6 right-0 text-xs font-semibold text-green-600">
                       +{display.exceededAmount}
                     </div>
                   )}

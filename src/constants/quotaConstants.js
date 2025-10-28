@@ -46,9 +46,9 @@ export const QUOTA_COLORS = {
     text: 'text-emerald-600'
   },
   exceeded: {
-    background: 'bg-gradient-to-r from-amber-500 to-amber-600',
-    border: 'border-amber-400',
-    text: 'text-amber-600'
+    background: 'bg-gradient-to-r from-green-500 to-green-600',
+    border: 'border-green-400',
+    text: 'text-green-600'
   }
 };
 
