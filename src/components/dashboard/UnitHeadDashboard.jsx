@@ -21,9 +21,7 @@ export default function UnitHeadDashboard() {
         {/* Top Row: Quota Management and Summary Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-5">
           {/* Quota Management */}
-          <div>
-            <QuotaCard userRole="Unit Head" />
-          </div>
+
           
           {/* Inspection Summary Cards */}
           <div className="col-span-4">
@@ -33,6 +31,9 @@ export default function UnitHeadDashboard() {
             />
           </div>
         </div>
+        <div>
+            <QuotaCard userRole="Unit Head" />
+          </div>
 
         {/* Bottom Row: Compliance Chart and Reports Table */}
         <div className="grid grid-cols-1 lg:grid-cols-2">
