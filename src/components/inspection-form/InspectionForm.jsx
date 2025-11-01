@@ -6,6 +6,7 @@ import { saveInspectionDraft, completeInspection, getInspection, closeInspection
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 import { getButtonVisibility as getRoleStatusButtonVisibility, canUserAccessInspection } from "../../utils/roleStatusMatrix";
+import { API_BASE_URL } from "../../config/api";
 
 // Import all section components
 import UnifiedInspectionHeader from "./UnifiedInspectionHeader";
@@ -607,7 +608,7 @@ export default function InspectionForm({ inspectionData }) {
     const loadCurrentUser = async () => {
       try {
         const token = localStorage.getItem('access');
-        const response = await fetch('http://127.0.0.1:8000/api/auth/me/', {
+        const response = await fetch(`${API_BASE_URL}auth/me/`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',

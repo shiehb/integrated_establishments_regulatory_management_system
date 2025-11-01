@@ -1,10 +1,11 @@
 import axios from 'axios';
 import { AuthCache } from '../contexts/AuthContext';
+import { API_BASE_URL } from '../config/api';
 
 // Enhanced API service with caching and request deduplication
 class EnhancedApiService {
   constructor() {
-    this.baseURL = "http://127.0.0.1:8000/api/";
+    this.baseURL = API_BASE_URL;
     this.pendingRequests = new Map();
     this.requestCache = new Map();
     this.cacheTTL = 5 * 60 * 1000; // 5 minutes default TTL

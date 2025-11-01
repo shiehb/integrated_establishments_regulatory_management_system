@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { loginUser, getProfile } from '../services/api';
 import { useNotifications } from '../components/NotificationManager';
+import { API_BASE_URL } from '../config/api';
 
 // Cache configuration
 const CACHE_CONFIG = {
@@ -268,7 +269,7 @@ export const AuthProvider = ({ children }) => {
       const { refresh } = TokenManager.getTokens();
       if (refresh) {
         try {
-          await fetch('http://127.0.0.1:8000/api/auth/logout/', {
+          await fetch(`${API_BASE_URL}auth/logout/`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

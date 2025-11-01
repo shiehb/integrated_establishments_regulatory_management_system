@@ -141,7 +141,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vite dev
-    "https://your-frontend.com"  # production frontend
+    "https://iermsdeploy.vercel.app"  # production frontend
 ]
 
 # Email Configuration - Using Gmail for development

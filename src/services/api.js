@@ -1,12 +1,13 @@
 // src/services/api.js
 import axios from "axios";
 import apiCache from "./apiCache";
+import { API_BASE_URL } from "../config/api";
 
 // -------------------------------------------------
 // Axios Instance
 // -------------------------------------------------
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8000/api/",
+  baseURL: API_BASE_URL,
 });
 
 // Attach access token to every request
@@ -31,7 +32,7 @@ api.interceptors.response.use(
       if (refreshToken) {
         try {
           const res = await axios.post(
-            "http://127.0.0.1:8000/api/auth/token/refresh/",
+            `${API_BASE_URL}auth/token/refresh/`,
             { refresh: refreshToken }
           );
 
