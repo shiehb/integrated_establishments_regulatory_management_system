@@ -163,15 +163,17 @@ export const assignDistrict = async (userId, district) => {
   }
 };
 
-export const firstTimeChangePassword = async (newPassword) => {
+export const firstTimeChangePassword = async (oldPassword, newPassword) => {
   try {
     const res = await api.post("auth/first-time-change-password/", {
+      old_password: oldPassword,
       new_password: newPassword,
     });
     return res.data;
   } catch (error) {
     const enhancedError = new Error(
       error.response?.data?.detail ||
+        error.response?.data?.old_password?.[0] ||
         error.response?.data?.new_password?.[0] ||
         "Failed to change password. Please try again."
     );

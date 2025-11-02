@@ -63,7 +63,7 @@ export default function ForgotPassword() {
 
   return (
     <Layout>
-      <div className="w-full max-w-md min-h-[500px] p-8 bg-white shadow-lg rounded-2xl">
+      <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-2xl">
         {/* Back button */}
         <button
           onClick={() => navigate("/")}
@@ -102,7 +102,7 @@ export default function ForgotPassword() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50"
+              className="w-full py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Sending..." : "Continue"}
             </button>

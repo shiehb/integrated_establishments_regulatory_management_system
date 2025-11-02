@@ -210,7 +210,7 @@ const QuotaCard = ({ userRole = null }) => {
                 className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-colors text-sm font-medium whitespace-nowrap shadow-sm hover:shadow-md"
               >
                 <Plus size={16} />
-                Set Quota
+                Set Target
               </button>
             )}
           </div>

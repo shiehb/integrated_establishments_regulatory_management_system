@@ -11,7 +11,6 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
   const currentQuarter = Math.floor(currentMonth / 3) + 1;
   
   // Calculate next period
-  const nextQuarter = currentQuarter === 4 ? 1 : currentQuarter + 1;
   const nextYear = currentQuarter === 4 ? currentYear + 1 : currentYear;
 
   const [formData, setFormData] = useState({
@@ -296,7 +295,7 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
               ) : (
                 <>
                   <Target size={16} />
-                  {quota ? 'Update' : 'Set'} Quota
+                  {quota ? 'Update' : 'Set'} Target
                 </>
               )}
             </button>
@@ -330,7 +329,7 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave }) => {
         }
         onCancel={() => setShowConfirmDialog(false)}
         onConfirm={handleConfirmSave}
-        confirmText={quota ? "Update" : "Set"}
+        confirmText={quota ? "Update" : "Set Target"}
         cancelText="Cancel"
         confirmColor="sky"
         loading={isSubmitting}

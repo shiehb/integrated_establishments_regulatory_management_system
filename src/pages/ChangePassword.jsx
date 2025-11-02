@@ -45,21 +45,17 @@ export default function ChangePassword() {
 
     if (!formData.newPassword.trim()) {
       newErrors.newPassword = "New password is required";
-    } else if (formData.newPassword.length < 8) {
-      newErrors.newPassword = "Password must be at least 8 characters";
-    } else if (!/(?=.*[a-z])/.test(formData.newPassword)) {
-      newErrors.newPassword =
-        "Password must contain at least one lowercase letter";
-    } else if (!/(?=.*[A-Z])/.test(formData.newPassword)) {
-      newErrors.newPassword =
-        "Password must contain at least one uppercase letter";
-    } else if (!/(?=.*\d)/.test(formData.newPassword)) {
-      newErrors.newPassword = "Password must contain at least one number";
-    } else if (!/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
-      newErrors.newPassword =
-        "Password must contain at least one special character (@$!%*?&)";
-    } else if (formData.newPassword === formData.oldPassword) {
-      newErrors.newPassword = "New password cannot be the same as old password";
+    } else {
+      // Combined validation checks
+      if (formData.newPassword.length < 8) {
+        newErrors.newPassword = "Password must be at least 8 characters long";
+      } else if (!/(?=.*[a-z])/.test(formData.newPassword) || !/(?=.*[A-Z])/.test(formData.newPassword)) {
+        newErrors.newPassword = "Password must include both lowercase and uppercase character";
+      } else if (!/(?=.*\d)/.test(formData.newPassword) && !/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
+        newErrors.newPassword = "Password must include at least one number or symbol";
+      } else if (formData.newPassword === formData.oldPassword) {
+        newErrors.newPassword = "New password cannot be the same as old password";
+      }
     }
 
     if (!formData.confirmPassword.trim()) {
@@ -153,14 +149,11 @@ export default function ChangePassword() {
 
   return (
     <Layout>
-      <div className="w-full max-w-md min-h-[500px] p-8 bg-white shadow-lg rounded-2xl">
+      <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-2xl">
         <div className="mb-6 text-center">
-          <h2 className="mt-10 mb-6 text-2xl font-bold text-sky-600">
+          <h2 className="mb-6 text-2xl font-bold text-sky-600">
             Change Password
           </h2>
-          <p className="text-sm text-gray-600">
-            Please set a new password to continue
-          </p>
         </div>
 
         <form className="space-y-5" onSubmit={handleSubmit}>
@@ -175,13 +168,14 @@ export default function ChangePassword() {
                 value={formData.oldPassword}
                 onChange={handleChange}
                 placeholder="Enter current password"
-                className={`w-full border rounded-lg px-4 py-2 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                className={`w-full px-4 py-2 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
                   errors.oldPassword ? "border-red-500" : "border-gray-300"
                 }`}
                 required
               />
               <button
                 type="button"
+                aria-label={showOldPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowOldPassword(!showOldPassword)}
                 className="absolute inset-y-0 flex items-center h-full text-gray-500 bg-transparent right-3 hover:text-sky-600"
               >
@@ -208,13 +202,14 @@ export default function ChangePassword() {
                 value={formData.newPassword}
                 onChange={handleChange}
                 placeholder="Enter new password"
-                className={`w-full border rounded-lg px-4 py-2 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                className={`w-full px-4 py-2 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
                   errors.newPassword ? "border-red-500" : "border-gray-300"
                 }`}
                 required
               />
               <button
                 type="button"
+                aria-label={showNewPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowNewPassword(!showNewPassword)}
                 className="absolute inset-y-0 flex items-center h-full text-gray-500 bg-transparent right-3 hover:text-sky-600"
               >
@@ -241,13 +236,14 @@ export default function ChangePassword() {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 placeholder="Confirm new password"
-                className={`w-full border rounded-lg px-4 py-2 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                className={`w-full px-4 py-2 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
                   errors.confirmPassword ? "border-red-500" : "border-gray-300"
                 }`}
                 required
               />
               <button
                 type="button"
+                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 className="absolute inset-y-0 flex items-center h-full text-gray-500 bg-transparent right-3 hover:text-sky-600"
               >
@@ -269,13 +265,13 @@ export default function ChangePassword() {
             <button
               type="button"
               onClick={handleCancel}
-              className="flex-1 py-2.5 rounded-lg bg-gray-300 text-gray-700 font-medium hover:bg-gray-400 transition"
+              className="flex-1 py-3 rounded-lg bg-gray-300 text-gray-700 font-medium hover:bg-gray-400 transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 py-2.5 rounded-lg bg-sky-600 text-white font-medium hover:bg-sky-700 transition disabled:bg-gray-400"
+              className="flex-1 py-3 rounded-lg bg-sky-600 text-white font-medium hover:bg-sky-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
               disabled={isSubmitting}
             >
               {isSubmitting ? "Changing..." : "Change Password"}
@@ -285,8 +281,6 @@ export default function ChangePassword() {
 
         <PasswordRequirements 
           password={formData.newPassword}
-          showMatchRequirement={true}
-          passwordsMatch={formData.newPassword && formData.confirmPassword && formData.newPassword === formData.confirmPassword}
         />
       </div>
 

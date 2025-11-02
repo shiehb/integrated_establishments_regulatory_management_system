@@ -1,32 +1,22 @@
 // PasswordRequirements.jsx
 import { Check, X } from "lucide-react";
 
-export default function PasswordRequirements({ password = "", showMatchRequirement = false, passwordsMatch = false }) {
+export default function PasswordRequirements({ password = "" }) {
   const requirements = [
     {
       id: "length",
-      label: "Minimum 8 characters",
+      label: "Be at least 8 characters long",
       test: (pwd) => pwd.length >= 8,
     },
     {
-      id: "uppercase",
-      label: "At least one uppercase letter (A-Z)",
-      test: (pwd) => /(?=.*[A-Z])/.test(pwd),
+      id: "case",
+      label: "Include both lowercase and uppercase character",
+      test: (pwd) => /(?=.*[a-z])/.test(pwd) && /(?=.*[A-Z])/.test(pwd),
     },
     {
-      id: "lowercase",
-      label: "At least one lowercase letter (a-z)",
-      test: (pwd) => /(?=.*[a-z])/.test(pwd),
-    },
-    {
-      id: "number",
-      label: "At least one number (0-9)",
-      test: (pwd) => /(?=.*\d)/.test(pwd),
-    },
-    {
-      id: "special",
-      label: "At least one special character (@$!%*?&)",
-      test: (pwd) => /(?=.*[@$!%*?&])/.test(pwd),
+      id: "numberOrSymbol",
+      label: "Include at least one number or symbol",
+      test: (pwd) => /(?=.*\d)/.test(pwd) || /(?=.*[@$!%*?&])/.test(pwd),
     },
   ];
 
@@ -57,12 +47,6 @@ export default function PasswordRequirements({ password = "", showMatchRequireme
     }
   };
 
-  const matchStatus = !password 
-    ? "idle" 
-    : passwordsMatch 
-    ? "met" 
-    : "unmet";
-
   return (
     <div className="p-3 mt-4 rounded-lg bg-gray-50">
       <h3 className="mb-2 text-xs font-medium text-gray-700">
@@ -83,16 +67,6 @@ export default function PasswordRequirements({ password = "", showMatchRequireme
             </li>
           );
         })}
-        {showMatchRequirement && (
-          <li
-            className={`flex items-center gap-2 text-xs transition-colors ${getStatusColor(
-              matchStatus
-            )}`}
-          >
-            {getStatusIcon(matchStatus)}
-            <span>Passwords match</span>
-          </li>
-        )}
       </ul>
     </div>
   );

@@ -540,9 +540,13 @@ def change_password(request):
     if not user.check_password(old_password):
         return Response({'detail': 'Old password is incorrect.'}, status=400)
 
-    # Don't allow reusing the same password
+    # Don't allow reusing the same password (check against entered old password)
     if new_password == old_password:
         return Response({'detail': 'New password cannot be the same as old password.'}, status=400)
+
+    # Also check against the actual stored password
+    if user.check_password(new_password):
+        return Response({'detail': 'New password cannot be the same as your current password.'}, status=400)
 
     user.set_password(new_password)
     user.must_change_password = False
@@ -565,10 +569,22 @@ def change_password(request):
 @permission_classes([IsAuthenticated])
 def first_time_change_password(request):
     user = request.user
+    old_password = request.data.get('old_password')
     new_password = request.data.get('new_password')
 
-    if not new_password:
-        return Response({'detail': 'New password is required.'}, status=400)
+    if not old_password or not new_password:
+        return Response({'detail': 'Both old and new password are required.'}, status=400)
+
+    if not user.check_password(old_password):
+        return Response({'detail': 'Old password is incorrect.'}, status=400)
+
+    # Don't allow reusing the same password (check against entered old password)
+    if new_password == old_password:
+        return Response({'detail': 'New password cannot be the same as old password.'}, status=400)
+
+    # Also check against the actual stored password
+    if user.check_password(new_password):
+        return Response({'detail': 'New password cannot be the same as your current password.'}, status=400)
 
     user.set_password(new_password)
     user.must_change_password = False

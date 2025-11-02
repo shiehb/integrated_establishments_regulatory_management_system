@@ -3,14 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import Layout from "../components/Layout";
-import { changePassword, firstTimeChangePassword, logoutUser } from "../services/api";
+import { firstTimeChangePassword, logoutUser } from "../services/api";
 import { useNotifications } from "../components/NotificationManager";
 import PasswordRequirements from "../components/common/PasswordRequirements";
 
 export default function ForceChangePassword() {
+  const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
+    oldPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
@@ -35,21 +37,23 @@ export default function ForceChangePassword() {
   const validateForm = () => {
     const newErrors = {};
 
+    if (!formData.oldPassword.trim()) {
+      newErrors.oldPassword = "Old password is required";
+    }
+
     if (!formData.newPassword.trim()) {
       newErrors.newPassword = "New password is required";
-    } else if (formData.newPassword.length < 8) {
-      newErrors.newPassword = "Password must be at least 8 characters";
-    } else if (!/(?=.*[a-z])/.test(formData.newPassword)) {
-      newErrors.newPassword =
-        "Password must contain at least one lowercase letter";
-    } else if (!/(?=.*[A-Z])/.test(formData.newPassword)) {
-      newErrors.newPassword =
-        "Password must contain at least one uppercase letter";
-    } else if (!/(?=.*\d)/.test(formData.newPassword)) {
-      newErrors.newPassword = "Password must contain at least one number";
-    } else if (!/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
-      newErrors.newPassword =
-        "Password must contain at least one special character (@$!%*?&)";
+    } else {
+      // Combined validation checks
+      if (formData.newPassword.length < 8) {
+        newErrors.newPassword = "Password must be at least 8 characters long";
+      } else if (!/(?=.*[a-z])/.test(formData.newPassword) || !/(?=.*[A-Z])/.test(formData.newPassword)) {
+        newErrors.newPassword = "Password must include both lowercase and uppercase character";
+      } else if (!/(?=.*\d)/.test(formData.newPassword) && !/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
+        newErrors.newPassword = "Password must include at least one number or symbol";
+      } else if (formData.newPassword === formData.oldPassword) {
+        newErrors.newPassword = "New password cannot be the same as old password";
+      }
     }
 
     if (!formData.confirmPassword.trim()) {
@@ -68,7 +72,7 @@ export default function ForceChangePassword() {
     if (validateForm()) {
       setIsSubmitting(true);
       try {
-        await firstTimeChangePassword(formData.newPassword);
+        await firstTimeChangePassword(formData.oldPassword, formData.newPassword);
 
         // Show success notification
         notifications.passwordChange(
@@ -106,7 +110,10 @@ export default function ForceChangePassword() {
         }, 2000);
       } catch (err) {
         const errorMessage =
-          err.response?.data?.detail || "Failed to change password.";
+          err.response?.data?.detail ||
+          err.response?.data?.old_password?.[0] ||
+          err.response?.data?.new_password?.[0] ||
+          "Failed to change password.";
 
         // Show error notification
         notifications.error(
@@ -128,25 +135,56 @@ export default function ForceChangePassword() {
 
   return (
     <Layout>
-      <div className="w-full max-w-md px-8 py-4 bg-white shadow-lg rounded-2xl">
+      <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-2xl">
         <div className="mb-6 text-center">
-          <h2 className="mb-2 text-xl font-bold text-sky-600">
+          <h2 className="mb-6 text-2xl font-bold text-sky-600">
             Change Password
           </h2>
-          <p className="text-sm text-gray-600">
-            Please set a new password to continue
-          </p>
         </div>
 
         {errors.submit && (
-          <div className="p-3 mb-4 text-sm text-center text-red-600 bg-red-100 rounded-lg">
+          <div className="p-3 mb-4 text-sm text-center text-red-600 bg-red-50 border border-red-200 rounded-lg">
             {errors.submit}
           </div>
         )}
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Old Password
+            </label>
+            <div className="relative">
+              <input
+                type={showOldPassword ? "text" : "password"}
+                name="oldPassword"
+                value={formData.oldPassword}
+                onChange={handleChange}
+                placeholder="Enter current password"
+                className={`w-full px-4 py-2 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                  errors.oldPassword ? "border-red-500" : "border-gray-300"
+                }`}
+                required
+              />
+              <button
+                type="button"
+                aria-label={showOldPassword ? "Hide password" : "Show password"}
+                onClick={() => setShowOldPassword(!showOldPassword)}
+                className="absolute inset-y-0 flex items-center h-full text-gray-500 bg-transparent right-3 hover:text-sky-600"
+              >
+                {showOldPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+            {errors.oldPassword && (
+              <p className="mt-1 text-xs text-red-500">{errors.oldPassword}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block mb-2 text-sm font-medium text-gray-700">
               New Password
             </label>
             <div className="relative">
@@ -163,6 +201,7 @@ export default function ForceChangePassword() {
               />
               <button
                 type="button"
+                aria-label={showNewPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowNewPassword(!showNewPassword)}
                 className="absolute inset-y-0 flex items-center h-full text-gray-500 bg-transparent right-3 hover:text-sky-600"
               >
@@ -179,7 +218,7 @@ export default function ForceChangePassword() {
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
               Confirm Password
             </label>
             <div className="relative">
@@ -196,6 +235,7 @@ export default function ForceChangePassword() {
               />
               <button
                 type="button"
+                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 className="absolute inset-y-0 flex items-center h-full text-gray-500 bg-transparent right-3 hover:text-sky-600"
               >
@@ -215,7 +255,7 @@ export default function ForceChangePassword() {
 
           <button
             type="submit"
-            className="w-full py-2.5 rounded-lg bg-sky-600 text-white font-medium hover:bg-sky-700 transition mt-4 disabled:bg-gray-400"
+            className="w-full py-3 rounded-lg bg-sky-600 text-white font-medium hover:bg-sky-700 transition mt-4 disabled:bg-gray-400 disabled:cursor-not-allowed"
             disabled={isSubmitting}
           >
             {isSubmitting ? "Changing Password..." : "Change Password"}
@@ -224,8 +264,6 @@ export default function ForceChangePassword() {
 
         <PasswordRequirements 
           password={formData.newPassword}
-          showMatchRequirement={true}
-          passwordsMatch={formData.newPassword && formData.confirmPassword && formData.newPassword === formData.confirmPassword}
         />
       </div>
     </Layout>

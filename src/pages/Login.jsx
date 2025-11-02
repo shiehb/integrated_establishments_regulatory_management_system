@@ -111,9 +111,9 @@ export default function Login() {
 
   return (
     <Layout>
-      <div className="w-full max-w-md min-h-[500px] p-8 bg-white shadow-lg rounded-2xl">
-        <h2 className="mt-10 mb-6 text-2xl font-bold text-center text-sky-600">
-          Account Login
+      <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-2xl">
+        <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
+          Integrated Establishment Regulatory Management System
         </h2>
 
         {errors.general && (
@@ -139,7 +139,7 @@ export default function Login() {
               value={formData.email}
               onChange={handleChange}
               required
-              className={`w-full border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
                 errors.email ? "border-red-500" : "border-gray-300"
               }`}
             />
@@ -160,12 +160,13 @@ export default function Login() {
                 value={formData.password}
                 onChange={handleChange}
                 required
-                className={`w-full border rounded-lg px-4 py-2 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                className={`w-full px-4 py-2 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
                   errors.password ? "border-red-500" : "border-gray-300"
                 }`}
               />
               <button
                 type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute inset-y-0 flex items-center h-full text-gray-500 bg-transparent right-3 hover:text-sky-600"
               >
@@ -190,7 +191,7 @@ export default function Login() {
 
           <button
             type="submit"
-            className="w-full py-3 text-white rounded-lg bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400"
+            className="w-full py-3 font-medium text-white rounded-lg bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             disabled={isSubmitting}
           >
             {isSubmitting ? "Logging in..." : "Log In"}

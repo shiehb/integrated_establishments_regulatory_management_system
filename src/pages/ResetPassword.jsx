@@ -93,19 +93,15 @@ export default function ResetPassword() {
 
     if (!formData.newPassword.trim()) {
       newErrors.newPassword = "New password is required";
-    } else if (formData.newPassword.length < 8) {
-      newErrors.newPassword = "Password must be at least 8 characters";
-    } else if (!/(?=.*[a-z])/.test(formData.newPassword)) {
-      newErrors.newPassword =
-        "Password must contain at least one lowercase letter";
-    } else if (!/(?=.*[A-Z])/.test(formData.newPassword)) {
-      newErrors.newPassword =
-        "Password must contain at least one uppercase letter";
-    } else if (!/(?=.*\d)/.test(formData.newPassword)) {
-      newErrors.newPassword = "Password must contain at least one number";
-    } else if (!/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
-      newErrors.newPassword =
-        "Password must contain at least one special character (@$!%*?&)";
+    } else {
+      // Combined validation checks
+      if (formData.newPassword.length < 8) {
+        newErrors.newPassword = "Password must be at least 8 characters long";
+      } else if (!/(?=.*[a-z])/.test(formData.newPassword) || !/(?=.*[A-Z])/.test(formData.newPassword)) {
+        newErrors.newPassword = "Password must include both lowercase and uppercase character";
+      } else if (!/(?=.*\d)/.test(formData.newPassword) && !/(?=.*[@$!%*?&])/.test(formData.newPassword)) {
+        newErrors.newPassword = "Password must include at least one number or symbol";
+      }
     }
 
     if (!formData.confirmPassword.trim()) {
@@ -391,7 +387,7 @@ export default function ResetPassword() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50"
+            className="w-full py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Verifying..." : "Continue"}
           </button>
@@ -432,12 +428,13 @@ export default function ResetPassword() {
               value={formData.newPassword}
               onChange={handleChange}
               required
-              className={`w-full border rounded-lg px-4 py-2 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+              className={`w-full px-4 py-2 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
                 errors.newPassword ? "border-red-500" : "border-gray-300"
               }`}
             />
             <button
               type="button"
+              aria-label={showNewPassword ? "Hide password" : "Show password"}
               onClick={() => setShowNewPassword(!showNewPassword)}
               className="absolute inset-y-0 flex items-center h-full text-gray-500 bg-transparent right-3 hover:text-sky-600"
             >
@@ -465,12 +462,13 @@ export default function ResetPassword() {
               value={formData.confirmPassword}
               onChange={handleChange}
               required
-              className={`w-full border rounded-lg px-4 py-2 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+              className={`w-full px-4 py-2 pr-12 border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
                 errors.confirmPassword ? "border-red-500" : "border-gray-300"
               }`}
             />
             <button
               type="button"
+              aria-label={showConfirmPassword ? "Hide password" : "Show password"}
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
               className="absolute inset-y-0 flex items-center h-full text-gray-500 bg-transparent right-3 hover:text-sky-600"
             >
@@ -493,24 +491,22 @@ export default function ResetPassword() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50"
+            className="w-full py-3 font-medium text-white transition rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Processing..." : "Continue"}
           </button>
         </div>
       </form>
 
-      <PasswordRequirements 
-        password={formData.newPassword}
-        showMatchRequirement={true}
-        passwordsMatch={formData.newPassword && formData.confirmPassword && formData.newPassword === formData.confirmPassword}
-      />
+        <PasswordRequirements 
+          password={formData.newPassword}
+        />
     </>
   );
 
   return (
     <Layout>
-      <div className="w-full max-w-md min-h-[500px] p-8 bg-white shadow-lg rounded-2xl">
+      <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-2xl">
         {currentStep === 1 ? renderStep1() : renderStep2()}
       </div>
     </Layout>
