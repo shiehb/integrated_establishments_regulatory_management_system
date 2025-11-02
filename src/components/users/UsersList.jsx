@@ -8,22 +8,17 @@ import {
   ArrowUp,
   ArrowDown,
   Filter,
-  Search,
-  X,
-  ChevronDown,
   User,
   MoreHorizontal,
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import api, { toggleUserActive, getProfile } from "../../services/api";
-import ExportDropdown from "../ExportDropdown";
-import PrintPDF from "../PrintPDF";
-import DateRangeDropdown from "../DateRangeDropdown";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 import PaginationControls from "../PaginationControls";
 import { useLocalStoragePagination } from "../../hooks/useLocalStoragePagination";
 import { canExportAndPrint } from "../../utils/permissions";
+import TableToolbar from "../common/TableToolbar";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -152,7 +147,6 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
 
   // ✅ Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
   // ✅ Pagination with localStorage
   const savedPagination = useLocalStoragePagination("users_list");
@@ -225,26 +219,6 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     fetchAllUsers();
   }, [refreshTrigger, fetchAllUsers]);
 
-  // Add this useEffect to handle clicks outside the dropdowns
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (filtersOpen && !e.target.closest(".filter-dropdown")) {
-        setFiltersOpen(false);
-      }
-      if (sortDropdownOpen && !e.target.closest(".sort-dropdown")) {
-        setSortDropdownOpen(false);
-      }
-    }
-
-    if (filtersOpen || sortDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [filtersOpen, sortDropdownOpen]);
-
   // Handle highlighting from search navigation
   useEffect(() => {
     console.log('UsersList - Location state:', location.state);
@@ -300,12 +274,6 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
       <ArrowDown size={14} />
     );
   };
-
-  // Sort options for dropdown
-  const sortFields = [
-    { key: "user", label: "User Name" },
-    { key: "date_joined", label: "Date Joined" },
-  ];
 
   // ✅ Filter + Sort with LOCAL search (client-side only)
   const filteredUsers = useMemo(() => {
@@ -437,14 +405,6 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
     setCurrentPage(1);
   };
 
-  const handleSortFromDropdown = (fieldKey, directionKey) => {
-    if (fieldKey) {
-      setSortConfig({ key: fieldKey, direction: directionKey || "asc" });
-    } else {
-      setSortConfig({ key: null, direction: null });
-    }
-    // Removed auto-close: setSortDropdownOpen(false);
-  };
 
   // Pagination functions
   const goToPage = (page) => {
@@ -470,6 +430,83 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   const startItem = (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, filteredCount);
 
+  // Custom filters dropdown for TableToolbar
+  const customFiltersDropdown = (
+    <div className="absolute right-0 top-full z-20 w-64 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto custom-scrollbar">
+      <div className="p-2">
+        {/* Header with Clear All */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
+          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Filters
+          </div>
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => {
+                setRoleFilter([]);
+                setStatusFilter([]);
+              }}
+              className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+            >
+              Clear All
+            </button>
+          )}
+        </div>
+
+        {/* Role Section */}
+        <div className="mb-3">
+          <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+            User Role
+          </div>
+          {[
+            "Legal Unit",
+            "Division Chief",
+            "Section Chief",
+            "Unit Head",
+            "Monitoring Personnel",
+          ].map((role) => (
+            <button
+              key={role}
+              onClick={() => toggleRole(role)}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                roleFilter.includes(role) ? "bg-sky-50 font-medium" : ""
+              }`}
+            >
+              <div className="flex-1 text-left">
+                <div className="font-medium">{userRoleDisplayNames[role] || role}</div>
+              </div>
+              {roleFilter.includes(role) && (
+                <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Status Section */}
+        <div className="mb-2">
+          <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+            User Status
+          </div>
+          {["Active", "Inactive"].map((status) => (
+            <button
+              key={status}
+              onClick={() => toggleStatus(status)}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                statusFilter.includes(status) ? "bg-sky-50 font-medium" : ""
+              }`}
+            >
+              <div className="flex-1 text-left">
+                <div className="font-medium">{status}</div>
+              </div>
+              {statusFilter.includes(status) && (
+                <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="p-4 bg-white h-[calc(100vh-160px)]">
       {/* Top controls */}
@@ -477,271 +514,95 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
         <h1 className="text-2xl font-bold text-sky-600">Users Management</h1>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {/* 🔍 Local Search Bar */}
-          <div className="relative flex-1 min-w-[250px]">
-            <Search className="absolute w-4 h-4 text-gray-400 left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full py-1 pl-10 pr-8 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
-            />
-            {searchQuery && (
-              <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-              </button>
-            )}
-          </div>
-
-          {/* 🔽 Sort Dropdown */}
-          <div className="relative sort-dropdown">
-            <button
-              onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-              className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              <ArrowUpDown size={14} />
-              Sort
-              <ChevronDown size={14} />
-            </button>
-
-            {sortDropdownOpen && (
-              <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-                <div className="p-2">
-                  {/* Header */}
-                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
-                    Sort Options
-                  </div>
-
-                  {/* Sort Fields */}
-                  <div className="mt-2 mb-2">
-                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                      Sort by
-                    </div>
-                    {sortFields.map((field) => (
-                      <button
-                        key={field.key}
-                        onClick={() =>
-                          handleSortFromDropdown(
-                            field.key,
-                            sortConfig.key === field.key
-                              ? sortConfig.direction === "asc"
-                                ? "desc"
-                                : "asc"
-                              : "asc"
-                          )
-                        }
-                        className={`w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                          sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
-                        }`}
-                      >
-                        <span>{field.label}</span>
-                        {sortConfig.key === field.key && (
-                          <div className="flex items-center gap-1">
-                            {sortConfig.direction === "asc" ? (
-                              <ArrowUp size={14} className="text-sky-600" />
-                            ) : (
-                              <ArrowDown size={14} className="text-sky-600" />
-                            )}
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Clear Sort */}
-                  {sortConfig.key && (
-                    <>
-                      <div className="my-1 border-t border-gray-200"></div>
-                      <button
-                        onClick={() => setSortConfig({ key: null, direction: null })}
-                        className="w-full px-3 py-2 text-sm text-gray-600 rounded-md hover:bg-gray-100 transition-colors text-left"
-                      >
-                        Clear Sort
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 🎚 Filters dropdown */}
-          <div className="relative filter-dropdown">
-            <button
-              onClick={() => setFiltersOpen((prev) => !prev)}
-              className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              <Filter size={14} />
-              Filters
-              <ChevronDown size={14} />
-              {activeFilterCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 text-xs bg-sky-600 text-white rounded-full">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-
-            {filtersOpen && (
-              <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto custom-scrollbar">
-                <div className="p-2">
-                  {/* Header with Clear All */}
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Filters
-                    </div>
-                    {activeFilterCount > 0 && (
-                      <button
-                        onClick={() => {
-                          setRoleFilter([]);
-                          setStatusFilter([]);
-                        }}
-                        className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                      >
-                        Clear All
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Role Section */}
-                  <div className="mb-3">
-                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                      User Role
-                    </div>
-                    {[
-                      "Legal Unit",
-                      "Division Chief",
-                      "Section Chief",
-                      "Unit Head",
-                      "Monitoring Personnel",
-                    ].map((role) => (
-                      <button
-                        key={role}
-                        onClick={() => toggleRole(role)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                          roleFilter.includes(role) ? "bg-sky-50 font-medium" : ""
-                        }`}
-                      >
-                        <div className="flex-1 text-left">
-                          <div className="font-medium">{userRoleDisplayNames[role] || role}</div>
-                        </div>
-                        {roleFilter.includes(role) && (
-                          <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Status Section */}
-                  <div className="mb-2">
-                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                      User Status
-                    </div>
-                    {["Active", "Inactive"].map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => toggleStatus(status)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                          statusFilter.includes(status) ? "bg-sky-50 font-medium" : ""
-                        }`}
-                      >
-                        <div className="flex-1 text-left">
-                          <div className="font-medium">{status}</div>
-                        </div>
-                        {statusFilter.includes(status) && (
-                          <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DateRangeDropdown
+          <TableToolbar
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSearchClear={clearSearch}
+            searchPlaceholder="Search..."
+            sortConfig={sortConfig}
+            sortFields={[
+              { key: "user", label: "User Name" },
+              { key: "date_joined", label: "Date Joined" },
+            ]}
+            onSort={(fieldKey, directionKey) => {
+              if (fieldKey === null && directionKey === null) {
+                setSortConfig({ key: null, direction: null });
+              } else {
+                setSortConfig({ key: fieldKey, direction: directionKey || "asc" });
+              }
+            }}
+            onFilterClick={() => setFiltersOpen(!filtersOpen)}
+            customFilterDropdown={filtersOpen ? customFiltersDropdown : null}
+            filterOpen={filtersOpen}
+            onFilterClose={() => setFiltersOpen(false)}
             dateFrom={dateFrom}
             dateTo={dateTo}
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
-            onClear={() => {
-              setDateFrom("");
-              setDateTo("");
-            }}
-            className=" absolute right-0 flex items-center text-sm"
+            exportConfig={canExportAndPrint(userLevel, 'users') ? {
+              title: "Users Export Report",
+              fileName: "users_export",
+              columns: ["ID", "Name", "Email", "User Level", "Section", "Status", "Date Created"],
+              rows: selectedUsers.length > 0 ? 
+                filteredUsers
+                  .filter(user => selectedUsers.includes(user.id))
+                  .map(user => [
+                    user.id,
+                    `${user.first_name} ${user.last_name}`,
+                    user.email,
+                    user.userlevel,
+                    user.section || "N/A",
+                    user.is_active ? "Active" : "Inactive",
+                    new Date(user.date_joined).toLocaleDateString()
+                  ]) : 
+                filteredUsers.map(user => [
+                  user.id,
+                  `${user.first_name} ${user.last_name}`,
+                  user.email,
+                  user.userlevel,
+                  user.section || "N/A",
+                  user.is_active ? "Active" : "Inactive",
+                  new Date(user.date_joined).toLocaleDateString()
+                ])
+            } : null}
+            printConfig={canExportAndPrint(userLevel, 'users') ? {
+              title: "Users Report",
+              fileName: "users_report",
+              columns: ["ID", "Name", "Email", "User Level", "Section", "Status", "Date Created"],
+              rows: selectedUsers.length > 0 ? 
+                filteredUsers
+                  .filter(user => selectedUsers.includes(user.id))
+                  .map(user => [
+                    user.id,
+                    `${user.first_name} ${user.last_name}`,
+                    user.email,
+                    user.userlevel,
+                    user.section || "N/A",
+                    user.is_active ? "Active" : "Inactive",
+                    new Date(user.date_joined).toLocaleDateString()
+                  ]) : 
+                filteredUsers.map(user => [
+                  user.id,
+                  `${user.first_name} ${user.last_name}`,
+                  user.email,
+                  user.userlevel,
+                  user.section || "N/A",
+                  user.is_active ? "Active" : "Inactive",
+                  new Date(user.date_joined).toLocaleDateString()
+                ])
+            } : null}
+            onRefresh={fetchAllUsers}
+            isRefreshing={loading}
+            additionalActions={[
+              {
+                onClick: onAdd,
+                icon: Plus,
+                title: "Add User",
+                text: "Add User",
+                variant: "primary"
+              }
+            ]}
           />
-
-          {canExportAndPrint(userLevel, 'users') && (
-            <>
-              <ExportDropdown
-                title="Users Export Report"
-                fileName="users_export"
-                columns={["ID", "Name", "Email", "User Level", "Section", "Status", "Date Created"]}
-                rows={selectedUsers.length > 0 ? 
-                  filteredUsers
-                    .filter(user => selectedUsers.includes(user.id))
-                    .map(user => [
-                      user.id,
-                      `${user.first_name} ${user.last_name}`,
-                      user.email,
-                      user.userlevel,
-                      user.section || "N/A",
-                      user.is_active ? "Active" : "Inactive",
-                      new Date(user.date_joined).toLocaleDateString()
-                    ]) : 
-                  filteredUsers.map(user => [
-                    user.id,
-                    `${user.first_name} ${user.last_name}`,
-                    user.email,
-                    user.userlevel,
-                    user.section || "N/A",
-                    user.is_active ? "Active" : "Inactive",
-                    new Date(user.date_joined).toLocaleDateString()
-                  ])
-                }
-                disabled={users.length === 0}
-                className="flex items-center text-sm"
-              />
-
-              <PrintPDF
-                title="Users Report"
-                fileName="users_report"
-                columns={["ID", "Name", "Email", "User Level", "Section", "Status", "Date Created"]}
-                rows={selectedUsers.length > 0 ? 
-                  filteredUsers
-                    .filter(user => selectedUsers.includes(user.id))
-                    .map(user => [
-                      user.id,
-                      `${user.first_name} ${user.last_name}`,
-                      user.email,
-                      user.userlevel,
-                      user.section || "N/A",
-                      user.is_active ? "Active" : "Inactive",
-                      new Date(user.date_joined).toLocaleDateString()
-                    ]) : 
-                  filteredUsers.map(user => [
-                    user.id,
-                    `${user.first_name} ${user.last_name}`,
-                    user.email,
-                    user.userlevel,
-                    user.section || "N/A",
-                    user.is_active ? "Active" : "Inactive",
-                    new Date(user.date_joined).toLocaleDateString()
-                  ])
-                }
-                selectedCount={selectedUsers.length}
-                disabled={users.length === 0}
-                className="flex items-center px-3 py-1 text-sm"
-              />
-            </>
-          )}
-
-          <button
-            onClick={onAdd}
-            className="flex items-center px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-          >
-            <Plus size={16} /> Add User
-          </button>
         </div>
       </div>
 

@@ -9,6 +9,7 @@ import ExportDropdown from "../components/ExportDropdown";
 import PrintPDF from "../components/PrintPDF";
 import DateRangeDropdown from "../components/DateRangeDropdown";
 import PaginationControls from "../components/PaginationControls";
+import TableToolbar from "../components/common/TableToolbar";
 import { useLocalStoragePagination } from "../hooks/useLocalStoragePagination";
 import useDebounce from "../hooks/useDebounce";
 import {
@@ -22,8 +23,6 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  ChevronDown,
-  Filter,
 } from "lucide-react";
 import {
   getProfile,
@@ -57,15 +56,12 @@ const DatabaseBackup = () => {
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
   // 🎚 Filters
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [backupTypeFilter, setBackupTypeFilter] = useState("all"); // "all", "backup", "restore"
 
   // ✅ Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
-  const [typeFilterOpen, setTypeFilterOpen] = useState(false);
 
   // ✅ Pagination with localStorage
   const savedPagination = useLocalStoragePagination("backups_list");
@@ -289,28 +285,6 @@ const DatabaseBackup = () => {
 
 
 
-  // Add this useEffect to handle clicks outside the dropdowns
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (filtersOpen && !e.target.closest(".filter-dropdown")) {
-        setFiltersOpen(false);
-      }
-      if (sortDropdownOpen && !e.target.closest(".sort-dropdown")) {
-        setSortDropdownOpen(false);
-      }
-      if (typeFilterOpen && !e.target.closest(".type-filter-dropdown")) {
-        setTypeFilterOpen(false);
-      }
-    }
-
-    if (filtersOpen || sortDropdownOpen || typeFilterOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [filtersOpen, sortDropdownOpen, typeFilterOpen]);
 
   const formatFullDate = (dateString) => {
     if (!dateString) return "-";
@@ -345,13 +319,6 @@ const DatabaseBackup = () => {
     );
   };
 
-  // Sort options for dropdown
-  const sortFields = [
-    { key: "fileName", label: "File Name" },
-    { key: "location", label: "Location" },
-    { key: "created_at", label: "Created Date" },
-    { key: "backup_type", label: "Type" },
-  ];
 
 
   // ✅ Filter + Sort with LOCAL search (client-side only)
@@ -443,13 +410,6 @@ const DatabaseBackup = () => {
     setCurrentPage(1);
   };
 
-  const handleSortFromDropdown = (fieldKey, directionKey) => {
-    if (fieldKey) {
-      setSortConfig({ key: fieldKey, direction: directionKey || "asc" });
-    } else {
-      setSortConfig({ key: null, direction: null });
-    }
-  };
 
   // Pagination functions
   const goToPage = (page) => {
@@ -464,8 +424,6 @@ const DatabaseBackup = () => {
     dateTo ||
     backupTypeFilter !== "all" ||
     sortConfig.key;
-  const activeFilterCount =
-    (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (backupTypeFilter !== "all" ? 1 : 0);
 
   // Calculate display range
   const startItem = startIndex + 1;
@@ -498,205 +456,62 @@ const DatabaseBackup = () => {
               Database Backup & Restore
             </h1>
             
-            {/* Search Controls */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* 🔍 Search Bar */}
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute w-4 h-4 text-gray-400 left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full py-1 pl-10 pr-8 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
-                />
-                {searchQuery && (
-                  <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                  </button>
-                )}
-              </div>
-
-              {/* 🔽 Sort Dropdown */}
-              <div className="relative sort-dropdown">
-                <button
-                  onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                  className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  <ArrowUpDown size={14} />
-                  Sort
-                  <ChevronDown size={14} />
-                </button>
-
-                {sortDropdownOpen && (
-                  <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-                    <div className="p-2">
-                      {/* Header */}
-                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
-                        Sort Options
-                      </div>
-                      
-                      {/* Sort Fields */}
-                      <div className="mt-2 mb-2">
-                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                          Sort by
-                        </div>
-                        {sortFields.map((field) => (
-                          <button
-                            key={field.key}
-                            onClick={() =>
-                              handleSortFromDropdown(
-                                field.key,
-                                sortConfig.key === field.key
-                                  ? sortConfig.direction === "asc"
-                                    ? "desc"
-                                    : "asc"
-                                  : "asc"
-                              )
-                            }
-                            className={`w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                              sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
-                            }`}
-                          >
-                            <span>{field.label}</span>
-                            {sortConfig.key === field.key && (
-                              <div className="flex items-center gap-1">
-                                {sortConfig.direction === "asc" ? (
-                                  <ArrowUp size={14} className="text-sky-600" />
-                                ) : (
-                                  <ArrowDown size={14} className="text-sky-600" />
-                                )}
-                              </div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Clear Sort */}
-                      {sortConfig.key && (
-                        <>
-                          <div className="my-1 border-t border-gray-200"></div>
-                          <button
-                            onClick={() => setSortConfig({ key: null, direction: null })}
-                            className="w-full px-3 py-2 text-sm text-gray-600 rounded-md hover:bg-gray-100 transition-colors text-left"
-                          >
-                            Clear Sort
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 🔽 Type Filter Dropdown */}
-              <div className="relative type-filter-dropdown">
-                <button
-                  onClick={() => setTypeFilterOpen(!typeFilterOpen)}
-                  className={`flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-lg transition-colors ${
-                    backupTypeFilter !== "all"
-                      ? "bg-sky-100 text-sky-700 hover:bg-sky-200"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }`}
-                >
-                  Type
-                  <ChevronDown size={14} />
-                  {backupTypeFilter !== "all" && (
-                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-sky-600 text-white rounded-full">
-                      1
-                    </span>
-                  )}
-                </button>
-
-                {typeFilterOpen && (
-                  <div className="absolute right-0 z-20 w-48 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-                    <div className="p-2">
-                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
-                        Filter by Type
-                      </div>
-                      <div className="mt-2">
-                        {["all", "backup", "restore"].map((type) => (
-                          <button
-                            key={type}
-                            onClick={() => {
-                              setBackupTypeFilter(type);
-                              setTypeFilterOpen(false);
-                            }}
-                            className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-md hover:bg-gray-100 transition-colors ${
-                              backupTypeFilter === type
-                                ? "bg-sky-50 font-medium text-sky-700"
-                                : "text-gray-700"
-                            }`}
-                          >
-                            <span className="capitalize">
-                              {type === "all" ? "Show All" : type}
-                            </span>
-                            {backupTypeFilter === type && (
-                              <span className="text-sky-600">✓</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 🎚 Filters dropdown */}
-              <div className="relative filter-dropdown">
-                <button
-                  onClick={() => setFiltersOpen((prev) => !prev)}
-                  className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  <Filter size={14} />
-                  Filters
-                  <ChevronDown size={14} />
-                  {activeFilterCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-sky-600 text-white rounded-full">
-                      {activeFilterCount}
-                    </span>
-                  )}
-                </button>
-
-                {filtersOpen && (
-                  <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto custom-scrollbar">
-                    <div className="p-2">
-                      {/* Header with Clear All */}
-                      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                          Filters
-                        </div>
-                        {activeFilterCount > 0 && (
-                          <button
-                            onClick={clearAllFilters}
-                            className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                          >
-                            Clear All
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <DateRangeDropdown
+            <TableToolbar
+                searchValue={searchQuery}
+                onSearchChange={setSearchQuery}
+                onSearchClear={clearSearch}
+                searchPlaceholder="Search..."
+                sortConfig={sortConfig}
+                sortFields={[
+                  { key: "fileName", label: "File Name" },
+                  { key: "location", label: "Location" },
+                  { key: "created_at", label: "Created Date" },
+                  { key: "backup_type", label: "Type" },
+                ]}
+                onSort={(fieldKey, directionKey) => {
+                  if (fieldKey === null && directionKey === null) {
+                    setSortConfig({ key: null, direction: null });
+                  } else {
+                    setSortConfig({ key: fieldKey, direction: directionKey || "asc" });
+                  }
+                }}
+                typeFilterValue={backupTypeFilter}
+                typeFilterOptions={[
+                  { value: "all", label: "Show All" },
+                  { value: "backup", label: "Backup" },
+                  { value: "restore", label: "Restore" },
+                ]}
+                onTypeFilterChange={setBackupTypeFilter}
                 dateFrom={dateFrom}
                 dateTo={dateTo}
                 onDateFromChange={setDateFrom}
                 onDateToChange={setDateTo}
-                onClear={() => {
-                  setDateFrom("");
-                  setDateTo("");
+                exportConfig={{
+                  title: "Backups Export Report",
+                  fileName: "backups_export",
+                  columns: ["File Name", "Type", "Location", "Created At"],
+                  rows: selectedBackups.length > 0 ? 
+                  selectedBackups.map(fileName => {
+                    const backup = backups.find(b => b.fileName === fileName);
+                    return backup ? [
+                      backup.fileName,
+                      backup.backup_type === "restore" ? "Restore" : "Backup",
+                      backup.location || "-",
+                      formatFullDate(backup.created_at)
+                    ] : [];
+                  }).filter(row => row.length > 0) : 
+                  backups.map(backup => [
+                    backup.fileName,
+                    backup.backup_type === "restore" ? "Restore" : "Backup",
+                    backup.location || "-",
+                    formatFullDate(backup.created_at)
+                  ])
                 }}
-                className="flex items-center text-sm"
-              />
-
-              <ExportDropdown
-                title="Backups Export Report"
-                fileName="backups_export"
-                columns={["File Name", "Type", "Location", "Created At"]}
-                rows={selectedBackups.length > 0 ? 
+                printConfig={{
+                  title: "Backups Report",
+                  fileName: "backups_report",
+                  columns: ["File Name", "Type", "Location", "Created At"],
+                  rows: selectedBackups.length > 0 ? 
                   selectedBackups.map(fileName => {
                     const backup = backups.find(b => b.fileName === fileName);
                     return backup ? [
@@ -712,51 +527,10 @@ const DatabaseBackup = () => {
                     backup.location || "-",
                     formatFullDate(backup.created_at)
                   ])
-                }
-                disabled={backups.length === 0}
-                className="flex items-center text-sm"
+                }}
+                onRefresh={loadBackups}
+                isRefreshing={loadingBackups}
               />
-
-              <PrintPDF
-                title="Backups Report"
-                fileName="backups_report"
-                columns={["File Name", "Type", "Location", "Created At"]}
-                rows={selectedBackups.length > 0 ? 
-                  selectedBackups.map(fileName => {
-                    const backup = backups.find(b => b.fileName === fileName);
-                    return backup ? [
-                      backup.fileName,
-                      backup.backup_type === "restore" ? "Restore" : "Backup",
-                      backup.location || "-",
-                      formatFullDate(backup.created_at)
-                    ] : [];
-                  }).filter(row => row.length > 0) : 
-                  backups.map(backup => [
-                    backup.fileName,
-                    backup.backup_type === "restore" ? "Restore" : "Backup",
-                    backup.location || "-",
-                    formatFullDate(backup.created_at)
-                  ])
-                }
-                selectedCount={selectedBackups.length}
-                disabled={backups.length === 0}
-                className="flex items-center px-3 py-1 text-sm"
-              />
-
-              <button
-                onClick={loadBackups}
-                disabled={loadingBackups}
-                className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
-              >
-                <RefreshCw
-                  className={`mr-1 ${
-                    loadingBackups ? "animate-spin" : ""
-                  }`}
-                  size={14}
-                />
-                Refresh
-              </button>
-            </div>
           </div>
 
           {/* Updated Layout: Left (backup/restore cards) - Right (table) */}
