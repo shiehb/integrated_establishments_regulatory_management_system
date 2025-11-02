@@ -680,7 +680,7 @@ export default function MapPage() {
                   <thead>
                     <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
                       <th
-                        className="p-1 border-b border-gray-300 cursor-pointer"
+                        className="px-3 py-2 border-b border-gray-300 cursor-pointer"
                         onClick={() => handleSort("name")}
                       >
                         <div className="flex items-center gap-1">
@@ -688,14 +688,14 @@ export default function MapPage() {
                         </div>
                       </th>
                       <th
-                        className="p-1 border-b border-gray-300 cursor-pointer"
+                        className="px-3 py-2 border-b border-gray-300 cursor-pointer"
                         onClick={() => handleSort("city")}
                       >
                         <div className="flex items-center gap-1">
                           Address {getSortIcon("city")}
                         </div>
                       </th>
-                      <th className="p-1 text-center border-b border-gray-300">
+                      <th className="px-3 py-2 text-center border-b border-gray-300">
                         Coordinates
                       </th>
                       {/* <th
@@ -761,22 +761,22 @@ export default function MapPage() {
                       paginatedEstablishments.map((e) => (
                         <tr
                           key={e.id}
-                          className={`p-1 text-xs border-b border-gray-300 hover:bg-gray-50 cursor-pointer ${
+                          className={`text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors cursor-pointer ${
                             focusedEstablishment?.id === e.id
                               ? "bg-green-100"
                               : ""
                           }`}
                           onClick={() => setFocusedEstablishment(e)}
                         >
-                          <td className="p-1 font-semibold border-b border-gray-300">
+                          <td className="px-3 py-2 font-semibold border-b border-gray-300">
                             {e.name}
                           </td>
-                          <td className="p-1 text-left border-b border-gray-300">
+                          <td className="px-3 py-2 text-left border-b border-gray-300">
                             <div className="truncate max-w-xs" title={`${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}`}>
                             {`${e.street_building}, ${e.barangay}, ${e.city}, ${e.province}`}
                             </div>
                           </td>
-                          <td className="p-1 text-center border-b border-gray-300">
+                          <td className="px-3 py-2 text-center border-b border-gray-300">
                             {`${parseFloat(e.latitude).toFixed(
                               4
                             )}, ${parseFloat(e.longitude).toFixed(4)}`}

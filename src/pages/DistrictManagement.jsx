@@ -4,7 +4,8 @@ import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
 import { useNotifications } from "../components/NotificationManager";
 import ConfirmationDialog from "../components/common/ConfirmationDialog";
-import PaginationControls, { useLocalStoragePagination } from "../components/PaginationControls";
+import PaginationControls from "../components/PaginationControls";
+import { useLocalStoragePagination } from "../hooks/useLocalStoragePagination";
 import { 
   MapPin, 
   Users, 
@@ -682,7 +683,7 @@ export default function DistrictManagement() {
             <table className="w-full">
             <thead>
                 <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
-                <th className="p-1 border-b border-gray-300">
+                <th className="px-3 py-2 border-b border-gray-300">
                   <button
                     onClick={() => handleSort('name')}
                     className="flex items-center gap-1 hover:text-gray-200 transition-colors font-medium"
@@ -690,9 +691,9 @@ export default function DistrictManagement() {
                     Full Name {getSortIcon('name')}
                   </button>
                 </th>
-                <th className="p-1 border-b border-gray-300 font-medium">Email</th>
+                <th className="px-3 py-2 border-b border-gray-300 font-medium">Email</th>
                 {showAllLaws && availableSections.length > 1 && (
-                  <th className="p-1 border-b border-gray-300">
+                  <th className="px-3 py-2 border-b border-gray-300">
                     <button
                       onClick={() => handleSort('section')}
                       className="flex items-center gap-1 hover:text-gray-200 transition-colors font-medium"
@@ -701,7 +702,7 @@ export default function DistrictManagement() {
                     </button>
                   </th>
                 )}
-                <th className="p-1 border-b border-gray-300">
+                <th className="px-3 py-2 border-b border-gray-300">
                   <button
                     onClick={() => handleSort('district')}
                     className="flex items-center gap-1 hover:text-gray-200 transition-colors font-medium"
@@ -709,7 +710,7 @@ export default function DistrictManagement() {
                     District {getSortIcon('district')}
                   </button>
                 </th>
-                <th className="p-1 border-b border-gray-300">
+                <th className="px-3 py-2 border-b border-gray-300">
                   <button
                     onClick={() => handleSort('is_active')}
                     className="flex items-center gap-1 hover:text-gray-200 transition-colors font-medium"
@@ -717,7 +718,7 @@ export default function DistrictManagement() {
                     Status {getSortIcon('is_active')}
                   </button>
                 </th>
-                <th className="p-1 text-center border-b border-gray-300 w-35 font-medium">Actions</th>
+                <th className="px-3 py-2 text-center border-b border-gray-300 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -763,26 +764,26 @@ export default function DistrictManagement() {
                 paginatedUsers.map((user) => (
                   <tr
                     key={user.id}
-                    className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
+                    className="text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors"
                   >
-                    <td className="px-2 font-semibold border-b border-gray-300">
+                    <td className="px-3 py-2 font-semibold border-b border-gray-300">
                       <div className="flex items-center">
                         <Users className="h-4 w-4 text-gray-400 mr-2" />
                         {getFullName(user)}
                       </div>
                     </td>
-                    <td className="px-2 border-b border-gray-300">
+                    <td className="px-3 py-2 border-b border-gray-300">
                       <div className="text-sm text-gray-600">{user.email}</div>
                     </td>
                     {showAllLaws && availableSections.length > 1 && (
-                      <td className="px-2 border-b border-gray-300">
+                      <td className="px-3 py-2 border-b border-gray-300">
                         <div className="flex flex-col">
                           <span className="text-sm font-medium text-gray-900">{user.section}</span>
                           <span className="text-xs text-gray-500">{getSectionDisplayName(user.section)}</span>
                         </div>
                       </td>
                     )}
-                    <td className="px-2 border-b border-gray-300">
+                    <td className="px-3 py-2 border-b border-gray-300">
                       {user.district ? (
                         <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
                           <MapPin size={12} />
@@ -795,7 +796,7 @@ export default function DistrictManagement() {
                         </span>
                       )}
                     </td>
-                    <td className="px-2 text-center border-b border-gray-300">
+                    <td className="px-3 py-2 text-center border-b border-gray-300">
                       {user.is_active ? (
                         <span className="inline-flex items-center gap-2 px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
                           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -808,7 +809,7 @@ export default function DistrictManagement() {
                         </span>
                       )}
                     </td>
-                    <td className="p-1 text-center border-b border-gray-300">
+                    <td className="px-3 py-2 text-center border-b border-gray-300">
                       <div className="flex justify-center gap-1">
                         <button
                           onClick={() => handleAssignDistrict(user)}

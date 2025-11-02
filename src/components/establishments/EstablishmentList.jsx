@@ -20,7 +20,8 @@ import { getEstablishments, getProfile } from "../../services/api";
 import ExportDropdown from "../ExportDropdown";
 import PrintPDF from "../PrintPDF";
 import DateRangeDropdown from "../DateRangeDropdown";
-import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
+import PaginationControls from "../PaginationControls";
+import { useLocalStoragePagination } from "../../hooks/useLocalStoragePagination";
 import { useNotifications } from "../NotificationManager";
 import { canExportAndPrint } from "../../utils/permissions";
 
@@ -606,31 +607,12 @@ export default function EstablishmentList({
         </div>
       </div>
 
-      {/* 📊 Search results info */}
-      {(hasActiveFilters || filteredCount !== totalEstablishments) && (
-        <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
-          <div>
-            {filteredCount === totalEstablishments
-              ? `Showing all ${totalEstablishments} establishment(s)`
-              : `Showing ${filteredCount} of ${totalEstablishments} establishment(s)`}
-          </div>
-          {hasActiveFilters && (
-            <button
-              onClick={clearAllFilters}
-              className="underline text-sky-600 hover:text-sky-700"
-            >
-              Clear all filters
-            </button>
-          )}
-        </div>
-      )}
-
       {/* Table */}
-      <div className="overflow-auto h-[calc(100vh-270px)] border border-gray-300 rounded-lg scroll-smooth custom-scrollbar">
+      <div className="overflow-auto h-[calc(100vh-270px)] border border-gray-300 rounded scroll-smooth custom-scrollbar">
         <table className="w-full">
           <thead>
             <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
-              <th className="w-6 p-1 text-center border-b border-gray-300">
+              <th className="w-6 px-3 py-2 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
                   checked={
@@ -642,7 +624,7 @@ export default function EstablishmentList({
                 />
               </th>
               <th
-                className="p-1 border-b border-gray-300 cursor-pointer"
+                className="px-3 py-2 border-b border-gray-300 cursor-pointer"
                 onClick={() => handleSort("name")}
               >
                 <div className="flex items-center gap-1">
@@ -650,26 +632,26 @@ export default function EstablishmentList({
                 </div>
               </th>
               <th
-                className="p-1 border-b border-gray-300 cursor-pointer"
+                className="px-3 py-2 border-b border-gray-300 cursor-pointer"
                 onClick={() => handleSort("city")}
               >
                 <div className="flex items-center gap-1">
                   Address {getSortIcon("city")}
                 </div>
               </th>
-              <th className="p-1 text-center border-b border-gray-300">
+              <th className="px-3 py-2 text-center border-b border-gray-300">
                 Coordinates
               </th>
-              <th className="p-1 border-b border-gray-300">Nature of Business</th>
+              <th className="px-3 py-2 border-b border-gray-300">Nature of Business</th>
               <th
-                className="p-1 text-center border-b border-gray-300 cursor-pointer"
+                className="px-3 py-2 text-center border-b border-gray-300 cursor-pointer"
                 onClick={() => handleSort("year_established")}
               >
                 <div className="flex items-center justify-center gap-1">
                   Year Established {getSortIcon("year_established")}
                 </div>
               </th>
-              <th className="p-1 text-center border-b border-gray-300">
+              <th className="px-3 py-2 text-center border-b border-gray-300">
                 Actions
               </th>
             </tr>
@@ -720,35 +702,35 @@ export default function EstablishmentList({
                 <tr
                   key={e.id}
                   ref={e.id === highlightedEstId ? highlightedRowRef : null}
-                  className={`p-1 text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors ${
+                  className={`text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors ${
                     e.id === highlightedEstId ? 'search-highlight-persist' : ''
                   }`}
                   onClick={() => setHighlightedEstId(e.id)}
                 >
-                  <td className="text-center border-b border-gray-300">
+                  <td className="text-center px-3 py-2 border-b border-gray-300">
                     <input
                       type="checkbox"
                       checked={selectedEstablishments.includes(e.id)}
                       onChange={() => toggleSelect(e.id)}
                     />
                   </td>
-                  <td className="px-2 font-semibold border-b border-gray-300">
+                  <td className="px-3 py-2 font-semibold border-b border-gray-300">
                     {e.name}
                   </td>
-                  <td className="px-2 border-b border-gray-300">
+                  <td className="px-3 py-2 border-b border-gray-300">
                     {e.street_building}, {e.barangay}, {e.city}, {e.province},{" "}
                     {e.postal_code}
                   </td>
-                  <td className="px-2 text-center border-b border-gray-300">
+                  <td className="px-3 py-2 text-center border-b border-gray-300">
                     {e.latitude}, {e.longitude}
                   </td>
-                  <td className="px-2 border-b border-gray-300">
+                  <td className="px-3 py-2 border-b border-gray-300">
                     {e.nature_of_business}
                   </td>
-                  <td className="px-2 text-center border-b border-gray-300">
+                  <td className="px-3 py-2 text-center border-b border-gray-300">
                     {e.year_established}
                   </td>
-                  <td className="relative w-20 p-1 text-center border-b border-gray-300">
+                  <td className="px-3 py-2 text-center border-b border-gray-300">
                     <div className="flex justify-center gap-2">
                       {canEditEstablishments && (
                         <button

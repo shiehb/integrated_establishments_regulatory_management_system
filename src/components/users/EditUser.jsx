@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import api from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
+import { Upload, X, User } from "lucide-react";
 
 export default function EditUser({ userData, onClose, onUserUpdated }) {
   const [formData, setFormData] = useState({
@@ -16,6 +17,9 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailChanged, setEmailChanged] = useState(false);
+  const [avatar, setAvatar] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const fileInputRef = useRef(null);
   const notifications = useNotifications();
 
   useEffect(() => {
@@ -32,6 +36,26 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     
     // Reset email changed flag when component re-initializes
     setEmailChanged(false);
+    
+    // Set avatar preview if user has existing avatar
+    if (userData?.avatar) {
+      // Handle both absolute URLs and relative paths
+      let avatarUrl;
+      if (userData.avatar.startsWith('http://') || userData.avatar.startsWith('https://')) {
+        // Already an absolute URL
+        avatarUrl = userData.avatar;
+      } else if (userData.avatar.startsWith('/')) {
+        // Relative path starting with / - prepend origin
+        avatarUrl = `${window.location.origin}${userData.avatar}`;
+      } else {
+        // Relative path without / - construct full URL
+        const baseUrl = api.defaults.baseURL.replace('/api/', '').replace(/\/$/, '');
+        avatarUrl = `${baseUrl}${userData.avatar.startsWith('/') ? '' : '/'}${userData.avatar}`;
+      }
+      setAvatarPreview(avatarUrl);
+    } else {
+      setAvatarPreview(null);
+    }
     
     console.log("Form data initialized:", {
       firstName: userData?.first_name,
@@ -88,13 +112,51 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     });
   };
 
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        notifications.error("Please select a valid image file", {
+          title: "Invalid File",
+          duration: 4000
+        });
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        notifications.error("Image size must be less than 5MB. The image will be automatically optimized after upload.", {
+          title: "File Too Large",
+          duration: 5000
+        });
+        return;
+      }
+      setAvatar(file);
+      setAvatarPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const removeAvatar = () => {
+    setAvatar(null);
+    if (userData?.avatar) {
+      const avatarUrl = userData.avatar.startsWith('http') 
+        ? userData.avatar 
+        : userData.avatar.startsWith('/')
+        ? `${window.location.origin}${userData.avatar}`
+        : `${api.defaults.baseURL.replace('/api/', '')}${userData.avatar}`;
+      setAvatarPreview(avatarUrl);
+    } else {
+      setAvatarPreview(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     setSubmitted(true);
 
     if (
       !formData.firstName.trim() ||
-      !formData.middleName.trim() ||
       !formData.lastName.trim() ||
       !formData.email.trim() ||
       !formData.userLevel.trim() ||
@@ -108,15 +170,56 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
   const confirmEdit = async () => {
     setLoading(true);
     try {
-      const payload = {
-        email: formData.email,
-        first_name: formData.firstName,
-        middle_name: formData.middleName,
-        last_name: formData.lastName,
-        userlevel: formData.userLevel,
-        ...(formData.section ? { section: formData.section } : {}),
-      };
-      await api.put(`auth/users/${userData.id}/`, payload);
+      const payload = new FormData();
+      payload.append('email', formData.email);
+      payload.append('first_name', formData.firstName);
+      if (formData.middleName.trim()) {
+        payload.append('middle_name', formData.middleName);
+      }
+      payload.append('last_name', formData.lastName);
+      payload.append('userlevel', formData.userLevel);
+      if (formData.section) {
+        payload.append('section', formData.section);
+      }
+      if (avatar) {
+        payload.append('avatar', avatar);
+      }
+
+      const response = await api.put(`auth/users/${userData.id}/`, payload, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      // Update avatar preview if avatar was uploaded or if response includes updated avatar
+      if (avatar || response.data?.avatar) {
+        const updatedAvatar = response.data?.avatar;
+        if (updatedAvatar) {
+          // Handle both absolute URLs and relative paths
+          let avatarUrl;
+          if (updatedAvatar.startsWith('http://') || updatedAvatar.startsWith('https://')) {
+            // Already an absolute URL
+            avatarUrl = updatedAvatar;
+          } else if (updatedAvatar.startsWith('/')) {
+            // Relative path starting with / - prepend origin
+            avatarUrl = `${window.location.origin}${updatedAvatar}`;
+          } else {
+            // Relative path without / - prepend base URL without /api/
+            const baseUrl = api.defaults.baseURL.replace('/api/', '').replace(/\/$/, '');
+            avatarUrl = `${baseUrl}${updatedAvatar.startsWith('/') ? '' : '/'}${updatedAvatar}`;
+          }
+          setAvatarPreview(avatarUrl);
+          // Update userData reference if available (for immediate display)
+          if (userData) {
+            userData.avatar = updatedAvatar;
+          }
+        }
+        // Reset avatar file state since it's been uploaded
+        setAvatar(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
 
       notifications.success(
         "User updated successfully!",
@@ -142,11 +245,11 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     }
   };
 
-  const Label = ({ field, children }) => {
+  const Label = ({ field, children, required = true }) => {
     return (
       <label className="flex items-center justify-between text-sm font-medium text-gray-700">
         <span>
-          {children} <span className="text-red-500">*</span>
+          {children} {required && <span className="text-red-500">*</span>}
         </span>
         {field === "section" &&
           submitted &&
@@ -154,7 +257,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
           !formData.section.trim() && (
             <span className="text-xs text-red-500">Required</span>
           )}
-        {field !== "section" && submitted && !formData[field]?.trim() && (
+        {field !== "section" && required && submitted && !formData[field]?.trim() && (
           <span className="text-xs text-red-500">Required</span>
         )}
       </label>
@@ -167,6 +270,47 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
         Edit User
       </h2>
       <form onSubmit={handleSubmit} className="space-y-5 text-sm">
+        {/* Avatar Upload */}
+        <div className="flex flex-col items-center mb-4">
+          <div className="relative">
+            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 border-2 border-gray-300 flex items-center justify-center">
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="Avatar preview"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <User className="w-12 h-12 text-gray-400" />
+              )}
+            </div>
+            {avatarPreview && (
+              <button
+                type="button"
+                onClick={removeAvatar}
+                className="absolute top-0 right-0 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          <label className="mt-2 cursor-pointer">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarChange}
+              className="hidden"
+            />
+            <span className="text-xs text-sky-600 hover:text-sky-700 underline cursor-pointer">
+              {avatarPreview ? 'Change Avatar' : 'Upload Avatar'}
+            </span>
+          </label>
+          <p className="text-xs text-gray-500 mt-1">
+            Maximum file size: 5MB. Images are automatically optimized for web display.
+          </p>
+        </div>
+
         {/* Names */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
@@ -184,17 +328,13 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
             />
           </div>
           <div>
-            <Label field="middleName">Middle Name</Label>
+            <Label field="middleName" required={false}>Middle Name</Label>
             <input
               type="text"
               name="middleName"
               value={formData.middleName}
               onChange={handleChange}
-              className={`w-full p-2 border rounded-lg ${
-                submitted && !formData.middleName.trim()
-                  ? "border-red-500"
-                  : "border-gray-300"
-              }`}
+              className="w-full p-2 border rounded-lg border-gray-300"
             />
           </div>
           <div>

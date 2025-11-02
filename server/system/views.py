@@ -4,10 +4,11 @@ import json
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
-from django.utils.timezone import localtime
-from datetime import datetime
+from django.utils.timezone import now
+from datetime import datetime, timedelta
 import logging
 import traceback
+from .models import BackupRecord
 
 logger = logging.getLogger(__name__)
 
@@ -330,7 +331,7 @@ def restore_sql_backup_python(db_config, file_path):
 
 @csrf_exempt
 def backup_database(request):
-    """Create a database backup in SQL or JSON format"""
+    """Create a database backup in SQL format"""
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
     
@@ -344,119 +345,97 @@ def backup_database(request):
         else:
             body = request.POST
         
-        backup_format = body.get("format", "json")  # Default to JSON
+        # Require path parameter
         custom_path = body.get("path", "")
+        if not custom_path:
+            return JsonResponse({"error": "Backup directory path is required"}, status=400)
         
-        # Validate format
-        if backup_format not in ["json", "sql"]:
-            return JsonResponse({"error": "Unsupported format. Use 'sql' or 'json'"}, status=400)
+        # Create directory if missing
+        os.makedirs(custom_path, exist_ok=True)
         
-        # Use custom path or default backup directory
-        save_path = custom_path if custom_path else BACKUP_DIR
-        os.makedirs(save_path, exist_ok=True)
-        
+        # Auto-generate filename: backup_YYYYMMDD_HHMMSS.sql
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_name = f"backup_{timestamp}.{backup_format}"
-        file_path = os.path.join(save_path, file_name)
+        file_name = f"backup_{timestamp}.sql"
+        file_path = os.path.join(custom_path, file_name)
 
         db_config = get_db_config()
         db_engine = db_config['engine']
 
-        if backup_format == "sql":
-            if 'mysql' in db_engine:
-                # Try using mysqldump first if available
-                mysqldump_path = get_mysqldump_path()
-                if mysqldump_path:
-                    # Build mysqldump command for Windows
-                    cmd = [mysqldump_path]
-                    
-                    # Add connection parameters
-                    if db_config['host'] and db_config['host'] != 'localhost':
-                        cmd.extend(["-h", db_config['host']])
-                    
-                    if db_config['port'] and db_config['port'] != '3306':
-                        cmd.extend(["-P", str(db_config['port'])])
-                    
-                    cmd.extend(["-u", db_config['user']])
-                    
-                    # Add password if provided
-                    if db_config['password']:
-                        cmd.append(f"-p{db_config['password']}")
-                    
-                    cmd.extend([db_config['name']])
-                    
-                    # Execute mysqldump and redirect output to file
-                    try:
-                        logger.info(f"Executing mysqldump for database: {db_config['name']}")
-                        with open(file_path, 'w', encoding='utf-8') as output_file:
-                            result = subprocess.run(
-                                cmd, 
-                                stdout=output_file,
-                                stderr=subprocess.PIPE, 
-                                text=True, 
-                                encoding='utf-8',  # Explicitly set UTF-8 encoding
-                                timeout=300,
-                                shell=True
-                            )
-                        
-                        if result.returncode != 0:
-                            error_msg = result.stderr if result.stderr else "Unknown mysqldump error"
-                            logger.error(f"MySQL dump failed: {error_msg}")
-                            # Clean up failed backup file
-                            if os.path.exists(file_path):
-                                os.remove(file_path)
-                            return JsonResponse({
-                                "error": f"MySQL backup failed: {error_msg}"
-                            }, status=500)
-                            
-                    except subprocess.TimeoutExpired:
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
-                        return JsonResponse({"error": "Backup timed out after 5 minutes"}, status=500)
-                    except Exception as e:
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
-                        return JsonResponse({"error": f"MySQL backup error: {str(e)}"}, status=500)
-                else:
-                    # Fallback to Python-based SQL backup
-                    success, message = create_sql_backup_python(db_config, file_path)
-                    if not success:
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
-                        return JsonResponse({"error": message}, status=500)
-                    
-            elif 'sqlite3' in db_engine:
-                # SQLite backup - simply copy the file
-                db_path = db_config['name']
-                if not os.path.isabs(db_path):
-                    db_path = os.path.join(settings.BASE_DIR, db_path)
+        if 'mysql' in db_engine:
+            # Try using mysqldump first if available
+            mysqldump_path = get_mysqldump_path()
+            if mysqldump_path:
+                # Build mysqldump command for Windows
+                cmd = [mysqldump_path]
                 
-                if not os.path.exists(db_path):
-                    return JsonResponse({"error": f"SQLite database file not found: {db_path}"}, status=404)
+                # Add connection parameters
+                if db_config['host'] and db_config['host'] != 'localhost':
+                    cmd.extend(["-h", db_config['host']])
                 
-                import shutil
-                shutil.copy2(db_path, file_path)
-            else:
-                return JsonResponse({"error": f"Unsupported database for SQL backup: {db_engine}"}, status=400)
-
-        elif backup_format == "json":
-            # Use safe Django dumpdata approach
-            success, output = run_django_dumpdata_safe()
-            
-            if success:
+                if db_config['port'] and db_config['port'] != '3306':
+                    cmd.extend(["-P", str(db_config['port'])])
+                
+                cmd.extend(["-u", db_config['user']])
+                
+                # Add password if provided
+                if db_config['password']:
+                    cmd.append(f"-p{db_config['password']}")
+                
+                cmd.extend([db_config['name']])
+                
+                # Execute mysqldump and redirect output to file
                 try:
-                    with open(file_path, "w", encoding="utf-8") as f:
-                        f.write(output)
-                except UnicodeEncodeError as e:
-                    logger.error(f"Unicode encoding error when writing backup: {e}")
-                    return JsonResponse({
-                        "error": f"Failed to write backup file due to encoding issues: {str(e)}"
-                    }, status=500)
+                    logger.info(f"Executing mysqldump for database: {db_config['name']}")
+                    with open(file_path, 'w', encoding='utf-8') as output_file:
+                        result = subprocess.run(
+                            cmd, 
+                            stdout=output_file,
+                            stderr=subprocess.PIPE, 
+                            text=True, 
+                            encoding='utf-8',
+                            timeout=300,
+                            shell=True
+                        )
+                    
+                    if result.returncode != 0:
+                        error_msg = result.stderr if result.stderr else "Unknown mysqldump error"
+                        logger.error(f"MySQL dump failed: {error_msg}")
+                        # Clean up failed backup file
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                        return JsonResponse({
+                            "error": f"MySQL backup failed: {error_msg}"
+                        }, status=500)
+                        
+                except subprocess.TimeoutExpired:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    return JsonResponse({"error": "Backup timed out after 5 minutes"}, status=500)
+                except Exception as e:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    return JsonResponse({"error": f"MySQL backup error: {str(e)}"}, status=500)
             else:
-                logger.error(f"JSON backup failed: {output}")
-                return JsonResponse({
-                    "error": f"JSON backup failed: {output}"
-                }, status=500)
+                # Fallback to Python-based SQL backup
+                success, message = create_sql_backup_python(db_config, file_path)
+                if not success:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    return JsonResponse({"error": message}, status=500)
+                
+        elif 'sqlite3' in db_engine:
+            # SQLite backup - simply copy the file
+            db_path = db_config['name']
+            if not os.path.isabs(db_path):
+                db_path = os.path.join(settings.BASE_DIR, db_path)
+            
+            if not os.path.exists(db_path):
+                return JsonResponse({"error": f"SQLite database file not found: {db_path}"}, status=404)
+            
+            import shutil
+            shutil.copy2(db_path, file_path)
+        else:
+            return JsonResponse({"error": f"Unsupported database for SQL backup: {db_engine}"}, status=400)
 
         # Verify backup was created
         if not os.path.exists(file_path):
@@ -468,12 +447,25 @@ def backup_database(request):
             os.remove(file_path)
             return JsonResponse({"error": "Backup file is empty"}, status=500)
         
+        # Create BackupRecord entry
+        try:
+            backup_record = BackupRecord.objects.create(
+                fileName=file_name,
+                location=custom_path,
+                backup_type='backup'
+            )
+        except Exception as e:
+            logger.error(f"Failed to create BackupRecord: {str(e)}")
+            # Don't fail the request if record creation fails, but log it
+            backup_record = None
+        
         return JsonResponse({
             "message": "Backup created successfully!",
             "fileName": file_name,
             "filePath": file_path,
+            "location": custom_path,
             "size": f"{file_size / 1024:.2f} KB",
-            "format": backup_format
+            "created_at": backup_record.created_at.isoformat() if backup_record else now().isoformat()
         })
 
     except Exception as e:
@@ -481,133 +473,6 @@ def backup_database(request):
         logger.error(traceback.format_exc())
         return JsonResponse({"error": f"Backup failed: {str(e)}"}, status=500)
 
-def restore_json_backup_custom(file_path, restore_options=None):
-    """Custom JSON restore function that handles conflicts gracefully"""
-    if restore_options is None:
-        restore_options = {}
-    
-    conflict_handling = restore_options.get('conflictHandling', 'skip')  # 'skip', 'replace', 'update'
-    
-    try:
-        import json
-        from django.core.serializers.json import Deserializer
-        from django.db import transaction
-        from django.contrib.contenttypes.models import ContentType
-        
-        logger.info(f"Starting custom JSON restore with conflict handling: {conflict_handling}")
-        
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        restored_count = 0
-        skipped_count = 0
-        updated_count = 0
-        error_count = 0
-        errors = []
-        
-        with transaction.atomic():
-            for item in data:
-                try:
-                    model_class = None
-                    model_name = item.get('model', '')
-                    
-                    # Get the model class
-                    if model_name == 'users.user':
-                        from users.models import User
-                        model_class = User
-                    elif model_name == 'establishments.establishment':
-                        from establishments.models import Establishment
-                        model_class = Establishment
-                    elif model_name == 'inspections.inspection':
-                        from inspections.models import Inspection
-                        model_class = Inspection
-                    elif model_name == 'notifications.notification':
-                        from notifications.models import Notification
-                        model_class = Notification
-                    elif model_name == 'audit.auditlog':
-                        from audit.models import AuditLog
-                        model_class = AuditLog
-                    elif model_name == 'system_config.systemconfiguration':
-                        from system_config.models import SystemConfiguration
-                        model_class = SystemConfiguration
-                    elif model_name == 'admin.logentry':
-                        from django.contrib.admin.models import LogEntry
-                        model_class = LogEntry
-                    elif model_name == 'contenttypes.contenttype':
-                        from django.contrib.contenttypes.models import ContentType
-                        model_class = ContentType
-                    elif model_name == 'auth.permission':
-                        from django.contrib.auth.models import Permission
-                        model_class = Permission
-                    elif model_name == 'auth.group':
-                        from django.contrib.auth.models import Group
-                        model_class = Group
-                    
-                    if not model_class:
-                        logger.warning(f"Unknown model: {model_name}")
-                        continue
-                    
-                    pk = item.get('pk')
-                    fields = item.get('fields', {})
-                    
-                    # Check if object already exists
-                    existing_obj = None
-                    try:
-                        existing_obj = model_class.objects.get(pk=pk)
-                    except model_class.DoesNotExist:
-                        pass
-                    
-                    if existing_obj:
-                        if conflict_handling == 'skip':
-                            skipped_count += 1
-                            logger.info(f"Skipping existing {model_name} with pk={pk}")
-                            continue
-                        elif conflict_handling == 'replace':
-                            existing_obj.delete()
-                            logger.info(f"Replaced existing {model_name} with pk={pk}")
-                        elif conflict_handling == 'update':
-                            # Update existing object with new fields
-                            for field_name, field_value in fields.items():
-                                if hasattr(existing_obj, field_name):
-                                    setattr(existing_obj, field_name, field_value)
-                            existing_obj.save()
-                            updated_count += 1
-                            logger.info(f"Updated existing {model_name} with pk={pk}")
-                            continue
-                    
-                    # Create new object
-                    obj_data = {'pk': pk}
-                    obj_data.update(fields)
-                    
-                    # Use Django's deserializer for proper field handling
-                    deserialized_objects = list(Deserializer([item]))
-                    if deserialized_objects:
-                        deserialized_obj = deserialized_objects[0]
-                        deserialized_obj.save()
-                        restored_count += 1
-                        logger.info(f"Restored {model_name} with pk={pk}")
-                    
-                except Exception as e:
-                    error_count += 1
-                    error_msg = f"Error processing {model_name} pk={pk}: {str(e)}"
-                    errors.append(error_msg)
-                    logger.error(error_msg)
-                    # Continue processing other items
-                    continue
-        
-        result_message = f"Restore completed. Restored: {restored_count}, Updated: {updated_count}, Skipped: {skipped_count}, Errors: {error_count}"
-        if errors:
-            result_message += f"\nErrors: {'; '.join(errors[:5])}"  # Show first 5 errors
-            if len(errors) > 5:
-                result_message += f" ... and {len(errors) - 5} more"
-        
-        logger.info(result_message)
-        return True, result_message
-        
-    except Exception as e:
-        error_msg = f"Custom JSON restore failed: {str(e)}"
-        logger.error(error_msg)
-        return False, error_msg
 
 @csrf_exempt
 def restore_database(request):
@@ -617,108 +482,147 @@ def restore_database(request):
         
     try:
         file = request.FILES.get("file")
-        file_name = request.POST.get("fileName")
-        restore_options = {}
+        file_name = None
+        backup_record_id = None
         
-        # Extract restore options from JSON body
+        # Extract file name or backup record ID from JSON body
         if request.content_type == 'application/json':
             try:
                 body = json.loads(request.body.decode("utf-8"))
                 file_name = body.get("fileName")
-                restore_options = body.get("restoreOptions", {})
+                backup_record_id = body.get("backupRecordId")
             except json.JSONDecodeError:
                 pass
         else:
-            # Extract restore options from form data
-            restore_options_str = request.POST.get("restoreOptions")
-            if restore_options_str:
-                try:
-                    restore_options = json.loads(restore_options_str)
-                except json.JSONDecodeError:
-                    pass
+            file_name = request.POST.get("fileName")
+            backup_record_id = request.POST.get("backupRecordId")
         
         file_path = None
+        original_backup_record = None  # Track original backup record for restore log
 
         if file:
             # Handle uploaded file
-            if not file.name.endswith(('.sql', '.json')):
-                return JsonResponse({"error": "Only .sql and .json files are supported"}, status=400)
+            if not file.name.endswith('.sql'):
+                return JsonResponse({"error": "Only .sql files are supported"}, status=400)
                 
             file_path = os.path.join(BACKUP_DIR, file.name)
             with open(file_path, "wb+") as dest:
                 for chunk in file.chunks():
                     dest.write(chunk)
+            file_name = file.name
+            # Try to find existing BackupRecord for uploaded file
+            try:
+                original_backup_record = BackupRecord.objects.get(fileName=file_name)
+            except BackupRecord.DoesNotExist:
+                original_backup_record = None
                     
-        elif file_name:
-            # Handle existing backup file
-            # Security check
-            if '..' in file_name or file_name.startswith('/'):
-                return JsonResponse({"error": "Invalid file name"}, status=400)
+        elif backup_record_id:
+            # Handle restore by BackupRecord ID
+            try:
+                original_backup_record = BackupRecord.objects.get(id=backup_record_id)
+                file_path = os.path.join(original_backup_record.location, original_backup_record.fileName)
+                file_name = original_backup_record.fileName
+            except BackupRecord.DoesNotExist:
+                return JsonResponse({"error": "Backup record not found"}, status=404)
                 
-            file_path = os.path.join(BACKUP_DIR, file_name)
-            if not os.path.exists(file_path):
-                return JsonResponse({"error": "Backup file not found"}, status=404)
+        elif file_name:
+            # Handle existing backup file by name (legacy support)
+            # Try to find BackupRecord first
+            try:
+                original_backup_record = BackupRecord.objects.get(fileName=file_name)
+                file_path = os.path.join(original_backup_record.location, original_backup_record.fileName)
+            except BackupRecord.DoesNotExist:
+                # Fallback to old behavior: check default backup directory
+                if '..' in file_name or file_name.startswith('/'):
+                    return JsonResponse({"error": "Invalid file name"}, status=400)
+                file_path = os.path.join(BACKUP_DIR, file_name)
         else:
             return JsonResponse({"error": "No file provided"}, status=400)
+
+        if not os.path.exists(file_path):
+            return JsonResponse({"error": "Backup file not found"}, status=404)
+
+        if not file_path.endswith(".sql"):
+            return JsonResponse({"error": "Only .sql files are supported"}, status=400)
 
         db_config = get_db_config()
         db_engine = db_config['engine']
 
-        if file_path.endswith(".sql"):
-            if 'mysql' in db_engine:
-                # Try using mysql client first if available
-                mysql_path = get_mysql_path()
-                if mysql_path:
-                    # MySQL restore for Windows
-                    cmd = [mysql_path]
-                    
-                    # Add connection parameters
-                    if db_config['host'] and db_config['host'] != 'localhost':
-                        cmd.extend(["-h", db_config['host']])
-                    
-                    if db_config['port'] and db_config['port'] != '3306':
-                        cmd.extend(["-P", str(db_config['port'])])
-                    
-                    cmd.extend(["-u", db_config['user']])
-                    
-                    # Add password if provided
-                    if db_config['password']:
-                        cmd.append(f"-p{db_config['password']}")
-                    
-                    cmd.append(db_config['name'])
-                    
-                    try:
-                        with open(file_path, "r", encoding="utf-8") as f:
-                            result = subprocess.run(cmd, stdin=f, capture_output=True, text=True, encoding='utf-8', timeout=300, shell=True)
-                            
-                        if result.returncode != 0:
-                            error_msg = result.stderr if result.stderr else "Unknown mysql error"
-                            return JsonResponse({
-                                "error": f"MySQL restore failed: {error_msg}"
-                            }, status=500)
-                            
-                    except subprocess.TimeoutExpired:
-                        return JsonResponse({"error": "Restore timed out after 5 minutes"}, status=500)
-                else:
-                    # Fallback to Python-based SQL restore
-                    success, message = restore_sql_backup_python(db_config, file_path)
-                    if not success:
-                        return JsonResponse({"error": message}, status=500)
-                    
-            elif 'sqlite3' in db_engine:
-                return JsonResponse({"error": "SQLite restore from SQL not supported. Use JSON format."}, status=400)
+        if 'mysql' in db_engine:
+            # Try using mysql client first if available
+            mysql_path = get_mysql_path()
+            if mysql_path:
+                # MySQL restore for Windows
+                cmd = [mysql_path]
+                
+                # Add connection parameters
+                if db_config['host'] and db_config['host'] != 'localhost':
+                    cmd.extend(["-h", db_config['host']])
+                
+                if db_config['port'] and db_config['port'] != '3306':
+                    cmd.extend(["-P", str(db_config['port'])])
+                
+                cmd.extend(["-u", db_config['user']])
+                
+                # Add password if provided
+                if db_config['password']:
+                    cmd.append(f"-p{db_config['password']}")
+                
+                cmd.append(db_config['name'])
+                
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        result = subprocess.run(cmd, stdin=f, capture_output=True, text=True, encoding='utf-8', timeout=300, shell=True)
+                        
+                    if result.returncode != 0:
+                        error_msg = result.stderr if result.stderr else "Unknown mysql error"
+                        return JsonResponse({
+                            "error": f"MySQL restore failed: {error_msg}"
+                        }, status=500)
+                        
+                except subprocess.TimeoutExpired:
+                    return JsonResponse({"error": "Restore timed out after 5 minutes"}, status=500)
             else:
-                return JsonResponse({"error": f"Unsupported database for SQL restore: {db_engine}"}, status=400)
-
-        elif file_path.endswith(".json"):
-            # Use custom JSON restore that handles conflicts
-            success, message = restore_json_backup_custom(file_path, restore_options)
-            if not success:
-                return JsonResponse({"error": message}, status=500)
-
+                # Fallback to Python-based SQL restore
+                success, message = restore_sql_backup_python(db_config, file_path)
+                if not success:
+                    return JsonResponse({"error": message}, status=500)
+                
+        elif 'sqlite3' in db_engine:
+            return JsonResponse({"error": "SQLite restore from SQL not supported"}, status=400)
         else:
-            return JsonResponse({"error": "Unsupported file format"}, status=400)
+            return JsonResponse({"error": f"Unsupported database for SQL restore: {db_engine}"}, status=400)
 
+        # Create new BackupRecord entry for restore activity log
+        restore_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        restore_location = original_backup_record.location if original_backup_record else BACKUP_DIR
+        original_file_name = original_backup_record.fileName if original_backup_record else file_name
+        
+        # Generate restore log filename
+        # Remove .sql extension, add restore timestamp, then add .sql back
+        base_name = original_file_name
+        if base_name.endswith('.sql'):
+            base_name = base_name[:-4]
+        restore_file_name = f"restore_{restore_timestamp}_from_{base_name}.sql"
+        
+        # Ensure filename is unique (in case of multiple restores)
+        counter = 1
+        while BackupRecord.objects.filter(fileName=restore_file_name).exists():
+            restore_file_name = f"restore_{restore_timestamp}_from_{base_name}_{counter}.sql"
+            counter += 1
+        
+        # Create restore log entry
+        try:
+            BackupRecord.objects.create(
+                fileName=restore_file_name,
+                location=restore_location,
+                backup_type='restore',
+                restored_from=original_backup_record
+            )
+        except Exception as e:
+            logger.error(f"Failed to create restore log BackupRecord: {str(e)}")
+            # Don't fail the restore operation if log creation fails
+        
         return JsonResponse({"message": "Database restored successfully!"})
 
     except Exception as e:
@@ -736,14 +640,21 @@ def download_backup(request, file_name):
         # Security check: prevent directory traversal
         if '..' in file_name or '/' in file_name or '\\' in file_name:
             return JsonResponse({"error": "Invalid file name"}, status=400)
-            
-        file_path = os.path.join(BACKUP_DIR, file_name)
+        
+        # Try to find BackupRecord to get location
+        file_path = None
+        try:
+            backup_record = BackupRecord.objects.get(fileName=file_name)
+            file_path = os.path.join(backup_record.location, backup_record.fileName)
+        except BackupRecord.DoesNotExist:
+            # Fallback to default backup directory
+            file_path = os.path.join(BACKUP_DIR, file_name)
         
         if not os.path.exists(file_path):
             return JsonResponse({"error": "File not found"}, status=404)
         
         # Ensure it's a backup file
-        if not (file_name.endswith('.sql') or file_name.endswith('.json')):
+        if not file_name.endswith('.sql'):
             return JsonResponse({"error": "Not a backup file"}, status=400)
             
         # Serve the file for download
@@ -758,42 +669,49 @@ def download_backup(request, file_name):
         return JsonResponse({"error": f"Download failed: {str(e)}"}, status=500)
 
 def list_backups(request):
-    """Return list of all backups with metadata"""
+    """Return list of all backups from BackupRecord model"""
     if request.method != "GET":
         return JsonResponse({"error": "Method not allowed"}, status=405)
         
     try:
-        files = []
-        if not os.path.exists(BACKUP_DIR):
-            os.makedirs(BACKUP_DIR, exist_ok=True)
+        backups = []
+        backup_records = BackupRecord.objects.all()
+        
+        for record in backup_records:
+            file_path = os.path.join(record.location, record.fileName)
             
-        for fname in os.listdir(BACKUP_DIR):
-            fpath = os.path.join(BACKUP_DIR, fname)
-            if os.path.isfile(fpath) and (fname.endswith('.sql') or fname.endswith('.json')):
-                # Get creation time
-                created_timestamp = os.path.getctime(fpath)
-                created = datetime.fromtimestamp(created_timestamp)
-                
-                size_bytes = os.path.getsize(fpath)
-                
-                # Convert to appropriate unit
+            # Get file size if file exists
+            if os.path.exists(file_path):
+                size_bytes = os.path.getsize(file_path)
                 if size_bytes >= 1024 * 1024:  # MB
                     size_str = f"{size_bytes / (1024 * 1024):.2f} MB"
                 else:  # KB
                     size_str = f"{size_bytes / 1024:.2f} KB"
-                
-                # Use naive datetime directly without localtime() conversion
-                files.append({
-                    "fileName": fname,
-                    "size": size_str,
-                    "sizeBytes": size_bytes,
-                    "created": created.strftime("%Y-%m-%d %H:%M:%S"),
-                    "format": "sql" if fname.endswith('.sql') else "json"
-                })
+            else:
+                size_bytes = 0
+                size_str = "0 KB"
+            
+            backup_data = {
+                "id": record.id,
+                "fileName": record.fileName,
+                "location": record.location,
+                "created_at": record.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "size": size_str,
+                "sizeBytes": size_bytes,
+                "backup_type": record.backup_type,
+                "restored_from": None
+            }
+            
+            # Include restored_from information if available
+            if record.restored_from:
+                backup_data["restored_from"] = {
+                    "id": record.restored_from.id,
+                    "fileName": record.restored_from.fileName
+                }
+            
+            backups.append(backup_data)
         
-        # Sort by creation time, newest first
-        files.sort(key=lambda x: x["created"], reverse=True)
-        return JsonResponse({"backups": files})
+        return JsonResponse({"backups": backups})
     
     except Exception as e:
         logger.error(f"List backups error: {str(e)}")
@@ -802,7 +720,7 @@ def list_backups(request):
 
 @csrf_exempt
 def delete_backup(request, file_name):
-    """Delete a backup file by name"""
+    """Delete a backup file and its record by name"""
     if request.method not in ["DELETE", "POST"]:
         return JsonResponse({"error": "Method not allowed"}, status=405)
         
@@ -810,18 +728,29 @@ def delete_backup(request, file_name):
         # Security check: prevent directory traversal
         if '..' in file_name or '/' in file_name or '\\' in file_name:
             return JsonResponse({"error": "Invalid file name"}, status=400)
-            
-        file_path = os.path.join(BACKUP_DIR, file_name)
         
-        if not os.path.exists(file_path):
-            return JsonResponse({"error": "File not found"}, status=404)
-        
-        # Ensure it's a backup file
-        if not (file_name.endswith('.sql') or file_name.endswith('.json')):
-            return JsonResponse({"error": "Not a backup file"}, status=400)
+        # Find BackupRecord
+        try:
+            backup_record = BackupRecord.objects.get(fileName=file_name)
+            file_path = os.path.join(backup_record.location, backup_record.fileName)
             
-        os.remove(file_path)
-        return JsonResponse({"message": "Backup deleted successfully"})
+            # Delete file if it exists
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            
+            # Delete record
+            backup_record.delete()
+            
+            return JsonResponse({"message": "Backup deleted successfully"})
+        except BackupRecord.DoesNotExist:
+            # Fallback: try to delete file from default directory
+            file_path = os.path.join(BACKUP_DIR, file_name)
+            if os.path.exists(file_path):
+                if not file_name.endswith('.sql'):
+                    return JsonResponse({"error": "Not a backup file"}, status=400)
+                os.remove(file_path)
+                return JsonResponse({"message": "Backup file deleted successfully (record not found)"})
+            return JsonResponse({"error": "Backup not found"}, status=404)
         
     except Exception as e:
         logger.error(f"Delete backup error: {str(e)}")

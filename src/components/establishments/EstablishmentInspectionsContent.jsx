@@ -105,42 +105,42 @@ const EstablishmentInspectionsContent = ({ establishment }) => {
           <table className="w-full">
             <thead>
               <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
-                <th className="p-1 border-b border-gray-300">Inspection Code</th>
-                <th className="p-1 border-b border-gray-300">Law</th>
-                <th className="p-1 border-b border-gray-300">Status</th>
-                <th className="p-1 border-b border-gray-300">Created Date</th>
-                <th className="p-1 border-b border-gray-300">Inspected By</th>
-                <th className="p-1 text-center border-b border-gray-300">Actions</th>
+                <th className="px-3 py-2 border-b border-gray-300">Inspection Code</th>
+                <th className="px-3 py-2 border-b border-gray-300">Law</th>
+                <th className="px-3 py-2 border-b border-gray-300">Status</th>
+                <th className="px-3 py-2 border-b border-gray-300">Created Date</th>
+                <th className="px-3 py-2 border-b border-gray-300">Inspected By</th>
+                <th className="px-3 py-2 text-center border-b border-gray-300">Actions</th>
               </tr>
             </thead>
             <tbody>
               {inspections.map((inspection) => (
                 <tr
                   key={inspection.id}
-                  className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors"
+                  className="text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors"
                 >
-                  <td className="px-2 font-semibold border-b border-gray-300">
+                  <td className="px-3 py-2 font-semibold border-b border-gray-300">
                     <div className="flex items-center">
                       {getStatusIcon(inspection.current_status)}
                       <span className="ml-2">{inspection.code}</span>
                     </div>
                   </td>
-                  <td className="px-2 border-b border-gray-300">
+                  <td className="px-3 py-2 border-b border-gray-300">
                     {inspection.law}
                   </td>
-                  <td className="px-2 border-b border-gray-300">
+                  <td className="px-3 py-2 border-b border-gray-300">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(inspection.current_status)}`}>
                       {statusDisplayMap[inspection.current_status]?.label || inspection.current_status}
                     </span>
                   </td>
-                  <td className="px-2 border-b border-gray-300">
+                  <td className="px-3 py-2 border-b border-gray-300">
                     {new Date(inspection.created_at).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric'
                     })}
                   </td>
-                  <td className="px-2 border-b border-gray-300">
+                  <td className="px-3 py-2 border-b border-gray-300">
                     <div className="flex flex-col">
                       <span className="font-medium">
                         {inspection.form?.inspector_info?.name || 
@@ -155,7 +155,7 @@ const EstablishmentInspectionsContent = ({ establishment }) => {
                       )}
                     </div>
                   </td>
-                  <td className="relative w-20 p-1 text-center border-b border-gray-300">
+                  <td className="relative w-20 px-3 py-2 text-center border-b border-gray-300">
                     <div className="flex justify-center gap-2">
                       <a
                         href={`/inspections/${inspection.id}/review`}

@@ -2,7 +2,8 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { mockApi } from "../../services/mockApi";
 import { Search, Filter, X, Eye, Download, ArrowUpDown, ChevronDown } from "lucide-react";
 import ExportDropdown from "../ExportDropdown";
-import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
+import PaginationControls from "../PaginationControls";
+import { useLocalStoragePagination } from "../../hooks/useLocalStoragePagination";
 import { getProfile } from "../../services/api";
 import { canExportAndPrint } from "../../utils/permissions";
 
@@ -453,10 +454,10 @@ export default function NonComplianceList({ onSelectReport }) {
             : "No reports match your search criteria."}
         </p>
       ) : (
-        <table className="w-full border-b border-gray-300 rounded-lg">
+        <table className="w-full border-b border-gray-300 rounded">
           <thead>
             <tr className="text-sm text-left text-white bg-gradient-to-r from-sky-600 to-sky-700">
-              <th className="w-6 p-1 text-center border-b border-gray-300">
+              <th className="w-6 px-3 py-2 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
                   checked={
@@ -466,38 +467,38 @@ export default function NonComplianceList({ onSelectReport }) {
                   onChange={toggleSelectAll}
                 />
               </th>
-              <th className="p-1 border-b border-gray-300">Establishment</th>
-              <th className="p-1 border-b border-gray-300">Date</th>
-              <th className="p-1 border-b border-gray-300">Findings</th>
-              <th className="p-1 border-b border-gray-300">Status</th>
-              <th className="p-1 border w-10 border-gray-300">Actions</th>
+              <th className="px-3 py-2 border-b border-gray-300">Establishment</th>
+              <th className="px-3 py-2 border-b border-gray-300">Date</th>
+              <th className="px-3 py-2 border-b border-gray-300">Findings</th>
+              <th className="px-3 py-2 border-b border-gray-300">Status</th>
+              <th className="px-3 py-2 border-b border-gray-300 w-10">Actions</th>
             </tr>
           </thead>
           <tbody>
             {paginatedReports.map((r) => (
               <tr
                 key={r.id}
-                className="text-xs text-left border-b border-gray-300 hover:bg-gray-50"
+                className="text-xs text-left border-b border-gray-300 hover:bg-gray-50 transition-colors"
               >
-                <td className="text-center border-b border-gray-300">
+                <td className="text-center px-3 py-2 border-b border-gray-300">
                   <input
                     type="checkbox"
                     checked={selectedReports.includes(r.id)}
                     onChange={() => toggleSelect(r.id)}
                   />
                 </td>
-                <td className="px-2 border-b border-gray-300">
+                <td className="px-3 py-2 border-b border-gray-300">
                   {r.establishment_name}
                 </td>
-                <td className="px-2 border-b border-gray-300">
+                <td className="px-3 py-2 border-b border-gray-300">
                   {formatDate(r.date)}
                 </td>
-                <td className="px-2 border-b border-gray-300">
+                <td className="px-3 py-2 border-b border-gray-300">
                   <div className="max-w-xs truncate" title={r.findings}>
                     {r.findings}
                   </div>
                 </td>
-                <td className="px-2 border text-center border-gray-300">
+                <td className="px-3 py-2 text-center border-b border-gray-300">
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold border border-gray-400 rounded ${
                       r.status === "Resolved"
@@ -510,7 +511,7 @@ export default function NonComplianceList({ onSelectReport }) {
                     {r.status || "Pending"}
                   </span>
                 </td>
-                <td className="p-1 text-center border-b border-gray-300">
+                <td className="px-3 py-2 text-center border-b border-gray-300">
                   <button
                     onClick={() => onSelectReport(r)}
                     className="flex items-center gap-1 px-2 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"

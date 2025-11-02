@@ -1,64 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-// Custom hook for localStorage pagination
-export const useLocalStoragePagination = (storageKey, defaultPageSize = 10) => {
-  const loadFromStorage = () => {
-    try {
-      const stored = localStorage.getItem(`${storageKey}_pagination`);
-      if (stored) {
-        const paginationData = JSON.parse(stored);
-        // Check if data is not too old (7 days)
-        const isRecent = Date.now() - paginationData.timestamp < 7 * 24 * 60 * 60 * 1000;
-        if (isRecent && paginationData.page && paginationData.pageSize) {
-          return {
-            page: Math.max(1, paginationData.page),
-            pageSize: Math.max(10, Math.min(100, paginationData.pageSize))
-          };
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to load pagination from localStorage:', error);
-    }
-    return { page: 1, pageSize: defaultPageSize };
-  };
-
-  return loadFromStorage();
-};
-
-// Custom hook for localStorage tab persistence
-export const useLocalStorageTab = (storageKey, defaultTab = null) => {
-  const loadFromStorage = () => {
-    try {
-      const stored = localStorage.getItem(`${storageKey}_tab`);
-      if (stored) {
-        const tabData = JSON.parse(stored);
-        // Check if data is not too old (7 days)
-        const isRecent = Date.now() - tabData.timestamp < 7 * 24 * 60 * 60 * 1000;
-        if (isRecent && tabData.tab) {
-          return tabData.tab;
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to load tab from localStorage:', error);
-    }
-    return defaultTab;
-  };
-
-  const saveToStorage = (tab) => {
-    try {
-      const tabData = {
-        tab: tab,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(`${storageKey}_tab`, JSON.stringify(tabData));
-    } catch (error) {
-      console.warn('Failed to save tab to localStorage:', error);
-    }
-  };
-
-  return { loadFromStorage, saveToStorage };
-};
-
 export default function PaginationControls({
   currentPage,
   totalPages,
@@ -92,27 +33,6 @@ export default function PaginationControls({
     }
   };
 
-  // Load pagination state from localStorage
-  const loadFromStorage = () => {
-    try {
-      const stored = localStorage.getItem(`${storageKey}_pagination`);
-      if (stored) {
-        const paginationData = JSON.parse(stored);
-        // Check if data is not too old (7 days)
-        const isRecent = Date.now() - paginationData.timestamp < 7 * 24 * 60 * 60 * 1000;
-        if (isRecent && paginationData.page && paginationData.pageSize) {
-          return {
-            page: Math.max(1, paginationData.page),
-            pageSize: Math.max(10, Math.min(100, paginationData.pageSize))
-          };
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to load pagination from localStorage:', error);
-    }
-    return null;
-  };
-
   const goToPage = (page) => {
     const newPage = Math.max(1, Math.min(page, totalPages));
     onPageChange(newPage);
@@ -128,10 +48,10 @@ export default function PaginationControls({
   };
 
   return (
-    <div className="flex flex-col items-center justify-between gap-4 mt-4 sm:flex-row">
+    <div className="flex flex-col items-center justify-between gap-4 py-2 sm:flex-row">
       {/* Results Info */}
       <div className="text-sm text-gray-600">
-        Showing {showStartItem} to {showEndItem} of {displayTotal} entries
+        Showing {showStartItem} to {showEndItem} of {displayTotal} records
         {hasActiveFilters && " (filtered)"}
         {filteredItems !== null && filteredItems !== totalItems && (
           <span className="ml-1">

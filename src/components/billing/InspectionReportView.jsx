@@ -104,35 +104,36 @@ export default function InspectionReportView({
       </div>
 
       <h3 className="mb-3 text-lg font-semibold">Violations</h3>
-      <table className="w-full mb-4 border">
+      <table className="w-full mb-4 border border-gray-300 rounded-lg">
         <thead>
-          <tr className="text-sm bg-gray-100">
-            <th className="p-2 border">Select</th>
-            <th className="p-2 border">Violation</th>
-            <th className="p-2 border">Law</th>
-            <th className="p-2 border">Description</th>
-            <th className="p-2 border">Amount</th>
+          <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700">
+            <th className="w-6 px-3 py-2 text-center border-b border-gray-300">Select</th>
+            <th className="px-3 py-2 border-b border-gray-300">Violation</th>
+            <th className="px-3 py-2 border-b border-gray-300">Law</th>
+            <th className="px-3 py-2 border-b border-gray-300">Description</th>
+            <th className="px-3 py-2 border-b border-gray-300">Amount</th>
           </tr>
         </thead>
         <tbody>
           {violations.map((v) => (
-            <tr key={v.id} className="border">
-              <td className="p-2 text-center">
+            <tr key={v.id} className="text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors">
+              <td className="px-3 py-2 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
                   checked={v.selected}
                   onChange={() => toggleViolation(v.id)}
+                  className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 rounded"
                 />
               </td>
-              <td className="p-2 border">{v.code || "N/A"}</td>
-              <td className="p-2 border">{v.law}</td>
-              <td className="p-2 border">{v.description}</td>
-              <td className="p-2 border">
+              <td className="px-3 py-2 border-b border-gray-300">{v.code || "N/A"}</td>
+              <td className="px-3 py-2 border-b border-gray-300">{v.law}</td>
+              <td className="px-3 py-2 border-b border-gray-300">{v.description}</td>
+              <td className="px-3 py-2 border-b border-gray-300">
                 <input
                   type="number"
                   value={v.amount}
                   onChange={(e) => handleAmountChange(v.id, e.target.value)}
-                  className="w-24 p-1 border rounded"
+                  className="w-24 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-sky-500"
                   placeholder="0.00"
                 />
               </td>

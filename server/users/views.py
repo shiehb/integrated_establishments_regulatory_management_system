@@ -346,13 +346,29 @@ class UserUpdateView(generics.RetrieveUpdateAPIView):
         # Get the original user instance before update
         original_user = self.get_object()
         original_email = original_user.email
+        original_avatar = original_user.avatar  # Store old avatar path
         
         # Check if email is being changed
         new_email = serializer.validated_data.get('email', original_email)
         email_changed = new_email != original_email
         
-        # Save the user with updated data
+        # Check if avatar is being updated
+        new_avatar = serializer.validated_data.get('avatar')
+        avatar_changed = new_avatar is not None
+        
+        # Save the user with updated data (this will optimize the avatar if provided)
         user = serializer.save()
+        
+        # Delete old avatar file if avatar was updated
+        if avatar_changed and original_avatar:
+            try:
+                # Delete the old avatar file from storage
+                original_avatar.delete(save=False)
+            except Exception as e:
+                # Log error but don't fail the update
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to delete old avatar file for user {user.id}: {str(e)}")
         
         # If email changed, generate new password and send credentials
         if email_changed:

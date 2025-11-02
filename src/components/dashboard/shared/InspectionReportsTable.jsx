@@ -194,10 +194,10 @@ export default function InspectionReportsTable({ userLevel, userProfile }) {
           <table className="w-full">
             <thead>
               <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
-                <th className="p-1 border-b border-gray-300">Date & Time</th>
-                <th className="p-1 border-b border-gray-300">Establishment</th>
-                <th className="p-1 border-b border-gray-300">Inspector</th>
-                <th className="p-1 border-b border-gray-300 text-center">Status</th>
+                <th className="px-3 py-2 border-b border-gray-300">Date & Time</th>
+                <th className="px-3 py-2 border-b border-gray-300">Establishment</th>
+                <th className="px-3 py-2 border-b border-gray-300">Inspector</th>
+                <th className="px-3 py-2 border-b border-gray-300 text-center">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -219,19 +219,19 @@ export default function InspectionReportsTable({ userLevel, userProfile }) {
         <table className="w-full">
           <thead>
             <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
-              <th className="p-1 border-b border-gray-300">Date & Time</th>
-              <th className="p-1 border-b border-gray-300">Establishment</th>
-              <th className="p-1 border-b border-gray-300">Inspector</th>
-              <th className="p-1 border-b border-gray-300 text-center">Status</th>
+              <th className="px-3 py-2 border-b border-gray-300">Date & Time</th>
+              <th className="px-3 py-2 border-b border-gray-300">Establishment</th>
+              <th className="px-3 py-2 border-b border-gray-300">Inspector</th>
+              <th className="px-3 py-2 border-b border-gray-300 text-center">Status</th>
             </tr>
           </thead>
           <tbody>
             {reports.map((report, index) => (
               <tr
                 key={report.id || index}
-                className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50"
+                className="text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors"
               >
-                <td className="p-1 font-semibold border-b border-gray-300">
+                <td className="px-3 py-2 border-b border-gray-300">
                   <div className="flex items-center">
                     <ClipboardList size={14} className="text-gray-400 mr-2" />
                     <div>
@@ -248,7 +248,7 @@ export default function InspectionReportsTable({ userLevel, userProfile }) {
                     </div>
                   </div>
                 </td>
-                <td className="p-1 border-b border-gray-300">
+                <td className="px-3 py-2 border-b border-gray-300">
                   <div className="font-medium text-gray-900">
                     {report.establishments_detail?.[0]?.name || 'N/A'}
                   </div>
@@ -258,12 +258,12 @@ export default function InspectionReportsTable({ userLevel, userProfile }) {
                     </div>
                   )}
                 </td>
-                <td className="p-1 border-b border-gray-300">
+                <td className="px-3 py-2 border-b border-gray-300">
                   <div className="font-medium text-gray-900">
                     {report.assigned_to_name || 'Unassigned'}
                   </div>
                 </td>
-                <td className="px-2 text-center border-b border-gray-300 w-45">
+                <td className="px-3 py-2 text-center border-b border-gray-300">
                   {getInspectionStatusBadge(report.current_status)}
                 </td>
               </tr>

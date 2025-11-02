@@ -5,6 +5,10 @@ from django.conf import settings
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from system_config.models import SystemConfiguration  # Import from system_config
 from .signals import user_created_with_password
+from .utils.image_utils import optimize_avatar
+import logging
+
+logger = logging.getLogger(__name__)
 
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -18,7 +22,19 @@ class RegisterSerializer(serializers.ModelSerializer):
             'userlevel',
             'section',
             'district',
+            'avatar',
         )
+
+    def validate_avatar(self, value):
+        """Validate avatar file size before processing"""
+        if value:
+            # Check file size (max 5MB - will be optimized after upload)
+            max_size = 5 * 1024 * 1024  # 5MB
+            if value.size > max_size:
+                raise serializers.ValidationError(
+                    f"Avatar file size must be less than 5MB. Current size: {value.size / 1024 / 1024:.2f}MB. The image will be automatically optimized after upload."
+                )
+        return value
 
     def validate(self, data):
         userlevel = data.get("userlevel")
@@ -104,14 +120,30 @@ class RegisterSerializer(serializers.ModelSerializer):
         # Legal Unit: Multiple allowed (no validation needed)
 
     def create(self, validated_data):
+        # Extract avatar if present
+        avatar = validated_data.pop('avatar', None)
+        
         # Generate password once and pass it to create_user
         generated_password = SystemConfiguration.generate_default_password()
-        # Pass password_provided as a separate parameter to avoid model field conflict
+        
+        # Create user first to get user ID
         user = User.objects.create_user(
             password=generated_password, 
             password_provided=True,
             **validated_data
         )
+        
+        # Optimize and save avatar if provided
+        if avatar:
+            try:
+                optimized_avatar = optimize_avatar(avatar, user.id)
+                user.avatar = optimized_avatar
+                user.save(update_fields=['avatar'])
+            except Exception as e:
+                logger.error(f"Failed to optimize avatar for user {user.id}: {str(e)}")
+                # Save original if optimization fails (fallback)
+                user.avatar = avatar
+                user.save(update_fields=['avatar'])
         
         # Send the custom signal with the generated password
         user_created_with_password.send(
@@ -135,6 +167,7 @@ class UserSerializer(serializers.ModelSerializer):
             'userlevel',
             'section',
             'district',
+            'avatar',
             'date_joined',
             'last_login',
             'updated_at',  # NEW: Include updated_at field
@@ -142,6 +175,17 @@ class UserSerializer(serializers.ModelSerializer):
             'must_change_password',  # Required for forced password change on first login
             'is_first_login',  # Track if user has logged in before
         )
+
+    def validate_avatar(self, value):
+        """Validate avatar file size before processing"""
+        if value:
+            # Check file size (max 5MB - will be optimized after upload)
+            max_size = 5 * 1024 * 1024  # 5MB
+            if value.size > max_size:
+                raise serializers.ValidationError(
+                    f"Avatar file size must be less than 5MB. Current size: {value.size / 1024 / 1024:.2f}MB. The image will be automatically optimized after upload."
+                )
+        return value
 
     def validate(self, data):
         userlevel = data.get("userlevel")
@@ -233,6 +277,28 @@ class UserSerializer(serializers.ModelSerializer):
                         })
         
         # Legal Unit: Multiple allowed (no validation needed)
+
+    def update(self, instance, validated_data):
+        """Update user with avatar optimization"""
+        # Extract avatar if present
+        avatar = validated_data.pop('avatar', None)
+        
+        # Update other fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        # Optimize and save avatar if provided
+        if avatar:
+            try:
+                optimized_avatar = optimize_avatar(avatar, instance.id)
+                instance.avatar = optimized_avatar
+            except Exception as e:
+                logger.error(f"Failed to optimize avatar for user {instance.id}: {str(e)}")
+                # Save original if optimization fails (fallback)
+                instance.avatar = avatar
+        
+        instance.save()
+        return instance
 
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):

@@ -35,6 +35,8 @@ class SystemConfiguration(models.Model):
     
     # Backup Configuration
     backup_custom_path = models.CharField(max_length=500, blank=True, null=True, help_text="Custom directory path for database backups")
+    backup_schedule_frequency = models.CharField(max_length=20, default='daily', choices=[('daily', 'Daily'), ('weekly', 'Weekly')], help_text="Frequency of automatic backups")
+    backup_retention_days = models.IntegerField(default=30, help_text="Number of days to keep backups before automatic deletion")
     
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
@@ -67,6 +69,8 @@ class SystemConfiguration(models.Model):
                 'refresh_token_lifetime_days': 1,
                 'rotate_refresh_tokens': True,
                 'blacklist_after_rotation': True,
+                'backup_schedule_frequency': 'daily',
+                'backup_retention_days': 30,
             }
         )
         return config

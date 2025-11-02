@@ -3,8 +3,6 @@ import {
   Download, 
   FileText, 
   FileSpreadsheet, 
-  FileJson, 
-  FileCode, 
   ChevronDown,
   Check
 } from "lucide-react";
@@ -44,20 +42,6 @@ const EXPORT_FORMATS = [
     icon: FileText,
     description: 'Portable Document Format',
     color: 'text-red-600'
-  },
-  {
-    id: 'json',
-    name: 'JSON',
-    icon: FileJson,
-    description: 'JavaScript Object Notation',
-    color: 'text-yellow-600'
-  },
-  {
-    id: 'xml',
-    name: 'XML',
-    icon: FileCode,
-    description: 'eXtensible Markup Language',
-    color: 'text-blue-600'
   }
 ];
 
@@ -118,104 +102,6 @@ export default function ExportDropdown({
     } catch {
       notifications.error(
         "Failed to export CSV file",
-        {
-          title: "Export Failed",
-          duration: 6000
-        }
-      );
-    }
-  };
-
-  // JSON Export
-  const handleExportJSON = () => {
-    try {
-      const jsonData = {
-        title: title,
-        exportDate: new Date().toISOString(),
-        columns: columns,
-        data: rows.map((row) => {
-          const obj = {};
-          columns.forEach((col, colIndex) => {
-            obj[col] = row[colIndex];
-          });
-          return obj;
-        })
-      };
-
-      const jsonContent = JSON.stringify(jsonData, null, 2);
-      const blob = new Blob([jsonContent], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `${fileName}.json`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      notifications.success(
-        "JSON file exported successfully!",
-        {
-          title: "Export Complete",
-          duration: 4000
-        }
-      );
-    } catch {
-      notifications.error(
-        "Failed to export JSON file",
-        {
-          title: "Export Failed",
-          duration: 6000
-        }
-      );
-    }
-  };
-
-  // XML Export
-  const handleExportXML = () => {
-    try {
-      let xmlContent = '<?xml version="1.0" encoding="UTF-8"?>\n';
-      xmlContent += `<export>\n`;
-      xmlContent += `  <title>${title}</title>\n`;
-      xmlContent += `  <exportDate>${new Date().toISOString()}</exportDate>\n`;
-      xmlContent += `  <columns>\n`;
-      columns.forEach(col => {
-        xmlContent += `    <column>${col}</column>\n`;
-      });
-      xmlContent += `  </columns>\n`;
-      xmlContent += `  <data>\n`;
-      
-      rows.forEach((row, index) => {
-        xmlContent += `    <row id="${index + 1}">\n`;
-        columns.forEach((col, colIndex) => {
-          xmlContent += `      <${col.replace(/[^a-zA-Z0-9]/g, '_')}>${row[colIndex]}</${col.replace(/[^a-zA-Z0-9]/g, '_')}>\n`;
-        });
-        xmlContent += `    </row>\n`;
-      });
-      
-      xmlContent += `  </data>\n`;
-      xmlContent += `</export>`;
-
-      const blob = new Blob([xmlContent], { type: 'application/xml' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `${fileName}.xml`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      notifications.success(
-        "XML file exported successfully!",
-        {
-          title: "Export Complete",
-          duration: 4000
-        }
-      );
-    } catch {
-      notifications.error(
-        "Failed to export XML file",
         {
           title: "Export Failed",
           duration: 6000
@@ -398,12 +284,6 @@ export default function ExportDropdown({
           break;
         case 'pdf':
           await handleExportPDF();
-          break;
-        case 'json':
-          handleExportJSON();
-          break;
-        case 'xml':
-          handleExportXML();
           break;
         default:
           break;

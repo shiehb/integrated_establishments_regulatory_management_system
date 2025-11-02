@@ -7,13 +7,12 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Download,
   Filter,
   Search,
   X,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
+  User,
+  MoreHorizontal,
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import api, { toggleUserActive, getProfile } from "../../services/api";
@@ -22,7 +21,8 @@ import PrintPDF from "../PrintPDF";
 import DateRangeDropdown from "../DateRangeDropdown";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
-import PaginationControls, { useLocalStoragePagination } from "../PaginationControls";
+import PaginationControls from "../PaginationControls";
+import { useLocalStoragePagination } from "../../hooks/useLocalStoragePagination";
 import { canExportAndPrint } from "../../utils/permissions";
 
 // Debounce hook
@@ -303,15 +303,8 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
 
   // Sort options for dropdown
   const sortFields = [
-    { key: "fullname", label: "Full Name" },
-    { key: "email", label: "Email" },
+    { key: "user", label: "User Name" },
     { key: "date_joined", label: "Date Joined" },
-    { key: "updated_at", label: "Last Updated" },
-  ];
-
-  const sortDirections = [
-    { key: "asc", label: "Ascending" },
-    { key: "desc", label: "Descending" },
   ];
 
   // ✅ Filter + Sort with LOCAL search (client-side only)
@@ -368,7 +361,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
       list = [...list].sort((a, b) => {
         let aVal, bVal;
 
-        if (sortConfig.key === "fullname") {
+        if (sortConfig.key === "fullname" || sortConfig.key === "user") {
           aVal = `${a.first_name || ""} ${a.middle_name || ""} ${
             a.last_name || ""
           }`.toLowerCase();
@@ -752,31 +745,12 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
         </div>
       </div>
 
-      {/* 📊 Search results info */}
-      {(hasActiveFilters || filteredCount !== totalUsers) && (
-        <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
-          <div>
-            {filteredCount === totalUsers
-              ? `Showing all ${totalUsers} user(s)`
-              : `Showing ${filteredCount} of ${totalUsers} user(s)`}
-          </div>
-          {hasActiveFilters && (
-            <button
-              onClick={clearAllFilters}
-              className="underline text-sky-600 hover:text-sky-700"
-            >
-              Clear all filters
-            </button>
-          )}
-        </div>
-      )}
-
        {/* Table */}
-       <div className="overflow-y-auto h-[calc(100vh-270px)] border border-gray-300 rounded-lg scroll-smooth custom-scrollbar">
+       <div className="overflow-y-auto h-[calc(100vh-260px)] border border-gray-300 rounded scroll-smooth custom-scrollbar">
          <table className="w-full">
            <thead>
              <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
-             <th className="w-6 p-1 text-center border-b border-gray-300">
+             <th className="w-6 px-3 py-2 text-center border-b border-gray-300">
                <input
                  type="checkbox"
                  checked={
@@ -787,27 +761,25 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                />
              </th>
              {[
-               { key: "fullname", label: "Fullname", sortable: true },
-               { key: "email", label: "Email", sortable: false },
+               { key: "user", label: "User", sortable: true },
                { key: "userlevel", label: "Role", sortable: false },
                { key: "is_active", label: "Status", sortable: false },
                { key: "date_joined", label: "Created Date", sortable: true },
-               { key: "updated_at", label: "Updated Date", sortable: true },
              ].map((col) => (
                <th
                  key={col.key}
-                 className={`p-1 border-b border-gray-300 ${
+                 className={`px-3 py-2 border-b border-gray-300 ${
                    col.sortable ? "cursor-pointer" : ""
-                 }`}
+                 } ${col.key === "is_active" ? "text-center" : ""}`}
                  onClick={col.sortable ? () => handleSort(col.key) : undefined}
                >
-                 <div className="flex items-center gap-1">
+                 <div className={`flex items-center gap-1 ${col.key === "is_active" ? "justify-center" : ""}`}>
                    {col.label} {col.sortable && getSortIcon(col.key)}
                  </div>
                </th>
              ))}
 
-             <th className="p-1 text-center border-b border-gray-300 w-35">
+             <th className="px-3 py-2 text-right border-b border-gray-300 w-10">
                Actions
              </th>
            </tr>
@@ -816,7 +788,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
            {loading ? (
              <tr>
                <td
-                 colSpan="8"
+                 colSpan="6"
                  className="px-2 py-8 text-center border-b border-gray-300"
                >
                  <div
@@ -832,7 +804,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
            ) : users.length === 0 ? (
              <tr>
                <td
-                 colSpan="8"
+                 colSpan="6"
                  className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
                >
                  {hasActiveFilters ? (
@@ -856,28 +828,45 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
               <tr
                 key={u.id}
                 ref={u.id === highlightedUserId ? highlightedRowRef : null}
-                className={`p-1 text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors ${
+                className={`text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors ${
                   u.id === highlightedUserId ? 'search-highlight-persist' : ''
                 }`}
                 onClick={() => setHighlightedUserId(u.id)}
               >
-                 <td className="text-center border-b border-gray-300">
+                 <td className="text-center px-3 py-2 border-b border-gray-300">
                    <input
                      type="checkbox"
                      checked={selectedUsers.includes(u.id)}
                      onChange={() => toggleSelect(u.id)}
                    />
                  </td>
-                 <td className="p-1 font-semibold border-b border-gray-300">
-                   {u.first_name} {u.middle_name} {u.last_name}
+                 <td className="px-3 py-2 border-b border-gray-300">
+                   <div className="flex items-center gap-2">
+                     {/* Avatar */}
+                     <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 flex-shrink-0 flex items-center justify-center">
+                       {u.avatar ? (
+                         <img
+                           src={u.avatar.startsWith('http') ? u.avatar : u.avatar.startsWith('/') ? `${window.location.origin}${u.avatar}` : `${api.defaults.baseURL.replace('/api/', '')}${u.avatar}`}
+                           alt={`${u.first_name} ${u.last_name}`}
+                           className="w-full h-full object-cover"
+                         />
+                       ) : (
+                         <User className="w-6 h-6 text-gray-400" />
+                       )}
+                     </div>
+                     {/* Name and Email */}
+                     <div className="flex flex-col min-w-0 flex-1">
+                       <span className="font-semibold truncate">
+                         {`${u.first_name}${u.middle_name ? ` ${u.middle_name}` : ''} ${u.last_name}`}
+                       </span>
+                       <span className="text-xs text-gray-600 truncate">{u.email}</span>
+                     </div>
+                   </div>
                  </td>
-                 <td className="p-1 underline border-b border-gray-300">
-                   {u.email}
-                 </td>
-                 <td className="p-1 border-b border-gray-300">
+                 <td className="px-3 py-2 border-b border-gray-300">
                    {getRoleDisplay(u.userlevel, u.section)}
                  </td>
-                 <td className="px-2 text-center border-b border-gray-300 w-28">
+                 <td className="px-3 py-2 text-center border-b border-gray-300 w-28">
                    {u.is_active ? (
                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs w-18 font-semibold border border-gray-400 rounded">
                        <span className="w-2 h-2 bg-green-500 rounded-full" />
@@ -890,15 +879,10 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                      </span>
                    )}
                  </td>
-                 <td className="p-1 border-b border-gray-300">
+                 <td className="px-3 py-2 border-b border-gray-300">
                    {formatFullDate(u.date_joined)}
                  </td>
-                 <td className="p-1 border-b border-gray-300">
-                   {u.updated_at
-                     ? formatFullDate(u.updated_at)
-                     : "Never updated"}
-                 </td>
-                 <td className="p-1 text-center border-b border-gray-300">
+                 <td className="px-3 py-2 text-right border-b border-gray-300">
                    <ActionButtons
                      user={u}
                      onEdit={onEdit}
@@ -935,13 +919,54 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
   );
 }
 
-/* Action Buttons Component - Replaced dropdown with individual buttons */
+/* Action Buttons Component - 3-dot dropdown menu */
 function ActionButtons({ user, onEdit, onToggleStatus, onStatusChange }) {
+  const [showDropdown, setShowDropdown] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const notifications = useNotifications();
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Keyboard navigation - Escape key to close
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape" && showDropdown) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showDropdown]);
+
+  const handleEdit = () => {
+    setShowDropdown(false);
+    onEdit({
+      id: user.id,
+      first_name: user.first_name || "",
+      middle_name: user.middle_name || "",
+      last_name: user.last_name || "",
+      email: user.email,
+      userlevel: user.userlevel || "",
+      section: user.section || "",
+      avatar: user.avatar || null,
+    });
+  };
 
   const handleStatusClick = () => {
+    setShowDropdown(false);
     setShowConfirm(true);
   };
 
@@ -987,50 +1012,57 @@ function ActionButtons({ user, onEdit, onToggleStatus, onStatusChange }) {
   const actionText = user.is_active ? "Deactivate" : "Activate";
 
   return (
-    <div className="flex justify-center gap-1">
-      {/* Edit Button - Sky color */}
+    <div className="relative flex justify-center" ref={dropdownRef}>
+      {/* 3-dot menu button */}
       <button
-        onClick={() => {
-          onEdit({
-            id: user.id,
-            first_name: user.first_name || "",
-            middle_name: user.middle_name || "",
-            last_name: user.last_name || "",
-            email: user.email,
-            userlevel: user.userlevel || "",
-            section: user.section || "",
-          });
-        }}
-        className="flex items-center gap-1 px-2 py-1 text-xs text-white transition-colors rounded bg-sky-600 hover:bg-sky-700"
-        title="Edit User"
+        onClick={() => setShowDropdown(!showDropdown)}
+        className="relative z-10 p-1.5 rounded hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"
+        title="Actions"
+        aria-label="Actions"
+        aria-expanded={showDropdown}
       >
-        <Pencil size={12} />
+        <MoreHorizontal size={18} className="text-gray-600" />
+      </button>
+
+      {/* Dropdown menu */}
+      {showDropdown && (
+        <div className="absolute top-full right-0 mt-1 bg-white shadow-lg rounded-md border border-gray-200 z-50 min-w-[160px]">
+          <div className="py-1">
+            {/* Edit option */}
+            <button
+              onClick={handleEdit}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer w-full text-left transition-colors"
+            >
+              <Pencil size={16} className="text-sky-600" />
         <span>Edit</span>
       </button>
 
-      {/* Status Toggle Button - Green for activate, Red for deactivate */}
+            {/* Activate/Deactivate option */}
       <button
         onClick={handleStatusClick}
-        className={`flex items-center gap-1 px-2 py-1 text-xs w-22 text-white transition-colors rounded hover:opacity-90 ${
+              className={`flex items-center gap-2 px-4 py-2 text-sm cursor-pointer w-full text-left transition-colors ${
           user.is_active
-            ? "bg-red-600 hover:bg-red-700"
-            : "bg-green-600 hover:bg-green-700"
+                  ? "text-red-700 hover:bg-red-50"
+                  : "text-green-700 hover:bg-green-50"
         }`}
-        title={`${actionText} User`}
       >
         {user.is_active ? (
           <>
-            <UserX size={12} />
+                  <UserX size={16} className="text-red-600" />
             <span>Deactivate</span>
           </>
         ) : (
           <>
-            <UserCheck size={12} />
+                  <UserCheck size={16} className="text-green-600" />
             <span>Activate</span>
           </>
         )}
       </button>
+          </div>
+        </div>
+      )}
 
+      {/* Confirmation dialog */}
       <ConfirmationDialog
         open={showConfirm}
         title={`${actionText} User`}

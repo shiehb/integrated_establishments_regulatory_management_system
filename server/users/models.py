@@ -84,6 +84,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     userlevel = models.CharField(max_length=50, choices=USERLEVEL_CHOICES, blank=True)
     section = models.CharField(max_length=50, choices=SECTION_CHOICES, null=True, blank=True)
     district = models.CharField(max_length=100, choices=DISTRICT_CHOICES, null=True, blank=True)  # Make it optional
+    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
 
 
     is_staff = models.BooleanField(default=False)

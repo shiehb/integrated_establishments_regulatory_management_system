@@ -883,14 +883,18 @@ export const searchUsers = async (query, page = 1, pageSize = 10) => {
 // -------------------------------------------------
 // Database Backup & Restore
 // -------------------------------------------------
-export const createBackup = async (format, path = "") => {
+export const createBackup = async (path) => {
   try {
-    const res = await api.post("db/backup/", { format, path });
+    if (!path) {
+      throw new Error("Backup directory path is required");
+    }
+    const res = await api.post("db/backup/", { path });
     return res.data;
   } catch (error) {
     const enhancedError = new Error(
       error.response?.data?.error ||
         error.response?.data?.detail ||
+        error.message ||
         "Failed to create backup. Please try again."
     );
     enhancedError.response = error.response;
@@ -898,13 +902,10 @@ export const createBackup = async (format, path = "") => {
   }
 };
 
-export const restoreBackupFromFile = async (file, restoreOptions = {}) => {
+export const restoreBackupFromFile = async (file) => {
   try {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("restoreOptions", JSON.stringify({
-      conflictHandling: restoreOptions.conflictHandling || 'skip'
-    }));
 
     const res = await api.post("db/restore/", formData, {
       headers: {
@@ -923,14 +924,9 @@ export const restoreBackupFromFile = async (file, restoreOptions = {}) => {
   }
 };
 
-export const restoreBackupByName = async (fileName, restoreOptions = {}) => {
+export const restoreBackupById = async (backupRecordId) => {
   try {
-    const res = await api.post("db/restore/", { 
-      fileName, 
-      restoreOptions: {
-        conflictHandling: restoreOptions.conflictHandling || 'skip'
-      }
-    });
+    const res = await api.post("db/restore/", { backupRecordId });
     return res.data;
   } catch (error) {
     const enhancedError = new Error(

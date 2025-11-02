@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'system_config.apps.SystemConfigConfig',
     'system',
     'reports',
+    'django_celery_beat',
 ]
 
 
@@ -268,4 +269,25 @@ os.makedirs(DEFAULT_BACKUP_DIR, exist_ok=True)
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Celery Configuration
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+
+# Celery Beat Configuration (for scheduled tasks)
+CELERY_BEAT_SCHEDULE = {
+    'create-scheduled-backup': {
+        'task': 'system.tasks.create_scheduled_backup',
+        'schedule': None,  # Will be set dynamically based on SystemConfiguration
+    },
+    'cleanup-old-backups': {
+        'task': 'system.tasks.cleanup_old_backups',
+        'schedule': 86400.0,  # Run daily at midnight
+    },
+}
 

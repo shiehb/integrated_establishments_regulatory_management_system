@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Upload, X, User } from "lucide-react";
 
 export default function AddUser({ onClose, onUserAdded }) {
   const [formData, setFormData] = useState({
@@ -25,6 +25,9 @@ export default function AddUser({ onClose, onUserAdded }) {
     errors: [],
     message: ""
   });
+  const [avatar, setAvatar] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const fileInputRef = useRef(null);
   const notifications = useNotifications();
   const navigate = useNavigate();
 
@@ -118,13 +121,44 @@ export default function AddUser({ onClose, onUserAdded }) {
     });
   };
 
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        notifications.error("Please select a valid image file", {
+          title: "Invalid File",
+          duration: 4000
+        });
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        notifications.error("Image size must be less than 5MB. The image will be automatically optimized after upload.", {
+          title: "File Too Large",
+          duration: 5000
+        });
+        return;
+      }
+      setAvatar(file);
+      setAvatarPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const removeAvatar = () => {
+    setAvatar(null);
+    setAvatarPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     setSubmitted(true);
 
     if (
       !formData.firstName.trim() ||
-      !formData.middleName.trim() ||
       !formData.lastName.trim() ||
       !formData.email.trim() ||
       !formData.userLevel.trim() ||
@@ -138,15 +172,26 @@ export default function AddUser({ onClose, onUserAdded }) {
   const confirmAdd = async () => {
     setLoading(true);
     try {
-      const payload = {
-        email: formData.email,
-        first_name: formData.firstName,
-        middle_name: formData.middleName,
-        last_name: formData.lastName,
-        userlevel: formData.userLevel,
-        ...(formData.section ? { section: formData.section } : {}),
-      };
-      await api.post("auth/register/", payload);
+      const payload = new FormData();
+      payload.append('email', formData.email);
+      payload.append('first_name', formData.firstName);
+      if (formData.middleName.trim()) {
+        payload.append('middle_name', formData.middleName);
+      }
+      payload.append('last_name', formData.lastName);
+      payload.append('userlevel', formData.userLevel);
+      if (formData.section) {
+        payload.append('section', formData.section);
+      }
+      if (avatar) {
+        payload.append('avatar', avatar);
+      }
+
+      await api.post("auth/register/", payload, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
       notifications.success(
         "User added successfully!",
@@ -172,11 +217,11 @@ export default function AddUser({ onClose, onUserAdded }) {
     }
   };
 
-  const Label = ({ field, children }) => {
+  const Label = ({ field, children, required = true }) => {
     return (
       <label className="flex items-center justify-between text-sm font-medium text-gray-700">
         <span>
-          {children} <span className="text-red-500">*</span>
+          {children} {required && <span className="text-red-500">*</span>}
         </span>
         {field === "section" &&
           submitted &&
@@ -184,7 +229,7 @@ export default function AddUser({ onClose, onUserAdded }) {
           !formData.section.trim() && (
             <span className="text-xs text-red-500">Required</span>
           )}
-        {field !== "section" && submitted && !formData[field]?.trim() && (
+        {field !== "section" && required && submitted && !formData[field]?.trim() && (
           <span className="text-xs text-red-500">Required</span>
         )}
       </label>
@@ -239,6 +284,47 @@ export default function AddUser({ onClose, onUserAdded }) {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5 text-sm">
+        {/* Avatar Upload */}
+        <div className="flex flex-col items-center mb-4">
+          <div className="relative">
+            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 border-2 border-gray-300 flex items-center justify-center">
+              {avatarPreview ? (
+                <img
+                  src={avatarPreview}
+                  alt="Avatar preview"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <User className="w-12 h-12 text-gray-400" />
+              )}
+            </div>
+            {avatarPreview && (
+              <button
+                type="button"
+                onClick={removeAvatar}
+                className="absolute top-0 right-0 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+          <label className="mt-2 cursor-pointer">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarChange}
+              className="hidden"
+            />
+            <span className="text-xs text-sky-600 hover:text-sky-700 underline cursor-pointer">
+              {avatarPreview ? 'Change Avatar' : 'Upload Avatar'}
+            </span>
+          </label>
+          <p className="text-xs text-gray-500 mt-1">
+            Maximum file size: 5MB. Images are automatically optimized for web display.
+          </p>
+        </div>
+
         {/* Names */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
@@ -256,17 +342,13 @@ export default function AddUser({ onClose, onUserAdded }) {
             />
           </div>
           <div>
-            <Label field="middleName">Middle Name</Label>
+            <Label field="middleName" required={false}>Middle Name</Label>
             <input
               type="text"
               name="middleName"
               value={formData.middleName}
               onChange={handleChange}
-              className={`w-full p-2 border rounded-lg ${
-                submitted && !formData.middleName.trim()
-                  ? "border-red-500"
-                  : "border-gray-300"
-              }`}
+              className="w-full p-2 border rounded-lg border-gray-300"
             />
           </div>
           <div>

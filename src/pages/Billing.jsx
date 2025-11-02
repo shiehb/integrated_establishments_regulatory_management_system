@@ -19,7 +19,8 @@ import {
   Building,
   Eye
 } from "lucide-react";
-import PaginationControls, { useLocalStoragePagination } from "../components/PaginationControls";
+import PaginationControls from "../components/PaginationControls";
+import { useLocalStoragePagination } from "../hooks/useLocalStoragePagination";
 import DateRangeDropdown from "../components/DateRangeDropdown";
 
 // Debounce hook
@@ -472,7 +473,7 @@ export default function Billing() {
               <table className="w-full">
                 <thead>
                   <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
-                    <th className="p-1 border-b border-gray-300">
+                    <th className="px-3 py-2 border-b border-gray-300">
                       <button
                         onClick={() => handleSort('billing_code')}
                         className="flex items-center gap-1 hover:text-gray-200"
@@ -483,7 +484,7 @@ export default function Billing() {
                         )}
                       </button>
                     </th>
-                    <th className="p-1 border-b border-gray-300">
+                    <th className="px-3 py-2 border-b border-gray-300">
                       <button
                         onClick={() => handleSort('establishment_name')}
                         className="flex items-center gap-1 hover:text-gray-200"
@@ -495,9 +496,9 @@ export default function Billing() {
                       </button>
                     </th>
                     {showAllLaws && (
-<th className="p-1 border-b border-gray-300">Law</th>
+<th className="px-3 py-2 border-b border-gray-300">Law</th>
                     )}
-                    <th className="p-1 border-b border-gray-300">
+                    <th className="px-3 py-2 border-b border-gray-300">
                       <button
                         onClick={() => handleSort('due_date')}
                         className="flex items-center gap-1 hover:text-gray-200"
@@ -508,7 +509,7 @@ export default function Billing() {
                         )}
                       </button>
                     </th>
-                    <th className="p-1 border-b border-gray-300">
+                    <th className="px-3 py-2 border-b border-gray-300">
                       <button
                         onClick={() => handleSort('sent_date')}
                         className="flex items-center gap-1 hover:text-gray-200"
@@ -519,7 +520,7 @@ export default function Billing() {
                         )}
                       </button>
                     </th>
-                    <th className="p-1 border-b border-gray-300 text-center">Actions</th>
+                    <th className="px-3 py-2 border-b border-gray-300 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -542,8 +543,8 @@ export default function Billing() {
                     </tr>
                   ) : (
                     filteredBillingRecords.map((record) => (
-                      <tr key={record.id} className="p-1 text-xs border-b border-gray-300 hover:bg-gray-50">
-                        <td className="p-1 font-semibold border-b border-gray-300">
+                      <tr key={record.id} className="text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors">
+                        <td className="px-3 py-2 font-semibold border-b border-gray-300">
                           <div className="flex items-center">
                             <FileText size={14} className="text-gray-400 mr-2" />
                             <span className="font-medium text-sky-600">
@@ -551,7 +552,7 @@ export default function Billing() {
                             </span>
                           </div>
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           <div className="font-medium text-gray-900">
                             {record.establishment_name}
                           </div>
@@ -562,23 +563,23 @@ export default function Billing() {
                           )}
                         </td>
                         {showAllLaws && (
-                          <td className="p-1 border-b border-gray-300">
+                          <td className="px-3 py-2 border-b border-gray-300">
                             <div className="flex flex-col">
                               <span className="text-sm font-medium text-gray-900">{record.related_law}</span>
                               <span className="text-xs text-gray-500">{getLawDisplayName(record.related_law)}</span>
                             </div>
                           </td>
                         )}
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           <div className="flex items-center text-sm text-gray-900">
                             <Calendar className="w-4 h-4 mr-1 text-gray-400" />
                             {formatDate(record.due_date)}
                           </div>
                         </td>
-                        <td className="p-1 border-b border-gray-300 text-sm text-gray-500">
+                        <td className="px-3 py-2 border-b border-gray-300 text-sm text-gray-500">
                           {formatDate(record.sent_date)}
                         </td>
-                        <td className="p-1 border-b border-gray-300 text-center">
+                        <td className="px-3 py-2 border-b border-gray-300 text-center">
                           <button
                             onClick={() => handleViewDetails(record)}
                             className="px-3 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"

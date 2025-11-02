@@ -8,14 +8,13 @@ import { useNotifications } from "../components/NotificationManager";
 import ExportDropdown from "../components/ExportDropdown";
 import PrintPDF from "../components/PrintPDF";
 import DateRangeDropdown from "../components/DateRangeDropdown";
-import PaginationControls, { useLocalStoragePagination } from "../components/PaginationControls";
+import PaginationControls from "../components/PaginationControls";
+import { useLocalStoragePagination } from "../hooks/useLocalStoragePagination";
+import useDebounce from "../hooks/useDebounce";
 import {
   Save,
   Upload,
   Database,
-  Braces,
-  Download,
-  Trash2,
   RotateCcw,
   RefreshCw,
   Search,
@@ -25,53 +24,29 @@ import {
   ArrowDown,
   ChevronDown,
   Filter,
-  FolderOpen,
 } from "lucide-react";
-import api, {
+import {
   getProfile,
   createBackup,
   restoreBackupFromFile,
-  restoreBackupByName,
+  restoreBackupById,
   getBackups,
   deleteBackup,
-  downloadBackup,
 } from "../services/api";
-
-// Debounce hook
-const useDebounce = (value, delay) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-};
 
 const DatabaseBackup = () => {
   const [userLevel, setUserLevel] = useState("public");
   const [loadingUser, setLoadingUser] = useState(true);
 
-  const [backupFormat, setBackupFormat] = useState("json");
-  const [backupPath, setBackupPath] = useState("");
   const [restoreFile, setRestoreFile] = useState(null);
   const [restoreFileName, setRestoreFileName] = useState("");
-  const [conflictHandling, setConflictHandling] = useState("skip");
 
   const [processing, setProcessing] = useState(false);
   const [processingAction, setProcessingAction] = useState(""); // "backup", "restore", "delete"
   const notifications = useNotifications();
 
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [restoreConfirm, setRestoreConfirm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [selectedBackup, setSelectedBackup] = useState(null);
   const [backupToDelete, setBackupToDelete] = useState(null);
 
   const [backups, setBackups] = useState([]);
@@ -83,13 +58,14 @@ const DatabaseBackup = () => {
 
   // 🎚 Filters
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [formatFilter, setFormatFilter] = useState([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [backupTypeFilter, setBackupTypeFilter] = useState("all"); // "all", "backup", "restore"
 
   // ✅ Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
+  const [typeFilterOpen, setTypeFilterOpen] = useState(false);
 
   // ✅ Pagination with localStorage
   const savedPagination = useLocalStoragePagination("backups_list");
@@ -115,26 +91,6 @@ const DatabaseBackup = () => {
     fetchUserProfile();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load saved backup path from system configuration
-  useEffect(() => {
-    const loadBackupPath = async () => {
-      try {
-        const response = await api.get("system/config/");
-        const config = response.data;
-        if (config.backup_custom_path) {
-          setBackupPath(config.backup_custom_path);
-        }
-      } catch (error) {
-        console.error("Error loading backup path from config:", error);
-        // Fallback to localStorage if config fails
-        const savedPath = localStorage.getItem('backupCustomPath');
-        if (savedPath) {
-          setBackupPath(savedPath);
-        }
-      }
-    };
-    loadBackupPath();
-  }, []);
 
   // load backups list
   const loadBackups = async () => {
@@ -167,52 +123,114 @@ const DatabaseBackup = () => {
         title: "Backup Error",
         duration: 6000
       });
-    } else {
-      notifications.info(msg, {
-        title: "Backup Info",
-        duration: 4000
-      });
     }
   };
 
   const handleBackup = async () => {
+    // Prompt for directory selection first
+    let selectedPath = "";
+    
     try {
+      // Check if the File System Access API is supported (Chrome/Edge)
+      if ('showDirectoryPicker' in window) {
+        const directoryHandle = await window.showDirectoryPicker({
+          mode: 'readwrite'
+        });
+        
+        try {
+          const permissionStatus = await directoryHandle.requestPermission({ mode: 'readwrite' });
+          
+          if (permissionStatus === 'granted') {
+            const name = directoryHandle.name;
+            let pathInfo = name;
+            
+            if ('path' in directoryHandle && directoryHandle.path) {
+              pathInfo = directoryHandle.path;
+            }
+            
+            selectedPath = pathInfo;
+          } else {
+            selectedPath = directoryHandle.name;
+          }
+        } catch {
+          selectedPath = directoryHandle.name;
+        }
+      } else {
+        // Fallback for browsers that don't support File System Access API
+        const manualPath = prompt(
+          "Enter the full backup directory path:\n\n" +
+          "Example Windows: C:\\Users\\YourName\\Documents\\backups\n" +
+          "Example Linux: /home/username/backups\n" +
+          "Example Mac: /Users/username/backups"
+        );
+        if (!manualPath) return;
+        selectedPath = manualPath.trim();
+      }
+      
+      if (!selectedPath) {
+        showMessage("Please select a backup directory", "error");
+        return;
+      }
+      
+      // Validate that it's not a system directory path
+      const normalizedPath = selectedPath.toLowerCase().replace(/\\/g, '/');
+      const systemDirectories = [
+        'windows',
+        'program files',
+        'program files (x86)',
+        'system32',
+        'syswow64',
+        'programdata',
+      ];
+      
+      const isSystemDirectory = systemDirectories.some(sysDir => 
+        normalizedPath.includes(`/${sysDir}/`) || 
+        normalizedPath.includes(`/${sysDir}\\`) ||
+        normalizedPath.endsWith(`/${sysDir}`) ||
+        normalizedPath === sysDir ||
+        normalizedPath.startsWith(`${sysDir}/`) ||
+        normalizedPath.startsWith(`${sysDir}\\`)
+      );
+      
+      if (isSystemDirectory) {
+        showMessage(
+          'System directories are protected and cannot be used. Please use a safe location like Documents, Desktop, or create a custom backup folder (e.g., C:\\Users\\YourName\\Documents\\backups).',
+          "error"
+        );
+        return;
+      }
+      
+      // Create backup with selected path
       setProcessing(true);
       setProcessingAction("backup");
       
-      // Use the current backup path (which should be from system config)
-      const pathToUse = backupPath || "";
-      const response = await createBackup(backupFormat, pathToUse);
+      const response = await createBackup(selectedPath);
       showMessage(response.message || "Backup created successfully!");
-      
-      // Don't reset the backup path since it's now stored in system config
       loadBackups();
     } catch (error) {
-      console.error("Backup error:", error);
-      const errorMessage =
-        error.response?.data?.error || "Failed to create backup";
-      showMessage(errorMessage, "error");
+      if (error.name !== 'AbortError') {
+        console.error("Backup error:", error);
+        const errorMessage =
+          error.response?.data?.error || error.message || "Failed to create backup";
+        showMessage(errorMessage, "error");
+      }
     } finally {
       setProcessing(false);
       setProcessingAction("");
-      setConfirmOpen(false);
     }
   };
 
-  const handleRestore = async () => {
+  const handleRestore = async (backupId = null) => {
     try {
       setProcessing(true);
       setProcessingAction("restore");
       let response;
 
-      if (selectedBackup) {
-        response = await restoreBackupByName(selectedBackup.fileName, {
-          conflictHandling: conflictHandling
-        });
+      if (backupId) {
+        // Restore by backup record ID
+        response = await restoreBackupById(backupId);
       } else if (restoreFile) {
-        response = await restoreBackupFromFile(restoreFile, {
-          conflictHandling: conflictHandling
-        });
+        response = await restoreBackupFromFile(restoreFile);
       } else {
         showMessage("Please choose a backup file", "error");
         return;
@@ -222,7 +240,6 @@ const DatabaseBackup = () => {
       // Reset form
       setRestoreFile(null);
       setRestoreFileName("");
-      setSelectedBackup(null);
       loadBackups();
     } catch (error) {
       console.error("Restore error:", error);
@@ -261,78 +278,16 @@ const DatabaseBackup = () => {
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
     if (file) {
-      if (file.name.endsWith(".sql") || file.name.endsWith(".json")) {
+      if (file.name.endsWith(".sql")) {
         setRestoreFile(file);
         setRestoreFileName(file.name);
-        setSelectedBackup(null);
       } else {
-        showMessage("Please select a .sql or .json file", "error");
+        showMessage("Please select a .sql file", "error");
       }
     }
   };
 
-  const handleBackupSelect = (backup) => {
-    setSelectedBackup(backup);
-    setRestoreFile(null);
-    setRestoreFileName("");
-  };
 
-  const handleFolderPicker = async () => {
-    try {
-      let selectedPath = '';
-      
-      // Check if the File System Access API is supported (Chrome/Edge)
-      if ('showDirectoryPicker' in window) {
-        const directoryHandle = await window.showDirectoryPicker();
-        selectedPath = directoryHandle.name;
-      } else {
-        // Fallback for browsers that don't support File System Access API
-        selectedPath = await new Promise((resolve) => {
-          const input = document.createElement('input');
-          input.type = 'file';
-          input.webkitdirectory = true;
-          input.directory = true;
-          input.multiple = false;
-          
-          input.onchange = (e) => {
-            const files = e.target.files;
-            if (files && files.length > 0) {
-              // Get the directory path from the first file
-              const filePath = files[0].webkitRelativePath;
-              const directoryPath = filePath.substring(0, filePath.lastIndexOf('/'));
-              resolve(directoryPath || 'Selected Directory');
-            } else {
-              resolve('');
-            }
-          };
-          
-          input.click();
-        });
-      }
-      
-      if (selectedPath) {
-        setBackupPath(selectedPath);
-        
-        // Save to system configuration
-        try {
-          await api.put("system/config/update/", {
-            backup_custom_path: selectedPath
-          });
-          showMessage(`Backup directory saved to system configuration: ${selectedPath}`, "info");
-        } catch (error) {
-          console.error('Error saving backup path to config:', error);
-          // Fallback to localStorage
-          localStorage.setItem('backupCustomPath', selectedPath);
-          showMessage(`Backup directory selected: ${selectedPath} (saved locally)`, "info");
-        }
-      }
-    } catch (error) {
-      if (error.name !== 'AbortError') {
-        console.error('Error selecting directory:', error);
-        showMessage('Failed to select directory. Please try again or enter the path manually.', "error");
-      }
-    }
-  };
 
   // Add this useEffect to handle clicks outside the dropdowns
   useEffect(() => {
@@ -343,19 +298,22 @@ const DatabaseBackup = () => {
       if (sortDropdownOpen && !e.target.closest(".sort-dropdown")) {
         setSortDropdownOpen(false);
       }
+      if (typeFilterOpen && !e.target.closest(".type-filter-dropdown")) {
+        setTypeFilterOpen(false);
+      }
     }
 
-    if (filtersOpen || sortDropdownOpen) {
+    if (filtersOpen || sortDropdownOpen || typeFilterOpen) {
       document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [filtersOpen, sortDropdownOpen]);
+  }, [filtersOpen, sortDropdownOpen, typeFilterOpen]);
 
   const formatFullDate = (dateString) => {
-    if (!dateString) return "";
+    if (!dateString) return "-";
     const date = new Date(dateString);
     return date.toLocaleString("en-GB", {
       day: "2-digit",
@@ -387,17 +345,14 @@ const DatabaseBackup = () => {
     );
   };
 
-  // Sort options for dropdown - Removed Format sort as per plan
+  // Sort options for dropdown
   const sortFields = [
     { key: "fileName", label: "File Name" },
-    { key: "created", label: "Created Date" },
-    { key: "size", label: "Size" },
+    { key: "location", label: "Location" },
+    { key: "created_at", label: "Created Date" },
+    { key: "backup_type", label: "Type" },
   ];
 
-  const sortDirections = [
-    { key: "asc", label: "Ascending" },
-    { key: "desc", label: "Descending" },
-  ];
 
   // ✅ Filter + Sort with LOCAL search (client-side only)
   const filteredBackups = useMemo(() => {
@@ -405,25 +360,26 @@ const DatabaseBackup = () => {
       // Apply local search filter
       const query = debouncedSearchQuery.toLowerCase();
       const fileName = (backup.fileName || "").toLowerCase();
-      const format = (backup.format || "").toLowerCase();
+      const location = (backup.location || "").toLowerCase();
 
       const matchesSearch = debouncedSearchQuery
-        ? fileName.includes(query) || format.includes(query)
+        ? fileName.includes(query) || location.includes(query)
         : true;
-
-      // Apply format filter
-      const matchesFormat =
-        formatFilter.length === 0 || formatFilter.includes(backup.format);
 
       // Apply date filter
       const matchesDateFrom = dateFrom
-        ? new Date(backup.created) >= new Date(dateFrom)
+        ? new Date(backup.created_at) >= new Date(dateFrom)
         : true;
       const matchesDateTo = dateTo
-        ? new Date(backup.created) <= new Date(dateTo)
+        ? new Date(backup.created_at) <= new Date(dateTo)
         : true;
 
-      return matchesSearch && matchesFormat && matchesDateFrom && matchesDateTo;
+      // Apply backup type filter
+      const matchesTypeFilter = backupTypeFilter === "all" 
+        ? true 
+        : (backup.backup_type || "backup") === backupTypeFilter;
+
+      return matchesSearch && matchesDateFrom && matchesDateTo && matchesTypeFilter;
     });
 
     // Apply sorting
@@ -431,17 +387,12 @@ const DatabaseBackup = () => {
       list = [...list].sort((a, b) => {
         let aVal, bVal;
 
-        if (sortConfig.key === "created") {
-          aVal = new Date(a.created).getTime();
-          bVal = new Date(b.created).getTime();
-        } else if (sortConfig.key === "size") {
-          // Extract numeric value from size string (e.g., "1.5 MB" -> 1.5)
-          const extractSize = (sizeStr) => {
-            const match = sizeStr.match(/(\d+\.?\d*)/);
-            return match ? parseFloat(match[1]) : 0;
-          };
-          aVal = extractSize(a.size);
-          bVal = extractSize(b.size);
+        if (sortConfig.key === "created_at") {
+          aVal = new Date(a.created_at).getTime();
+          bVal = new Date(b.created_at).getTime();
+        } else if (sortConfig.key === "backup_type") {
+          aVal = a.backup_type || "backup";
+          bVal = b.backup_type || "backup";
         } else {
           aVal = a[sortConfig.key] || "";
           bVal = b[sortConfig.key] || "";
@@ -457,7 +408,7 @@ const DatabaseBackup = () => {
     }
 
     return list;
-  }, [backups, debouncedSearchQuery, formatFilter, dateFrom, dateTo, sortConfig]);
+  }, [backups, debouncedSearchQuery, dateFrom, dateTo, sortConfig, backupTypeFilter]);
 
   // ✅ Pagination (client-side for now)
   const totalPages = Math.ceil(filteredBackups.length / pageSize);
@@ -480,19 +431,14 @@ const DatabaseBackup = () => {
     }
   };
 
-  // Toggle format filter checkboxes
-  const toggleFormat = (format) =>
-    setFormatFilter((prev) =>
-      prev.includes(format) ? prev.filter((f) => f !== format) : [...prev, format]
-    );
 
   // Clear functions
   const clearSearch = () => setSearchQuery("");
   const clearAllFilters = () => {
     setSearchQuery("");
-    setFormatFilter([]);
     setDateFrom("");
     setDateTo("");
+    setBackupTypeFilter("all");
     setSortConfig({ key: null, direction: null });
     setCurrentPage(1);
   };
@@ -514,48 +460,18 @@ const DatabaseBackup = () => {
   const filteredCount = filteredBackups.length;
   const hasActiveFilters =
     searchQuery ||
-    formatFilter.length > 0 ||
     dateFrom ||
     dateTo ||
+    backupTypeFilter !== "all" ||
     sortConfig.key;
   const activeFilterCount =
-    formatFilter.length + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
+    (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (backupTypeFilter !== "all" ? 1 : 0);
 
   // Calculate display range
   const startItem = startIndex + 1;
   const endItem = Math.min(endIndex, filteredCount);
 
-  const handleDownloadBackup = async (backup) => {
-    try {
-      const response = await downloadBackup(backup.fileName);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", backup.fileName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
 
-      showMessage(`Downloading ${backup.fileName}`, "info");
-    } catch (error) {
-      console.error("Download error:", error);
-      showMessage("Failed to download backup file", "error");
-    }
-  };
-
-  const formatIcons = {
-    json: Braces,
-    sql: Database,
-  };
-
-  const getFormatDescription = (format) => {
-    const descriptions = {
-      json: "Django data format (recommended for MariaDB 10.4)",
-      sql: "Database native format (requires MySQL tools for best performance)",
-    };
-    return descriptions[format] || "";
-  };
 
   if (loadingUser) {
     return (
@@ -577,136 +493,298 @@ const DatabaseBackup = () => {
       <Header />
       <LayoutWithSidebar userLevel={userLevel}>
         <div className="p-4 bg-white overflow-y-auto">
-          <h1 className="flex items-center mb-4 text-2xl font-bold text-sky-600">
-            {" "}
-            Database Backup & Restore
-          </h1>
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <h1 className="text-2xl font-bold text-sky-600">
+              Database Backup & Restore
+            </h1>
+            
+            {/* Search Controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* 🔍 Search Bar */}
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute w-4 h-4 text-gray-400 left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full py-1 pl-10 pr-8 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
+                />
+                {searchQuery && (
+                  <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+                  </button>
+                )}
+              </div>
 
+              {/* 🔽 Sort Dropdown */}
+              <div className="relative sort-dropdown">
+                <button
+                  onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
+                  className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  <ArrowUpDown size={14} />
+                  Sort
+                  <ChevronDown size={14} />
+                </button>
 
-          {/* Updated Layout: Backup/Restore side by side, Table at bottom */}
-          <div className="flex flex-col gap-6">
+                {sortDropdownOpen && (
+                  <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+                    <div className="p-2">
+                      {/* Header */}
+                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+                        Sort Options
+                      </div>
+                      
+                      {/* Sort Fields */}
+                      <div className="mt-2 mb-2">
+                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                          Sort by
+                        </div>
+                        {sortFields.map((field) => (
+                          <button
+                            key={field.key}
+                            onClick={() =>
+                              handleSortFromDropdown(
+                                field.key,
+                                sortConfig.key === field.key
+                                  ? sortConfig.direction === "asc"
+                                    ? "desc"
+                                    : "asc"
+                                  : "asc"
+                              )
+                            }
+                            className={`w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                              sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
+                            }`}
+                          >
+                            <span>{field.label}</span>
+                            {sortConfig.key === field.key && (
+                              <div className="flex items-center gap-1">
+                                {sortConfig.direction === "asc" ? (
+                                  <ArrowUp size={14} className="text-sky-600" />
+                                ) : (
+                                  <ArrowDown size={14} className="text-sky-600" />
+                                )}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
 
-            {/* Backup & Restore Section - Side by side */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Backup Section - Left side */}
+                      {/* Clear Sort */}
+                      {sortConfig.key && (
+                        <>
+                          <div className="my-1 border-t border-gray-200"></div>
+                          <button
+                            onClick={() => setSortConfig({ key: null, direction: null })}
+                            className="w-full px-3 py-2 text-sm text-gray-600 rounded-md hover:bg-gray-100 transition-colors text-left"
+                          >
+                            Clear Sort
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 🔽 Type Filter Dropdown */}
+              <div className="relative type-filter-dropdown">
+                <button
+                  onClick={() => setTypeFilterOpen(!typeFilterOpen)}
+                  className={`flex items-center gap-1 px-3 py-1 text-sm font-medium rounded-lg transition-colors ${
+                    backupTypeFilter !== "all"
+                      ? "bg-sky-100 text-sky-700 hover:bg-sky-200"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  Type
+                  <ChevronDown size={14} />
+                  {backupTypeFilter !== "all" && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-sky-600 text-white rounded-full">
+                      1
+                    </span>
+                  )}
+                </button>
+
+                {typeFilterOpen && (
+                  <div className="absolute right-0 z-20 w-48 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+                    <div className="p-2">
+                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+                        Filter by Type
+                      </div>
+                      <div className="mt-2">
+                        {["all", "backup", "restore"].map((type) => (
+                          <button
+                            key={type}
+                            onClick={() => {
+                              setBackupTypeFilter(type);
+                              setTypeFilterOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                              backupTypeFilter === type
+                                ? "bg-sky-50 font-medium text-sky-700"
+                                : "text-gray-700"
+                            }`}
+                          >
+                            <span className="capitalize">
+                              {type === "all" ? "Show All" : type}
+                            </span>
+                            {backupTypeFilter === type && (
+                              <span className="text-sky-600">✓</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 🎚 Filters dropdown */}
+              <div className="relative filter-dropdown">
+                <button
+                  onClick={() => setFiltersOpen((prev) => !prev)}
+                  className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  <Filter size={14} />
+                  Filters
+                  <ChevronDown size={14} />
+                  {activeFilterCount > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs bg-sky-600 text-white rounded-full">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+
+                {filtersOpen && (
+                  <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto custom-scrollbar">
+                    <div className="p-2">
+                      {/* Header with Clear All */}
+                      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                          Filters
+                        </div>
+                        {activeFilterCount > 0 && (
+                          <button
+                            onClick={clearAllFilters}
+                            className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <DateRangeDropdown
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onDateFromChange={setDateFrom}
+                onDateToChange={setDateTo}
+                onClear={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="flex items-center text-sm"
+              />
+
+              <ExportDropdown
+                title="Backups Export Report"
+                fileName="backups_export"
+                columns={["File Name", "Type", "Location", "Created At"]}
+                rows={selectedBackups.length > 0 ? 
+                  selectedBackups.map(fileName => {
+                    const backup = backups.find(b => b.fileName === fileName);
+                    return backup ? [
+                      backup.fileName,
+                      backup.backup_type === "restore" ? "Restore" : "Backup",
+                      backup.location || "-",
+                      formatFullDate(backup.created_at)
+                    ] : [];
+                  }).filter(row => row.length > 0) : 
+                  backups.map(backup => [
+                    backup.fileName,
+                    backup.backup_type === "restore" ? "Restore" : "Backup",
+                    backup.location || "-",
+                    formatFullDate(backup.created_at)
+                  ])
+                }
+                disabled={backups.length === 0}
+                className="flex items-center text-sm"
+              />
+
+              <PrintPDF
+                title="Backups Report"
+                fileName="backups_report"
+                columns={["File Name", "Type", "Location", "Created At"]}
+                rows={selectedBackups.length > 0 ? 
+                  selectedBackups.map(fileName => {
+                    const backup = backups.find(b => b.fileName === fileName);
+                    return backup ? [
+                      backup.fileName,
+                      backup.backup_type === "restore" ? "Restore" : "Backup",
+                      backup.location || "-",
+                      formatFullDate(backup.created_at)
+                    ] : [];
+                  }).filter(row => row.length > 0) : 
+                  backups.map(backup => [
+                    backup.fileName,
+                    backup.backup_type === "restore" ? "Restore" : "Backup",
+                    backup.location || "-",
+                    formatFullDate(backup.created_at)
+                  ])
+                }
+                selectedCount={selectedBackups.length}
+                disabled={backups.length === 0}
+                className="flex items-center px-3 py-1 text-sm"
+              />
+
+              <button
+                onClick={loadBackups}
+                disabled={loadingBackups}
+                className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
+              >
+                <RefreshCw
+                  className={`mr-1 ${
+                    loadingBackups ? "animate-spin" : ""
+                  }`}
+                  size={14}
+                />
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {/* Updated Layout: Left (backup/restore cards) - Right (table) */}
+          <div className="grid grid-cols-1 lg:grid-cols-[30%_70%] gap-4">
+            {/* Left Column: Backup & Restore Cards */}
+            <div className="flex flex-col gap-6">
+              {/* Create Backup Card */}
               <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow">
                 <h2 className="mb-2 text-lg font-semibold text-sky-600">
                   Create Backup
                 </h2>
-                <div className="flex-1 space-y-6">
-                  {/* Backup Format Selection */}
-                  <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700">
-                      Backup Format
-                    </label>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      {["json", "sql"].map((format) => {
-                        const Icon = formatIcons[format];
-                        const isSelected = backupFormat === format;
-                        return (
-                          <div
-                            key={format}
-                            onClick={() => setBackupFormat(format)}
-                            className={`cursor-pointer py-2 px-4 border-2 rounded-lg shadow transition flex flex-col items-center
-                              ${
-                                isSelected
-                                  ? "border-sky-600 bg-sky-50 ring-2 ring-sky-500"
-                                  : "border-gray-300 hover:border-sky-400 hover:bg-gray-50"
-                              }`}
-                          >
-                            <Icon
-                              className={`mb-2 ${
-                                isSelected ? "text-sky-600" : "text-gray-400"
-                              }`}
-                              size={28}
-                              strokeWidth={2}
-                            />
-                            <h3
-                              className={`font-semibold capitalize ${
-                                isSelected ? "text-sky-700" : "text-gray-800"
-                              }`}
-                            >
-                              {format.toUpperCase()}
-                            </h3>
-                            <p className="mt-1 text-xs text-center text-gray-500">
-                              {getFormatDescription(format)}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Backup Path Input */}
-                  <div>
-                    <label className="block mb-1 text-sm font-medium text-gray-700">
-                      Default Backup Directory Path <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={backupPath}
-                        onChange={async (e) => {
-                          const value = e.target.value;
-                          setBackupPath(value);
-                          
-                          // Save to system configuration when manually typed
-                          try {
-                            await api.put("system/config/update/", {
-                              backup_custom_path: value
-                            });
-                            showMessage(`Backup path saved: ${value}`, "info");
-                          } catch (error) {
-                            console.error('Error saving backup path to config:', error);
-                            // Fallback to localStorage
-                            localStorage.setItem('backupCustomPath', value);
-                            showMessage(`Backup path saved locally: ${value}`, "info");
-                          }
-                        }}
-                        placeholder="Click folder icon to select directory or enter path manually"
-                        className="flex-1 px-2 py-1 border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={handleFolderPicker}
-                        className="flex items-center px-3 py-1 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                        title="Select backup directory"
-                      >
-                        <FolderOpen size={16} />
-                      </button>
-                    </div>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Set the default directory where database backups will be saved. This path will be used for all backup operations.
-                    </p>
-                    {!backupPath && (
-                      <p className="mt-1 text-xs text-red-500">
-                        Please select a backup directory before creating backups.
-                      </p>
-                    )}
-                  </div>
-
-                </div>
-                <div className="flex justify-end mt-4">
+                <div className="flex-1 space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Click the button below to create a new backup. You will be prompted to select where to save the backup file.
+                  </p>
                   <button
-                    onClick={() => {
-                      if (!backupPath.trim()) {
-                        showMessage("Please select a backup directory before creating a backup.", "error");
-                        return;
-                      }
-                      setConfirmOpen(true);
-                    }}
-                    disabled={processing || !backupPath.trim()}
-                    className="flex items-center px-3 py-1 text-sm font-medium text-white transition-colors rounded-md bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleBackup}
+                    disabled={processing && processingAction === "backup"}
+                    className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors bg-sky-600 rounded-md hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed w-full"
                   >
                     {processing && processingAction === "backup" ? (
                       <>
-                        <div className="w-4 h-4 mr-2 border-b-2 border-white rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         Creating Backup...
                       </>
                     ) : (
                       <>
-                        <Save className="mr-2" size={18} />
+                        <Save className="w-4 h-4" />
                         Create Backup
                       </>
                     )}
@@ -714,7 +792,7 @@ const DatabaseBackup = () => {
                 </div>
               </div>
 
-              {/* Restore Section - Right side */}
+              {/* Restore Backup Card */}
               <div className="flex flex-col p-4 bg-white border border-gray-200 rounded-lg shadow">
                 <h2 className="mb-4 text-lg font-semibold text-sky-600">
                   Restore Backup
@@ -730,16 +808,12 @@ const DatabaseBackup = () => {
                         e.preventDefault();
                         if (e.dataTransfer.files.length > 0) {
                           const file = e.dataTransfer.files[0];
-                          if (
-                            file.name.endsWith(".sql") ||
-                            file.name.endsWith(".json")
-                          ) {
+                          if (file.name.endsWith(".sql")) {
                             setRestoreFile(file);
                             setRestoreFileName(file.name);
-                            setSelectedBackup(null);
                           } else {
                             showMessage(
-                              "Please drop a .sql or .json file",
+                              "Please drop a .sql file",
                               "error"
                             );
                           }
@@ -748,7 +822,7 @@ const DatabaseBackup = () => {
                       onDragOver={(e) => e.preventDefault()}
                       className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-6 cursor-pointer transition 
                         ${
-                          restoreFile || selectedBackup
+                          restoreFile
                             ? "border-green-600 bg-green-50"
                             : "border-gray-300 hover:border-sky-500 hover:bg-sky-50"
                         }`}
@@ -756,15 +830,13 @@ const DatabaseBackup = () => {
                         document.getElementById("fileInput").click()
                       }
                     >
-                      {restoreFile || selectedBackup ? (
+                      {restoreFile ? (
                         <>
                           <p className="text-sm font-medium text-gray-800">
-                            {restoreFileName || selectedBackup?.fileName}
+                            {restoreFileName}
                           </p>
                           <p className="mt-1 text-xs text-gray-500">
-                            {selectedBackup
-                              ? "Backup selected from list"
-                              : "File ready to restore"}
+                            File ready to restore
                           </p>
                           <p className="mt-2 text-xs font-medium text-green-600">
                             ✓ Ready to restore
@@ -777,7 +849,7 @@ const DatabaseBackup = () => {
                             Drag & drop a backup file here
                           </p>
                           <p className="mt-1 text-xs text-gray-400">
-                            or click to browse (.sql or .json)
+                            or click to browse (.sql files only)
                           </p>
                         </>
                       )}
@@ -785,63 +857,28 @@ const DatabaseBackup = () => {
                         id="fileInput"
                         type="file"
                         className="hidden"
-                        accept=".sql,.json"
+                        accept=".sql"
                         onChange={handleFileSelect}
                       />
                     </div>
-                    <p className="mt-2 text-xs text-gray-500">
-                      Or select a backup from the table below
-                    </p>
                   </div>
 
-                  {/* Selected Backup Info */}
-                  {selectedBackup && (
-                    <div className="p-3 border border-blue-200 rounded-md bg-blue-50">
-                      <p className="text-sm font-medium text-blue-800">
-                        Selected: {selectedBackup.fileName}
-                      </p>
-                      <p className="text-xs text-blue-600">
-                        Created: {selectedBackup.created} • Size:{" "}
-                        {selectedBackup.size}
-                      </p>
-                    </div>
-                  )}
 
-                  {/* Conflict Handling Options */}
-                  <div>
-                    <label className="block mb-2 text-sm font-medium text-gray-700">
-                      Conflict Handling
-                    </label>
-                    <select
-                      value={conflictHandling}
-                      onChange={(e) => setConflictHandling(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                    >
-                      <option value="skip">Skip existing records</option>
-                      <option value="replace">Replace existing records</option>
-                      <option value="update">Update existing records</option>
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {conflictHandling === 'skip' && 'Skip records that already exist in the database'}
-                      {conflictHandling === 'replace' && 'Delete and recreate records that already exist'}
-                      {conflictHandling === 'update' && 'Update existing records with new data from backup'}
-                    </p>
-                  </div>
                 </div>
                 <div className="flex justify-end mt-6">
                   <button
                     onClick={() => setRestoreConfirm(true)}
-                    disabled={processing || (!restoreFile && !selectedBackup)}
-                    className="flex items-center px-3 py-1 text-sm font-medium text-white transition-colors bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={processing || !restoreFile}
+                    className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white transition-colors bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed w-full"
                   >
                     {processing && processingAction === "restore" ? (
                       <>
-                        <div className="w-4 h-4 mr-2 border-b-2 border-white rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         Restoring...
                       </>
                     ) : (
                       <>
-                        <RotateCcw className="mr-2" size={18} />
+                        <RotateCcw className="w-4 h-4" />
                         Restore Backup
                       </>
                     )}
@@ -850,271 +887,14 @@ const DatabaseBackup = () => {
               </div>
             </div>
 
-            {/* Table Section - Full width at bottom */}
-            <div className="bg-white shadow-lg p-4">
-              <div className="pb-2 border-b border-gray-200 rounded-t-lg bg-gray-50">
-                <div className="flex items-center justify-between ">
-                  <h3 className="text-lg font-semibold text-sky-600">
-                    Available Backups
-                  </h3>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* 🔍 Search Bar */}
-                    <div className="relative flex-1 min-w-[250px]">
-                      <Search className="absolute w-4 h-4 text-gray-400 left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        placeholder="Search..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full py-1 pl-10 pr-8 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
-                      />
-                      {searchQuery && (
-                        <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* 🔽 Sort Dropdown */}
-                    <div className="relative sort-dropdown">
-                      <button
-                        onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                        className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-                      >
-                        <ArrowUpDown size={14} />
-                        Sort
-                        <ChevronDown size={14} />
-                      </button>
-
-                      {sortDropdownOpen && (
-                        <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-                          <div className="p-2">
-                            {/* Header */}
-                            <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
-                              Sort Options
-                            </div>
-                            
-                            {/* Sort Fields */}
-                            <div className="mt-2 mb-2">
-                              <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                                Sort by
-                              </div>
-                              {sortFields.map((field) => (
-                                <button
-                                  key={field.key}
-                                  onClick={() =>
-                                    handleSortFromDropdown(
-                                      field.key,
-                                      sortConfig.key === field.key
-                                        ? sortConfig.direction === "asc"
-                                          ? "desc"
-                                          : "asc"
-                                        : "asc"
-                                    )
-                                  }
-                                  className={`w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                                    sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
-                                  }`}
-                                >
-                                  <span>{field.label}</span>
-                                  {sortConfig.key === field.key && (
-                                    <div className="flex items-center gap-1">
-                                      {sortConfig.direction === "asc" ? (
-                                        <ArrowUp size={14} className="text-sky-600" />
-                                      ) : (
-                                        <ArrowDown size={14} className="text-sky-600" />
-                                      )}
-                                    </div>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-
-                            {/* Clear Sort */}
-                            {sortConfig.key && (
-                              <>
-                                <div className="my-1 border-t border-gray-200"></div>
-                                    <button
-                                  onClick={() => setSortConfig({ key: null, direction: null })}
-                                  className="w-full px-3 py-2 text-sm text-gray-600 rounded-md hover:bg-gray-100 transition-colors text-left"
-                                >
-                                  Clear Sort
-                                    </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 🎚 Filters dropdown */}
-                    <div className="relative filter-dropdown">
-                      <button
-                        onClick={() => setFiltersOpen((prev) => !prev)}
-                        className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-                      >
-                        <Filter size={14} />
-                        Filters
-                        <ChevronDown size={14} />
-                        {activeFilterCount > 0 && (
-                          <span className="ml-1 px-1.5 py-0.5 text-xs bg-sky-600 text-white rounded-full">
-                            {activeFilterCount}
-                          </span>
-                        )}
-                      </button>
-
-                      {filtersOpen && (
-                        <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto custom-scrollbar">
-                          <div className="p-2">
-                            {/* Header with Clear All */}
-                            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
-                              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                                Filters
-                              </div>
-                              {activeFilterCount > 0 && (
-                                <button
-                                  onClick={() => {
-                                    setFormatFilter([]);
-                                  }}
-                                  className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                                >
-                                  Clear All
-                                </button>
-                              )}
-                            </div>
-                            
-                            {/* Format Section */}
-                            <div className="mb-3">
-                              <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                                Backup Format
-                              </div>
-                              {["json", "sql"].map((format) => (
-                                <button
-                                  key={format}
-                                  onClick={() => toggleFormat(format)}
-                                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                                    formatFilter.includes(format) ? "bg-sky-50 font-medium" : ""
-                                  }`}
-                                >
-                                  <div className="flex-1 text-left">
-                                    <div className="font-medium">{format.toUpperCase()}</div>
-                                  </div>
-                                  {formatFilter.includes(format) && (
-                                    <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <DateRangeDropdown
-                      dateFrom={dateFrom}
-                      dateTo={dateTo}
-                      onDateFromChange={setDateFrom}
-                      onDateToChange={setDateTo}
-                      onClear={() => {
-                        setDateFrom("");
-                        setDateTo("");
-                      }}
-                      className="flex items-center text-sm"
-                    />
-
-                    <ExportDropdown
-                      title="Backups Export Report"
-                      fileName="backups_export"
-                      columns={["File Name", "Format", "Created Date", "Size"]}
-                      rows={selectedBackups.length > 0 ? 
-                        selectedBackups.map(fileName => {
-                          const backup = backups.find(b => b.fileName === fileName);
-                          return backup ? [
-                            backup.fileName,
-                            backup.format.toUpperCase(),
-                            formatFullDate(backup.created),
-                            backup.size
-                          ] : [];
-                        }).filter(row => row.length > 0) : 
-                        backups.map(backup => [
-                          backup.fileName,
-                          backup.format.toUpperCase(),
-                          formatFullDate(backup.created),
-                          backup.size
-                        ])
-                      }
-                      disabled={backups.length === 0}
-                      className="flex items-center text-sm"
-                    />
-
-                    <PrintPDF
-                      title="Backups Report"
-                      fileName="backups_report"
-                      columns={["File Name", "Format", "Created Date", "Size"]}
-                      rows={selectedBackups.length > 0 ? 
-                        selectedBackups.map(fileName => {
-                          const backup = backups.find(b => b.fileName === fileName);
-                          return backup ? [
-                            backup.fileName,
-                            backup.format.toUpperCase(),
-                            formatFullDate(backup.created),
-                            backup.size
-                          ] : [];
-                        }).filter(row => row.length > 0) : 
-                        backups.map(backup => [
-                          backup.fileName,
-                          backup.format.toUpperCase(),
-                          formatFullDate(backup.created),
-                          backup.size
-                        ])
-                      }
-                      selectedCount={selectedBackups.length}
-                      disabled={backups.length === 0}
-                      className="flex items-center px-3 py-1 text-sm"
-                    />
-
-                    <button
-                      onClick={loadBackups}
-                      disabled={loadingBackups}
-                      className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
-                    >
-                      <RefreshCw
-                        className={`mr-1 ${
-                          loadingBackups ? "animate-spin" : ""
-                        }`}
-                        size={14}
-                      />
-                      Refresh
-                    </button>
-                  </div>
-                </div>
-
-                {/* 📊 Search results info */}
-                {(hasActiveFilters || filteredCount !== totalBackups) && (
-                  <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
-                    <div>
-                      {filteredCount === totalBackups
-                        ? `Showing all ${totalBackups} backup(s)`
-                        : `Showing ${filteredCount} of ${totalBackups} backup(s)`}
-                    </div>
-                    {hasActiveFilters && (
-                      <button
-                        onClick={clearAllFilters}
-                        className="underline text-sky-600 hover:text-sky-700"
-                      >
-                        Clear all filters
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="overflow-auto max-h-[calc(100vh-520px)] border border-gray-300 rounded-lg scroll-smooth custom-scrollbar">
+            {/* Right Column: Backup & Restore Records Table */}
+            <div className="bg-white pr-4">
+              {/* Table */}
+              <div className="overflow-y-auto h-[calc(100vh-280px)] border border-gray-300 rounded scroll-smooth custom-scrollbar">
                 <table className="w-full">
                   <thead>
                     <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
-                      <th className="w-6 p-1 text-center border-b border-gray-300">
+                      <th className="w-6 px-3 py-2 text-center border-b border-gray-300">
                         <input
                           type="checkbox"
                           checked={
@@ -1126,13 +906,13 @@ const DatabaseBackup = () => {
                       </th>
                       {[
                         { key: "fileName", label: "File Name", sortable: true },
-                        { key: "format", label: "Format", sortable: true },
-                        { key: "created", label: "Created Date", sortable: true },
-                        { key: "size", label: "Size", sortable: true },
+                        { key: "backup_type", label: "Type", sortable: true },
+                        { key: "location", label: "Location", sortable: true },
+                        { key: "created_at", label: "Created At", sortable: true },
                       ].map((col) => (
                         <th
                           key={col.key}
-                          className={`p-1 border-b border-gray-300 ${
+                          className={`px-3 py-2 border-b border-gray-300 ${
                             col.sortable ? "cursor-pointer" : ""
                           }`}
                           onClick={col.sortable ? () => handleSort(col.key) : undefined}
@@ -1142,19 +922,20 @@ const DatabaseBackup = () => {
                           </div>
                         </th>
                       ))}
-                      <th className="p-1 text-center border-b border-gray-300 w-35">
-                        Actions
-                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {loadingBackups ? (
                       <tr>
                         <td
-                          colSpan="6"
-                          className="px-2 py-6 text-center text-gray-500 border-b border-gray-300"
+                          colSpan="5"
+                          className="px-2 py-8 text-center border-b border-gray-300"
                         >
-                          <div className="flex flex-col items-center justify-center p-4">
+                          <div
+                            className="flex flex-col items-center justify-center p-4"
+                            role="status"
+                            aria-live="polite"
+                          >
                             <div className="w-8 h-8 mb-2 border-b-2 border-gray-900 rounded-full animate-spin"></div>
                             <p className="text-sm text-gray-600">Loading backups...</p>
                           </div>
@@ -1163,7 +944,7 @@ const DatabaseBackup = () => {
                     ) : paginatedBackups.length === 0 ? (
                       <tr>
                         <td
-                          colSpan="6"
+                          colSpan="5"
                           className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
                         >
                           {hasActiveFilters ? (
@@ -1192,98 +973,63 @@ const DatabaseBackup = () => {
                         </td>
                       </tr>
                     ) : (
-                      paginatedBackups.map((backup) => (
-                        <tr
-                          key={backup.fileName}
-                          className={`text-xs border border-gray-300 hover:bg-gray-50 cursor-pointer ${
-                            selectedBackup?.fileName === backup.fileName
-                              ? "bg-blue-50"
-                              : ""
-                          }`}
-                          onClick={() => handleBackupSelect(backup)}
-                        >
-                          <td className="text-center border-b border-gray-300">
-                            <input
-                              type="checkbox"
-                              checked={selectedBackups.includes(backup.fileName)}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                toggleSelect(backup.fileName);
-                              }}
-                            />
-                          </td>
-                          <td className="p-1 border-b border-gray-300">
-                            <div className="flex items-center">
-                              <div
-                                className={`w-3 h-3 rounded-full mr-3 ${
-                                  backup.format === "json"
-                                    ? "bg-green-500"
-                                    : "bg-blue-500"
-                                }`}
-                              ></div>
-                              <span className="text-sm font-medium text-gray-900">
+                      paginatedBackups.map((backup) => {
+                        const backupType = backup.backup_type || "backup";
+                        const isBackup = backupType === "backup";
+                        const isRestore = backupType === "restore";
+                        
+                        return (
+                          <tr
+                            key={backup.fileName}
+                            className={`text-xs border-b border-gray-300 transition-colors ${
+                              isBackup
+                                ? "bg-blue-50 hover:bg-blue-100"
+                                : isRestore
+                                ? "bg-green-50 hover:bg-green-100"
+                                : "hover:bg-gray-50"
+                            }`}
+                          >
+                            <td className="text-center px-3 py-2 border-b border-gray-300">
+                              <input
+                                type="checkbox"
+                                checked={selectedBackups.includes(backup.fileName)}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelect(backup.fileName);
+                                }}
+                              />
+                            </td>
+                            <td className="px-3 py-2 border-b border-gray-300">
+                              <span className="font-semibold text-gray-900">
                                 {backup.fileName}
                               </span>
-                            </div>
-                          </td>
-                          <td className="p-1 text-center border-b border-gray-300">
-                            <span
-                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                backup.format === "json"
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-blue-100 text-blue-800"
-                              }`}
-                            >
-                              {backup.format.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="p-1 text-sm text-gray-500 border-b border-gray-300">
-                            {formatFullDate(backup.created)}
-                          </td>
-                          <td className="p-1 text-sm text-gray-500 border-b border-gray-300">
-                            {backup.size}
-                          </td>
-                          <td className="p-1 border-b border-gray-300">
-                            <div className="flex justify-center gap-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleBackupSelect(backup);
-                                  setRestoreConfirm(true);
-                                }}
-                                className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-green-600 rounded hover:bg-green-700"
-                                title="Restore this backup"
+                            </td>
+                            <td className="px-3 py-2 border-b border-gray-300">
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  isBackup
+                                    ? "bg-blue-100 text-blue-800"
+                                    : isRestore
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-gray-100 text-gray-800"
+                                }`}
                               >
-                                <RotateCcw size={12} />
-                                Restore
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDownloadBackup(backup);
-                                }}
-                                className="flex items-center gap-1 px-2 py-1 text-xs text-white rounded bg-sky-600 hover:bg-sky-700"
-                                title="Download this backup"
-                              >
-                                <Download size={12} />
-                                Download
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setBackupToDelete(backup);
-                                  setDeleteConfirm(true);
-                                }}
-                                className="flex items-center gap-1 px-2 py-1 text-xs text-white bg-red-600 rounded hover:bg-red-700"
-                                title="Delete this backup"
-                              >
-                                <Trash2 size={12} />
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                                {isBackup ? "Backup" : isRestore ? "Restore" : backupType}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 border-b border-gray-300">
+                              <span className="truncate max-w-xs block text-gray-600" title={backup.location}>
+                                {backup.location || "-"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 border-b border-gray-300">
+                              <span className="text-gray-500">
+                                {formatFullDate(backup.created_at)}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -1309,26 +1055,6 @@ const DatabaseBackup = () => {
             </div>
           </div>
 
-          {/* Confirmation Dialogs */}
-          <ConfirmationDialog
-            open={confirmOpen}
-            title="Confirm Backup Creation"
-            message={
-              <div>
-                <p className="mb-2">Are you sure you want to create a {backupFormat.toUpperCase()} backup?</p>
-                <p className="mb-2 text-sm text-gray-600">
-                  <strong>Backup location:</strong> {backupPath || 'Default directory'}
-                </p>
-                <p className="text-sm text-gray-500">This may take a few moments.</p>
-              </div>
-            }
-            loading={processing && processingAction === "backup"}
-            onCancel={() => setConfirmOpen(false)}
-            onConfirm={handleBackup}
-            confirmText="Create Backup"
-            cancelText="Cancel"
-            confirmColor="sky"
-          />
 
           <ConfirmationDialog
             open={restoreConfirm}
@@ -1346,7 +1072,7 @@ const DatabaseBackup = () => {
                 </ul>
                 <p className="text-sm">
                   <strong>Backup to restore:</strong>{" "}
-                  {selectedBackup?.fileName || restoreFileName}
+                  {restoreFileName}
                 </p>
                 <p className="mt-2">Are you sure you want to continue?</p>
               </div>
@@ -1354,9 +1080,8 @@ const DatabaseBackup = () => {
             loading={processing && processingAction === "restore"}
             onCancel={() => {
               setRestoreConfirm(false);
-              setSelectedBackup(null);
             }}
-            onConfirm={handleRestore}
+            onConfirm={() => handleRestore()}
             confirmText="Yes, Restore Now"
             cancelText="Cancel"
             confirmColor="red"

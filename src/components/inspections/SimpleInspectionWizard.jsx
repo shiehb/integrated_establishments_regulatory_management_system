@@ -376,7 +376,7 @@ export default function SimpleInspectionWizard({
                 <table className="w-full border border-gray-300 rounded-lg">
                   <thead>
                     <tr className="text-sm text-left text-white bg-gradient-to-r from-sky-600 to-sky-700">
-                      <th className="w-6 p-1 text-center border-b border-gray-300">
+                      <th className="w-6 px-3 py-2 text-center border-b border-gray-300">
                         <input
                           type="checkbox"
                           checked={filteredEstablishments.length > 0 && formData.establishment_ids.length === filteredEstablishments.length}
@@ -392,11 +392,11 @@ export default function SimpleInspectionWizard({
                           }}
                         />
                       </th>
-                       <th className="p-1 border-b border-gray-300">Name</th>
-                       <th className="p-1 border-b border-gray-300">Address</th>
-                       <th className="p-1 border-b border-gray-300">Coordinates</th>
-                       <th className="p-1 border-b border-gray-300">Nature of Business</th>
-                       <th className="p-1 border-b border-gray-300">Year Established</th>
+                       <th className="px-3 py-2 border-b border-gray-300">Name</th>
+                       <th className="px-3 py-2 border-b border-gray-300">Address</th>
+                       <th className="px-3 py-2 border-b border-gray-300">Coordinates</th>
+                       <th className="px-3 py-2 border-b border-gray-300">Nature of Business</th>
+                       <th className="px-3 py-2 border-b border-gray-300">Year Established</th>
                     </tr>
                   </thead>
                    <tbody>
@@ -419,7 +419,7 @@ export default function SimpleInspectionWizard({
                        filteredEstablishments.map((establishment) => (
                       <tr 
                         key={establishment.id}
-                        className={`p-1 text-xs border-b border-gray-300 hover:bg-gray-50 cursor-pointer ${
+                        className={`text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors cursor-pointer ${
                           formData.establishment_ids.includes(establishment.id.toString()) ? 'bg-sky-50' : ''
                         }`}
                         onClick={() => {
@@ -435,7 +435,7 @@ export default function SimpleInspectionWizard({
                           }
                         }}
                       >
-                        <td className="text-center border-b border-gray-300">
+                        <td className="px-3 py-2 text-center border-b border-gray-300">
                           <input
                             type="checkbox"
                             checked={formData.establishment_ids.includes(establishment.id.toString())}
@@ -455,7 +455,7 @@ export default function SimpleInspectionWizard({
                             className="h-4 w-4 text-sky-600 focus:ring-sky-500 border-gray-300 rounded"
                           />
                         </td>
-                        <td className="px-2 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           <div className="flex items-center">
                             <Building className="h-4 w-4 text-gray-400 mr-2" />
                             <div>
@@ -463,22 +463,22 @@ export default function SimpleInspectionWizard({
                             </div>
                           </div>
                         </td>
-                        <td className="px-2 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           <div className="text-sm text-gray-900">
                             {establishment.address}
                           </div>
                         </td>
-                        <td className="px-2 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           <div className="text-sm text-gray-900">
                             {establishment.coordinates}
                           </div>
                         </td>
-                        <td className="px-2 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           <div className="text-sm text-gray-900">
                             {establishment.nature_of_business}
                           </div>
                         </td>
-                        <td className="px-2 text-center border-b border-gray-300">
+                        <td className="px-3 py-2 text-center border-b border-gray-300">
                           <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
                             {establishment.year_established}
                           </span>

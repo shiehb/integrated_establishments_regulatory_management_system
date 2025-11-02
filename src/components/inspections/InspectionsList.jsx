@@ -41,7 +41,8 @@ import PrintPDF from "../PrintPDF";
 import DateRangeDropdown from "../DateRangeDropdown";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
-import PaginationControls, { useLocalStoragePagination, useLocalStorageTab } from "../PaginationControls";
+import PaginationControls from "../PaginationControls";
+import { useLocalStoragePagination, useLocalStorageTab } from "../../hooks/useLocalStoragePagination";
 import { useInspectionActions } from "../../hooks/useInspectionActions";
 import { useOptimizedInspections } from "../../hooks/useOptimizedInspections";
 import MonitoringPersonnelModal from "./modals/MonitoringPersonnelModal";
@@ -1672,11 +1673,11 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       />
 
       {/* Table Container with Scroll */}
-      <div className="overflow-auto border border-gray-300 rounded-lg h-[calc(100vh-325px)] scroll-smooth custom-scrollbar">
+      <div className="overflow-auto border border-gray-300 rounded h-[calc(100vh-325px)] scroll-smooth custom-scrollbar">
         <table className="w-full min-w-[800px]">
           <thead>
             <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
-              <th className="w-6 p-1 text-center border-b border-gray-300">
+              <th className="w-6 px-3 py-2 text-center border-b border-gray-300">
                 <input
                   type="checkbox"
                   checked={
@@ -1686,115 +1687,115 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   onChange={toggleSelectAll}
                 />
               </th>
-              <th className="p-1 border-b border-gray-300 cursor-pointer" onClick={() => handleSort("code")}>
+              <th className="px-3 py-2 border-b border-gray-300 cursor-pointer" onClick={() => handleSort("code")}>
                 <div className="flex items-center gap-1">Code {getSortIcon("code")}</div>
               </th>
-              <th className="p-1 border-b border-gray-300">Establishments</th>
-              <th className="p-1 border-b border-gray-300">Law</th>
+              <th className="px-3 py-2 border-b border-gray-300">Establishments</th>
+              <th className="px-3 py-2 border-b border-gray-300">Law</th>
               
               {/* Conditionally show NOV-specific columns */}
               {activeTab === 'nov_sent' && (
                 <>
-                  <th className="p-1 border-b border-gray-300">NOV Sent Date</th>
-                  <th className="p-1 border-b border-gray-300">Compliance Deadline</th>
-                  <th className="p-1 text-center border-b border-gray-300">Deadline Status</th>
+                  <th className="px-3 py-2 border-b border-gray-300">NOV Sent Date</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Compliance Deadline</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Deadline Status</th>
                 </>
               )}
               
               {/* Conditionally show NOO-specific columns */}
               {activeTab === 'noo_sent' && userLevel !== 'Legal Unit' && (
                 <>
-                  <th className="p-1 border-b border-gray-300">NOO Sent Date</th>
-                  <th className="p-1 border-b border-gray-300">Payment Deadline</th>
-                  <th className="p-1 text-center border-b border-gray-300">Payment Status</th>
+                  <th className="px-3 py-2 border-b border-gray-300">NOO Sent Date</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Payment Deadline</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Payment Status</th>
                 </>
               )}
               {activeTab === 'noo_sent' && userLevel === 'Legal Unit' && (
                 <>
-                  <th className="p-1 border-b border-gray-300">NOO Sent Date</th>
-                  <th className="p-1 border-b border-gray-300">Payment Deadline</th>
+                  <th className="px-3 py-2 border-b border-gray-300">NOO Sent Date</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Payment Deadline</th>
                 </>
               )}
               
               {/* Conditionally show Review-specific columns */}
               {activeTab === 'review' && (
                 <>
-                  <th className="p-1 text-center border-b border-gray-300">Compliance</th>
-                  <th className="p-1 border-b border-gray-300">Submitted By</th>
-                  <th className="p-1 text-center border-b border-gray-300">Submitted On</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Compliance</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Submitted By</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Submitted On</th>
                 </>
               )}
               
               {/* Conditionally show Received columns */}
               {activeTab === 'received' && (
                 <>
-                  <th className="p-1 border-b border-gray-300">Assigned Date</th>
-                  <th className="p-1 border-b border-gray-300">Assigned By</th>
-                  <th className="p-1 text-center border-b border-gray-300">Priority</th>
-                  <th className="p-1 text-center border-b border-gray-300">Days Waiting</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Assigned Date</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Assigned By</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Priority</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Days Waiting</th>
                 </>
               )}
               
               {/* Conditionally show My Inspections columns */}
               {activeTab === 'my_inspections' && (
                 <>
-                  <th className="p-1 border-b border-gray-300">Started Date</th>
-                  <th className="p-1 text-center border-b border-gray-300">Days Active</th>
-                  <th className="p-1 border-b border-gray-300">Last Activity</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Started Date</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Days Active</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Last Activity</th>
                 </>
               )}
               
               {/* Conditionally show Forwarded columns */}
               {activeTab === 'forwarded' && (
                 <>
-                  <th className="p-1 border-b border-gray-300">Forwarded To</th>
-                  <th className="p-1 border-b border-gray-300">Forwarded Date</th>
-                  <th className="p-1 text-center border-b border-gray-300">Days Since Forward</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Forwarded To</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Forwarded Date</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Days Since Forward</th>
                 </>
               )}
               
               {/* Conditionally show Compliance columns */}
               {activeTab === 'compliance' && (
                 <>
-                  <th className="p-1 text-center border-b border-gray-300">Final Compliance</th>
-                  <th className="p-1 border-b border-gray-300">Completion Date</th>
-                  <th className="p-1 text-center border-b border-gray-300">Days Since Completion</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Final Compliance</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Completion Date</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Days Since Completion</th>
                 </>
               )}
               
               {/* Conditionally show Assigned columns (Monitoring Personnel) */}
               {activeTab === 'assigned' && (
                 <>
-                  <th className="p-1 border-b border-gray-300">Assigned Date</th>
-                  <th className="p-1 border-b border-gray-300">Assigned By</th>
-                  <th className="p-1 text-center border-b border-gray-300">Priority</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Assigned Date</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Assigned By</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Priority</th>
                 </>
               )}
               
               {/* Conditionally show In Progress columns (Monitoring Personnel) */}
               {activeTab === 'in_progress' && (
                 <>
-                  <th className="p-1 border-b border-gray-300">Started Date</th>
-                  <th className="p-1 text-center border-b border-gray-300">Days Active</th>
-                  <th className="p-1 border-b border-gray-300">Last Activity</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Started Date</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Days Active</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Last Activity</th>
                 </>
               )}
               
               {/* Conditionally show Completed columns (Monitoring Personnel) */}
               {activeTab === 'completed' && (
                 <>
-                  <th className="p-1 text-center border-b border-gray-300">Compliance</th>
-                  <th className="p-1 border-b border-gray-300">Completed Date</th>
-                  <th className="p-1 text-center border-b border-gray-300">Review Status</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Compliance</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Completed Date</th>
+                  <th className="px-3 py-2 text-center border-b border-gray-300">Review Status</th>
                 </>
               )}
               
-              <th className="p-1 text-center border-b border-gray-300">Status</th>
-              <th className="p-1 border-b border-gray-300">Inspected By</th>
-              <th className="p-1 text-center border-b border-gray-300 cursor-pointer" onClick={() => handleSort("created_at")}>
+              <th className="px-3 py-2 text-center border-b border-gray-300">Status</th>
+              <th className="px-3 py-2 border-b border-gray-300">Inspected By</th>
+              <th className="px-3 py-2 text-center border-b border-gray-300 cursor-pointer" onClick={() => handleSort("created_at")}>
                 <div className="flex items-center justify-center gap-1">Created {getSortIcon("created_at")}</div>
               </th>
-              <th className="p-1 text-center border-b border-gray-300">Actions</th>
+              <th className="px-3 py-2 text-center border-b border-gray-300">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -1874,44 +1875,44 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   <tr
                     key={inspection.id}
                     ref={inspection.id === highlightedInspId ? highlightedRowRef : null}
-                    className={`p-1 text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors ${
+                    className={`text-xs border-b border-gray-300 hover:bg-gray-50 transition-colors ${
                       inspection.id === highlightedInspId ? 'search-highlight-persist' : ''
                     } ${deadlineStatus?.bgColor || ''}`}
                     onClick={() => setHighlightedInspId(inspection.id)}
                   >
-                    <td className="p-1 text-center border-b border-gray-300">
+                    <td className="px-3 py-2 text-center border-b border-gray-300">
                       <input
                         type="checkbox"
                         checked={selectedInspections.includes(inspection.id)}
                         onChange={() => toggleSelect(inspection.id)}
                       />
                     </td>
-                    <td className="p-1 font-semibold border-b border-gray-300">
+                    <td className="px-3 py-2 font-semibold border-b border-gray-300">
                       {inspection.code}
                     </td>
-                    <td className="p-1 border-b border-gray-300">
+                    <td className="px-3 py-2 border-b border-gray-300">
                       {inspection.establishments_detail && inspection.establishments_detail.length > 0
                         ? inspection.establishments_detail.map(e => e.name).join(', ')
                         : 'No establishments'}
                     </td>
-                    <td className="p-1 border-b border-gray-300">
+                    <td className="px-3 py-2 border-b border-gray-300">
                       {inspection.law}
                     </td>
                     
                     {/* Conditionally show NOV-specific data */}
                     {activeTab === 'nov_sent' && (
                       <>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.form?.nov?.sent_date 
                             ? new Date(inspection.form.nov.sent_date).toLocaleDateString() 
                             : 'Not sent'}
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.form?.nov?.compliance_deadline
                             ? new Date(inspection.form.nov.compliance_deadline).toLocaleDateString()
                             : 'No deadline'}
                         </td>
-                        <td className={`p-1 text-center border-b border-gray-300 ${deadlineStatus?.color}`}>
+                        <td className={`px-3 py-2 text-center border-b border-gray-300 ${deadlineStatus?.color}`}>
                           <div className="flex items-center justify-center gap-1">
                             {deadlineStatus?.status === 'overdue' && <AlertCircle className="w-3 h-3" />}
                             {deadlineStatus?.status === 'urgent' && <Clock className="w-3 h-3" />}
@@ -1924,17 +1925,17 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {/* Conditionally show NOO-specific data */}
                     {activeTab === 'noo_sent' && userLevel !== 'Legal Unit' && (
                       <>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.form?.noo?.sent_date 
                             ? formatDate(inspection.form.noo.sent_date) 
                             : 'Not sent'}
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.form?.noo?.payment_deadline
                             ? formatDate(inspection.form.noo.payment_deadline)
                             : 'No deadline'}
                         </td>
-                        <td className="p-1 text-center border-b border-gray-300">
+                        <td className="px-3 py-2 text-center border-b border-gray-300">
                           <span className={`px-2 py-0.5 text-xs rounded-full ${paymentStatus?.color}`}>
                             {paymentStatus?.text}
                             {paymentStatus?.daysOverdue > 0 && ` (${paymentStatus.daysOverdue}d)`}
@@ -1944,12 +1945,12 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     )}
                     {activeTab === 'noo_sent' && userLevel === 'Legal Unit' && (
                       <>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.form?.noo?.sent_date 
                             ? formatDate(inspection.form.noo.sent_date) 
                             : 'Not sent'}
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.form?.noo?.payment_deadline
                             ? formatDate(inspection.form.noo.payment_deadline)
                             : 'No deadline'}
@@ -1960,15 +1961,15 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {/* Conditionally show Review-specific data */}
                     {activeTab === 'review' && (
                       <>
-                        <td className="p-1 text-center border-b border-gray-300">
+                        <td className="px-3 py-2 text-center border-b border-gray-300">
                           <span className={`px-2 py-0.5 text-xs rounded-full ${complianceInfo?.color}`}>
                             {complianceInfo?.label}
                           </span>
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.form?.inspected_by_name || inspection.assigned_to_name || 'Unknown'}
                         </td>
-                        <td className={`p-1 text-center border-b border-gray-300 ${submissionAge?.color}`}>
+                        <td className={`px-3 py-2 text-center border-b border-gray-300 ${submissionAge?.color}`}>
                           {submissionAge?.text}
                         </td>
                       </>
@@ -1977,18 +1978,18 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {/* Conditionally show Received columns */}
                     {activeTab === 'received' && (
                       <>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {formatDate(inspection.updated_at)}
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.created_by_name || 'Unknown'}
                         </td>
-                        <td className="p-1 text-center border-b border-gray-300">
+                        <td className="px-3 py-2 text-center border-b border-gray-300">
                           <span className={`px-2 py-0.5 text-xs rounded-full ${priority?.color}`}>
                             {priority?.label}
                           </span>
                         </td>
-                        <td className={`p-1 text-center border-b border-gray-300 ${assignmentAge?.color}`}>
+                        <td className={`px-3 py-2 text-center border-b border-gray-300 ${assignmentAge?.color}`}>
                           {assignmentAge?.text}
                         </td>
                       </>
@@ -1997,13 +1998,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {/* Conditionally show My Inspections columns */}
                     {activeTab === 'my_inspections' && (
                       <>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {formatDate(inspection.updated_at)}
                         </td>
-                        <td className={`p-1 text-center border-b border-gray-300 ${daysActive?.color}`}>
+                        <td className={`px-3 py-2 text-center border-b border-gray-300 ${daysActive?.color}`}>
                           {daysActive?.text}
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {formatDate(inspection.form?.updated_at || inspection.updated_at)}
                         </td>
                       </>
@@ -2012,13 +2013,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {/* Conditionally show Forwarded columns */}
                     {activeTab === 'forwarded' && (
                       <>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.assigned_to_name || 'Not assigned'}
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {formatDate(inspection.updated_at)}
                         </td>
-                        <td className={`p-1 text-center border-b border-gray-300 ${forwardedAge?.color}`}>
+                        <td className={`px-3 py-2 text-center border-b border-gray-300 ${forwardedAge?.color}`}>
                           {forwardedAge?.text}
                         </td>
                       </>
@@ -2027,15 +2028,15 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {/* Conditionally show Compliance columns */}
                     {activeTab === 'compliance' && (
                       <>
-                        <td className="p-1 text-center border-b border-gray-300">
+                        <td className="px-3 py-2 text-center border-b border-gray-300">
                           <span className={`px-2 py-0.5 text-xs rounded-full ${completionCompliance?.color}`}>
                             {completionCompliance?.label}
                           </span>
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {formatDate(inspection.form?.updated_at || inspection.updated_at)}
                         </td>
-                        <td className={`p-1 text-center border-b border-gray-300 ${completionAge?.color}`}>
+                        <td className={`px-3 py-2 text-center border-b border-gray-300 ${completionAge?.color}`}>
                           {completionAge?.text}
                         </td>
                       </>
@@ -2044,13 +2045,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {/* Conditionally show Assigned columns (Monitoring Personnel) */}
                     {activeTab === 'assigned' && (
                       <>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {formatDate(inspection.updated_at)}
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.created_by_name || 'Unknown'}
                         </td>
-                        <td className="p-1 text-center border-b border-gray-300">
+                        <td className="px-3 py-2 text-center border-b border-gray-300">
                           <span className={`px-2 py-0.5 text-xs rounded-full ${priority?.color}`}>
                             {priority?.label}
                           </span>
@@ -2061,13 +2062,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {/* Conditionally show In Progress columns (Monitoring Personnel) */}
                     {activeTab === 'in_progress' && (
                       <>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {formatDate(inspection.updated_at)}
                         </td>
-                        <td className={`p-1 text-center border-b border-gray-300 ${daysActive?.color}`}>
+                        <td className={`px-3 py-2 text-center border-b border-gray-300 ${daysActive?.color}`}>
                           {daysActive?.text}
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {formatDate(inspection.form?.updated_at || inspection.updated_at)}
                         </td>
                       </>
@@ -2076,15 +2077,15 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {/* Conditionally show Completed columns (Monitoring Personnel) */}
                     {activeTab === 'completed' && (
                       <>
-                        <td className="p-1 text-center border-b border-gray-300">
+                        <td className="px-3 py-2 text-center border-b border-gray-300">
                           <span className={`px-2 py-0.5 text-xs rounded-full ${completionCompliance?.color}`}>
                             {completionCompliance?.label}
                           </span>
                         </td>
-                        <td className="p-1 border-b border-gray-300">
+                        <td className="px-3 py-2 border-b border-gray-300">
                           {formatDate(inspection.form?.updated_at || inspection.updated_at)}
                         </td>
-                        <td className="p-1 text-center border-b border-gray-300">
+                        <td className="px-3 py-2 text-center border-b border-gray-300">
                           <span className="px-2 py-0.5 text-xs rounded-full text-blue-600 bg-blue-50">
                             {inspection.current_status?.includes('REVIEWED') ? 'Under Review' : 'Awaiting Review'}
                           </span>
@@ -2092,18 +2093,18 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                       </>
                     )}
                     
-                    <td className="p-1 text-center border-b border-gray-300">
+                    <td className="px-3 py-2 text-center border-b border-gray-300">
                       <StatusBadge 
                         status={inspection.current_status}
                       />
                     </td>
-                    <td className="p-1 border-b border-gray-300">
+                    <td className="px-3 py-2 border-b border-gray-300">
                       {inspection.inspected_by_name || 'Not Inspected'}
                     </td>
-                    <td className="p-1 text-center border-b border-gray-300">
+                    <td className="px-3 py-2 text-center border-b border-gray-300">
                       {formatFullDate(inspection.created_at)}
                     </td>
-                    <td className="p-1 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-3 py-2 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
                     {shouldShowActions(userLevel, activeTab) ? (
                       <InspectionActions 
                         inspection={inspection}
