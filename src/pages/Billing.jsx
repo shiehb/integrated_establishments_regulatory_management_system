@@ -6,22 +6,16 @@ import LayoutWithSidebar from "../components/LayoutWithSidebar";
 import { getBillingRecords } from "../services/api";
 import { 
   FileText, 
-  Search, 
   Calendar, 
-  Printer,
-  ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Filter,
-  X,
-  ChevronDown,
   Loader2,
   Building,
   Eye
 } from "lucide-react";
 import PaginationControls from "../components/PaginationControls";
 import { useLocalStoragePagination } from "../hooks/useLocalStoragePagination";
-import DateRangeDropdown from "../components/DateRangeDropdown";
+import TableToolbar from "../components/common/TableToolbar";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -71,10 +65,18 @@ export default function Billing() {
 
   // Advanced controls state
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  
+  // Sort fields for TableToolbar
+  const sortFields = [
+    { key: 'billing_code', label: 'Billing Code' },
+    { key: 'establishment_name', label: 'Establishment' },
+    { key: 'amount', label: 'Amount' },
+    { key: 'due_date', label: 'Due Date' },
+    { key: 'sent_date', label: 'Sent Date' },
+  ];
 
   // Modal state
   const [selectedBilling, setSelectedBilling] = useState(null);
@@ -233,35 +235,14 @@ export default function Billing() {
   }, [billingRecords, sortConfig]);
 
   // Handle sorting
-  const handleSort = (key) => {
-    setSortConfig(prevConfig => ({
-      key,
-      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
-    }));
+  const handleSort = (fieldKey, directionKey = null) => {
+    if (fieldKey === null) {
+      setSortConfig({ key: null, direction: null });
+    } else {
+      setSortConfig({ key: fieldKey, direction: directionKey || "asc" });
+    }
   };
 
-  // Calculate active filter count
-  const activeFilterCount = (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
-
-  // Click outside to close dropdowns
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (sortDropdownOpen && !e.target.closest(".sort-dropdown")) {
-        setSortDropdownOpen(false);
-      }
-      if (filtersOpen && !e.target.closest(".filter-dropdown")) {
-        setFiltersOpen(false);
-      }
-    }
-
-    if (sortDropdownOpen || filtersOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [sortDropdownOpen, filtersOpen]);
 
   return (
     <>
@@ -269,130 +250,73 @@ export default function Billing() {
       <LayoutWithSidebar>
         <div className="p-4 bg-white h-[calc(100vh-160px)]">
           {/* Top controls */}
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <h1 className="text-2xl font-bold text-sky-600">Billing Records</h1>
-
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              {/* Search Bar */}
-              <div className="relative">
-                <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search billing records..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full py-0.5 pl-10 pr-8 transition bg-gray-100 border border-gray-300 rounded-lg min-w-xs hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute -translate-y-1/2 right-3 top-1/2"
-                  >
-                    <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                  </button>
-                )}
-              </div>
-
-              {/* Sort Dropdown */}
-              <div className="relative sort-dropdown">
-                <button
-                  onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                  className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
-                >
-                  <ArrowUpDown size={14} />
-                  Sort by
-                  <ChevronDown size={14} />
-                </button>
-
-                {sortDropdownOpen && (
-                  <div className="absolute right-0 top-full z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
-                    <div className="p-2">
-                      <div className="px-3 py-2 text-xs font-semibold text-sky-600 uppercase tracking-wide">
-                        Sort Options
-                      </div>
-                      
-                      {/* Sort Fields */}
-                      <div className="mb-2">
-                        <div className="px-3 py-1 text-xs font-medium text-sky-600 uppercase tracking-wide">
-                          Sort by Field
-                        </div>
-                        {[
-                          { key: 'billing_code', label: 'Billing Code' },
-                          { key: 'establishment_name', label: 'Establishment' },
-                          { key: 'amount', label: 'Amount' },
-                          { key: 'due_date', label: 'Due Date' },
-                          { key: 'sent_date', label: 'Sent Date' },
-                        ].map((field) => (
-                          <button
-                            key={field.key}
-                            onClick={() => handleSort(field.key)}
-                            className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                              sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
-                            }`}
-                          >
-                            <div className="flex-1 text-left">
-                              <div className="font-medium">{field.label}</div>
-                            </div>
-                            {sortConfig.key === field.key && (
-                              <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Filter Dropdown */}
-              <div className="relative filter-dropdown">
-                <button
-                  onClick={() => setFiltersOpen(!filtersOpen)}
-                  className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
-                >
-                  <Filter size={14} />
-                  Filters
-                  <ChevronDown size={14} />
-                  {activeFilterCount > 0 && ` (${activeFilterCount})`}
-                </button>
-
-                {filtersOpen && (
-                  <div className="absolute right-0 top-full z-20 w-56 mt-1 bg-white border border-gray-200 rounded shadow">
-                    <div className="p-2">
-                      <div className="flex items-center justify-between px-3 py-2 mb-2">
-                        <div className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
-                          Filter Options
-                        </div>
-                        {activeFilterCount > 0 && (
-                          <button
-                            onClick={() => {
-                              setDateFrom('');
-                              setDateTo('');
-                            }}
-                            className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                          >
-                            Clear All
-                          </button>
-                        )}
-                      </div>
-                      
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Date Range Dropdown */}
-              <DateRangeDropdown
-                dateFrom={dateFrom}
-                dateTo={dateTo}
-                onDateFromChange={setDateFrom}
-                onDateToChange={setDateTo}
-                onClear={() => {
-                  setDateFrom('');
-                  setDateTo('');
-                }}
-              />
-            </div>
+          <div className="mb-3">
+            <h1 className="text-2xl font-bold text-sky-600 mb-3">Billing Records</h1>
+            
+            <TableToolbar
+              searchValue={searchQuery}
+              onSearchChange={setSearchQuery}
+              onSearchClear={() => setSearchQuery('')}
+              searchPlaceholder="Search billing records..."
+              sortConfig={sortConfig}
+              sortFields={sortFields}
+              onSort={handleSort}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onDateFromChange={setDateFrom}
+              onDateToChange={setDateTo}
+              exportConfig={{
+                title: "Billing Records Export Report",
+                fileName: "billing_records_export",
+                columns: showAllLaws 
+                  ? ["Billing Code", "Establishment", "Law", "Due Date", "Sent Date"]
+                  : ["Billing Code", "Establishment", "Due Date", "Sent Date"],
+                rows: filteredBillingRecords.map(record => showAllLaws
+                  ? [
+                      record.billing_code,
+                      record.establishment_name,
+                      record.related_law,
+                      formatDate(record.due_date),
+                      formatDate(record.sent_date)
+                    ]
+                  : [
+                      record.billing_code,
+                      record.establishment_name,
+                      formatDate(record.due_date),
+                      formatDate(record.sent_date)
+                    ]
+                )
+              }}
+              printConfig={{
+                title: "Billing Records Print Report",
+                fileName: "billing_records_print",
+                columns: showAllLaws 
+                  ? ["Billing Code", "Establishment", "Law", "Due Date", "Sent Date"]
+                  : ["Billing Code", "Establishment", "Due Date", "Sent Date"],
+                rows: filteredBillingRecords.map(record => showAllLaws
+                  ? [
+                      record.billing_code,
+                      record.establishment_name,
+                      record.related_law,
+                      formatDate(record.due_date),
+                      formatDate(record.sent_date)
+                    ]
+                  : [
+                      record.billing_code,
+                      record.establishment_name,
+                      formatDate(record.due_date),
+                      formatDate(record.sent_date)
+                    ]
+                ),
+                selectedCount: filteredBillingRecords.length
+              }}
+              onRefresh={() => {
+                setDateFrom('');
+                setDateTo('');
+                fetchData();
+              }}
+              isRefreshing={loading}
+            />
           </div>
 
           {/* Law Tabs */}

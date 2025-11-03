@@ -5,14 +5,26 @@ import { User, Key, LogOut, ChevronDown } from "lucide-react";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useAuth } from "../../contexts/AuthContext";
 import { useNotifications } from "../NotificationManager";
+import { API_BASE_URL } from "../../config/api";
 
 export default function UserDropdown({ userLevel = "public", userName = "Guest" }) {
   const navigate = useNavigate();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [avatarError, setAvatarError] = useState({ button: false, dropdown: false });
   const notifications = useNotifications();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const dropdownRef = useRef(null);
+
+  // Helper function to format avatar URL
+  const getAvatarUrl = (avatar) => {
+    if (!avatar) return null;
+    if (avatar.startsWith('http')) return avatar;
+    if (avatar.startsWith('/')) return `${window.location.origin}${avatar}`;
+    return `${API_BASE_URL.replace('/api/', '')}${avatar}`;
+  };
+
+  const avatarUrl = user?.avatar ? getAvatarUrl(user.avatar) : null;
 
   const handleLogout = async () => {
     await logout();
@@ -52,8 +64,17 @@ export default function UserDropdown({ userLevel = "public", userName = "Guest" 
             showUserDropdown ? "" : ""
           }`}
         >
-          <div className="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-sky-500 to-sky-600 ring-2 ring-white">
-            <User className="w-4 h-4 text-white" />
+          <div className="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-sky-500 to-sky-600 ring-2 ring-white overflow-hidden">
+            {avatarUrl && !avatarError.button ? (
+              <img
+                src={avatarUrl}
+                alt={userName}
+                className="w-full h-full object-cover"
+                onError={() => setAvatarError(prev => ({ ...prev, button: true }))}
+              />
+            ) : (
+              <User className="w-4 h-4 text-white" />
+            )}
           </div>
           <div className="text-left">
             <span className="block text-sm font-medium">{userName}</span>
@@ -73,8 +94,17 @@ export default function UserDropdown({ userLevel = "public", userName = "Guest" 
             {/* Profile Section */}
             <div className="p-4 bg-gradient-to-br from-sky-50 to-blue-50 rounded-t-xl">
               <div className="flex items-center space-x-3">
-                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-sky-500 to-sky-600 ring-2 ring-white">
-                  <User className="w-6 h-6 text-white" />
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-sky-500 to-sky-600 ring-2 ring-white overflow-hidden">
+                  {avatarUrl && !avatarError.dropdown ? (
+                    <img
+                      src={avatarUrl}
+                      alt={userName}
+                      className="w-full h-full object-cover"
+                      onError={() => setAvatarError(prev => ({ ...prev, dropdown: true }))}
+                    />
+                  ) : (
+                    <User className="w-6 h-6 text-white" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-slate-900 truncate">{userName}</p>

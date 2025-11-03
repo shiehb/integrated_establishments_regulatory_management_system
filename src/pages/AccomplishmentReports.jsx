@@ -11,7 +11,8 @@ import AccomplishmentReportPDF from '../components/reports/AccomplishmentReportP
 import DivisionChiefAccomplishmentReport from '../components/reports/DivisionChiefAccomplishmentReport';
 import { getCurrentQuarter, getQuarterDates, exportInspectionsPDF } from '../services/reportsApi';
 import { getInspections } from '../services/api';
-import { Download, Building, CheckCircle, XCircle, TrendingUp, Search, Filter, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
+import { Building, CheckCircle, XCircle, TrendingUp } from 'lucide-react';
+import TableToolbar from '../components/common/TableToolbar';
 
 export default function AccomplishmentReports() {
   const { user } = useAuth();
@@ -36,11 +37,19 @@ export default function AccomplishmentReports() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [lawFilter, setLawFilter] = useState([]);
   const [cityFilter, setCityFilter] = useState([]);
   const [provinceFilter, setProvinceFilter] = useState([]);
   const [complianceFilter, setComplianceFilter] = useState([]);
+  
+  // Sort fields for TableToolbar
+  const sortFields = [
+    { key: 'code', label: 'Inspection Code' },
+    { key: 'establishment', label: 'Establishment' },
+    { key: 'law', label: 'Law' },
+    { key: 'date', label: 'Date' },
+    { key: 'compliance', label: 'Compliance' }
+  ];
   const [currentPage] = useState(1);
   const [pageSize] = useState(20);
   const [inspections, setInspections] = useState([]);
@@ -231,12 +240,137 @@ export default function AccomplishmentReports() {
   const availableProvinces = [...new Set(inspections.flatMap(inspection => 
     inspection.establishments_detail?.map(est => est.province).filter(Boolean) || []
   ))].sort();
-  const availableCompliance = ['COMPLIANT', 'NON_COMPLIANT', 'PENDING'];
 
   // Fetch data when component mounts or quarter/year changes
   useEffect(() => {
     fetchInspections();
   }, [fetchInspections]);
+
+  // Clear filters handler
+  const clearFilters = useCallback(() => {
+    setLawFilter([]);
+    setCityFilter([]);
+    setProvinceFilter([]);
+    setComplianceFilter([]);
+    setSearchQuery('');
+  }, []);
+
+  // Custom filters dropdown - must be before early return
+  const customFiltersDropdown = useMemo(() => {
+    const complianceOptions = ['COMPLIANT', 'NON_COMPLIANT', 'PENDING'];
+    
+    return (
+      <div className="absolute right-0 z-20 w-80 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg">
+        <div className="p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium text-gray-900">Filters</h3>
+            <button
+              onClick={clearFilters}
+              className="text-sm text-sky-600 hover:text-sky-700"
+            >
+              Clear All
+            </button>
+          </div>
+
+          {/* Law Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Law</label>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {availableLaws.map(law => (
+                <label key={law} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={lawFilter.includes(law)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setLawFilter([...lawFilter, law]);
+                      } else {
+                        setLawFilter(lawFilter.filter(l => l !== law));
+                      }
+                    }}
+                    className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">{law}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* City Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {availableCities.map(city => (
+                <label key={city} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={cityFilter.includes(city)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setCityFilter([...cityFilter, city]);
+                      } else {
+                        setCityFilter(cityFilter.filter(c => c !== city));
+                      }
+                    }}
+                    className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">{city}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Province Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Province</label>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {availableProvinces.map(province => (
+                <label key={province} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={provinceFilter.includes(province)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setProvinceFilter([...provinceFilter, province]);
+                      } else {
+                        setProvinceFilter(provinceFilter.filter(p => p !== province));
+                      }
+                    }}
+                    className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">{province}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Compliance Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Compliance</label>
+            <div className="space-y-2">
+              {complianceOptions.map(compliance => (
+                <label key={compliance} className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={complianceFilter.includes(compliance)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setComplianceFilter([...complianceFilter, compliance]);
+                      } else {
+                        setComplianceFilter(complianceFilter.filter(c => c !== compliance));
+                      }
+                    }}
+                    className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                  />
+                  <span className="ml-2 text-sm text-gray-700">{compliance}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }, [lawFilter, cityFilter, provinceFilter, complianceFilter, availableLaws, availableCities, availableProvinces, clearFilters]);
 
   // Check if user has access
   const allowedUserLevels = ['Division Chief', 'Section Chief', 'Unit Head', 'Monitoring Personnel'];
@@ -260,8 +394,6 @@ export default function AccomplishmentReports() {
   const handleYearChange = (year) => {
     setSelectedYear(year);
   };
-
-
 
   const handleExport = async (exportOptions) => {
     setExportError(null);
@@ -296,11 +428,6 @@ export default function AccomplishmentReports() {
     }
   };
 
-  // const getQuarterLabel = () => {
-  //   return `Q${selectedQuarter} ${selectedYear}`;
-  // };
-
-
   const getQuarterLabel = (quarter) => {
     const labels = {
       1: 'First Quarter',
@@ -312,22 +439,13 @@ export default function AccomplishmentReports() {
   };
 
   // Handler functions
-  const handleSort = (key) => {
-    setSortConfig(prev => ({
-      key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
+  const handleSort = (fieldKey, directionKey = null) => {
+    if (fieldKey === null) {
+      setSortConfig({ key: null, direction: null });
+    } else {
+      setSortConfig({ key: fieldKey, direction: directionKey || "asc" });
+    }
   };
-
-  const clearFilters = () => {
-    setLawFilter([]);
-    setCityFilter([]);
-    setProvinceFilter([]);
-    setComplianceFilter([]);
-    setSearchQuery('');
-  };
-
-  const activeFilterCount = lawFilter.length + cityFilter.length + provinceFilter.length + complianceFilter.length;
 
   return (
     <>
@@ -438,219 +556,48 @@ export default function AccomplishmentReports() {
             </div>
           </div>
 
-          {/* Right side controls - Search, Sort, Filters, Export, Print */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Search Bar */}
-            <div className="relative flex-1 min-w-[250px]">
-              <Search className="absolute w-4 h-4 text-gray-400 left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full py-1 pl-10 pr-8 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
-              />
-              {searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                </button>
-              )}
-            </div>
-
-            {/* Sort Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                <ArrowUpDown size={14} />
-                Sort
-                <ChevronDown size={14} />
-              </button>
-
-              {sortDropdownOpen && (
-                <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-                  <div className="p-2">
-                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
-                      Sort Options
-                    </div>
-                    <div className="mt-2 mb-2">
-                      <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                        Sort by
-                      </div>
-                      {[
-                        { key: 'code', label: 'Inspection Code' },
-                        { key: 'establishment', label: 'Establishment' },
-                        { key: 'law', label: 'Law' },
-                        { key: 'date', label: 'Date' },
-                        { key: 'compliance', label: 'Compliance' }
-                      ].map((field) => (
-                        <button
-                          key={field.key}
-                          onClick={() => handleSort(field.key)}
-                          className={`w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                            sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
-                          }`}
-                        >
-                          <span>{field.label}</span>
-                          {sortConfig.key === field.key && (
-                            <div className="flex items-center gap-1">
-                              {sortConfig.direction === "asc" ? (
-                                <ArrowUp size={14} className="text-sky-600" />
-                              ) : (
-                                <ArrowDown size={14} className="text-sky-600" />
-                              )}
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                    {sortConfig.key && (
-                      <>
-                        <div className="my-1 border-t border-gray-200"></div>
-                        <button
-                          onClick={() => setSortConfig({ key: null, direction: null })}
-                          className="w-full px-3 py-2 text-sm text-gray-600 rounded-md hover:bg-gray-100 transition-colors text-left"
-                        >
-                          Clear Sort
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Filters Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setFiltersOpen(!filtersOpen)}
-                className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                <Filter size={14} />
-                Filters
-                <ChevronDown size={14} />
-                {activeFilterCount > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 text-xs bg-sky-600 text-white rounded-full">
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-
-              {filtersOpen && (
-                <div className="absolute right-0 z-20 w-80 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg">
-                  <div className="p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium text-gray-900">Filters</h3>
-                      <button
-                        onClick={clearFilters}
-                        className="text-sm text-sky-600 hover:text-sky-700"
-                      >
-                        Clear All
-                      </button>
-                    </div>
-
-                    {/* Law Filter */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Law</label>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
-                        {availableLaws.map(law => (
-                          <label key={law} className="flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={lawFilter.includes(law)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setLawFilter([...lawFilter, law]);
-                                } else {
-                                  setLawFilter(lawFilter.filter(l => l !== law));
-                                }
-                              }}
-                              className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
-                            />
-                            <span className="ml-2 text-sm text-gray-700">{law}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* City Filter */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
-                        {availableCities.map(city => (
-                          <label key={city} className="flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={cityFilter.includes(city)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setCityFilter([...cityFilter, city]);
-                                } else {
-                                  setCityFilter(cityFilter.filter(c => c !== city));
-                                }
-                              }}
-                              className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
-                            />
-                            <span className="ml-2 text-sm text-gray-700">{city}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Province Filter */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Province</label>
-                      <div className="space-y-2 max-h-32 overflow-y-auto">
-                        {availableProvinces.map(province => (
-                          <label key={province} className="flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={provinceFilter.includes(province)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setProvinceFilter([...provinceFilter, province]);
-                                } else {
-                                  setProvinceFilter(provinceFilter.filter(p => p !== province));
-                                }
-                              }}
-                              className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
-                            />
-                            <span className="ml-2 text-sm text-gray-700">{province}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Compliance Filter */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Compliance</label>
-                      <div className="space-y-2">
-                        {availableCompliance.map(compliance => (
-                          <label key={compliance} className="flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={complianceFilter.includes(compliance)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setComplianceFilter([...complianceFilter, compliance]);
-                                } else {
-                                  setComplianceFilter(complianceFilter.filter(c => c !== compliance));
-                                }
-                              }}
-                              className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
-                            />
-                            <span className="ml-2 text-sm text-gray-700">{compliance}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Enhanced Export Buttons */}
+          {/* Right side controls - TableToolbar */}
+          <TableToolbar
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSearchClear={() => setSearchQuery('')}
+            searchPlaceholder="Search..."
+            sortConfig={sortConfig}
+            sortFields={sortFields}
+            onSort={handleSort}
+            onFilterClick={() => setFiltersOpen(!filtersOpen)}
+            customFilterDropdown={filtersOpen ? customFiltersDropdown : null}
+            filterOpen={filtersOpen}
+            onFilterClose={() => setFiltersOpen(false)}
+            exportConfig={{
+              title: "Accomplishment Report Export",
+              fileName: `accomplishment_report_${getQuarterLabel(selectedQuarter).toLowerCase().replace(' ', '_')}_${selectedYear}`,
+              columns: ["Code", "Establishment", "Law", "Date", "Compliance"],
+              rows: filteredAndSortedData.map(inspection => [
+                inspection.code || '',
+                inspection.establishments_detail?.[0]?.name || '',
+                inspection.law || '',
+                new Date(inspection.updated_at || 0).toLocaleDateString(),
+                getComplianceStatus(inspection).status
+              ])
+            }}
+            printConfig={{
+              title: "Accomplishment Report Print",
+              fileName: `accomplishment_report_${getQuarterLabel(selectedQuarter).toLowerCase().replace(' ', '_')}_${selectedYear}`,
+              columns: ["Code", "Establishment", "Law", "Date", "Compliance"],
+              rows: filteredAndSortedData.map(inspection => [
+                inspection.code || '',
+                inspection.establishments_detail?.[0]?.name || '',
+                inspection.law || '',
+                new Date(inspection.updated_at || 0).toLocaleDateString(),
+                getComplianceStatus(inspection).status
+              ]),
+              selectedCount: filteredAndSortedData.length
+            }}
+          />
+          
+          {/* Enhanced Export Buttons - Keep separate for custom functionality */}
+          <div className="flex items-center gap-2">
             <AccomplishmentReportPDF
               title="Accomplishment Report"
               quarter={selectedQuarter}

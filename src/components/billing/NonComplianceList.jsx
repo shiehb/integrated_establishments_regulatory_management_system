@@ -1,11 +1,11 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { mockApi } from "../../services/mockApi";
-import { Search, Filter, X, Eye, Download, ArrowUpDown, ChevronDown } from "lucide-react";
-import ExportDropdown from "../ExportDropdown";
+import { X, Eye } from "lucide-react";
 import PaginationControls from "../PaginationControls";
 import { useLocalStoragePagination } from "../../hooks/useLocalStoragePagination";
 import { getProfile } from "../../services/api";
 import { canExportAndPrint } from "../../utils/permissions";
+import TableToolbar from "../common/TableToolbar";
 
 export default function NonComplianceList({ onSelectReport }) {
   const [reports, setReports] = useState([]);
@@ -22,7 +22,6 @@ export default function NonComplianceList({ onSelectReport }) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedReports, setSelectedReports] = useState([]);
-  const filterRef = useRef(null);
 
   // ✅ Pagination with localStorage
   const savedPagination = useLocalStoragePagination("noncompliance_list");
@@ -50,23 +49,6 @@ export default function NonComplianceList({ onSelectReport }) {
       setLoading(false);
     });
   }, []);
-
-  // Add this useEffect to handle clicks outside the filter dropdown
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (filterRef.current && !filterRef.current.contains(e.target)) {
-        setFiltersOpen(false);
-      }
-    }
-
-    if (filtersOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [filtersOpen]);
 
   // Get unique establishment names for filter
   const establishmentNames = useMemo(() => {
@@ -196,256 +178,186 @@ export default function NonComplianceList({ onSelectReport }) {
     });
   };
 
-  // Prepare data for export
-  const exportColumns = ["Establishment", "Date", "Findings", "Status"];
-  const exportRows =
-    selectedReports.length > 0
-      ? reports
-          .filter((r) => selectedReports.includes(r.id))
-          .map((r) => [
-            r.establishment_name,
-            formatDate(r.date),
-            r.findings,
-            r.status || "Pending",
-          ])
-      : filteredReports.map((r) => [
-          r.establishment_name,
-          formatDate(r.date),
-          r.findings,
-          r.status || "Pending",
-        ]);
+  // Custom filters dropdown
+  const customFiltersDropdown = useMemo(() => {
+    if (!filtersOpen) return null;
+    
+    return (
+      <div className="absolute right-0 top-full z-20 w-64 mt-1 bg-white border border-gray-200 rounded shadow max-h-80 overflow-y-auto">
+        <div className="p-2">
+          <div className="flex items-center justify-between px-3 py-2 mb-2">
+            <div className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
+              Filter Options
+            </div>
+            {(establishmentFilter.length > 0 || statusFilter.length > 0 || dateFrom || dateTo) && (
+              <button
+                onClick={() => {
+                  setEstablishmentFilter([]);
+                  setStatusFilter([]);
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+
+          {/* Establishment filter */}
+          <div className="mb-3">
+            <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+              Establishment
+            </div>
+            <div className="max-h-32 overflow-y-auto">
+              {establishmentNames.map((establishment) => (
+                <button
+                  key={establishment}
+                  onClick={() => toggleEstablishment(establishment)}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                    establishmentFilter.includes(establishment) ? "bg-sky-50 font-medium" : ""
+                  }`}
+                >
+                  <div className="flex-1 text-left">
+                    <div className="font-medium truncate">{establishment}</div>
+                  </div>
+                  {establishmentFilter.includes(establishment) && (
+                    <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Status filter */}
+          <div className="mb-3">
+            <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+              Status
+            </div>
+            {statusOptions.map((status) => (
+              <button
+                key={status}
+                onClick={() => toggleStatus(status)}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                  statusFilter.includes(status) ? "bg-sky-50 font-medium" : ""
+                }`}
+              >
+                <div className="flex-1 text-left">
+                  <div className="font-medium">{status}</div>
+                </div>
+                {statusFilter.includes(status) && (
+                  <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Date Range filter */}
+          <div className="mb-2">
+            <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+              Date Range
+            </div>
+            <div className="space-y-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  From Date
+                </label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border-b border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  To Date
+                </label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border-b border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }, [filtersOpen, establishmentFilter, statusFilter, dateFrom, dateTo, establishmentNames, statusOptions, toggleEstablishment, toggleStatus]);
 
   if (loading) return <p className="p-4">Loading...</p>;
 
   return (
     <div className="p-4 bg-white rounded shadow">
-      {/* Header with search and filters */}
-      <div className="flex flex-wrap items-end justify-between gap-2 mb-3">
-        <h2 className="text-2xl font-bold text-sky-600">
+      {/* Header */}
+      <div className="mb-3">
+        <h2 className="text-2xl font-bold text-sky-600 mb-3">
           Non-Compliant Establishments
         </h2>
 
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {/* Search bar */}
-          <div className="relative">
-            <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
-            <input
-              type="text"
-              placeholder="Search reports..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border-b border-gray-300 rounded min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute -translate-y-1/2 right-3 top-1/2"
-              >
-                <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-              </button>
-            )}
-          </div>
-
-          {/* Filter button */}
-          <div className="relative" ref={filterRef}>
-            <button
-              onClick={() => setFiltersOpen(!filtersOpen)}
-               className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
-            >
-               <ArrowUpDown size={14} />
-               Filters
-               <ChevronDown size={14} />
-              {(establishmentFilter.length > 0 ||
-                statusFilter.length > 0 ||
-                dateFrom ||
-                 dateTo) && ` (${establishmentFilter.length +
-                    statusFilter.length +
-                    (dateFrom ? 1 : 0) +
-                     (dateTo ? 1 : 0)})`}
-            </button>
-
-            {filtersOpen && (
-              <div className="absolute right-0 top-full z-20 w-64 mt-1 bg-white border border-gray-200 rounded shadow max-h-80 overflow-y-auto">
-                <div className="p-2">
-                  <div className="flex items-center justify-between px-3 py-2 mb-2">
-                    <div className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
-                      Filter Options
-                    </div>
-                    {(establishmentFilter.length > 0 || statusFilter.length > 0 || dateFrom || dateTo) && (
-                  <button
-                    onClick={() => {
-                      setEstablishmentFilter([]);
-                      setStatusFilter([]);
-                      setDateFrom("");
-                      setDateTo("");
-                    }}
-                        className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                  >
-                    Clear All
-                  </button>
-                    )}
-                </div>
-
-                {/* Establishment filter */}
-                  <div className="mb-3">
-                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                  Establishment
-                    </div>
-                <div className="max-h-32 overflow-y-auto">
-                  {establishmentNames.map((establishment) => (
-                        <button
-                      key={establishment}
-                          onClick={() => toggleEstablishment(establishment)}
-                          className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                            establishmentFilter.includes(establishment) ? "bg-sky-50 font-medium" : ""
-                          }`}
-                        >
-                          <div className="flex-1 text-left">
-                            <div className="font-medium truncate">{establishment}</div>
-                          </div>
-                          {establishmentFilter.includes(establishment) && (
-                            <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                </div>
-
-                {/* Status filter */}
-                  <div className="mb-3">
-                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                      Status
-                    </div>
-                {statusOptions.map((status) => (
-                      <button
-                    key={status}
-                        onClick={() => toggleStatus(status)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                          statusFilter.includes(status) ? "bg-sky-50 font-medium" : ""
-                        }`}
-                      >
-                        <div className="flex-1 text-left">
-                          <div className="font-medium">{status}</div>
-                        </div>
-                        {statusFilter.includes(status) && (
-                          <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-
-                {/* Date Range filter */}
-                  <div className="mb-2">
-                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                      Date Range
-                    </div>
-                    <div className="space-y-2">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          From Date
-                        </label>
-                    <input
-                      type="date"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
-                          className="w-full px-3 py-2 text-sm border-b border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                    />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          To Date
-                  </label>
-                    <input
-                      type="date"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
-                          className="w-full px-3 py-2 text-sm border-b border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                    />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {canExportAndPrint(userLevel, 'billing') && (
-            <ExportDropdown
-              title="Non-Compliance Reports"
-              fileName="non_compliance_reports"
-              columns={["ID", "Establishment", "Date", "Status", "Violations"]}
-              rows={selectedReports.length > 0 ? 
-                selectedReports.map(id => {
+        <TableToolbar
+          searchValue={search}
+          onSearchChange={setSearch}
+          onSearchClear={() => setSearch("")}
+          searchPlaceholder="Search reports..."
+          onFilterClick={() => setFiltersOpen(!filtersOpen)}
+          customFilterDropdown={customFiltersDropdown}
+          filterOpen={filtersOpen}
+          onFilterClose={() => setFiltersOpen(false)}
+          exportConfig={canExportAndPrint(userLevel, 'billing') ? {
+            title: "Non-Compliance Reports Export",
+            fileName: "non_compliance_reports_export",
+            columns: selectedReports.length > 0 
+              ? ["ID", "Establishment", "Date", "Status", "Violations"]
+              : ["Establishment", "Date", "Findings", "Status"],
+            rows: selectedReports.length > 0
+              ? selectedReports.map(id => {
                   const report = reports.find(r => r.id === id);
                   return [
                     report.id,
                     report.establishment_name,
-                    report.date,
+                    formatDate(report.date),
                     report.status,
                     report.violations.length
                   ];
-                }) : 
-                reports.map(report => [
-                  report.id,
-                  report.establishment_name,
-                  report.date,
-                  report.status,
-                  report.violations.length
+                })
+              : filteredReports.map(r => [
+                  r.establishment_name,
+                  formatDate(r.date),
+                  r.findings,
+                  r.status || "Pending"
                 ])
-              }
-              disabled={reports.length === 0}
-              className="flex items-center text-sm"
-            />
-          )}
-        </div>
+          } : null}
+          printConfig={canExportAndPrint(userLevel, 'billing') ? {
+            title: "Non-Compliance Reports Print",
+            fileName: "non_compliance_reports_print",
+            columns: selectedReports.length > 0 
+              ? ["ID", "Establishment", "Date", "Status", "Violations"]
+              : ["Establishment", "Date", "Findings", "Status"],
+            rows: selectedReports.length > 0
+              ? selectedReports.map(id => {
+                  const report = reports.find(r => r.id === id);
+                  return [
+                    report.id,
+                    report.establishment_name,
+                    formatDate(report.date),
+                    report.status,
+                    report.violations.length
+                  ];
+                })
+              : filteredReports.map(r => [
+                  r.establishment_name,
+                  formatDate(r.date),
+                  r.findings,
+                  r.status || "Pending"
+                ]),
+            selectedCount: selectedReports.length || filteredReports.length
+          } : null}
+        />
       </div>
 
-      {/* Active filters display */}
-      {(establishmentFilter.length > 0 ||
-        statusFilter.length > 0 ||
-        dateFrom ||
-        dateTo) && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {establishmentFilter.map((establishment) => (
-            <span
-              key={establishment}
-              className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-200 rounded"
-            >
-              Establishment: {establishment}
-              <button onClick={() => toggleEstablishment(establishment)}>
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-          {statusFilter.map((status) => (
-            <span
-              key={status}
-              className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-200 rounded"
-            >
-              Status: {status}
-              <button onClick={() => toggleStatus(status)}>
-                <X size={12} />
-              </button>
-            </span>
-          ))}
-          {dateFrom && (
-            <span className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-200 rounded">
-              From: {new Date(dateFrom).toLocaleDateString()}
-              <button onClick={() => setDateFrom("")}>
-                <X size={12} />
-              </button>
-            </span>
-          )}
-          {dateTo && (
-            <span className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-200 rounded">
-              To: {new Date(dateTo).toLocaleDateString()}
-              <button onClick={() => setDateTo("")}>
-                <X size={12} />
-              </button>
-            </span>
-          )}
-        </div>
-      )}
 
       {filteredReports.length === 0 ? (
         <p className="p-4 text-center text-gray-500">

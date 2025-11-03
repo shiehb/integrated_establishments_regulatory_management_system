@@ -2,13 +2,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import {
   Plus,
-  ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Filter,
-  Search,
-  X,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -36,10 +31,8 @@ import StatusBadge from "./StatusBadge";
 import InspectionTabs from "./InspectionTabs";
 import InspectionActions from "./InspectionActions";
 import { roleTabs, tabDisplayNames, canUserPerformActions } from "../../constants/inspectionConstants";
-import ExportDropdown from "../ExportDropdown";
-import PrintPDF from "../PrintPDF";
-import DateRangeDropdown from "../DateRangeDropdown";
 import ConfirmationDialog from "../common/ConfirmationDialog";
+import TableToolbar from "../common/TableToolbar";
 import { useNotifications } from "../NotificationManager";
 import PaginationControls from "../PaginationControls";
 import { useLocalStoragePagination, useLocalStorageTab } from "../../hooks/useLocalStoragePagination";
@@ -612,7 +605,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
   // ✅ Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
   // ✅ Pagination with localStorage
   const savedPagination = useLocalStoragePagination("inspections_list");
@@ -1072,26 +1064,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     }
   }, [refreshTrigger, refreshData]);
 
-  // Add this useEffect to handle clicks outside the dropdowns
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (filtersOpen && !e.target.closest(".filter-dropdown")) {
-        setFiltersOpen(false);
-      }
-      if (sortDropdownOpen && !e.target.closest(".sort-dropdown")) {
-        setSortDropdownOpen(false);
-      }
-    }
-
-    if (filtersOpen || sortDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [filtersOpen, sortDropdownOpen]);
-
   // Handle highlighting from search navigation
   useEffect(() => {
     console.log('InspectionsList - Location state:', location.state);
@@ -1128,18 +1100,16 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   };
 
   // ✅ Sorting handler
-  const handleSort = (key) => {
-    setSortConfig((prev) => {
-      if (prev.key === key) {
-        if (prev.direction === "asc") return { key, direction: "desc" };
-        if (prev.direction === "desc") return { key: null, direction: null };
-      }
-      return { key, direction: "asc" };
-    });
+  const handleSort = (fieldKey, directionKey = null) => {
+    if (fieldKey === null) {
+      setSortConfig({ key: null, direction: null });
+    } else {
+      setSortConfig({ key: fieldKey, direction: directionKey || "asc" });
+    }
   };
 
   const getSortIcon = (key) => {
-    if (sortConfig.key !== key) return <ArrowUpDown size={14} />;
+    if (sortConfig.key !== key) return null;
     return sortConfig.direction === "asc" ? (
       <ArrowUp size={14} />
     ) : (
@@ -1193,13 +1163,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     setCurrentPage(1);
   };
 
-  const handleSortFromDropdown = (fieldKey, directionKey) => {
-    if (fieldKey) {
-      setSortConfig({ key: fieldKey, direction: directionKey || "asc" });
-    } else {
-      setSortConfig({ key: null, direction: null });
-    }
-  };
 
   // Pagination functions
   const goToPage = (page) => {
@@ -1225,6 +1188,188 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   const startItem = totalInspections > 0 ? (currentPage - 1) * pageSize + 1 : 0;
   const endItem = Math.min(currentPage * pageSize, totalInspections);
 
+  // Helper function to get export/print columns based on activeTab
+  const getExportColumns = useCallback(() => {
+    if (activeTab === 'nov_sent') return ["Code", "Establishments", "Law", "NOV Sent Date", "Compliance Deadline", "Deadline Status", "Status", "Created Date"];
+    if (activeTab === 'noo_sent' && userLevel !== 'Legal Unit') return ["Code", "Establishments", "Law", "NOO Sent Date", "Payment Deadline", "Payment Status", "Status", "Created Date"];
+    if (activeTab === 'noo_sent' && userLevel === 'Legal Unit') return ["Code", "Establishments", "Law", "NOO Sent Date", "Payment Deadline", "Status", "Created Date"];
+    if (activeTab === 'review') return ["Code", "Establishments", "Law", "Compliance", "Submitted By", "Submitted On", "Status", "Created Date"];
+    if (activeTab === 'received') return ["Code", "Establishments", "Law", "Assigned Date", "Assigned By", "Priority", "Days Waiting", "Status", "Created Date"];
+    if (activeTab === 'my_inspections') return ["Code", "Establishments", "Law", "Started Date", "Days Active", "Last Activity", "Status", "Created Date"];
+    if (activeTab === 'forwarded') return ["Code", "Establishments", "Law", "Forwarded To", "Forwarded Date", "Days Since Forward", "Status", "Created Date"];
+    if (activeTab === 'compliance') return ["Code", "Establishments", "Law", "Final Compliance", "Completion Date", "Days Since Completion", "Status", "Created Date"];
+    if (activeTab === 'assigned') return ["Code", "Establishments", "Law", "Assigned Date", "Assigned By", "Priority", "Status", "Created Date"];
+    if (activeTab === 'in_progress') return ["Code", "Establishments", "Law", "Started Date", "Days Active", "Last Activity", "Status", "Created Date"];
+    if (activeTab === 'completed') return ["Code", "Establishments", "Law", "Compliance", "Completed Date", "Review Status", "Status", "Created Date"];
+    return ["Code", "Establishments", "Law", "Status", "Inspected By", "Created Date"];
+  }, [activeTab, userLevel]);
+
+  // Helper function to get export/print rows based on activeTab
+  const getExportRows = useCallback((inspectionList) => {
+    return inspectionList.map(inspection => {
+      if (activeTab === 'nov_sent') {
+        const deadlineStatus = getDeadlineStatus(inspection.form?.nov?.compliance_deadline);
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          inspection.form?.nov?.sent_date 
+            ? new Date(inspection.form.nov.sent_date).toLocaleDateString()
+            : 'Not sent',
+          inspection.form?.nov?.compliance_deadline
+            ? new Date(inspection.form.nov.compliance_deadline).toLocaleDateString()
+            : 'No deadline',
+          deadlineStatus.text,
+          inspection.simplified_status || inspection.current_status,
+          new Date(inspection.created_at).toLocaleDateString()
+        ];
+      } else if (activeTab === 'noo_sent' && userLevel !== 'Legal Unit') {
+        const paymentStatus = getPaymentStatus(inspection.form?.noo);
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          inspection.form?.noo?.sent_date 
+            ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
+            : 'Not sent',
+          inspection.form?.noo?.payment_deadline
+            ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
+            : 'No deadline',
+          paymentStatus.text,
+          inspection.simplified_status || inspection.current_status,
+          new Date(inspection.created_at).toLocaleDateString()
+        ];
+      } else if (activeTab === 'noo_sent' && userLevel === 'Legal Unit') {
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          inspection.form?.noo?.sent_date 
+            ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
+            : 'Not sent',
+          inspection.form?.noo?.payment_deadline
+            ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
+            : 'No deadline',
+          inspection.simplified_status || inspection.current_status,
+          new Date(inspection.created_at).toLocaleDateString()
+        ];
+      } else if (activeTab === 'review') {
+        const complianceInfo = getComplianceStatusInfo(inspection);
+        const submissionAge = getSubmissionAge(inspection.form?.updated_at || inspection.updated_at);
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          complianceInfo.label,
+          inspection.form?.inspected_by_name || inspection.assigned_to_name || 'Unknown',
+          submissionAge.text,
+          inspection.simplified_status || inspection.current_status,
+          new Date(inspection.created_at).toLocaleDateString()
+        ];
+      }
+      return [
+        inspection.code,
+        inspection.establishments_detail && inspection.establishments_detail.length > 0 
+          ? inspection.establishments_detail.map(est => est.name).join(', ')
+          : 'No establishments',
+        inspection.law,
+        inspection.simplified_status || inspection.current_status,
+        inspection.inspected_by_name || 'Not Inspected',
+        new Date(inspection.created_at).toLocaleDateString()
+      ];
+    });
+  }, [activeTab, userLevel]);
+
+  // Custom filters dropdown
+  const customFiltersDropdown = useMemo(() => {
+    return (
+      <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto custom-scrollbar">
+        <div className="p-2">
+          {/* Header with Clear All */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Filters
+            </div>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={() => {
+                  setSectionFilter([]);
+                  setLawFilter([]);
+                  setDateFrom("");
+                  setDateTo("");
+                  setShowOnlyMyAssignments(false);
+                }}
+                className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+
+          {/* Assignment Filter */}
+          {(userLevel === 'Section Chief' || userLevel === 'Unit Head' || userLevel === 'Monitoring Personnel') && (
+            <div className="mb-2">
+              <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+                Assignment
+              </div>
+              <button
+                onClick={() => setShowOnlyMyAssignments(!showOnlyMyAssignments)}
+                className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                  showOnlyMyAssignments ? "bg-sky-50 font-medium" : ""
+                }`}
+              >
+                <div className="flex-1 text-left">
+                  <div className="font-medium">My Assignments Only</div>
+                  <div className="text-xs text-gray-500">Show only inspections assigned to me</div>
+                </div>
+                {showOnlyMyAssignments && (
+                  <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Law Section */}
+          <div className="mb-2">
+            <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
+              Law
+            </div>
+            {availableLaws.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-gray-500 italic">
+                No laws available
+              </div>
+            ) : (
+              availableLaws.map((law) => (
+                <button
+                  key={law}
+                  onClick={() => toggleLaw(law)}
+                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
+                    lawFilter.includes(law) ? "bg-sky-50 font-medium" : ""
+                  }`}
+                >
+                  <div className="flex-1 text-left">
+                    <div className="font-medium">{law}</div>
+                  </div>
+                  {lawFilter.includes(law) && (
+                    <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }, [filtersOpen, lawFilter, showOnlyMyAssignments, availableLaws, userLevel, activeFilterCount, toggleLaw]);
+
   // Removed handleRowClick to prevent navigation on row click
 
   return (
@@ -1236,431 +1381,45 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {/* 🔍 Local Search Bar */}
-          <div className="relative flex-1 min-w-[250px]">
-            <Search className="absolute w-4 h-4 text-gray-400 left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full py-1 pl-10 pr-8 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
-            />
-            {searchQuery && (
-              <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-              </button>
-            )}
-          </div>
-
-          {/* 🔽 Sort Dropdown */}
-          <div className="relative sort-dropdown">
-            <button
-              onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-              className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              <ArrowUpDown size={14} />
-              Sort
-              <ChevronDown size={14} />
-            </button>
-
-            {sortDropdownOpen && (
-              <div className="absolute right-0 z-20 w-56 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
-                <div className="p-2">
-                  {/* Header */}
-                  <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
-                    Sort Options
-                  </div>
-
-                  {/* Sort Fields */}
-                  <div className="mt-2 mb-2">
-                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                      Sort by
-                    </div>
-                    {sortFields.map((field) => (
-                      <button
-                        key={field.key}
-                        onClick={() =>
-                          handleSortFromDropdown(
-                            field.key,
-                            sortConfig.key === field.key
-                              ? sortConfig.direction === "asc"
-                                ? "desc"
-                                : "asc"
-                              : "asc"
-                          )
-                        }
-                        className={`w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                          sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
-                        }`}
-                      >
-                        <span>{field.label}</span>
-                        {sortConfig.key === field.key && (
-                          <div className="flex items-center gap-1">
-                            {sortConfig.direction === "asc" ? (
-                              <ArrowUp size={14} className="text-sky-600" />
-                            ) : (
-                              <ArrowDown size={14} className="text-sky-600" />
-                            )}
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Clear Sort */}
-                  {sortConfig.key && (
-                    <>
-                      <div className="my-1 border-t border-gray-200"></div>
-                      <button
-                        onClick={() => setSortConfig({ key: null, direction: null })}
-                        className="w-full px-3 py-2 text-sm text-gray-600 rounded-md hover:bg-gray-100 transition-colors text-left"
-                      >
-                        Clear Sort
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* 🎚 Filters dropdown */}
-          <div className="relative filter-dropdown">
-            <button
-              onClick={() => setFiltersOpen((prev) => !prev)}
-              className="flex items-center gap-1 px-3 py-1 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              <Filter size={14} />
-              Filters
-              <ChevronDown size={14} />
-              {activeFilterCount > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 text-xs bg-sky-600 text-white rounded-full">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-
-            {filtersOpen && (
-              <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-96 overflow-y-auto custom-scrollbar">
-                <div className="p-2">
-                  {/* Header with Clear All */}
-                  <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Filters
-                    </div>
-                    {activeFilterCount > 0 && (
-                      <button
-                        onClick={() => {
-                          setSectionFilter([]);
-                          setLawFilter([]);
-                        }}
-                        className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                      >
-                        Clear All
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Assignment Filter */}
-                  {(userLevel === 'Section Chief' || userLevel === 'Unit Head' || userLevel === 'Monitoring Personnel') && (
-                    <div className="mb-2">
-                      <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                        Assignment
-                      </div>
-                      <button
-                        onClick={() => setShowOnlyMyAssignments(!showOnlyMyAssignments)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                          showOnlyMyAssignments ? "bg-sky-50 font-medium" : ""
-                        }`}
-                      >
-                        <div className="flex-1 text-left">
-                          <div className="font-medium">My Assignments Only</div>
-                          <div className="text-xs text-gray-500">Show only inspections assigned to me</div>
-                        </div>
-                        {showOnlyMyAssignments && (
-                          <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                        )}
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Law Section */}
-                  <div className="mb-2">
-                    <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                      Law
-                    </div>
-                    {availableLaws.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-gray-500 italic">
-                        No laws available
-                      </div>
-                    ) : (
-                      availableLaws.map((law) => (
-                        <button
-                          key={law}
-                          onClick={() => toggleLaw(law)}
-                          className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                            lawFilter.includes(law) ? "bg-sky-50 font-medium" : ""
-                          }`}
-                        >
-                          <div className="flex-1 text-left">
-                            <div className="font-medium">{law}</div>
-                          </div>
-                          {lawFilter.includes(law) && (
-                            <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                          )}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DateRangeDropdown
+          <TableToolbar
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            onSearchClear={clearSearch}
+            searchPlaceholder="Search..."
+            sortConfig={sortConfig}
+            sortFields={sortFields}
+            onSort={handleSort}
+            onFilterClick={() => setFiltersOpen(!filtersOpen)}
+            customFilterDropdown={filtersOpen ? customFiltersDropdown : null}
+            filterOpen={filtersOpen}
+            onFilterClose={() => setFiltersOpen(false)}
             dateFrom={dateFrom}
             dateTo={dateTo}
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
-            onClear={() => {
-              setDateFrom("");
-              setDateTo("");
-            }}
-            className=" absolute right-0 flex items-center text-sm"
+            exportConfig={canExportAndPrint(userLevel, 'inspections') ? {
+              title: "Inspections Export Report",
+              fileName: activeTab === 'nov_sent' ? 'nov_inspections_export' :
+                        activeTab === 'review' ? 'review_inspections_export' :
+                        'inspections_export',
+              columns: getExportColumns(),
+              rows: getExportRows(selectedInspections.length > 0 ? selectedInspections : inspections)
+            } : undefined}
+            printConfig={canExportAndPrint(userLevel, 'inspections') ? {
+              title: "Inspections Report",
+              fileName: "inspections_report",
+              columns: getExportColumns(),
+              rows: getExportRows(selectedInspections.length > 0 ? selectedInspections : inspections),
+              selectedCount: selectedInspections.length
+            } : undefined}
+            additionalActions={userLevel === 'Division Chief' ? [{
+              onClick: onAdd,
+              icon: Plus,
+              title: "Add Inspection",
+              text: "Add Inspection",
+              variant: "primary"
+            }] : []}
           />
-
-          {canExportAndPrint(userLevel, 'inspections') && (
-            <>
-              <ExportDropdown
-                title="Inspections Export Report"
-            fileName={
-              activeTab === 'nov_sent' ? 'nov_inspections_export' :
-              activeTab === 'review' ? 'review_inspections_export' :
-              'inspections_export'
-            }
-            columns={
-              activeTab === 'nov_sent' ? ["Code", "Establishments", "Law", "NOV Sent Date", "Compliance Deadline", "Deadline Status", "Status", "Created Date"]
-              : activeTab === 'noo_sent' && userLevel !== 'Legal Unit' ? ["Code", "Establishments", "Law", "NOO Sent Date", "Payment Deadline", "Payment Status", "Status", "Created Date"]
-              : activeTab === 'noo_sent' && userLevel === 'Legal Unit' ? ["Code", "Establishments", "Law", "NOO Sent Date", "Payment Deadline", "Status", "Created Date"]
-              : activeTab === 'review' ? ["Code", "Establishments", "Law", "Compliance", "Submitted By", "Submitted On", "Status", "Created Date"]
-              : activeTab === 'received' ? ["Code", "Establishments", "Law", "Assigned Date", "Assigned By", "Priority", "Days Waiting", "Status", "Created Date"]
-              : activeTab === 'my_inspections' ? ["Code", "Establishments", "Law", "Started Date", "Days Active", "Last Activity", "Status", "Created Date"]
-              : activeTab === 'forwarded' ? ["Code", "Establishments", "Law", "Forwarded To", "Forwarded Date", "Days Since Forward", "Status", "Created Date"]
-              : activeTab === 'compliance' ? ["Code", "Establishments", "Law", "Final Compliance", "Completion Date", "Days Since Completion", "Status", "Created Date"]
-              : activeTab === 'assigned' ? ["Code", "Establishments", "Law", "Assigned Date", "Assigned By", "Priority", "Status", "Created Date"]
-              : activeTab === 'in_progress' ? ["Code", "Establishments", "Law", "Started Date", "Days Active", "Last Activity", "Status", "Created Date"]
-              : activeTab === 'completed' ? ["Code", "Establishments", "Law", "Compliance", "Completed Date", "Review Status", "Status", "Created Date"]
-              : ["Code", "Establishments", "Law", "Status", "Inspected By", "Created Date"]
-            }
-            rows={selectedInspections.length > 0 ? 
-              selectedInspections.map(inspection => {
-                if (activeTab === 'nov_sent') {
-                  const deadlineStatus = getDeadlineStatus(inspection.form?.nov?.compliance_deadline);
-                  return [
-                    inspection.code,
-                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                      ? inspection.establishments_detail.map(est => est.name).join(', ')
-                      : 'No establishments',
-                    inspection.law,
-                    inspection.form?.nov?.sent_date 
-                      ? new Date(inspection.form.nov.sent_date).toLocaleDateString()
-                      : 'Not sent',
-                    inspection.form?.nov?.compliance_deadline
-                      ? new Date(inspection.form.nov.compliance_deadline).toLocaleDateString()
-                      : 'No deadline',
-                    deadlineStatus.text,
-                    inspection.simplified_status || inspection.current_status,
-                    new Date(inspection.created_at).toLocaleDateString()
-                  ];
-                } else if (activeTab === 'noo_sent' && userLevel !== 'Legal Unit') {
-                  const paymentStatus = getPaymentStatus(inspection.form?.noo);
-                  return [
-                    inspection.code,
-                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                      ? inspection.establishments_detail.map(est => est.name).join(', ')
-                      : 'No establishments',
-                    inspection.law,
-                    inspection.form?.noo?.sent_date 
-                      ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
-                      : 'Not sent',
-                    inspection.form?.noo?.payment_deadline
-                      ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
-                      : 'No deadline',
-                    paymentStatus.text,
-                    inspection.simplified_status || inspection.current_status,
-                    new Date(inspection.created_at).toLocaleDateString()
-                  ];
-                } else if (activeTab === 'noo_sent' && userLevel === 'Legal Unit') {
-                  return [
-                    inspection.code,
-                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                      ? inspection.establishments_detail.map(est => est.name).join(', ')
-                      : 'No establishments',
-                    inspection.law,
-                    inspection.form?.noo?.sent_date 
-                      ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
-                      : 'Not sent',
-                    inspection.form?.noo?.payment_deadline
-                      ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
-                      : 'No deadline',
-                    inspection.simplified_status || inspection.current_status,
-                    new Date(inspection.created_at).toLocaleDateString()
-                  ];
-                } else if (activeTab === 'review') {
-                  const complianceInfo = getComplianceStatusInfo(inspection);
-                  const submissionAge = getSubmissionAge(inspection.form?.updated_at || inspection.updated_at);
-                  return [
-                    inspection.code,
-                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                      ? inspection.establishments_detail.map(est => est.name).join(', ')
-                      : 'No establishments',
-                    inspection.law,
-                    complianceInfo.label,
-                    inspection.form?.inspected_by_name || inspection.assigned_to_name || 'Unknown',
-                    submissionAge.text,
-                    inspection.simplified_status || inspection.current_status,
-                    new Date(inspection.created_at).toLocaleDateString()
-                  ];
-                }
-                return [
-                  inspection.code,
-                  inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                    ? inspection.establishments_detail.map(est => est.name).join(', ')
-                    : 'No establishments',
-                  inspection.law,
-                  inspection.simplified_status || inspection.current_status,
-                  inspection.inspected_by_name || 'Not Inspected',
-                  new Date(inspection.created_at).toLocaleDateString()
-                ];
-              }) : 
-              inspections.map(inspection => {
-                if (activeTab === 'nov_sent') {
-                  const deadlineStatus = getDeadlineStatus(inspection.form?.nov?.compliance_deadline);
-                  return [
-                    inspection.code,
-                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                      ? inspection.establishments_detail.map(est => est.name).join(', ')
-                      : 'No establishments',
-                    inspection.law,
-                    inspection.form?.nov?.sent_date 
-                      ? new Date(inspection.form.nov.sent_date).toLocaleDateString()
-                      : 'Not sent',
-                    inspection.form?.nov?.compliance_deadline
-                      ? new Date(inspection.form.nov.compliance_deadline).toLocaleDateString()
-                      : 'No deadline',
-                    deadlineStatus.text,
-                    inspection.simplified_status || inspection.current_status,
-                    new Date(inspection.created_at).toLocaleDateString()
-                  ];
-                } else if (activeTab === 'noo_sent' && userLevel !== 'Legal Unit') {
-                  const paymentStatus = getPaymentStatus(inspection.form?.noo);
-                  return [
-                    inspection.code,
-                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                      ? inspection.establishments_detail.map(est => est.name).join(', ')
-                      : 'No establishments',
-                    inspection.law,
-                    inspection.form?.noo?.sent_date 
-                      ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
-                      : 'Not sent',
-                    inspection.form?.noo?.payment_deadline
-                      ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
-                      : 'No deadline',
-                    paymentStatus.text,
-                    inspection.simplified_status || inspection.current_status,
-                    new Date(inspection.created_at).toLocaleDateString()
-                  ];
-                } else if (activeTab === 'noo_sent' && userLevel === 'Legal Unit') {
-                  return [
-                    inspection.code,
-                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                      ? inspection.establishments_detail.map(est => est.name).join(', ')
-                      : 'No establishments',
-                    inspection.law,
-                    inspection.form?.noo?.sent_date 
-                      ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
-                      : 'Not sent',
-                    inspection.form?.noo?.payment_deadline
-                      ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
-                      : 'No deadline',
-                    inspection.simplified_status || inspection.current_status,
-                    new Date(inspection.created_at).toLocaleDateString()
-                  ];
-                } else if (activeTab === 'review') {
-                  const complianceInfo = getComplianceStatusInfo(inspection);
-                  const submissionAge = getSubmissionAge(inspection.form?.updated_at || inspection.updated_at);
-                  return [
-                    inspection.code,
-                    inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                      ? inspection.establishments_detail.map(est => est.name).join(', ')
-                      : 'No establishments',
-                    inspection.law,
-                    complianceInfo.label,
-                    inspection.form?.inspected_by_name || inspection.assigned_to_name || 'Unknown',
-                    submissionAge.text,
-                    inspection.simplified_status || inspection.current_status,
-                    new Date(inspection.created_at).toLocaleDateString()
-                  ];
-                }
-                return [
-                  inspection.code,
-                  inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                    ? inspection.establishments_detail.map(est => est.name).join(', ')
-                    : 'No establishments',
-                  inspection.law,
-                  inspection.simplified_status || inspection.current_status,
-                  inspection.inspected_by_name || 'Not Inspected',
-                  new Date(inspection.created_at).toLocaleDateString()
-                ];
-              })
-            }
-            disabled={inspections.length === 0}
-            className="flex items-center text-sm"
-          />
-
-          <PrintPDF
-            title="Inspections Report"
-            fileName="inspections_report"
-            columns={["Code", "Establishments", "Law", "Status", "Inspected By", "Created Date"]}
-            rows={selectedInspections.length > 0 ? 
-              selectedInspections.map(inspection => [
-                inspection.code,
-                inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                  ? inspection.establishments_detail.map(est => est.name).join(', ')
-                  : 'No establishments',
-                inspection.law,
-                inspection.simplified_status || inspection.current_status,
-                inspection.inspected_by_name || 'Not Inspected',
-                new Date(inspection.created_at).toLocaleDateString()
-              ]) : 
-              inspections.map(inspection => [
-                inspection.code,
-                inspection.establishments_detail && inspection.establishments_detail.length > 0 
-                  ? inspection.establishments_detail.map(est => est.name).join(', ')
-                  : 'No establishments',
-                inspection.law,
-                inspection.simplified_status || inspection.current_status,
-                inspection.inspected_by_name || 'Not Inspected',
-                new Date(inspection.created_at).toLocaleDateString()
-              ])
-            }
-            selectedCount={selectedInspections.length}
-            disabled={inspections.length === 0}
-            className="flex items-center px-3 py-1 text-sm"
-          />
-            </>
-          )}
-
-          {/* Only show Add Inspection button for Division Chief */}
-          {userLevel === 'Division Chief' && (
-            <button
-              onClick={onAdd}
-              className="flex items-center px-3 py-1 text-sm text-white rounded bg-sky-600 hover:bg-sky-700"
-            >
-              <Plus size={16} /> Add Inspection
-            </button>
-          )}
         </div>
       </div>
 
