@@ -63,42 +63,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         """Validate user level constraints based on business rules"""
         from .models import User
         
-        # Division Chief: Only one active
-        if userlevel == "Division Chief":
-            existing_active = User.objects.filter(userlevel="Division Chief", is_active=True).first()
-            if existing_active:
-                raise serializers.ValidationError({
-                    "userlevel": f"Only one active Division Chief is allowed. Currently active: {existing_active.email}"
-                })
-        
-        # Section Chief: Only one active per law (section)
-        elif userlevel == "Section Chief":
-            if section:
-                existing_active = User.objects.filter(
-                    userlevel="Section Chief", 
-                    section=section, 
-                    is_active=True
-                ).first()
-                if existing_active:
-                    raise serializers.ValidationError({
-                        "userlevel": f"Only one active Section Chief is allowed per law. Currently active for {section}: {existing_active.email}"
-                    })
-        
-        # Unit Head: Only one active per law (section)
-        elif userlevel == "Unit Head":
-            if section:
-                existing_active = User.objects.filter(
-                    userlevel="Unit Head", 
-                    section=section, 
-                    is_active=True
-                ).first()
-                if existing_active:
-                    raise serializers.ValidationError({
-                        "userlevel": f"Only one active Unit Head is allowed per law. Currently active for {section}: {existing_active.email}"
-                    })
+        # Division Chief, Section Chief, and Unit Head: Auto-deactivate existing users in create()
+        # No validation errors - they will be auto-deactivated when new user is created
         
         # Monitoring Personnel: Only one active per law
-        elif userlevel == "Monitoring Personnel":
+        if userlevel == "Monitoring Personnel":
             if section:
                 existing_active = User.objects.filter(
                     userlevel="Monitoring Personnel", 
@@ -115,6 +84,78 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         # Extract avatar if present
         avatar = validated_data.pop('avatar', None)
+        
+        # Get userlevel and section for auto-deactivation logic
+        userlevel = validated_data.get('userlevel')
+        section = validated_data.get('section')
+        
+        # Auto-deactivate existing active users with matching userlevel and section
+        # This applies to Division Chief, Section Chief, and Unit Head
+        deactivated_users = []
+        if userlevel in ["Division Chief", "Section Chief", "Unit Head"]:
+            from django.utils import timezone
+            from audit.utils import log_activity
+            from .utils.email_utils import send_account_deactivated_email
+            
+            # Build query based on userlevel
+            query = User.objects.filter(
+                userlevel=userlevel,
+                is_active=True
+            )
+            
+            # For Section Chief and Unit Head, also filter by section
+            if userlevel in ["Section Chief", "Unit Head"]:
+                if section:
+                    query = query.filter(section=section)
+            # For Division Chief, no section filter needed
+            
+            # Find and deactivate existing active users
+            existing_users = query.all()
+            for old_user in existing_users:
+                old_user.is_active = False
+                old_user.updated_at = timezone.now()
+                old_user.save(update_fields=['is_active', 'updated_at'])
+                
+                # Log the deactivation
+                try:
+                    # Try to get request from context if available
+                    request = self.context.get('request')
+                    log_activity(
+                        request.user if request and hasattr(request, 'user') and request.user.is_authenticated else None,
+                        "update",
+                        f"Auto-deactivated user {old_user.email} ({old_user.userlevel}) due to new user creation",
+                        request=request if request else None
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to log deactivation activity: {str(e)}")
+                
+                # Send deactivation email
+                try:
+                    request = self.context.get('request')
+                    ip_address = None
+                    user_agent = ''
+                    
+                    if request:
+                        ip_address = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', 'Unknown'))
+                        if ',' in ip_address:
+                            ip_address = ip_address.split(',')[0].strip()
+                        user_agent = request.META.get('HTTP_USER_AGENT', '')
+                    
+                    # Get the user who created the new account (if authenticated)
+                    deactivated_by = None
+                    if request and hasattr(request, 'user') and request.user.is_authenticated:
+                        deactivated_by = request.user
+                    
+                    send_account_deactivated_email(
+                        user=old_user,
+                        deactivated_by=deactivated_by,
+                        ip_address=ip_address,
+                        user_agent=user_agent
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send deactivation email to {old_user.email}: {str(e)}")
+                
+                deactivated_users.append(old_user)
         
         # Generate password once and pass it to create_user
         generated_password = SystemConfiguration.generate_default_password()

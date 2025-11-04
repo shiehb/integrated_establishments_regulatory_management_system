@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Eye, Calendar, User, FileText, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import { getInspections } from '../../services/api';
 import { statusDisplayMap } from '../../constants/inspectionConstants';
 
 const EstablishmentInspectionsContent = ({ establishment }) => {
+  const navigate = useNavigate();
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -67,19 +69,27 @@ const EstablishmentInspectionsContent = ({ establishment }) => {
   return (
     <div>
       {/* Establishment Info */}
-      <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">{establishment.name}</h3>
-        <p className="text-sm text-gray-600">
-          {establishment.street_building}, {establishment.barangay}, {establishment.city}, {establishment.province}
-        </p>
-        <p className="text-xs text-gray-500 mt-1">
-          Business Type: {establishment.nature_of_business} | Established: {establishment.year_established}
-        </p>
+      <div className=" pb-2 rounded">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-lg font-semibold text-gray-900">{establishment.name}</span>
+          <span className="text-gray-400">|</span>
+          <span className="text-sm text-gray-600">
+            {establishment.street_building}, {establishment.barangay}, {establishment.city}, {establishment.province}
+          </span>
+          <span className="text-gray-400">|</span>
+          <span className="text-xs text-gray-500">
+            Business Type: <span className="font-medium text-gray-700">{establishment.nature_of_business}</span>
+          </span>
+          <span className="text-gray-400">|</span>
+          <span className="text-xs text-gray-500">
+            Established: <span className="font-medium text-gray-700">{establishment.year_established}</span>
+          </span>
+        </div>
       </div>
 
       {/* Inspection Records Table */}
       {loading ? (
-        <div className="flex justify-center items-center py-12">
+        <div className="flex justify-center items-center py-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <span className="ml-3 text-gray-600">Loading inspection records...</span>
         </div>
@@ -101,7 +111,7 @@ const EstablishmentInspectionsContent = ({ establishment }) => {
           <p>This establishment has no completed inspections yet.</p>
         </div>
       ) : (
-        <div className="overflow-auto h-[calc(100vh-270px)] border border-gray-300 rounded-lg scroll-smooth custom-scrollbar">
+        <div className="overflow-auto h-[calc(100vh-325px)] border border-gray-300 rounded scroll-smooth custom-scrollbar">
           <table className="w-full">
             <thead>
               <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
@@ -157,16 +167,16 @@ const EstablishmentInspectionsContent = ({ establishment }) => {
                   </td>
                   <td className="relative w-20 px-3 py-2 text-center border-b border-gray-300">
                     <div className="flex justify-center gap-2">
-                      <a
-                        href={`/inspections/${inspection.id}/review`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => navigate(`/inspections/${inspection.id}/report-view`, {
+                          state: { establishmentId: establishment.id, returnToInspections: true }
+                        })}
                         className="flex items-center gap-1 px-2 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700"
                         title="View inspection details"
                       >
                         <Eye size={14} />
                         View
-                      </a>
+                      </button>
                     </div>
                   </td>
                 </tr>

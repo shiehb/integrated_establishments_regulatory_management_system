@@ -722,16 +722,17 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
                  <td className="px-3 py-2 border-b border-gray-300">
                    {getRoleDisplay(u.userlevel, u.section)}
                  </td>
-                 <td className="px-3 py-2 text-center border-b border-gray-300 w-28">
+                 <td className="px-3 py-2 text-center border-b border-gray-300 w-35">
                    {u.is_active ? (
-                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs w-18 font-semibold border border-gray-400 rounded">
+                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs w-18
+                     ">
                        <span className="w-2 h-2 bg-green-500 rounded-full" />
-                       <span className="text-green-700">Active</span>
+                       <span >Active</span>
                      </span>
                    ) : (
-                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs w-18 font-semibold border border-gray-400 rounded">
+                     <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs w-18 ">
                        <span className="w-2 h-2 bg-red-500 rounded-full" />
-                       <span className="text-red-700">Inactive</span>
+                       <span >Inactive</span>
                      </span>
                    )}
                  </td>

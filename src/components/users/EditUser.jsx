@@ -17,10 +17,29 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailChanged, setEmailChanged] = useState(false);
+  const [emailCheck, setEmailCheck] = useState({
+    checking: false,
+    exists: false,
+    existingUser: null
+  });
+  const [emailFormatValid, setEmailFormatValid] = useState(true);
   const [avatar, setAvatar] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
   const fileInputRef = useRef(null);
+  const emailCheckTimeoutRef = useRef(null);
   const notifications = useNotifications();
+
+  // Email format validation function
+  const validateEmailFormat = (email) => {
+    if (!email || email.trim() === "") {
+      return true; // Empty is okay, will be caught by required validation
+    }
+    
+    // Email regex pattern
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+    
+    return emailRegex.test(email.trim().toLowerCase());
+  };
 
   useEffect(() => {
     setFormData({
@@ -34,6 +53,10 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     
     // Reset email changed flag when component re-initializes
     setEmailChanged(false);
+    
+    // Reset email validation states
+    setEmailFormatValid(true);
+    setEmailCheck({ checking: false, exists: false, existingUser: null });
     
     // Set avatar preview if user has existing avatar
     if (userData?.avatar) {
@@ -55,6 +78,64 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       setAvatarPreview(null);
     }
   }, [userData]);
+
+  // Validate email format when email changes
+  useEffect(() => {
+    if (formData.email) {
+      const isValid = validateEmailFormat(formData.email);
+      setEmailFormatValid(isValid);
+    } else {
+      setEmailFormatValid(true); // Reset if empty
+    }
+  }, [formData.email]);
+
+  // Check if email exists (only if format is valid and email has changed)
+  useEffect(() => {
+    // Don't check for duplicates if format is invalid, email is too short, or email hasn't changed
+    if (!formData.email || formData.email.length < 3 || !emailFormatValid || !emailChanged) {
+      setEmailCheck({ checking: false, exists: false, existingUser: null });
+      return;
+    }
+
+    // Clear previous timeout
+    if (emailCheckTimeoutRef.current) {
+      clearTimeout(emailCheckTimeoutRef.current);
+    }
+
+    // Debounce email check
+    emailCheckTimeoutRef.current = setTimeout(async () => {
+      setEmailCheck({ checking: true, exists: false, existingUser: null });
+      try {
+        const response = await api.get("auth/search/", {
+          params: { q: formData.email }
+        });
+        
+        // Check if any result matches the exact email (excluding current user)
+        const exactMatch = response.data.results?.find(
+          user => user.email.toLowerCase() === formData.email.toLowerCase() && user.id !== userData?.id
+        );
+        
+        if (exactMatch) {
+          setEmailCheck({
+            checking: false,
+            exists: true,
+            existingUser: exactMatch
+          });
+        } else {
+          setEmailCheck({ checking: false, exists: false, existingUser: null });
+        }
+      } catch (error) {
+        console.error("Email check error:", error);
+        setEmailCheck({ checking: false, exists: false, existingUser: null });
+      }
+    }, 500);
+
+    return () => {
+      if (emailCheckTimeoutRef.current) {
+        clearTimeout(emailCheckTimeoutRef.current);
+      }
+    };
+  }, [formData.email, emailFormatValid, emailChanged, userData?.id]);
 
   // Section options depending on role
   const sectionOptionsByLevel = {
@@ -82,6 +163,8 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     let newValue = value;
     if (["firstName", "middleName", "lastName"].includes(name)) {
       newValue = value.toUpperCase();
+    } else if (name === "email") {
+      newValue = value.toLowerCase();
     }
     
     setFormData((prev) => {
@@ -211,21 +294,26 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
       }
 
       notifications.success(
-        "User updated successfully!",
+        `User ${formData.firstName} ${formData.lastName} has been updated successfully!`,
         {
-          title: "User Updated",
-          duration: 4000
+          title: "User Updated Successfully",
+          duration: 5000
         }
       );
 
       if (onUserUpdated) onUserUpdated();
       onClose();
     } catch (err) {
+      const errorMessage = err.response?.data?.detail || 
+                         err.response?.data?.email?.[0] ||
+                         err.response?.data?.userlevel?.[0] ||
+                         err.response?.data?.section?.[0] ||
+                         "An unexpected error occurred while updating the user.";
+      
       notifications.error(
-        "Error updating user: " +
-          (err.response?.data?.detail || JSON.stringify(err.response?.data)),
+        errorMessage,
         {
-          title: "Update Failed",
+          title: "Failed to Update User",
           duration: 8000
         }
       );
@@ -234,19 +322,71 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     }
   };
 
+  // Get auto-deactivation message
+  const getAutoDeactivationMessage = () => {
+    const originalLevel = userData?.userlevel;
+    const originalSection = userData?.section;
+    const newLevel = formData.userLevel;
+    const newSection = formData.section;
+
+    // Check if user level is being changed to Division Chief, Section Chief, or Unit Head
+    if (newLevel === "Division Chief" && originalLevel !== "Division Chief") {
+      return "Please note: Changing this user to Division Chief will automatically deactivate any existing active Division Chief.";
+    } else if (newLevel === "Section Chief" && (originalLevel !== "Section Chief" || originalSection !== newSection)) {
+      return `Please note: Changing this user to Section Chief for ${newSection ? `section ${newSection}` : 'this section'} will automatically deactivate any existing active Section Chief with the same section.`;
+    } else if (newLevel === "Unit Head" && (originalLevel !== "Unit Head" || originalSection !== newSection)) {
+      return `Please note: Changing this user to Unit Head for ${newSection ? `section ${newSection}` : 'this section'} will automatically deactivate any existing active Unit Head with the same section.`;
+    }
+    return null;
+  };
+
+  // Build confirmation message
+  const getConfirmationMessage = () => {
+    const autoDeactivationMsg = getAutoDeactivationMessage();
+    const emailChangeMsg = emailChanged ? "Changing the email address will generate a new password and send it to the new email address. The user will be required to change their password on first login." : null;
+    
+    return (
+      <div className="space-y-3">
+        <p className="text-gray-700">
+          Do you wish to proceed with updating this user account?
+        </p>
+        {emailChangeMsg && (
+          <p className="text-sm text-gray-600 border-l-4 border-gray-400 pl-3 py-2 bg-gray-50">
+            {emailChangeMsg}
+          </p>
+        )}
+        {autoDeactivationMsg && (
+          <p className="text-sm text-gray-600 border-l-4 border-gray-400 pl-3 py-2 bg-gray-50">
+            {autoDeactivationMsg}
+          </p>
+        )}
+      </div>
+    );
+  };
+
   const Label = ({ field, children, required = true }) => {
     return (
       <label htmlFor={field} className="flex items-center justify-between text-sm font-medium text-gray-700">
         <span>
           {children} {required && <span className="text-red-500">*</span>}
         </span>
+        {field === "email" && formData.email && !emailFormatValid && (
+          <span className="text-xs text-red-500 font-medium">
+            Invalid email format
+          </span>
+        )}
+        {field === "email" && emailCheck.exists && emailFormatValid && (
+          <span className="text-xs text-red-500 font-medium">
+            Email already exists
+          </span>
+        )}
         {field === "section" &&
           submitted &&
           sectionOptionsByLevel[formData.userLevel] &&
           !formData.section.trim() && (
             <span className="text-xs text-red-500">Required</span>
           )}
-        {field !== "section" && required && submitted && !formData[field]?.trim() && (
+        {field !== "section" && field !== "email" && required && submitted && !formData[field]?.trim() && (
           <span className="text-xs text-red-500">Required</span>
         )}
       </label>
@@ -360,12 +500,19 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
             className={`w-full p-2 border rounded-lg ${
               submitted && !formData.email.trim()
                 ? "border-red-500"
+                : formData.email && !emailFormatValid
+                ? "border-red-500"
+                : emailCheck.exists
+                ? "border-red-500"
                 : "border-gray-300"
             }`}
           />
-          {emailChanged && (
+          {emailCheck.checking && (
+            <p className="mt-1 text-xs text-gray-500">Checking email...</p>
+          )}
+          {emailChanged && emailFormatValid && !emailCheck.exists && (
             <p className="mt-1 text-xs text-amber-600">
-              ⚠️ Changing email will generate a new password and send it to the new email address
+              Changing email will generate a new password and send it to the new email address
             </p>
           )}
         </div>
@@ -394,32 +541,35 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
             </select>
           </div>
           <div>
-            <Label field="section">Section</Label>
-            <select
-              id="section"
-              name="section"
-              value={formData.section}
-              onChange={handleChange}
-              disabled={!sectionOptionsByLevel[formData.userLevel]}
-              className={`w-full p-2 border rounded-lg ${
-                submitted &&
-                sectionOptionsByLevel[formData.userLevel] &&
-                !formData.section.trim()
-                  ? "border-red-500"
-                  : "border-gray-300"
-              } ${
-                !sectionOptionsByLevel[formData.userLevel]
-                  ? "bg-gray-100 text-gray-500 cursor-not-allowed"
-                  : ""
-              }`}
-            >
-              <option value="">Select Section</option>
-              {sectionOptionsByLevel[formData.userLevel]?.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            {sectionOptionsByLevel[formData.userLevel] ? (
+              <>
+                <Label field="section">Section</Label>
+                <select
+                  id="section"
+                  name="section"
+                  value={formData.section}
+                  onChange={handleChange}
+                  className={`w-full p-2 border rounded-lg ${
+                    submitted &&
+                    sectionOptionsByLevel[formData.userLevel] &&
+                    !formData.section.trim()
+                      ? "border-red-500"
+                      : "border-gray-300"
+                  }`}
+                >
+                  <option value="">Select Section</option>
+                  {sectionOptionsByLevel[formData.userLevel]?.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <div className="h-full flex items-end">
+                {/* Empty space to maintain 2-column layout */}
+              </div>
+            )}
           </div>
         </div>
 
@@ -444,17 +594,14 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
 
       <ConfirmationDialog
         open={showConfirm}
-        title="Confirm Action"
-        message={
-          emailChanged
-            ? "⚠️ Changing the email will generate a new password and send it to the new email address. The user will be required to change their password on first login. Continue?"
-            : "Are you sure you want to save changes to this user?"
-        }
+        title="User Update Confirmation"
+        message={getConfirmationMessage()}
         loading={loading}
         onCancel={() => setShowConfirm(false)}
         onConfirm={confirmEdit}
-        confirmText="Confirm"
+        confirmText="Proceed"
         cancelText="Cancel"
+        size="md"
       />
     </div>
   );

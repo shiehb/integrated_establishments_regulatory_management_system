@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
@@ -16,6 +17,7 @@ import {
 import { useNotifications } from "../components/NotificationManager";
 
 export default function Establishments() {
+  const location = useLocation();
   const [showAdd, setShowAdd] = useState(false);
   const [editEstablishment, setEditEstablishment] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -40,7 +42,7 @@ export default function Establishments() {
   const [isPolygonValid, setIsPolygonValid] = useState(true);
 
   // 🔹 establishments state (used in polygon functionality)
-  const [, setEstablishments] = useState([]);
+  const [establishments, setEstablishments] = useState([]);
 
   // 🔹 loading state
   const [loading, setLoading] = useState(false);
@@ -50,6 +52,35 @@ export default function Establishments() {
     fetchUserProfile();
     fetchEstablishments();
   }, [refreshTrigger]);
+
+  // 🔹 Handle navigation state to show inspection records
+  useEffect(() => {
+    if (location.state?.viewInspections && location.state?.establishmentId) {
+      const establishmentId = location.state.establishmentId;
+      // Find the establishment from the list or fetch it
+      const foundEstablishment = establishments.find(e => e.id === establishmentId);
+      if (foundEstablishment) {
+        setInspectionsEstablishment(foundEstablishment);
+        setCurrentView("inspections");
+      } else {
+        // If not found in list, fetch it
+        const fetchEstablishment = async () => {
+          try {
+            const response = await getEstablishments({ page: 1, page_size: 10000 });
+            const data = response.results || response;
+            const establishment = data.find(e => e.id === establishmentId);
+            if (establishment) {
+              setInspectionsEstablishment(establishment);
+              setCurrentView("inspections");
+            }
+          } catch (err) {
+            console.error("Error fetching establishment:", err);
+          }
+        };
+        fetchEstablishment();
+      }
+    }
+  }, [location.state, establishments]);
 
   const fetchUserProfile = async () => {
     try {

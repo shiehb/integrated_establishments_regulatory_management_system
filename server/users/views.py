@@ -157,7 +157,7 @@ class RegisterView(APIView):
         if "password" in data:
             data.pop("password")  # prevent frontend from setting password
 
-        serializer = RegisterSerializer(data=data)
+        serializer = RegisterSerializer(data=data, context={'request': request})
         if serializer.is_valid():
             user = serializer.save()
 

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
-import { AlertTriangle, Upload, X, User } from "lucide-react";
+import { AlertTriangle, Upload, X, User, Info } from "lucide-react";
 
 export default function AddUser({ onClose, onUserAdded }) {
   const [formData, setFormData] = useState({
@@ -25,11 +25,30 @@ export default function AddUser({ onClose, onUserAdded }) {
     errors: [],
     message: ""
   });
+  const [emailCheck, setEmailCheck] = useState({
+    checking: false,
+    exists: false,
+    existingUser: null
+  });
+  const [emailFormatValid, setEmailFormatValid] = useState(true);
   const [avatar, setAvatar] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
   const fileInputRef = useRef(null);
+  const emailCheckTimeoutRef = useRef(null);
   const notifications = useNotifications();
   const navigate = useNavigate();
+
+  // Email format validation function
+  const validateEmailFormat = (email) => {
+    if (!email || email.trim() === "") {
+      return true; // Empty is okay, will be caught by required validation
+    }
+    
+    // Email regex pattern
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+    
+    return emailRegex.test(email.trim().toLowerCase());
+  };
 
   // Validate email configuration on mount
   useEffect(() => {
@@ -78,6 +97,64 @@ export default function AddUser({ onClose, onUserAdded }) {
 
     validateEmailConfig();
   }, []);
+
+  // Validate email format when email changes
+  useEffect(() => {
+    if (formData.email) {
+      const isValid = validateEmailFormat(formData.email);
+      setEmailFormatValid(isValid);
+    } else {
+      setEmailFormatValid(true); // Reset if empty
+    }
+  }, [formData.email]);
+
+  // Check if email exists (only if format is valid)
+  useEffect(() => {
+    // Don't check for duplicates if format is invalid or email is too short
+    if (!formData.email || formData.email.length < 3 || !emailFormatValid) {
+      setEmailCheck({ checking: false, exists: false, existingUser: null });
+      return;
+    }
+
+    // Clear previous timeout
+    if (emailCheckTimeoutRef.current) {
+      clearTimeout(emailCheckTimeoutRef.current);
+    }
+
+    // Debounce email check
+    emailCheckTimeoutRef.current = setTimeout(async () => {
+      setEmailCheck({ checking: true, exists: false, existingUser: null });
+      try {
+        const response = await api.get("auth/search/", {
+          params: { q: formData.email }
+        });
+        
+        // Check if any result matches the exact email
+        const exactMatch = response.data.results?.find(
+          user => user.email.toLowerCase() === formData.email.toLowerCase()
+        );
+        
+        if (exactMatch) {
+          setEmailCheck({
+            checking: false,
+            exists: true,
+            existingUser: exactMatch
+          });
+        } else {
+          setEmailCheck({ checking: false, exists: false, existingUser: null });
+        }
+      } catch (error) {
+        console.error("Email check error:", error);
+        setEmailCheck({ checking: false, exists: false, existingUser: null });
+      }
+    }, 500);
+
+    return () => {
+      if (emailCheckTimeoutRef.current) {
+        clearTimeout(emailCheckTimeoutRef.current);
+      }
+    };
+  }, [formData.email, emailFormatValid]);
 
   // Section options depending on role
   const sectionOptionsByLevel = {
@@ -194,21 +271,26 @@ export default function AddUser({ onClose, onUserAdded }) {
       });
 
       notifications.success(
-        "User added successfully!",
+        `User ${formData.firstName} ${formData.lastName} has been added successfully!`,
         {
-          title: "User Added",
-          duration: 4000
+          title: "User Added Successfully",
+          duration: 5000
         }
       );
 
       if (onUserAdded) onUserAdded();
       onClose();
     } catch (err) {
+      const errorMessage = err.response?.data?.detail || 
+                         err.response?.data?.email?.[0] ||
+                         err.response?.data?.userlevel?.[0] ||
+                         err.response?.data?.section?.[0] ||
+                         "An unexpected error occurred while creating the user.";
+      
       notifications.error(
-        "Error creating user: " +
-          (err.response?.data?.detail || JSON.stringify(err.response?.data)),
+        errorMessage,
         {
-          title: "Creation Failed",
+          title: "Failed to Add User",
           duration: 8000
         }
       );
@@ -217,19 +299,59 @@ export default function AddUser({ onClose, onUserAdded }) {
     }
   };
 
+  // Get auto-deactivation message
+  const getAutoDeactivationMessage = () => {
+    if (formData.userLevel === "Division Chief") {
+      return "Please note: Creating a new Division Chief will automatically deactivate any existing active Division Chief.";
+    } else if (formData.userLevel === "Section Chief") {
+      return `Please note: Creating a new Section Chief for ${formData.section ? `section ${formData.section}` : 'this section'} will automatically deactivate any existing active Section Chief with the same section.`;
+    } else if (formData.userLevel === "Unit Head") {
+      return `Please note: Creating a new Unit Head for ${formData.section ? `section ${formData.section}` : 'this section'} will automatically deactivate any existing active Unit Head with the same section.`;
+    }
+    return null;
+  };
+
+  // Build confirmation message
+  const getConfirmationMessage = () => {
+    const autoDeactivationMsg = getAutoDeactivationMessage();
+    
+    return (
+      <div className="space-y-3">
+        <p className="text-gray-700">
+          Do you wish to proceed with the registration of this user account?
+        </p>
+        {autoDeactivationMsg && (
+          <p className="text-sm text-gray-600 border-l-4 border-gray-400 pl-3 py-2 bg-gray-50">
+            {autoDeactivationMsg}
+          </p>
+        )}
+      </div>
+    );
+  };
+
   const Label = ({ field, children, required = true }) => {
     return (
       <label className="flex items-center justify-between text-sm font-medium text-gray-700">
         <span>
           {children} {required && <span className="text-red-500">*</span>}
         </span>
+        {field === "email" && formData.email && !emailFormatValid && (
+          <span className="text-xs text-red-500 font-medium">
+            Invalid email format
+          </span>
+        )}
+        {field === "email" && emailCheck.exists && emailFormatValid && (
+          <span className="text-xs text-red-500 font-medium">
+            Email already exists
+          </span>
+        )}
         {field === "section" &&
           submitted &&
           sectionOptionsByLevel[formData.userLevel] &&
           !formData.section.trim() && (
             <span className="text-xs text-red-500">Required</span>
           )}
-        {field !== "section" && required && submitted && !formData[field]?.trim() && (
+        {field !== "section" && field !== "email" && required && submitted && !formData[field]?.trim() && (
           <span className="text-xs text-red-500">Required</span>
         )}
       </label>
@@ -378,9 +500,16 @@ export default function AddUser({ onClose, onUserAdded }) {
             className={`w-full p-2 border rounded-lg ${
               submitted && !formData.email.trim()
                 ? "border-red-500"
+                : formData.email && !emailFormatValid
+                ? "border-red-500"
+                : emailCheck.exists
+                ? "border-red-500"
                 : "border-gray-300"
             }`}
           />
+          {emailCheck.checking && (
+            <p className="mt-1 text-xs text-gray-500">Checking email...</p>
+          )}
         </div>
 
         {/* User Level + Section */}
@@ -406,31 +535,34 @@ export default function AddUser({ onClose, onUserAdded }) {
             </select>
           </div>
           <div>
-            <Label field="section">Section</Label>
-            <select
-              name="section"
-              value={formData.section}
-              onChange={handleChange}
-              disabled={!sectionOptionsByLevel[formData.userLevel]}
-              className={`w-full p-2 border rounded-lg ${
-                submitted &&
-                sectionOptionsByLevel[formData.userLevel] &&
-                !formData.section.trim()
-                  ? "border-red-500"
-                  : "border-gray-300"
-              } ${
-                !sectionOptionsByLevel[formData.userLevel]
-                  ? "bg-gray-100 text-gray-500 cursor-not-allowed"
-                  : ""
-              }`}
-            >
-              <option value="">Select Section</option>
-              {sectionOptionsByLevel[formData.userLevel]?.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            {sectionOptionsByLevel[formData.userLevel] ? (
+              <>
+                <Label field="section">Section</Label>
+                <select
+                  name="section"
+                  value={formData.section}
+                  onChange={handleChange}
+                  className={`w-full p-2 border rounded-lg ${
+                    submitted &&
+                    sectionOptionsByLevel[formData.userLevel] &&
+                    !formData.section.trim()
+                      ? "border-red-500"
+                      : "border-gray-300"
+                  }`}
+                >
+                  <option value="">Select Section</option>
+                  {sectionOptionsByLevel[formData.userLevel]?.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <div className="h-full flex items-end">
+                {/* Empty space to maintain 2-column layout */}
+              </div>
+            )}
           </div>
         </div>
 
@@ -461,11 +593,14 @@ export default function AddUser({ onClose, onUserAdded }) {
 
       <ConfirmationDialog
         open={showConfirm}
-        title="Confirm Action"
-        message="Are you sure you want to add this user?"
+        title="User Registration Confirmation"
+        message={getConfirmationMessage()}
         loading={loading}
         onCancel={() => setShowConfirm(false)}
         onConfirm={confirmAdd}
+        confirmText="Proceed"
+        cancelText="Cancel"
+        size="md"
       />
     </div>
   );

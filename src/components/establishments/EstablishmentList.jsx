@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   Pencil,
   Map,
@@ -7,7 +7,6 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  Filter,
   FileText,
 } from "lucide-react";
 import { getEstablishments, getProfile } from "../../services/api";
@@ -53,7 +52,6 @@ export default function EstablishmentList({
 
   // 🎯 Search highlighting
   const location = useLocation();
-  const navigate = useNavigate();
   const [highlightedEstId, setHighlightedEstId] = useState(null);
   const highlightedRowRef = useRef(null);
 
@@ -123,6 +121,7 @@ export default function EstablishmentList({
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, pageSize, debouncedSearchQuery, provinceFilter, businessTypeFilter]);
 
   // Fetch user level on mount
@@ -186,12 +185,6 @@ export default function EstablishmentList({
       <ArrowDown size={14} />
     );
   };
-
-  const sortFields = [
-    { key: "name", label: "Name" },
-    { key: "city", label: "City" },
-    { key: "year_established", label: "Year Established" },
-  ];
 
 
   // Filter functions
@@ -281,11 +274,6 @@ export default function EstablishmentList({
   const activeFilterCount = provinceFilter.length + businessTypeFilter.length;
   const hasActiveFilters =
     searchQuery || provinceFilter.length > 0 || businessTypeFilter.length > 0 || sortConfig.key;
-
-  // Calculate filtered count for display
-  const filteredCount =
-    searchMode || provinceFilter.length > 0 || businessTypeFilter.length > 0 ? totalCount : totalCount;
-  const totalEstablishments = totalCount;
 
   const provinces = ["LA UNION", "PANGASINAN", "ILOCOS SUR", "ILOCOS NORTE"];
   
@@ -624,7 +612,7 @@ export default function EstablishmentList({
                         title="View Closed Inspections"
                       >
                         <FileText size={14} />
-                        Inspections
+                        View
                       </button>
                     </div>
                   </td>
