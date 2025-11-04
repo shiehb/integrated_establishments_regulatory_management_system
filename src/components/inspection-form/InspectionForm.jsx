@@ -169,26 +169,13 @@ export default function InspectionForm({ inspectionData }) {
     const hasNonCompliantSystems = systems.some(system => system.nonCompliant);
     const hasCompliantSystems = systems.some(system => system.compliant);
     
-    // Log compliance detection for debugging
-    console.log('🔍 Compliance Detection:', {
-      hasNonCompliantItems,
-      hasCompliantItems,
-      hasNonCompliantSystems,
-      hasCompliantSystems,
-      complianceItems: complianceItems.filter(item => item.compliant),
-      systems: systems.filter(system => system.compliant || system.nonCompliant)
-    });
-    
     // Determine overall compliance
     if (hasNonCompliantItems || hasNonCompliantSystems) {
-      console.log('❌ Result: NON_COMPLIANT');
       return 'NON_COMPLIANT';
     } else if (hasCompliantItems || hasCompliantSystems) {
-      console.log('✅ Result: COMPLIANT');
       return 'COMPLIANT';
     } else {
       // If no compliance data is filled, assume compliant (user hasn't marked anything as non-compliant)
-      console.log('✅ Result: COMPLIANT (default - no violations found)');
       return 'COMPLIANT';
     }
   };
@@ -303,7 +290,6 @@ export default function InspectionForm({ inspectionData }) {
       };
       try {
         localStorage.setItem(storageKey, JSON.stringify(saveData));
-        console.log("💾 LocalStorage auto-saved (30s interval)");
       } catch (e) {
         console.error("localStorage backup error", e);
       }
@@ -315,7 +301,6 @@ export default function InspectionForm({ inspectionData }) {
   // Prefill law filter from fullInspectionData
   useEffect(() => {
     if (fullInspectionData?.law && !lawFilter.includes(fullInspectionData.law)) {
-      console.log("🔧 Setting law filter from inspection data:", fullInspectionData.law);
       setLawFilter([fullInspectionData.law]);
     }
   }, [fullInspectionData, lawFilter]);
@@ -323,16 +308,12 @@ export default function InspectionForm({ inspectionData }) {
   // Load photos from backend
   const loadPhotosFromBackend = async (inspectionId) => {
     try {
-      console.log("📸 Loading photos from backend for inspection:", inspectionId);
       const documents = await getFindingDocuments(inspectionId);
-      console.log("📸 Loaded documents from backend:", documents);
       
       // Filter for general photos (system_id: general)
       const generalPhotos = documents.filter(doc => 
         doc.description && doc.description.includes('system_id:general')
       );
-      
-      console.log("📸 General photos found:", generalPhotos);
       
       if (generalPhotos.length > 0) {
         // Convert backend documents to frontend format
@@ -365,7 +346,6 @@ export default function InspectionForm({ inspectionData }) {
           };
         });
         
-        console.log("📸 Converted photos:", convertedPhotos);
         
         // Update general findings with backend photos
         setGeneralFindings(prevPhotos => {
@@ -392,9 +372,7 @@ export default function InspectionForm({ inspectionData }) {
   const deletePhotoFromBackend = async (imageId, backendId) => {
     try {
       if (backendId && inspectionId) {
-        console.log("🗑️ Deleting photo from backend:", backendId);
         await deleteFindingDocument(inspectionId, backendId);
-        console.log("✅ Photo deleted from backend successfully");
       }
     } catch (error) {
       console.error("Failed to delete photo from backend:", error);
@@ -412,12 +390,9 @@ export default function InspectionForm({ inspectionData }) {
       if (!inspectionId || isDataLoaded) return;
       
       try {
-        console.log("🔍 Fetching inspection data for ID:", inspectionId);
-        
         // Use the API service instead of direct fetch
         const inspectionData = await getInspection(inspectionId);
         
-        console.log("📋 Loaded inspection data:", inspectionData);
         
         // Store full inspection data for autofill
         setFullInspectionData(inspectionData);
@@ -431,19 +406,8 @@ export default function InspectionForm({ inspectionData }) {
         const isInProgressStatus = inspectionData.current_status && 
           ['SECTION_IN_PROGRESS', 'UNIT_IN_PROGRESS', 'MONITORING_IN_PROGRESS'].includes(inspectionData.current_status);
         
-        console.log("🔍 Data loading context:", { 
-          hasLocalStorageData, 
-          isReviewMode, 
-          reviewMode, 
-          returnTo,
-          isInProgressStatus,
-          currentStatus: inspectionData.current_status,
-          localStorageKeys: hasLocalStorageData ? Object.keys(savedData) : []
-        });
-        
         // If we have localStorage data and (we're in review mode OR it's an in-progress status), prioritize localStorage
         if (hasLocalStorageData && (isReviewMode || isInProgressStatus)) {
-          console.log("📝 Prioritizing localStorage data for review mode or in-progress status");
           
           // Load localStorage data into form state
           if (savedData.general) {
@@ -490,10 +454,6 @@ export default function InspectionForm({ inspectionData }) {
               return cleanedSystem;
             });
             
-            console.log("🔧 Loading systems from localStorage (auto-summary removed):", {
-              totalSystems: cleanedSystems.length
-            });
-            
             setSystems(cleanedSystems);
           }
           
@@ -516,18 +476,13 @@ export default function InspectionForm({ inspectionData }) {
           if (savedData.lastSaved) {
             setLastSaveTime(savedData.lastSaved);
           }
-          
-          console.log("✅ localStorage data loaded successfully for review mode or in-progress status");
         }
         // Otherwise, check if there's checklist data to load (draft or completed)
         else if (inspectionData.form?.checklist && (inspectionData.form.checklist.is_draft || inspectionData.form.checklist.completed_at)) {
           const checklistData = inspectionData.form.checklist;
           
-          console.log("📝 Found checklist data:", checklistData);
-          
           // Load checklist data into form state, preserving existing values if they exist
           if (checklistData.general) {
-            console.log("📝 Loading general data from checklist:", checklistData.general);
             setGeneral(prevGeneral => ({
               ...prevGeneral,
               ...checklistData.general,
@@ -577,11 +532,7 @@ export default function InspectionForm({ inspectionData }) {
             setLastSaveTime(checklistData.last_saved);
           }
           
-          console.log("✅ Checklist data loaded successfully into form state");
-          
           // Draft notification removed as per requirements
-        } else {
-          console.log("📝 No checklist data found, using fresh form");
         }
         
         // Load photos from backend
@@ -619,7 +570,6 @@ export default function InspectionForm({ inspectionData }) {
           const contentType = response.headers.get('content-type');
           if (contentType && contentType.includes('application/json')) {
             const userData = await response.json();
-            console.log('👤 Current user loaded:', userData);
             setCurrentUser(userData);
           } else {
             console.error("❌ Received HTML instead of JSON for user profile");
@@ -727,7 +677,6 @@ export default function InspectionForm({ inspectionData }) {
       const hasRecommendations = recommendationState.checked?.length > 0 || recommendationState.otherText?.trim();
       
       if (hasRecommendations) {
-        console.log('✅ Inspection is compliant - clearing recommendations');
         setRecommendationState({ checked: [], otherText: "" });
         setHasFormChanges(true);
       }
@@ -912,15 +861,6 @@ export default function InspectionForm({ inspectionData }) {
 
     setErrors(errs);
     
-    // Log validation errors to console for debugging
-    if (Object.keys(errs).length > 0) {
-      console.log("🚨 Validation Errors Found:", errs);
-      console.log("📋 Error Summary:");
-      Object.entries(errs).forEach(([field, message]) => {
-        console.log(`  • ${field}: ${message}`);
-      });
-    }
-    
     return Object.keys(errs).length === 0;
   };
 
@@ -1068,7 +1008,6 @@ export default function InspectionForm({ inspectionData }) {
     }
 
     const isValid = validateForm();
-    console.log('🔍 Form validation result:', { isValid, errors });
     
     if (!isValid) {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1105,7 +1044,6 @@ export default function InspectionForm({ inspectionData }) {
       };
       
       localStorage.setItem(storageKey, JSON.stringify(saveData));
-      console.log("💾 Auto-saved to localStorage on submit");
       
       // Show brief success notification
       notifications.success("Form auto-saved successfully", { 
@@ -1121,7 +1059,6 @@ export default function InspectionForm({ inspectionData }) {
     }
 
     // Navigate to preview page
-    console.log('🚀 handleSubmit called with:', { returnTo, inspectionId });
     
     // Prepare form data for preview
     const formDataToPreview = {
@@ -1139,7 +1076,6 @@ export default function InspectionForm({ inspectionData }) {
     if (returnTo === 'review') {
       // If editing from review, navigate to preview with reviewApproval=true
       const url = `/inspections/${inspectionId}/review?mode=preview&reviewApproval=true`;
-      console.log('🚀 Navigating to review preview:', url);
       navigate(url, {
         state: {
           formData: formDataToPreview,
@@ -1150,7 +1086,6 @@ export default function InspectionForm({ inspectionData }) {
     } else {
       // Regular submit from personnel
       const url = `/inspections/${inspectionId}/review?mode=preview`;
-      console.log('🚀 Navigating to regular preview:', url);
       navigate(url, {
         state: {
           formData: formDataToPreview,
@@ -1183,10 +1118,6 @@ export default function InspectionForm({ inspectionData }) {
     };
 
     try {
-      console.log("📝 Saving as draft:", formDataToSave);
-      console.log("📝 General data being saved:", general);
-      console.log("📝 LawFilter being saved:", lawFilter);
-      
       // Save draft to backend
       await saveInspectionDraft(inspectionId, { form_data: formDataToSave });
       
@@ -1331,24 +1262,19 @@ export default function InspectionForm({ inspectionData }) {
         if (isCombinedSection) {
           remarks = 'Inspection submitted for Unit Head review';
           successMessage = 'Inspection submitted successfully! It has been sent to Unit Head for review.';
-          console.log("✅ Submitting inspection for Unit Head review with data:", formData);
         } else {
           remarks = 'Inspection submitted for Section Chief review';
           successMessage = 'Inspection submitted successfully! It has been sent to Section Chief for review.';
-          console.log("✅ Submitting inspection for Section Chief review with data:", formData);
         }
       } else if (userLevel === 'Section Chief' && status === 'SECTION_IN_PROGRESS') {
         remarks = 'Inspection submitted for Division Chief review';
         successMessage = 'Inspection submitted successfully! It has been sent to Division Chief for review.';
-        console.log("✅ Submitting inspection for Division Chief review with data:", formData);
       } else if (userLevel === 'Unit Head' && status === 'UNIT_IN_PROGRESS') {
         remarks = 'Inspection submitted for Section Chief review';
         successMessage = 'Inspection submitted successfully! It has been sent to Section Chief for review.';
-        console.log("✅ Submitting inspection for Section Chief review with data:", formData);
       } else {
         remarks = 'Inspection submitted for review';
         successMessage = 'Inspection submitted successfully!';
-        console.log("✅ Submitting inspection for review with data:", formData);
       }
       
       // Complete the inspection
@@ -1770,8 +1696,6 @@ export default function InspectionForm({ inspectionData }) {
                 
                 setSystems(updatedSystems);
                 setHasFormChanges(true);
-                
-                console.log('🔄 Compliance changed, synced to findings systems');
               }}
             />
             <SummaryOfFindingsAndObservations
@@ -1796,8 +1720,6 @@ export default function InspectionForm({ inspectionData }) {
               }}
               onUploadFinding={async (systemId, imagesToUpload) => {
                 // Upload handler with actual API integration
-                console.log('Uploading images for system:', systemId, imagesToUpload);
-                
                 try {
                   for (const image of imagesToUpload) {
                     // Update progress to show uploading
@@ -1847,8 +1769,6 @@ export default function InspectionForm({ inspectionData }) {
                         )
                       }));
                     }
-
-                    console.log('✅ Image uploaded successfully:', response);
                   }
                   
                   notifications.success('Documents uploaded successfully!', {

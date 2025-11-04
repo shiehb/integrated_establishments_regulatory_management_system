@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { User, Key, LogOut, ChevronDown } from "lucide-react";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useAuth } from "../../contexts/AuthContext";
-import { useNotifications } from "../NotificationManager";
 import { API_BASE_URL } from "../../config/api";
 
 export default function UserDropdown({ userLevel = "public", userName = "Guest" }) {
@@ -12,19 +11,41 @@ export default function UserDropdown({ userLevel = "public", userName = "Guest" 
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [avatarError, setAvatarError] = useState({ button: false, dropdown: false });
-  const notifications = useNotifications();
   const { logout, user } = useAuth();
   const dropdownRef = useRef(null);
+
+  // Get user information from auth context, fallback to props
+  const displayName = user?.first_name 
+    ? `${user.first_name}${user.last_name ? ` ${user.last_name}` : ''}`.trim()
+    : user?.email || userName || "Guest";
+  const displayLevel = user?.userlevel || userLevel || "public";
+  const displayEmail = user?.email || "";
 
   // Helper function to format avatar URL
   const getAvatarUrl = (avatar) => {
     if (!avatar) return null;
-    if (avatar.startsWith('http')) return avatar;
-    if (avatar.startsWith('/')) return `${window.location.origin}${avatar}`;
-    return `${API_BASE_URL.replace('/api/', '')}${avatar}`;
+    // If it's already a full URL, return as is
+    if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+      return avatar;
+    }
+    // If it starts with /media/, construct full URL
+    if (avatar.startsWith('/media/')) {
+      const baseUrl = API_BASE_URL.replace('/api/', '');
+      return `${baseUrl}${avatar}`;
+    }
+    // If it starts with /, use origin
+    if (avatar.startsWith('/')) {
+      return `${window.location.origin}${avatar}`;
+    }
+    // Otherwise, assume it's relative to media root
+    const baseUrl = API_BASE_URL.replace('/api/', '');
+    return `${baseUrl}/media/${avatar}`;
   };
 
-  const avatarUrl = user?.avatar ? getAvatarUrl(user.avatar) : null;
+  // Prefer avatar_url from backend (full URL), fallback to avatar field with URL construction
+  const avatarUrl = user?.avatar_url 
+    ? user.avatar_url 
+    : (user?.avatar ? getAvatarUrl(user.avatar) : null);
 
   const handleLogout = async () => {
     await logout();
@@ -68,7 +89,7 @@ export default function UserDropdown({ userLevel = "public", userName = "Guest" 
             {avatarUrl && !avatarError.button ? (
               <img
                 src={avatarUrl}
-                alt={userName}
+                alt={displayName}
                 className="w-full h-full object-cover"
                 onError={() => setAvatarError(prev => ({ ...prev, button: true }))}
               />
@@ -77,9 +98,9 @@ export default function UserDropdown({ userLevel = "public", userName = "Guest" 
             )}
           </div>
           <div className="text-left">
-            <span className="block text-sm font-medium">{userName}</span>
+            <span className="block text-sm font-medium">{displayName}</span>
             <span className="block text-xs text-slate-500 capitalize">
-              {userLevel}
+              {displayLevel}
             </span>
           </div>
           <ChevronDown 
@@ -98,7 +119,7 @@ export default function UserDropdown({ userLevel = "public", userName = "Guest" 
                   {avatarUrl && !avatarError.dropdown ? (
                     <img
                       src={avatarUrl}
-                      alt={userName}
+                      alt={displayName}
                       className="w-full h-full object-cover"
                       onError={() => setAvatarError(prev => ({ ...prev, dropdown: true }))}
                     />
@@ -107,9 +128,9 @@ export default function UserDropdown({ userLevel = "public", userName = "Guest" 
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 truncate">{userName}</p>
-                  <p className="text-xs text-slate-600 capitalize">{userLevel}</p>
-                  <p className="text-xs text-slate-500 truncate">user@example.com</p>
+                  <p className="text-sm font-semibold text-slate-900 truncate">{displayName}</p>
+                  <p className="text-xs text-slate-600 capitalize">{displayLevel}</p>
+                  <p className="text-xs text-slate-500 truncate">{displayEmail || "No email"}</p>
                 </div>
               </div>
             </div>

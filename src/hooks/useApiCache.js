@@ -25,13 +25,11 @@ export const useApiCache = () => {
     if (!forceRefresh) {
       const cached = apiCache.get(key, params);
       if (cached) {
-        console.log(`🚀 Cache hit for ${key}`);
         return cached;
       }
     }
 
     // Make API call
-    console.log(`🌐 API call for ${key}`);
     const promise = apiFunction(params)
       .then(response => {
         // Cache the response

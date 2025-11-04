@@ -21,18 +21,16 @@ import { useAuth } from "../contexts/AuthContext";
 import { getIconByNatureOfBusiness } from '../constants/markerIcons';
 import { createCustomMarkerIcon } from '../components/map/CustomMarkerIcon';
 import {
-  Search,
-  X,
-  Filter,
-  ChevronDown,
   ChevronUp,
-  ArrowUpDown,
+  ChevronDown,
   ArrowUp,
   ArrowDown,
   ChevronLeft,
   ChevronRight,
   Building2,
+  X,
 } from "lucide-react";
+import TableToolbar from "../components/common/TableToolbar";
 
 // Fix for default markers in react-leaflet
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -107,12 +105,9 @@ export default function MapPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
-  // 🎚 Filters - Removed all filters as per plan
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // ✅ Sorting
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
 
   // ✅ Pagination - Load from localStorage
   const [currentPage, setCurrentPage] = useState(() => {
@@ -178,38 +173,18 @@ export default function MapPage() {
     }
   };
 
-  // Add this useEffect to handle clicks outside the dropdowns
-  useEffect(() => {
-    function handleClickOutside(e) {
-      // Filter dropdown removed as per plan
-      if (sortDropdownOpen && !e.target.closest(".sort-dropdown")) {
-        setSortDropdownOpen(false);
-      }
-    }
-
-    if (sortDropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [sortDropdownOpen]);
 
   // ✅ Sorting handler
-  const handleSort = (key) => {
-    setSortConfig((prev) => {
-      if (prev.key === key) {
-        if (prev.direction === "asc") return { key, direction: "desc" };
-        if (prev.direction === "desc") return { key: null, direction: null };
-      }
-      return { key, direction: "asc" };
-    });
-    // Removed auto-close: setSortDropdownOpen(false);
+  const handleSort = (fieldKey, directionKey = null) => {
+    if (fieldKey === null) {
+      setSortConfig({ key: null, direction: null });
+    } else {
+      setSortConfig({ key: fieldKey, direction: directionKey || "asc" });
+    }
   };
 
   const getSortIcon = (key) => {
-    if (sortConfig.key !== key) return <ArrowUpDown size={14} />;
+    if (sortConfig.key !== key) return null;
     return sortConfig.direction === "asc" ? (
       <ArrowUp size={14} />
     ) : (
@@ -222,20 +197,6 @@ export default function MapPage() {
     { key: "name", label: "Name" },
     { key: "year_established", label: "Year Established" },
   ];
-
-  const sortDirections = [
-    { key: "asc", label: "Ascending" },
-    { key: "desc", label: "Descending" },
-  ];
-
-  const handleSortFromDropdown = (fieldKey, directionKey) => {
-    if (fieldKey) {
-      setSortConfig({ key: fieldKey, direction: directionKey || "asc" });
-    } else {
-      setSortConfig({ key: null, direction: null });
-    }
-    // Removed auto-close: setSortDropdownOpen(false);
-  };
 
   // ✅ Filter + Sort with LOCAL search (client-side only)
   const filteredEstablishments = useMemo(() => {
@@ -339,113 +300,17 @@ export default function MapPage() {
             </h1>
 
             <div className="flex flex-wrap items-center w-full gap-2 sm:w-auto">
-              {/* 🔍 Local Search Bar */}
-              <div className="relative">
-                <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
-                <input
-                  type="text"
-                  placeholder="Search establishments..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full py-1 pl-10 pr-8 transition bg-gray-100 border-b border-gray-300 rounded min-w-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={clearSearch}
-                    className="absolute -translate-y-1/2 right-3 top-1/2"
-                  >
-                    <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-                  </button>
-                )}
-              </div>
-
-              {/* 🔽 Sort Dropdown */}
-              <div className="relative sort-dropdown">
-                <button
-                  onClick={() => setSortDropdownOpen(!sortDropdownOpen)}
-                  className="flex items-center px-3 py-1 text-sm font-medium rounded text-gray-700 bg-gray-200 hover:bg-gray-300"
-                >
-                  <ArrowUpDown size={14} />
-                  Sort by
-                  <ChevronDown size={14} />
-                </button>
-
-                {sortDropdownOpen && (
-                  <div className="absolute right-0 z-20 w-48 mt-1 bg-white border border-gray-200 rounded shadow">
-                    <div className="p-2">
-                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        Sort Options
-                      </div>
-                      
-                      {/* Sort by Field Section */}
-                      <div className="mb-2">
-                        <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                          Sort by Field
-                        </div>
-                        {sortFields.map((field) => (
-                          <button
-                            key={field.key}
-                            onClick={() =>
-                              handleSortFromDropdown(
-                                field.key,
-                                sortConfig.key === field.key
-                                  ? sortConfig.direction === "asc"
-                                    ? "desc"
-                                    : "asc"
-                                  : "asc"
-                              )
-                            }
-                            className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                              sortConfig.key === field.key ? "bg-sky-50 font-medium" : ""
-                            }`}
-                          >
-                            <div className="flex-1 text-left">
-                              <div className="font-medium">{field.label}</div>
-                            </div>
-                            {sortConfig.key === field.key && (
-                              <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Order Section - Shown if a field is selected */}
-                      {sortConfig.key && (
-                        <>
-                          <div className="my-1 border-t border-gray-200"></div>
-                          <div>
-                            <div className="px-3 py-1 text-xs font-medium text-gray-600 uppercase tracking-wide">
-                              Sort Order
-                            </div>
-                            {sortDirections.map((dir) => (
-                              <button
-                                key={dir.key}
-                                onClick={() =>
-                                  handleSortFromDropdown(sortConfig.key, dir.key)
-                                }
-                                className={`w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 transition-colors ${
-                                  sortConfig.direction === dir.key ? "bg-sky-50 font-medium" : ""
-                                }`}
-                              >
-                                <div className="flex-1 text-left">
-                                  <div className="font-medium">{dir.label}</div>
-                                </div>
-                                {sortConfig.direction === dir.key && (
-                                  <div className="w-2 h-2 bg-sky-600 rounded-full"></div>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 🎚 Filters dropdown - Removed as per plan */}
-                        </div>
-                      </div>
+              <TableToolbar
+                searchValue={searchQuery}
+                onSearchChange={setSearchQuery}
+                onSearchClear={clearSearch}
+                searchPlaceholder="Search establishments..."
+                sortConfig={sortConfig}
+                sortFields={sortFields}
+                onSort={handleSort}
+              />
+            </div>
+          </div>
                       
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Left Column: Map + Details Panel */}
@@ -675,13 +540,19 @@ export default function MapPage() {
             {/* Right Column: Table */}
             <div className="flex flex-col h-[calc(100vh-240px)]">
               {/* Table Container */}
-              <div className=" rounded-lg flex-1 overflow-y-auto min-h-0 custom-scrollbar">
+              <div className=" rounded flex-1 overflow-y-auto min-h-0 custom-scrollbar">
                 <table className="w-full border-b border-gray-300 rounded-lg">
                   <thead>
                     <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
                       <th
                         className="px-3 py-2 border-b border-gray-300 cursor-pointer"
-                        onClick={() => handleSort("name")}
+                        onClick={() => {
+                          if (sortConfig.key === "name") {
+                            handleSort("name", sortConfig.direction === "asc" ? "desc" : "asc");
+                          } else {
+                            handleSort("name", "asc");
+                          }
+                        }}
                       >
                         <div className="flex items-center gap-1">
                           Name {getSortIcon("name")}
@@ -689,7 +560,13 @@ export default function MapPage() {
                       </th>
                       <th
                         className="px-3 py-2 border-b border-gray-300 cursor-pointer"
-                        onClick={() => handleSort("city")}
+                        onClick={() => {
+                          if (sortConfig.key === "city") {
+                            handleSort("city", sortConfig.direction === "asc" ? "desc" : "asc");
+                          } else {
+                            handleSort("city", "asc");
+                          }
+                        }}
                       >
                         <div className="flex items-center gap-1">
                           Address {getSortIcon("city")}

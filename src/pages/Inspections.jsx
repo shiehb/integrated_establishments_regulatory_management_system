@@ -340,8 +340,6 @@ export default function Inspections() {
         onClose={() => setShowAdd(false)}
         onSave={async (formData) => {
           try {
-            console.log('Creating inspections:', formData);
-            
             const selectedLaw = laws.find(law => law.code === formData.law_code);
             const establishmentCount = formData.establishment_ids.length;
             
@@ -359,7 +357,6 @@ export default function Inspections() {
             
             // Create all inspections in parallel
             const createdInspections = await Promise.all(inspectionPromises);
-            console.log('Inspections created successfully:', createdInspections);
             
             // Close wizard and refresh list
             setShowAdd(false);

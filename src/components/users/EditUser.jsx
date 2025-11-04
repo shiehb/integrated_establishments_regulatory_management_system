@@ -23,8 +23,6 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
   const notifications = useNotifications();
 
   useEffect(() => {
-    console.log("User data received:", userData);
-    
     setFormData({
       firstName: userData?.first_name || "",
       middleName: userData?.middle_name || "",
@@ -56,15 +54,6 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
     } else {
       setAvatarPreview(null);
     }
-    
-    console.log("Form data initialized:", {
-      firstName: userData?.first_name,
-      middleName: userData?.middle_name,
-      lastName: userData?.last_name,
-      email: userData?.email,
-      userLevel: userData?.userlevel,
-      section: userData?.section,
-    });
   }, [userData]);
 
   // Section options depending on role
@@ -247,7 +236,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
 
   const Label = ({ field, children, required = true }) => {
     return (
-      <label className="flex items-center justify-between text-sm font-medium text-gray-700">
+      <label htmlFor={field} className="flex items-center justify-between text-sm font-medium text-gray-700">
         <span>
           {children} {required && <span className="text-red-500">*</span>}
         </span>
@@ -294,8 +283,10 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
               </button>
             )}
           </div>
-          <label className="mt-2 cursor-pointer">
+          <label htmlFor="avatar-upload" className="mt-2 cursor-pointer">
             <input
+              id="avatar-upload"
+              name="avatar"
               ref={fileInputRef}
               type="file"
               accept="image/*"
@@ -316,6 +307,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
           <div>
             <Label field="firstName">First Name</Label>
             <input
+              id="firstName"
               type="text"
               name="firstName"
               value={formData.firstName}
@@ -330,6 +322,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
           <div>
             <Label field="middleName" required={false}>Middle Name</Label>
             <input
+              id="middleName"
               type="text"
               name="middleName"
               value={formData.middleName}
@@ -340,6 +333,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
           <div>
             <Label field="lastName">Last Name</Label>
             <input
+              id="lastName"
               type="text"
               name="lastName"
               value={formData.lastName}
@@ -357,8 +351,10 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
         <div>
           <Label field="email">Email</Label>
           <input
+            id="email"
             type="email"
             name="email"
+            autoComplete="email"
             value={formData.email}
             onChange={handleChange}
             className={`w-full p-2 border rounded-lg ${
@@ -379,6 +375,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
           <div>
             <Label field="userLevel">User Level</Label>
             <select
+              id="userLevel"
               name="userLevel"
               value={formData.userLevel}
               onChange={handleChange}
@@ -399,6 +396,7 @@ export default function EditUser({ userData, onClose, onUserUpdated }) {
           <div>
             <Label field="section">Section</Label>
             <select
+              id="section"
               name="section"
               value={formData.section}
               onChange={handleChange}

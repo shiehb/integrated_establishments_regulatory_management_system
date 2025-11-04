@@ -353,10 +353,16 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
         else:
             # Section Chief, Unit Head, Monitoring Personnel
             # Get establishment IDs from active inspections assigned to this user
-            establishment_ids = Inspection.objects.filter(
+            # Handle ManyToMany field properly
+            inspections = Inspection.objects.filter(
                 assigned_to=user,
                 current_status__in=active_statuses
-            ).values_list('establishments', flat=True).distinct()
+            ).prefetch_related('establishments')
+            
+            # Collect unique establishment IDs from the ManyToMany relationship
+            establishment_ids = set()
+            for inspection in inspections:
+                establishment_ids.update(inspection.establishments.values_list('id', flat=True))
             
             # Filter establishments
             queryset = Establishment.objects.filter(id__in=establishment_ids)

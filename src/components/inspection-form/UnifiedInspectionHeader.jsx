@@ -194,7 +194,6 @@ export default function UnifiedInspectionHeader({
                 <button
                   key={tab.id}
                     onClick={() => {
-                      console.log('🎯 Tab clicked:', tab.id);
                       onTabClick(tab.id);
                     }}
                   className={`
@@ -237,7 +236,6 @@ export default function UnifiedInspectionHeader({
             {hasMapData && (
               <button
                 onClick={() => {
-                  console.log('🎯 Map tab clicked');
                   onTabClick('map');
                 }}
                 className={`

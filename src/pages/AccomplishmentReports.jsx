@@ -84,19 +84,7 @@ export default function AccomplishmentReports() {
         tab: 'completed' // Get completed inspections that the user inspected
       };
       
-      // Debug: Let's see what parameters we're sending
-      console.log('=== DEBUGGING ACCOMPLISHMENT REPORT ===');
-      console.log('API Parameters:', params);
-      console.log('Current user:', {
-        id: user?.id,
-        email: user?.email,
-        first_name: user?.first_name,
-        last_name: user?.last_name
-      });
-      
       const data = await getInspections(params);
-      
-      console.log('Total inspections from API:', data.results?.length || 0);
       
       // Filter for completed inspections AND inspected by current user
       const completedInspections = data.results?.filter(inspection => {
@@ -115,19 +103,9 @@ export default function AccomplishmentReports() {
         // Check if current user is the one who inspected it - simplified logic
         const isInspectedByCurrentUser = inspection.form?.inspected_by === user?.id;
         
-        // Debug logging
-        console.log(`Inspection ${inspection.code}:`, {
-          status,
-          isCompleted,
-          form_inspected_by: inspection.form?.inspected_by,
-          current_user_id: user?.id,
-          isInspectedByCurrentUser
-        });
-        
         return isCompleted && isInspectedByCurrentUser;
       }) || [];
       
-      console.log(`Final result: ${completedInspections.length} inspections for user ${user?.email}`);
       setInspections(completedInspections);
     } catch (error) {
       console.error('Error fetching inspections:', error);
@@ -404,9 +382,6 @@ export default function AccomplishmentReports() {
         date_from: exportOptions.customDateRange ? exportOptions.dateFrom : null,
         date_to: exportOptions.customDateRange ? exportOptions.dateTo : null
       };
-      
-      console.log('Exporting PDF with params:', params);
-      console.log('Summary stats:', summaryStats);
       
       const blob = await exportInspectionsPDF(params);
       

@@ -128,41 +128,6 @@ export const toggleUserActive = async (id) => {
   }
 };
 
-export const getDistrictUsers = async (filters = {}) => {
-  try {
-    const params = new URLSearchParams();
-    if (filters.userlevel) params.append('userlevel', filters.userlevel);
-    if (filters.district) params.append('district', filters.district);
-    if (filters.section) params.append('section', filters.section);
-    
-    const response = await api.get(`auth/district-users/?${params.toString()}`);
-    return response.data;
-  } catch (error) {
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to fetch district users. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
-export const assignDistrict = async (userId, district) => {
-  try {
-    const response = await api.post(`auth/assign-district/${userId}/`, { district });
-    return response.data;
-  } catch (error) {
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.message ||
-        "Failed to assign district. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
 export const firstTimeChangePassword = async (oldPassword, newPassword) => {
   try {
     const res = await api.post("auth/first-time-change-password/", {
@@ -320,9 +285,7 @@ export const getReinspectionReminders = async () => {
 
 export const createInspection = async (inspectionData) => {
   try {
-    console.log("Sending inspection data:", inspectionData);
     const res = await api.post("inspections/", inspectionData);
-    console.log("Inspection created successfully:", res.data);
     
     // Clear inspection-related cache
     apiCache.clearByPattern('inspections');
@@ -717,7 +680,6 @@ export const getTabCounts = async () => {
     // Check cache first
     const cached = apiCache.get('inspections/tab_counts/');
     if (cached) {
-      console.log("🚀 Cache hit for tab counts");
       return cached;
     }
 

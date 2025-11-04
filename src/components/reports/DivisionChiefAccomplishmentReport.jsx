@@ -145,8 +145,6 @@ export default function DivisionChiefAccomplishmentReport({
         exportParams.date_to = dateTo;
       }
 
-      console.log('Exporting Division Chief PDF with params:', exportParams);
-
       // Call backend export API
       const pdfBlob = await exportInspectionsPDF(exportParams);
       

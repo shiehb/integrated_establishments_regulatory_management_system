@@ -268,7 +268,8 @@ class ProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        serializer = UserSerializer(request.user, context={'request': request})
+        return Response(serializer.data)
 
 
 # ---------------------------
@@ -715,96 +716,3 @@ def user_search(request):
         'results': serializer.data,
         'count': users.count()
     })
-
-
-# ---------------------------
-# District User Management
-# ---------------------------
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def district_users_list(request):
-    """Get users filtered by role and district for district management"""
-    # Get filter parameters
-    userlevel = request.query_params.get('userlevel')
-    district = request.query_params.get('district')
-    section = request.query_params.get('section')
-    
-    # Filter only Section Chief, Unit Head, and Monitoring Personnel
-    queryset = User.objects.filter(
-        userlevel__in=["Section Chief", "Unit Head", "Monitoring Personnel"]
-    ).order_by('district', 'section', 'userlevel', 'last_name')
-    
-    # Apply filters if provided
-    if userlevel:
-        queryset = queryset.filter(userlevel=userlevel)
-    if district:
-        queryset = queryset.filter(district=district)
-    if section:
-        queryset = queryset.filter(section=section)
-    
-    serializer = UserSerializer(queryset, many=True)
-    return Response({
-        'results': serializer.data,
-        'count': queryset.count()
-    })
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def assign_district(request, pk):
-    """Assign or update district for a user (Admin, Section Chief, or Unit Head only)"""
-    # Check if user is Admin, Section Chief, or Unit Head
-    if request.user.userlevel not in ["Admin", "Section Chief", "Unit Head"]:
-        return Response({
-            'detail': 'Only Admin, Section Chief, or Unit Head can assign districts.'
-        }, status=status.HTTP_403_FORBIDDEN)
-    try:
-        user = User.objects.get(pk=pk)
-        district = request.data.get('district')
-        
-        # Validate user type
-        if user.userlevel not in ["Section Chief", "Unit Head", "Monitoring Personnel"]:
-            return Response({
-                'detail': 'Only Section Chief, Unit Head, and Monitoring Personnel can be assigned to districts.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Validate district
-        valid_districts = [choice[0] for choice in User.DISTRICT_CHOICES]
-        if district and district not in valid_districts:
-            return Response({
-                'detail': f'Invalid district. Must be one of: {", ".join(valid_districts)}'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Check for existing active user with same role, section, and district
-        if district and user.is_active:
-            existing = User.objects.filter(
-                userlevel=user.userlevel,
-                section=user.section,
-                district=district,
-                is_active=True
-            ).exclude(id=user.id).first()
-            
-            if existing:
-                return Response({
-                    'detail': f'An active {user.userlevel} for {user.section} in {district} already exists: {existing.email}'
-                }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Update district
-        user.district = district
-        user.updated_at = timezone.now()
-        user.save()
-        
-        log_activity(
-            request.user,
-            "update",
-            f"Assigned district {district} to {user.email}",
-            request=request
-        )
-        
-        return Response({
-            'message': 'District assigned successfully',
-            'user': UserSerializer(user).data
-        }, status=status.HTTP_200_OK)
-        
-    except User.DoesNotExist:
-        return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)

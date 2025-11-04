@@ -20,12 +20,6 @@ export default function InspectionPolygonMap({ inspectionData, currentUser, onCl
     if (!currentUser?.userlevel) return false;
     const allowedRoles = ["Section Chief", "Unit Head", "Monitoring Personnel"];
     const canEdit = allowedRoles.includes(currentUser.userlevel);
-    console.log('Polygon edit permission check:', {
-      userLevel: currentUser.userlevel,
-      allowedRoles,
-      canEdit,
-      establishment: establishment?.name
-    });
     return canEdit;
   };
 
@@ -33,17 +27,6 @@ export default function InspectionPolygonMap({ inspectionData, currentUser, onCl
   useEffect(() => {
     if (inspectionData?.establishments_detail?.[0]) {
       const establishmentData = inspectionData.establishments_detail[0];
-      console.log('🗺️ Map Debug - Establishment Data:', {
-        id: establishmentData.id,
-        name: establishmentData.name,
-        latitude: establishmentData.latitude,
-        longitude: establishmentData.longitude,
-        polygon: establishmentData.polygon,
-        hasPolygon: !!establishmentData.polygon,
-        polygonLength: establishmentData.polygon?.length,
-        polygonType: typeof establishmentData.polygon,
-        isArray: Array.isArray(establishmentData.polygon)
-      });
       
       // Ensure polygon is always an array
       let polygonData = establishmentData.polygon;
@@ -62,8 +45,6 @@ export default function InspectionPolygonMap({ inspectionData, currentUser, onCl
       
       // Force map refresh when establishment changes
       setMapKey(prev => prev + 1);
-    } else {
-      console.log('🗺️ Map Debug - No establishment data found:', inspectionData);
     }
   }, [inspectionData]);
 
@@ -253,16 +234,6 @@ export default function InspectionPolygonMap({ inspectionData, currentUser, onCl
 
       {/* Map container */}
       <div className="flex-1 relative min-h-[400px]">
-        {console.log('🗺️ Rendering InspectionMap with:', {
-          establishment,
-          hasPolygon: !!establishment.polygon,
-          polygonLength: establishment.polygon?.length,
-          polygonData: establishment.polygon,
-          editMode: canEditPolygon() && isEditMode,
-          userRole: currentUser?.userlevel,
-          establishmentId: establishment.id,
-          mapKey
-        })}
         {establishment ? (
           <InspectionMap
             key={`inspection-map-${establishment.id}-${isEditMode ? 'edit' : 'view'}-${mapKey}`}

@@ -36,14 +36,7 @@ export default function Help() {
   // Filter topics based on user level - memoized to prevent infinite loops
   const accessibleTopics = useMemo(() => {
     const normalizedLevel = normalizeUserLevel(profile?.userlevel || "public");
-    console.log("Debug - Profile userlevel:", profile?.userlevel);
-    console.log("Debug - Normalized level:", normalizedLevel);
     const filtered = filterTopicsByUserLevel(helpTopics, normalizedLevel);
-    console.log("Debug - Filtered topics count:", filtered.length);
-    console.log(
-      "Debug - Filtered topics:",
-      filtered.map((t) => t.title)
-    );
     return filtered;
   }, [profile?.userlevel]);
 

@@ -23,7 +23,6 @@ import Layout from "./Layout";
 import Help from "./pages/Help";
 import SystemConfiguration from "./pages/SystemConfiguration";
 import DatabaseBackup from "./pages/DatabaseBackup"; // ✅ import new page
-import DistrictManagement from "./pages/DistrictManagement";
 import AccomplishmentReports from "./pages/AccomplishmentReports";
 import DebugActions from "./components/inspections/DebugActions";
 import InspectionForm from "./components/inspection-form/InspectionForm";
@@ -125,14 +124,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               element={
                 <RoleRoute allowed={["Admin"]}>
                   <DatabaseBackup />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="/district-management"
-              element={
-                <RoleRoute allowed={["Admin", "Section Chief", "Unit Head"]}>
-                  <DistrictManagement />
                 </RoleRoute>
               }
             />

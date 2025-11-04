@@ -52,14 +52,6 @@ export const MENU_CONFIG = [
     category: "Management"
   },
   {
-    id: "district-management",
-    name: "District Management",
-    path: "/district-management",
-    icon: MapIcon,
-    roles: [], // Hidden from all user levels
-    category: "Management"
-  },
-  {
     id: "reports",
     name: "Reports",
     path: "/reports",

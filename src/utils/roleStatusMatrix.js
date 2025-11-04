@@ -231,8 +231,6 @@ export const getButtonVisibility = (userRole, status, isPreviewMode = false, ret
     return { showDraft: false, showSubmit: false, showClose: false, showBack: false, isReadOnly: true };
   }
   
-  console.log(`🔍 Button Visibility: Role=${userRole}, Status=${status}, WorkflowStage=${workflowStage}, PreviewMode=${isPreviewMode}`);
-  
   // Get role permissions for this workflow stage
   const rolePermissions = ROLE_STAGE_PERMISSIONS[userRole];
   if (!rolePermissions) {
@@ -270,25 +268,18 @@ export const getButtonVisibility = (userRole, status, isPreviewMode = false, ret
   
   // Handle preview mode
   if (isPreviewMode) {
-    console.log(`🔍 Preview Mode Logic: Status=${status}, WorkflowStage=${workflowStage}, ReviewApproval=${reviewApproval}`);
-    
     // Special case: If reviewApproval=true, always show Back button regardless of status
     if (reviewApproval) {
       config.showBack = true;
       config.showClose = false;
-      console.log(`✅ Preview Mode with reviewApproval=true → Show Back button`);
     } else {
       // In preview mode, show Back button for in-progress stages, Close button for review/legal stages
       if (workflowStage === WORKFLOW_STAGES.IN_PROGRESS) {
         config.showBack = true;
         config.showClose = false;
-        console.log(`✅ Preview Mode: IN_PROGRESS stage → Show Back button`);
       } else if (workflowStage === WORKFLOW_STAGES.REVIEW || workflowStage === WORKFLOW_STAGES.LEGAL) {
         config.showBack = false;
         config.showClose = true;
-        console.log(`✅ Preview Mode: ${workflowStage} stage → Show Close button`);
-      } else {
-        console.log(`⚠️ Preview Mode: ${workflowStage} stage → No specific button logic`);
       }
     }
     
@@ -296,8 +287,6 @@ export const getButtonVisibility = (userRole, status, isPreviewMode = false, ret
     config.showDraft = false;
     config.showSubmit = false;
     config.isReadOnly = true;
-    
-    console.log(`🔍 Preview Mode Final Config:`, config);
   }
   
   // Handle returnTo parameter and reviewMode
@@ -308,7 +297,6 @@ export const getButtonVisibility = (userRole, status, isPreviewMode = false, ret
     config.showClose = false;
     config.showSubmit = stagePermissions.canEdit;
     config.showDraft = false;
-    console.log(`✅ ReturnTo=review: Show Back button to go to preview`);
   }
   
   return config;

@@ -126,7 +126,6 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
       '/inspection/new': { keywords: ['Inspection', 'Create'], tags: ['inspection', 'create', 'new'], priority: 2 },
       '/inspection/': { keywords: ['Inspection'], tags: ['inspection', 'view', 'edit'], priority: 1 },
       '/users': { keywords: ['User Management', 'User'], tags: ['user', 'admin', 'management', 'role'], priority: 1 },
-      '/district-management': { keywords: ['District'], tags: ['district', 'region', 'area', 'management'], priority: 1 },
       '/billing': { keywords: ['Billing'], tags: ['billing', 'payment', 'legal', 'records'], priority: 1 },
       '/system-config': { keywords: ['System Configuration', 'Settings'], tags: ['system', 'config', 'settings', 'admin'], priority: 1 },
       '/database-backup': { keywords: ['Backup & Restore', 'Database'], tags: ['database', 'backup', 'restore', 'export', 'admin'], priority: 1 },

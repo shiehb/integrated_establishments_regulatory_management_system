@@ -62,28 +62,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         ("PD-1586,RA-8749,RA-9275", "EIA, Air & Water (Combined)"),
     ]
 
-    DISTRICT_CHOICES = [
-        ("La Union - 1st District", "La Union - 1st District"),
-        ("La Union - 2nd District", "La Union - 2nd District"),
-        ("La Union - 3rd District", "La Union - 3rd District"),
-        ("Ilocos Norte - 1st District", "Ilocos Norte - 1st District"),
-        ("Ilocos Norte - 2nd District", "Ilocos Norte - 2nd District"),
-        ("Ilocos Sur - 1st District", "Ilocos Sur - 1st District"),
-        ("Ilocos Sur - 2nd District", "Ilocos Sur - 2nd District"),
-        ("Pangasinan - 1st District", "Pangasinan - 1st District"),
-        ("Pangasinan - 2nd District", "Pangasinan - 2nd District"),
-        ("Pangasinan - 3rd District", "Pangasinan - 3rd District"),
-        ("Pangasinan - 4th District", "Pangasinan - 4th District"),
-        ("Pangasinan - 5th District", "Pangasinan - 5th District"),
-        ("Pangasinan - 6th District", "Pangasinan - 6th District"),
-    ]
     email = models.EmailField(unique=True, max_length=255)
     first_name = models.CharField(max_length=150, blank=True)
     middle_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
     userlevel = models.CharField(max_length=50, choices=USERLEVEL_CHOICES, blank=True)
     section = models.CharField(max_length=50, choices=SECTION_CHOICES, null=True, blank=True)
-    district = models.CharField(max_length=100, choices=DISTRICT_CHOICES, null=True, blank=True)  # Make it optional
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
 
 

@@ -35,8 +35,6 @@ const GeneralInformation = forwardRef(function GeneralInformation({
 
   // Autofill when inspectionData provided (only if no existing data)
   useEffect(() => {
-    console.log("🏢 GeneralInformation received inspectionData:", inspectionData);
-    
     if (
       inspectionData &&
       inspectionData.establishments_detail &&
@@ -44,7 +42,6 @@ const GeneralInformation = forwardRef(function GeneralInformation({
       (!hasProcessedInspectionData.current || processedInspectionId.current !== inspectionData.id)
     ) {
       const establishment = inspectionData.establishments_detail[0];
-      console.log("🏢 Processing establishment data:", establishment);
       
       // Check if we already have user-entered data (from draft) by looking at the current data state
       setData((currentData) => {
@@ -55,8 +52,6 @@ const GeneralInformation = forwardRef(function GeneralInformation({
                            currentData.email_address || 
                            currentData.inspection_date_time ||
                            (currentData.environmental_laws && currentData.environmental_laws.length > 0);
-        
-        console.log("🏢 Has user data:", hasUserData);
         
         // Build address from establishment data
         const street = establishment.street_building || "";
@@ -305,10 +300,12 @@ const GeneralInformation = forwardRef(function GeneralInformation({
       {/* Basic and Operating Details Card */}
       <div className="p-3 mt-3 bg-gray-50 rounded-md border border-gray-200 space-y-2.5">
       <div>
-        <label className="block mb-1 text-sm font-medium text-gray-700">
+        <label htmlFor="establishment_name" className="block mb-1 text-sm font-medium text-gray-700">
           Name of Establishment<span className="text-red-600">*</span>
         </label>
         <input
+          id="establishment_name"
+          name="establishment_name"
           className="w-full px-3 py-2 text-gray-900 uppercase bg-gray-100 border border-gray-300 rounded-md"
           value={data.establishment_name || ""}
           readOnly
@@ -321,10 +318,12 @@ const GeneralInformation = forwardRef(function GeneralInformation({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">
+          <label htmlFor="address" className="block mb-1 text-sm font-medium text-gray-700">
             Address<span className="text-red-600">*</span>
           </label>
           <input
+            id="address"
+            name="address"
             className="w-full px-3 py-2 text-gray-900 uppercase bg-gray-100 border border-gray-300 rounded-md"
             value={data.address || ""}
             readOnly
@@ -335,10 +334,12 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           )}
         </div>
         <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">
+          <label htmlFor="coordinates" className="block mb-1 text-sm font-medium text-gray-700">
             Coordinates (Decimal)<span className="text-red-600">*</span>
           </label>
           <input
+            id="coordinates"
+            name="coordinates"
             className="w-full px-3 py-2 text-gray-900 uppercase bg-gray-100 border border-gray-300 rounded-md"
             value={data.coordinates || ""}
             readOnly
@@ -351,10 +352,12 @@ const GeneralInformation = forwardRef(function GeneralInformation({
       </div>
 
       <div>
-        <label className="block mb-1 text-sm font-medium text-gray-700">
+        <label htmlFor="nature_of_business" className="block mb-1 text-sm font-medium text-gray-700">
           Nature of Business<span className="text-red-600">*</span>
         </label>
         <input
+          id="nature_of_business"
+          name="nature_of_business"
           className="w-full px-3 py-2 text-gray-900 uppercase bg-gray-100 border border-gray-300 rounded-md"
           value={data.nature_of_business || ""}
           readOnly
@@ -367,10 +370,12 @@ const GeneralInformation = forwardRef(function GeneralInformation({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">
+          <label htmlFor="year_established" className="block mb-1 text-sm font-medium text-gray-700">
             Year Established<span className="text-red-600">*</span>
           </label>
           <input
+            id="year_established"
+            name="year_established"
             type="number"
             className="w-full px-3 py-2 text-gray-900 uppercase bg-gray-100 border border-gray-300 rounded-md"
             value={data.year_established || ""}
@@ -382,11 +387,13 @@ const GeneralInformation = forwardRef(function GeneralInformation({
           )}
         </div>
         <div>
-          <label className="block mb-1 text-sm font-medium text-gray-700">
+          <label htmlFor="inspection_date_time" className="block mb-1 text-sm font-medium text-gray-700">
             Inspection Date & Time<span className="text-red-600">*</span>
           </label>
           <div className="relative">
           <input
+            id="inspection_date_time"
+            name="inspection_date_time"
             type="datetime-local"
               className={`w-full px-3 py-2 text-gray-900 bg-white border rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
                 data.inspection_date_time && data.inspection_date_time.trim() !== ""

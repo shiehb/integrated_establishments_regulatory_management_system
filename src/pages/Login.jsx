@@ -125,7 +125,7 @@ export default function Login() {
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email *
               </label>
               {errors.email && (
@@ -135,6 +135,8 @@ export default function Login() {
             <input
               type="email"
               name="email"
+              id="email"
+              autoComplete="email"
               placeholder="Enter your email"
               value={formData.email}
               onChange={handleChange}
@@ -147,7 +149,7 @@ export default function Login() {
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password *
               </label>
             </div>
@@ -156,6 +158,8 @@ export default function Login() {
                 ref={passwordInputRef}
                 type={showPassword ? "text" : "password"}
                 name="password"
+                id="password"
+                autoComplete="current-password"
                 placeholder="Enter your password"
                 value={formData.password}
                 onChange={handleChange}

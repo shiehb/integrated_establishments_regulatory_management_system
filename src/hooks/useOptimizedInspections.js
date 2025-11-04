@@ -78,7 +78,6 @@ export const useOptimizedInspections = (userLevel, currentUser) => {
   const fetchInspections = useCallback(async (params = {}) => {
     const now = Date.now();
     if (now - lastFetchTime.current < fetchCooldown) {
-      console.log('⏳ Fetch cooldown active, skipping request');
       return;
     }
     

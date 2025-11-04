@@ -343,7 +343,6 @@ class SearchSuggestionsView(APIView):
                 {'name': 'Establishments', 'path': '/establishments', 'type': 'navigation', 'roles': ['all']},
                 {'name': 'Inspections', 'path': '/inspections', 'type': 'navigation', 'roles': ['all']},
                 {'name': 'Users', 'path': '/users', 'type': 'navigation', 'roles': ['Admin']},
-                {'name': 'District Management', 'path': '/district-management', 'type': 'navigation', 'roles': ['Admin', 'Section Chief', 'Unit Head']},
                 {'name': 'Billing Records', 'path': '/billing', 'type': 'navigation', 'roles': ['Legal Unit']},
                 {'name': 'System Configuration', 'path': '/system-config', 'type': 'navigation', 'roles': ['Admin']},
                 {'name': 'Backup & Restore', 'path': '/database-backup', 'type': 'navigation', 'roles': ['Admin']},

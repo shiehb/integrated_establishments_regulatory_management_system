@@ -11,7 +11,6 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
     VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
     isDefault: !import.meta.env.VITE_API_BASE_URL
   };
-  console.log('🔧 API Configuration:', window.__API_CONFIG__);
 }
 
 export default API_BASE_URL;

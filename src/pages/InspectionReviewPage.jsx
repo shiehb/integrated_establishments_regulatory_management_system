@@ -22,14 +22,6 @@ const InspectionReviewPage = () => {
   const mode = urlParams.get('mode') || 'review';
   const reviewApproval = urlParams.get('reviewApproval') === 'true';
   
-  console.log('🔍 InspectionReviewPage loaded with:', {
-    id,
-    mode,
-    reviewApproval,
-    search: location.search,
-    state: location.state
-  });
-  
   const [inspectionData, setInspectionData] = useState(null);
   const [formData, setFormData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -101,13 +93,11 @@ const InspectionReviewPage = () => {
   // Process compliance items for merged law citations (moved to top level)
   const processedComplianceItems = useMemo(() => {
     if (!formData?.complianceItems || formData.complianceItems.length === 0) {
-      console.log('No compliance items found in formData:', formData);
       return [];
     }
 
     // Get selected environmental laws from general information (like in inspection form)
     const selectedEnvironmentalLaws = formData.general?.environmental_laws || [];
-    console.log('Selected environmental laws:', selectedEnvironmentalLaws);
     
     // Always include PCO Accreditation and SMR items (like in inspection form)
     const ALWAYS_INCLUDED_LAWS = [
@@ -147,8 +137,6 @@ const InspectionReviewPage = () => {
       
       return matchesSelected || matchesCitation || isPCORelated || isSMRRelated;
     });
-    
-    console.log('Filtered compliance items:', filteredComplianceItems);
 
     // Group filtered items by law citation
     const groupedByLaw = filteredComplianceItems.reduce((acc, item) => {
@@ -180,18 +168,13 @@ const InspectionReviewPage = () => {
   const fetchInspectionData = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('🔍 Fetching inspection data for ID:', id);
       const response = await api.get(`inspections/${id}/`);
-      console.log('📦 API Response:', response.data);
-      console.log('📋 Form data:', response.data.form);
-      console.log('✅ Checklist:', response.data.form?.checklist);
       
       setInspectionData(response.data);
       
       // Set form data from checklist, or create empty structure if needed
       const checklist = response.data.form?.checklist;
       if (checklist && Object.keys(checklist).length > 0) {
-        console.log('✓ Using checklist data:', checklist);
         setFormData(checklist);
       } else {
         console.warn('⚠️ No checklist data, using empty structure');
@@ -350,14 +333,6 @@ const InspectionReviewPage = () => {
       const userLevel = currentUser?.userlevel;
       const complianceDecision = getComplianceStatus();
       
-      console.log('🔍 Save & Submit debug:', {
-        userLevel,
-        actionType,
-        endpoint,
-        complianceDecision,
-        formData: !!formData
-      });
-      
       payload = {
         form_data: formData,
         compliance_decision: complianceDecision,
@@ -422,7 +397,6 @@ const InspectionReviewPage = () => {
         );
       }
       
-      console.log('🚀 Making API call:', { endpoint, payload });
       await api.post(endpoint, payload);
       setShowConfirm(false);
       
@@ -601,15 +575,6 @@ const InspectionReviewPage = () => {
     
     // Get button visibility from unified role-status matrix
     const roleStatusConfig = getRoleStatusButtonVisibility(userLevel, status, isPreviewMode, null, reviewApproval);
-    
-    console.log('🔍 InspectionReviewPage button visibility debug:', {
-      userLevel,
-      status,
-      isPreviewMode,
-      reviewApproval,
-      canAccess,
-      roleStatusConfig
-    });
 
     return {
       showCloseButton: roleStatusConfig.showClose,

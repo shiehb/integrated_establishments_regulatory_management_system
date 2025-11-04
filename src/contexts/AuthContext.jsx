@@ -189,7 +189,6 @@ export const AuthProvider = ({ children }) => {
 
         // Check if token needs refresh
         if (TokenManager.needsRefresh()) {
-          console.log('Token needs refresh, clearing auth state');
           AuthCache.clear();
           setLoading(false);
           return;

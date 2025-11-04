@@ -248,7 +248,6 @@ export const SearchProvider = ({ children }) => {
   };
 
   const selectSuggestion = (suggestion) => {
-    console.log('Selecting suggestion:', suggestion);
     const searchText = suggestion.name || suggestion.text || "";
     setSearchQuery(searchText);
 
@@ -261,16 +260,17 @@ export const SearchProvider = ({ children }) => {
     
     // For navigation items, just navigate without highlight
     if (suggestion.type === 'navigation') {
-      console.log('Navigating to page:', path);
       navigate(path);
       setShowSuggestions(false);
       return;
     }
     
-    console.log('Navigating to:', path, 'with state:', {
-      highlightId: suggestion.id,
-      entityType: suggestion.type,
-      fromSearch: true
+    navigate(path, {
+      state: {
+        highlightId: suggestion.id,
+        entityType: suggestion.type,
+        fromSearch: true
+      }
     });
     
     // Set selected result for tracking

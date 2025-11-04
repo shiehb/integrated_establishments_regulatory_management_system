@@ -111,21 +111,10 @@ export default function InspectionMap({
 
   // Load existing polygon into FeatureGroup when entering edit mode
   useEffect(() => {
-    console.log('InspectionMap useEffect triggered:', {
-      editMode,
-      hasPolygon: !!establishment?.polygon,
-      polygonLength: establishment?.polygon?.length,
-      establishmentId: establishment?.id,
-      establishmentName: establishment?.name,
-      rawPolygon: establishment?.polygon
-    });
-    
     if (establishment?.polygon && establishment.polygon.length > 0) {
       const validPolygon = filterValidCoordinates(establishment.polygon);
-      console.log('Processing polygon:', validPolygon);
       if (validPolygon.length >= 3) {
         const latlngs = convertToLatLngs(validPolygon);
-        console.log('Setting displayPolygon:', latlngs);
         setDisplayPolygon(latlngs);
         updatePolygonArea(latlngs);
         
@@ -138,9 +127,7 @@ export default function InspectionMap({
             // Add polygon to FeatureGroup for editing
             const polygon = L.polygon(latlngs);
             fg.addLayer(polygon);
-            console.log('Added polygon to FeatureGroup for editing');
           } else {
-            console.log('FeatureGroup not ready, will retry...');
             // Retry after a short delay
             setTimeout(() => {
               const fg = featureGroupRef.current;
@@ -148,14 +135,12 @@ export default function InspectionMap({
                 fg.clearLayers();
                 const polygon = L.polygon(latlngs);
                 fg.addLayer(polygon);
-                console.log('Added polygon to FeatureGroup for editing (retry)');
               }
             }, 200);
           }
         }
       }
     } else {
-      console.log('No polygon data or invalid polygon');
       setDisplayPolygon(null);
       setPolygonArea(null);
     }
@@ -485,15 +470,6 @@ export default function InspectionMap({
 
   const markerPosition = getMarkerPosition();
 
-  console.log('🗺️ InspectionMap rendering:', {
-    establishmentId: establishment?.id,
-    establishmentName: establishment?.name,
-    editMode,
-    hasPolygon: !!establishment?.polygon,
-    polygonLength: establishment?.polygon?.length,
-    center: getCenter()
-  });
-
   // Get custom icon for marker
   const iconData = getIconByNatureOfBusiness(establishment?.marker_icon || establishment?.nature_of_business || 'DEFAULT');
   const customIcon = createCustomMarkerIcon(iconData.icon, iconData.color, 36);
@@ -553,15 +529,6 @@ export default function InspectionMap({
             />
           )}
           
-          {/* Debug info */}
-          {console.log('Render - displayPolygon state:', {
-            editMode,
-            hasDisplayPolygon: !!displayPolygon,
-            displayPolygonLength: displayPolygon?.length,
-            willRender: !editMode && displayPolygon && displayPolygon.length > 0
-          })}
-          
-
           {/* Show other polygons */}
           {showOtherPolygons && otherPolygons.map((poly) => (
           <Polygon

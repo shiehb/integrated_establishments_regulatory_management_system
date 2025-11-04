@@ -123,19 +123,9 @@ export default function PolygonMap({
     // Clear existing layers
     fg.clearLayers();
     
-    console.log('PolygonMap useEffect triggered:', {
-      editMode,
-      hasPolygon: !!establishment?.polygon,
-      polygonLength: establishment?.polygon?.length,
-      establishmentId: establishment?.id,
-      establishmentName: establishment?.name,
-      rawPolygon: establishment?.polygon
-    });
-    
     if (editMode && establishment?.polygon && establishment.polygon.length > 0) {
       // Add polygon to FeatureGroup for editing
       const validPolygon = filterValidCoordinates(establishment.polygon);
-      console.log('Edit mode - valid polygon:', validPolygon);
       if (validPolygon.length >= 3) {
         const latlngs = convertToLatLngs(validPolygon);
         const polygon = L.polygon(latlngs);
@@ -146,15 +136,12 @@ export default function PolygonMap({
     } else if (!editMode && establishment?.polygon && establishment.polygon.length > 0) {
       // Set display polygon for view mode
       const validPolygon = filterValidCoordinates(establishment.polygon);
-      console.log('View mode - valid polygon:', validPolygon);
       if (validPolygon.length >= 3) {
         const latlngs = convertToLatLngs(validPolygon);
-        console.log('View mode - setting displayPolygon:', latlngs);
         setDisplayPolygon(latlngs);
         updatePolygonArea(latlngs);
       }
     } else {
-      console.log('No polygon data or invalid polygon');
       setDisplayPolygon(null);
       setPolygonArea(null);
     }
@@ -163,11 +150,9 @@ export default function PolygonMap({
   // Force load polygon on initial mount if not in edit mode
   useEffect(() => {
     if (establishment?.polygon && establishment.polygon.length > 0 && !editMode) {
-      console.log('Force loading polygon on mount for view mode');
       const validPolygon = filterValidCoordinates(establishment.polygon);
       if (validPolygon.length >= 3) {
         const latlngs = convertToLatLngs(validPolygon);
-        console.log('Force setting displayPolygon:', latlngs);
         setDisplayPolygon(latlngs);
         updatePolygonArea(latlngs);
       }
@@ -564,14 +549,6 @@ export default function PolygonMap({
               pathOptions={getPolygonStyle('valid')}
             />
           )}
-          
-          {/* Debug info */}
-          {console.log('Render - displayPolygon state:', {
-            editMode,
-            hasDisplayPolygon: !!displayPolygon,
-            displayPolygonLength: displayPolygon?.length,
-            willRender: !editMode && displayPolygon && displayPolygon.length > 0
-          })}
 
           {/* Show other polygons */}
           {showOtherPolygons && otherPolygons.map((poly) => (

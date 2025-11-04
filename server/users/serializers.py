@@ -21,7 +21,6 @@ class RegisterSerializer(serializers.ModelSerializer):
             'last_name',
             'userlevel',
             'section',
-            'district',
             'avatar',
         )
 
@@ -57,8 +56,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         
         # Validate user level constraints
         self.validate_user_level_constraints(userlevel, section)
-        
-        # District is now completely optional - no validation required
 
         return data
 
@@ -100,22 +97,18 @@ class RegisterSerializer(serializers.ModelSerializer):
                         "userlevel": f"Only one active Unit Head is allowed per law. Currently active for {section}: {existing_active.email}"
                     })
         
-        # Monitoring Personnel: Only one active per law per district
+        # Monitoring Personnel: Only one active per law
         elif userlevel == "Monitoring Personnel":
             if section:
-                # Get district from the request data if available
-                district = self.initial_data.get("district")
-                if district:
-                    existing_active = User.objects.filter(
-                        userlevel="Monitoring Personnel", 
-                        section=section, 
-                        district=district,
-                        is_active=True
-                    ).first()
-                    if existing_active:
-                        raise serializers.ValidationError({
-                            "userlevel": f"Only one active Monitoring Personnel is allowed per law per district. Currently active for {section} in {district}: {existing_active.email}"
-                        })
+                existing_active = User.objects.filter(
+                    userlevel="Monitoring Personnel", 
+                    section=section, 
+                    is_active=True
+                ).first()
+                if existing_active:
+                    raise serializers.ValidationError({
+                        "userlevel": f"Only one active Monitoring Personnel is allowed per law. Currently active for {section}: {existing_active.email}"
+                    })
         
         # Legal Unit: Multiple allowed (no validation needed)
 
@@ -156,6 +149,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    avatar_url = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
         fields = (
@@ -166,8 +161,8 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'userlevel',
             'section',
-            'district',
             'avatar',
+            'avatar_url',  # Full URL for avatar
             'date_joined',
             'last_login',
             'updated_at',  # NEW: Include updated_at field
@@ -175,6 +170,20 @@ class UserSerializer(serializers.ModelSerializer):
             'must_change_password',  # Required for forced password change on first login
             'is_first_login',  # Track if user has logged in before
         )
+    
+    def get_avatar_url(self, obj):
+        """Return full URL for avatar if available"""
+        if obj.avatar:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.avatar.url)
+            # Fallback if no request context
+            from django.conf import settings
+            base_url = getattr(settings, 'BASE_URL', 'http://127.0.0.1:8000')
+            if obj.avatar.url.startswith('/'):
+                return f"{base_url}{obj.avatar.url}"
+            return f"{base_url}/{obj.avatar.url}"
+        return None
 
     def validate_avatar(self, value):
         """Validate avatar file size before processing"""
@@ -210,8 +219,6 @@ class UserSerializer(serializers.ModelSerializer):
         
         # Validate user level constraints for updates
         self.validate_user_level_constraints_for_update(userlevel, section)
-        
-        # District is now completely optional - no validation required
 
         return data
 
@@ -259,22 +266,18 @@ class UserSerializer(serializers.ModelSerializer):
                         "userlevel": f"Only one active Unit Head is allowed per law. Currently active for {section}: {existing_active.email}"
                     })
         
-        # Monitoring Personnel: Only one active per law per district (excluding current user)
+        # Monitoring Personnel: Only one active per law (excluding current user)
         elif userlevel == "Monitoring Personnel":
             if section:
-                # Get district from the request data if available
-                district = self.initial_data.get("district")
-                if district:
-                    existing_active = User.objects.filter(
-                        userlevel="Monitoring Personnel", 
-                        section=section, 
-                        district=district,
-                        is_active=True
-                    ).exclude(id=current_user.id).first()
-                    if existing_active:
-                        raise serializers.ValidationError({
-                            "userlevel": f"Only one active Monitoring Personnel is allowed per law per district. Currently active for {section} in {district}: {existing_active.email}"
-                        })
+                existing_active = User.objects.filter(
+                    userlevel="Monitoring Personnel", 
+                    section=section, 
+                    is_active=True
+                ).exclude(id=current_user.id).first()
+                if existing_active:
+                    raise serializers.ValidationError({
+                        "userlevel": f"Only one active Monitoring Personnel is allowed per law. Currently active for {section}: {existing_active.email}"
+                    })
         
         # Legal Unit: Multiple allowed (no validation needed)
 

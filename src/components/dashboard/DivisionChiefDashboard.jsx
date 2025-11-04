@@ -15,7 +15,6 @@ export default function DivisionChiefDashboard() {
   // Navigation handlers
   const handleViewAll = (route) => {
     // You can implement navigation logic here if needed
-    console.log('Navigate to:', route);
   };
 
   return (

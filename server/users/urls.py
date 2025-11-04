@@ -13,9 +13,7 @@ from .views import (
     toggle_user_active,
     change_password,
     first_time_change_password,
-    user_search,
-    district_users_list,
-    assign_district
+    user_search
 )
 from .serializers import MyTokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -40,8 +38,4 @@ urlpatterns = [
 
     
     path('search/', user_search, name='user-search'),
-    
-    # District management endpoints
-    path('district-users/', district_users_list, name='district-users-list'),
-    path('assign-district/<int:pk>/', assign_district, name='assign-district'),
 ]

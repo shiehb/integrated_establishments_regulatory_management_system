@@ -18,18 +18,9 @@ const ReinspectionReminders = () => {
       setError(null);
       
       const data = await getReinspectionReminders();
-      console.log('Reinspection reminders API response:', data);
-      console.log('Number of reminders:', data?.length);
       
       // Set reminders
       setAllReminders(data || []);
-      
-      // Log detailed info
-      if (data && data.length > 0) {
-        console.log('Sample reminder:', data[0]);
-      } else {
-        console.log('No reminders found. This is normal if no inspections have been closed yet.');
-      }
     } catch (error) {
       console.error('Failed to fetch reinspection reminders:', error);
       console.error('Error details:', error.response);

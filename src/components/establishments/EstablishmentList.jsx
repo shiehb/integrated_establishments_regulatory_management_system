@@ -151,21 +151,16 @@ export default function EstablishmentList({
 
   // Handle highlighting from search navigation
   useEffect(() => {
-    console.log('EstablishmentList - Location state:', location.state);
     if (location.state?.highlightId && location.state?.entityType === 'establishment') {
-      console.log('Highlighting establishment:', location.state.highlightId);
       setHighlightedEstId(location.state.highlightId);
       
       // Scroll to highlighted row after render
       setTimeout(() => {
         if (highlightedRowRef.current) {
-          console.log('Scrolling to highlighted establishment');
           highlightedRowRef.current.scrollIntoView({ 
             behavior: 'smooth', 
             block: 'center' 
           });
-        } else {
-          console.log('Highlighted row ref not found yet');
         }
       }, 500);
     }

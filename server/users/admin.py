@@ -11,10 +11,10 @@ from .signals import user_created_with_password
 class UserAdmin(admin.ModelAdmin):
     list_display = [
         'email', 'first_name', 'last_name', 'userlevel', 
-        'section', 'district', 'is_active', 'is_staff', 'date_joined'
+        'section', 'is_active', 'is_staff', 'date_joined'
     ]
     list_filter = [
-        'userlevel', 'section', 'district', 'is_active', 
+        'userlevel', 'section', 'is_active', 
         'is_staff', 'is_superuser', 'date_joined'
     ]
     search_fields = ['email', 'first_name', 'last_name']
@@ -25,7 +25,7 @@ class UserAdmin(admin.ModelAdmin):
             'fields': ('email', 'first_name', 'middle_name', 'last_name')
         }),
         ('Role & Permissions', {
-            'fields': ('userlevel', 'section', 'district', 'is_active', 'is_staff', 'is_superuser')
+            'fields': ('userlevel', 'section', 'is_active', 'is_staff', 'is_superuser')
         }),
         ('Password Settings', {
             'fields': ('must_change_password', 'is_first_login'),

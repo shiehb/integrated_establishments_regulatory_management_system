@@ -221,21 +221,16 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
 
   // Handle highlighting from search navigation
   useEffect(() => {
-    console.log('UsersList - Location state:', location.state);
     if (location.state?.highlightId && location.state?.entityType === 'user') {
-      console.log('Highlighting user:', location.state.highlightId);
       setHighlightedUserId(location.state.highlightId);
       
       // Scroll to highlighted row after render
       setTimeout(() => {
         if (highlightedRowRef.current) {
-          console.log('Scrolling to highlighted user');
           highlightedRowRef.current.scrollIntoView({ 
             behavior: 'smooth', 
             block: 'center' 
           });
-        } else {
-          console.log('Highlighted row ref not found yet');
         }
       }, 500);
     }

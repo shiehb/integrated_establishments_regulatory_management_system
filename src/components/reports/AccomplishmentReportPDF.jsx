@@ -50,8 +50,6 @@ export default function AccomplishmentReportPDF({
         delete exportParams.date_to;
       }
 
-      console.log('Exporting PDF with params:', exportParams);
-
       // Call backend export API
       const pdfBlob = await exportInspectionsPDF(exportParams);
       

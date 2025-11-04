@@ -736,14 +736,11 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
   // Handle action clicks with simple confirmation
   const handleActionClick = useCallback(async (action, inspectionId) => {
-    console.log('handleActionClick called with:', { inspectionId, action });
     const inspection = inspections.find(i => i.id === inspectionId);
     if (!inspection) {
       console.error('Inspection not found:', inspectionId);
       return;
     }
-
-    console.log('Found inspection:', inspection.code, 'for action:', action);
     
     // 5-Button Strategy Implementation
     
@@ -1013,8 +1010,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     const fetchUserProfile = async () => {
       try {
         const profile = await getProfile();
-        console.log('User profile fetched:', profile);
-        console.log('User level:', profile.userlevel);
         setCurrentUser(profile);
         
         // Set default tab based on user level
@@ -1066,21 +1061,16 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
   // Handle highlighting from search navigation
   useEffect(() => {
-    console.log('InspectionsList - Location state:', location.state);
     if (location.state?.highlightId && location.state?.entityType === 'inspection') {
-      console.log('Highlighting inspection:', location.state.highlightId);
       setHighlightedInspId(location.state.highlightId);
       
       // Scroll to highlighted row after render
       setTimeout(() => {
         if (highlightedRowRef.current) {
-          console.log('Scrolling to highlighted inspection');
           highlightedRowRef.current.scrollIntoView({ 
             behavior: 'smooth', 
             block: 'center' 
           });
-        } else {
-          console.log('Highlighted row ref not found yet');
         }
       }, 500);
     }

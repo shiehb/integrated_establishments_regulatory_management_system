@@ -138,11 +138,19 @@ class InspectionFormSerializer(serializers.ModelSerializer):
         if not obj.inspected_by:
             return None
         
+        # Safely get district if it exists on the user model (using getattr to handle removal)
+        district = getattr(obj.inspected_by, 'district', None)
+        # If district is a ForeignKey object, get its string representation
+        if district and hasattr(district, 'name'):
+            district = district.name
+        elif district and hasattr(district, '__str__'):
+            district = str(district)
+        
         return {
             'name': self.get_inspected_by_name(obj),
             'level': obj.inspected_by.userlevel if obj.inspected_by else None,
             'section': obj.inspected_by.section if obj.inspected_by else None,
-            'district': obj.inspected_by.district if obj.inspected_by else None,
+            'district': district,
             'inspected_at': obj.created_at  # Use form creation time as inspection time
         }
     

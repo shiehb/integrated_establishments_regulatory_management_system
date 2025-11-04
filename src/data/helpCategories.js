@@ -21,10 +21,6 @@ export const helpCategories = [
     name: "Map & Locations",
   },
   {
-    key: "district",
-    name: "District Management",
-  },
-  {
     key: "user",
     name: "Users & Roles",
   },

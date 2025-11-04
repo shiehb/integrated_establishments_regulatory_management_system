@@ -454,41 +454,6 @@ export const helpTopics = [
     ],
   },
   {
-    id: 11,
-    title: "How to Manage Districts",
-    description: "Guide for administrators to manage districts and assign inspectors.",
-    category: "district",
-    tags: ["district", "region", "area", "management", "admin"],
-    access: ["admin", "Section Chief", "Unit Head"],
-    steps: [
-      {
-        title: "Access District Management",
-        description:
-          "Navigate to 'District Management' from the sidebar menu.",
-      },
-      {
-        title: "View Districts",
-        description:
-          "See all districts with their assigned personnel and establishment counts.",
-      },
-      {
-        title: "Create New District",
-        description:
-          "Click 'Add District' and provide the district name, code, and geographic boundaries.",
-      },
-      {
-        title: "Assign Inspectors",
-        description:
-          "Select a district and click 'Assign Inspector' to add personnel to that district.",
-      },
-      {
-        title: "Edit District Boundaries",
-        description:
-          "Use the map interface to define or modify the geographic boundaries of a district.",
-      },
-    ],
-  },
-  {
     id: 12,
     title: "Database Backup and Restore",
     description: "Learn how to backup and restore your system database.",
