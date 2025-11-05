@@ -30,8 +30,12 @@ class SystemConfigurationAdmin(admin.ModelAdmin):
             )
         }),
         ('Backup Configuration', {
-            'fields': ('backup_custom_path',),
+            'fields': ('backup_custom_path', 'backup_schedule_frequency', 'backup_retention_days'),
             'classes': ('collapse',)
+        }),
+        ('Quota Carry-Over Configuration', {
+            'fields': ('quota_carry_over_enabled', 'quota_carry_over_policy'),
+            'description': 'Configure how deficit amounts are handled between quarters.'
         }),
         ('Metadata', {
             'fields': ('is_active', 'created_at', 'updated_at'),

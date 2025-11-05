@@ -1,26 +1,38 @@
-import React, { useState } from "react";
-import { Target, TrendingUp, Edit3, AlertCircle, FileCheck, AlertTriangle, Wind, Droplets, Recycle, Calendar, Archive, Plus } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Target, TrendingUp, Edit3, AlertCircle, FileCheck, AlertTriangle, Wind, Droplets, Recycle, Calendar, Archive, Plus, BarChart3 } from "lucide-react";
 import { useQuotaData } from "./useQuotaData";
-import { getQuotaColor, formatQuotaDisplay, QUARTERS } from "../../../constants/quotaConstants";
+import { getQuotaColor, formatQuotaDisplay, QUARTERS, MONTHS, getQuarterFromMonth, isPastMonth, isCurrentMonth } from "../../../constants/quotaConstants";
 import QuotaModal from "./QuotaModal";
 import QuotaSkeleton from "./QuotaSkeleton";
 
 const QuotaCard = ({ userRole = null }) => {
-  // Calculate current year and quarter
+  // Calculate current year and month
   const currentDate = new Date();
   const currentYear = currentDate.getFullYear();
-  const currentMonth = currentDate.getMonth();
-  const currentQuarter = Math.floor(currentMonth / 3) + 1;
+  const currentMonthNum = currentDate.getMonth() + 1; // 1-12
+  const currentQuarter = Math.floor((currentMonthNum - 1) / 3) + 1;
 
-  // State for year/quarter selection - defaults to current quarter
+  // State for view mode and period selection
+  const [viewMode, setViewMode] = useState('monthly'); // 'monthly', 'quarterly', 'yearly'
   const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [selectedQuarter, setSelectedQuarter] = useState(currentQuarter);
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthNum); // For monthly view
+  const [selectedQuarter, setSelectedQuarter] = useState(currentQuarter); // For quarterly view
 
-  // Pass selected year/quarter to the hook
+  // Determine which period to fetch based on view mode
+  const fetchParams = useMemo(() => {
+    if (viewMode === 'monthly') {
+      return { year: selectedYear, month: selectedMonth, viewMode: 'monthly' };
+    } else if (viewMode === 'quarterly') {
+      return { year: selectedYear, quarter: selectedQuarter, viewMode: 'quarterly' };
+    } else {
+      return { year: selectedYear, viewMode: 'yearly' };
+    }
+  }, [viewMode, selectedYear, selectedMonth, selectedQuarter]);
+
+  // Pass parameters to the hook
   const { quotas, isLoading, error, refetch, updateQuota } = useQuotaData(
     userRole, 
-    selectedYear, 
-    selectedQuarter
+    fetchParams
   );
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,12 +46,39 @@ const QuotaCard = ({ userRole = null }) => {
     availableYears.push(y);
   }
 
-  // Check if viewing archived (past) data
-  const isArchived = selectedYear < currentYear || 
+  // Check if viewing archived (past) data based on view mode
+  const isArchived = useMemo(() => {
+    if (viewMode === 'monthly') {
+      return isPastMonth(selectedYear, selectedMonth);
+    } else if (viewMode === 'quarterly') {
+      return selectedYear < currentYear || 
                      (selectedYear === currentYear && selectedQuarter < currentQuarter);
-  const isCurrent = selectedYear === currentYear && selectedQuarter === currentQuarter;
-  const isFuture = selectedYear > currentYear || 
+    } else {
+      return selectedYear < currentYear;
+    }
+  }, [viewMode, selectedYear, selectedMonth, selectedQuarter, currentYear, currentQuarter]);
+
+  const isCurrent = useMemo(() => {
+    if (viewMode === 'monthly') {
+      return isCurrentMonth(selectedYear, selectedMonth);
+    } else if (viewMode === 'quarterly') {
+      return selectedYear === currentYear && selectedQuarter === currentQuarter;
+    } else {
+      return selectedYear === currentYear;
+    }
+  }, [viewMode, selectedYear, selectedMonth, selectedQuarter, currentYear, currentQuarter, currentMonthNum]);
+
+  const isFuture = useMemo(() => {
+    if (viewMode === 'monthly') {
+      return selectedYear > currentYear || 
+             (selectedYear === currentYear && selectedMonth > currentMonthNum);
+    } else if (viewMode === 'quarterly') {
+      return selectedYear > currentYear || 
                    (selectedYear === currentYear && selectedQuarter > currentQuarter);
+    } else {
+      return selectedYear > currentYear;
+    }
+  }, [viewMode, selectedYear, selectedMonth, selectedQuarter, currentYear, currentQuarter, currentMonthNum]);
 
   // Law display order
   const lawOrder = ['PD-1586', 'RA-8749', 'RA-9275', 'RA-6969', 'RA-9003'];
@@ -75,8 +114,35 @@ const QuotaCard = ({ userRole = null }) => {
   };
 
   const handleSaveQuota = async (quotaData) => {
-    await updateQuota(quotaData);
+    try {
+      // quotaData can be a single quota or array of quotas (for bulk creation)
+      const quotasToSave = Array.isArray(quotaData) ? quotaData : [quotaData];
+      
+      // Use bulk API endpoint for arrays, single API for single quota
+      if (Array.isArray(quotaData) && quotaData.length > 1) {
+        const { setQuota } = await import('../../../services/api');
+        const result = await setQuota(quotasToSave);
+        
+        // Handle bulk response - check for errors
+        if (result && typeof result === 'object' && result.errors && result.errors.length > 0) {
+          const errorMessage = result.errors.map(e => `${e.law || 'Unknown'}: ${e.error}`).join('; ');
+          throw new Error(`Some quotas failed to save: ${errorMessage}`);
+        }
+        
+        // For bulk operations, just refetch - the hook will handle state updates
+        // The API already handles the creation/update, so we just need to refresh
+      } else {
+        // Single quota or array with one item - use existing updateQuota
+        const quota = Array.isArray(quotaData) ? quotaData[0] : quotaData;
+        await updateQuota(quota);
+      }
+      
     setIsModalOpen(false);
+      refetch(); // Refresh to show updated data
+    } catch (err) {
+      console.error('Error saving quota(s):', err);
+      throw err; // Re-throw to let QuotaModal handle the error
+    }
   };
 
   const handleAddQuota = () => {
@@ -143,7 +209,7 @@ const QuotaCard = ({ userRole = null }) => {
   return (
     <div className="bg-white border-b border-gray-300">
       {/* Year/Quarter Selector Header */}
-      <div className="border-b border-gray-300 p-4 bg-gray-50">
+      <div className="border-b border-gray-300 p-2 bg-gray-50">
         <div className="flex items-center justify-between flex-wrap gap-4">
           {/* Left: Title with Period and Badge */}
           <div className="flex items-center gap-3">
@@ -167,19 +233,49 @@ const QuotaCard = ({ userRole = null }) => {
               </span>
             )}
             <h3 className="text-lg font-semibold text-gray-800">
-              Quarter {selectedQuarter}, {selectedYear} - {QUARTERS.find(q => q.value === selectedQuarter)?.months}
+              {viewMode === 'monthly' && (
+                <>Month: {MONTHS.find(m => m.value === selectedMonth)?.label} {selectedYear}</>
+              )}
+              {viewMode === 'quarterly' && (
+                <>Quarter {selectedQuarter}, {selectedYear} - {QUARTERS.find(q => q.value === selectedQuarter)?.monthsLabel}</>
+              )}
+              {viewMode === 'yearly' && (
+                <>Year: {selectedYear}</>
+              )}
             </h3>
           </div>
           
           {/* Right: Controls */}
           <div className="flex items-center gap-3 flex-wrap">
+            {/* View Mode Selector */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">View:</label>
+              <select
+                value={viewMode}
+                onChange={(e) => {
+                  setViewMode(e.target.value);
+                  // Reset to current period when switching modes
+                  if (e.target.value === 'monthly') {
+                    setSelectedMonth(currentMonthNum);
+                  } else if (e.target.value === 'quarterly') {
+                    setSelectedQuarter(currentQuarter);
+                  }
+                }}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm transition-all"
+              >
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+
             {/* Year Selector */}
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700">Year:</label>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm transition-all"
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm transition-all"
               >
                 {availableYears.map(year => (
                   <option key={year} value={year}>
@@ -189,25 +285,49 @@ const QuotaCard = ({ userRole = null }) => {
               </select>
             </div>
 
-            {/* Quarter Selector */}
+            {/* Month Selector (for monthly view) */}
+            {viewMode === 'monthly' && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">Month:</label>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm transition-all"
+                >
+                  {MONTHS.map(month => (
+                    <option 
+                      key={month.value} 
+                      value={month.value}
+                      disabled={isPastMonth(selectedYear, month.value) && !canEdit}
+                    >
+                      {month.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Quarter Selector (for quarterly view) */}
+            {viewMode === 'quarterly' && (
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700">Quarter:</label>
               <select
                 value={selectedQuarter}
                 onChange={(e) => setSelectedQuarter(parseInt(e.target.value))}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm transition-all"
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sky-500 shadow-sm transition-all"
               >
                 {QUARTERS.map(q => (
                   <option key={q.value} value={q.value}>{q.label}</option>
                 ))}
               </select>
             </div>
+            )}
 
             {/* Add Quota Button */}
             {canEdit && (
               <button
                 onClick={handleAddQuota}
-                className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-colors text-sm font-medium whitespace-nowrap shadow-sm hover:shadow-md"
+                className="flex items-center gap-2 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded transition-colors text-sm font-medium whitespace-nowrap shadow-sm hover:shadow-md"
               >
                 <Plus size={16} />
                 Set Target
@@ -224,11 +344,20 @@ const QuotaCard = ({ userRole = null }) => {
           <div className="text-center">
             <Target size={40} className="mx-auto mb-3 opacity-30" />
             <p className="text-sm">
-              No quotas set for Quarter {selectedQuarter}, {selectedYear} ({QUARTERS.find(q => q.value === selectedQuarter)?.months})
+              {viewMode === 'monthly' && (
+                <>No quotas set for {MONTHS.find(m => m.value === selectedMonth)?.label} {selectedYear}</>
+              )}
+              {viewMode === 'quarterly' && (
+                <>No quotas set for Quarter {selectedQuarter}, {selectedYear} ({QUARTERS.find(q => q.value === selectedQuarter)?.monthsLabel})</>
+              )}
+              {viewMode === 'yearly' && (
+                <>No quotas set for {selectedYear}</>
+              )}
             </p>
           </div>
         </div>
       ) : (
+        <>
         <div className={`grid gap-4 ${
           sortedQuotas.length === 1 ? 'grid-cols-1 max-w-md mx-auto' :
           sortedQuotas.length === 2 ? 'grid-cols-2 max-w-2xl mx-auto' :
@@ -241,8 +370,14 @@ const QuotaCard = ({ userRole = null }) => {
             const exceeded = quota.accomplished > quota.target;
             const display = formatQuotaDisplay(quota.accomplished, quota.target);
             
+            // Use a unique key that handles both regular and aggregated quotas
+            // For aggregated quarterly quotas, month is null, so use law+year+quarter
+            const uniqueKey = quota.month !== null && quota.month !== undefined 
+              ? quota.id 
+              : `${quota.law}-${quota.year}-${quota.quarter}`;
+            
             return (
-              <div key={quota.id} className="group relative border border-gray-300 p-5 bg-gray-50 hover:bg-gray-100 transition-colors">
+              <div key={uniqueKey} className="group relative border border-gray-300 p-5 bg-gray-50 hover:bg-gray-100 transition-colors">
                   {canEdit && !isArchived && (
                   <button
                     onClick={() => handleEditQuota(quota)}
@@ -300,6 +435,7 @@ const QuotaCard = ({ userRole = null }) => {
             );
           })}
         </div>
+        </>
       )}
       </div>
 
@@ -308,6 +444,8 @@ const QuotaCard = ({ userRole = null }) => {
         onClose={() => setIsModalOpen(false)}
         quota={editingQuota}
         onSave={handleSaveQuota}
+        defaultYear={selectedYear}
+        defaultQuarter={viewMode === 'quarterly' ? selectedQuarter : (viewMode === 'monthly' ? getQuarterFromMonth(selectedMonth) : null)}
       />
     </div>
   );

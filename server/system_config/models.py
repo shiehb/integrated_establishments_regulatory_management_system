@@ -38,6 +38,22 @@ class SystemConfiguration(models.Model):
     backup_schedule_frequency = models.CharField(max_length=20, default='daily', choices=[('daily', 'Daily'), ('weekly', 'Weekly')], help_text="Frequency of automatic backups")
     backup_retention_days = models.IntegerField(default=30, help_text="Number of days to keep backups before automatic deletion")
     
+    # Quota Carry-Over Configuration
+    quota_carry_over_policy = models.CharField(
+        max_length=20,
+        default='independent',
+        choices=[
+            ('independent', 'Independent Quarters'),
+            ('auto', 'Auto Carry Deficit'),
+            ('manual', 'Manual Adjustment'),
+        ],
+        help_text="Policy for carrying over deficit to next quarter"
+    )
+    quota_carry_over_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable carry-over of deficit amounts between quarters"
+    )
+    
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

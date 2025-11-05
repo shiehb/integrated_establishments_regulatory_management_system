@@ -27,11 +27,26 @@ export const LAWS = [
   }
 ];
 
+export const MONTHS = [
+  { value: 1, label: 'January', short: 'Jan', quarter: 1 },
+  { value: 2, label: 'February', short: 'Feb', quarter: 1 },
+  { value: 3, label: 'March', short: 'Mar', quarter: 1 },
+  { value: 4, label: 'April', short: 'Apr', quarter: 2 },
+  { value: 5, label: 'May', short: 'May', quarter: 2 },
+  { value: 6, label: 'June', short: 'Jun', quarter: 2 },
+  { value: 7, label: 'July', short: 'Jul', quarter: 3 },
+  { value: 8, label: 'August', short: 'Aug', quarter: 3 },
+  { value: 9, label: 'September', short: 'Sep', quarter: 3 },
+  { value: 10, label: 'October', short: 'Oct', quarter: 4 },
+  { value: 11, label: 'November', short: 'Nov', quarter: 4 },
+  { value: 12, label: 'December', short: 'Dec', quarter: 4 }
+];
+
 export const QUARTERS = [
-  { value: 1, label: 'Q1 (Jan-Mar)', months: 'January - March' },
-  { value: 2, label: 'Q2 (Apr-Jun)', months: 'April - June' },
-  { value: 3, label: 'Q3 (Jul-Sep)', months: 'July - September' },
-  { value: 4, label: 'Q4 (Oct-Dec)', months: 'October - December' }
+  { value: 1, label: 'Quarter 1', months: [1, 2, 3], monthsLabel: 'January - March' },
+  { value: 2, label: 'Quarter 2', months: [4, 5, 6], monthsLabel: 'April - June' },
+  { value: 3, label: 'Quarter 3', months: [7, 8, 9], monthsLabel: 'July - September' },
+  { value: 4, label: 'Quarter 4', months: [10, 11, 12], monthsLabel: 'October - December' }
 ];
 
 export const QUOTA_COLORS = {
@@ -88,13 +103,50 @@ export const formatQuotaDisplay = (accomplished, target) => {
   };
 };
 
+// Helper functions
+export const getMonthsInQuarter = (quarter) => {
+  const quarterObj = QUARTERS.find(q => q.value === quarter);
+  return quarterObj ? quarterObj.months : [];
+};
+
+export const getQuarterFromMonth = (month) => {
+  const monthObj = MONTHS.find(m => m.value === month);
+  return monthObj ? monthObj.quarter : null;
+};
+
+export const isCurrentMonth = (year, month) => {
+  const now = new Date();
+  return year === now.getFullYear() && month === now.getMonth() + 1;
+};
+
+export const isPastMonth = (year, month) => {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  
+  if (year < currentYear) return true;
+  if (year === currentYear && month < currentMonth) return true;
+  return false;
+};
+
+export const getMonthName = (month) => {
+  const monthObj = MONTHS.find(m => m.value === month);
+  return monthObj ? monthObj.label : '';
+};
+
 export default {
   LAWS,
+  MONTHS,
   QUARTERS,
   QUOTA_COLORS,
   DEFAULT_QUOTA_TARGET,
   QUOTA_STATUS,
   getQuotaStatus,
   getQuotaColor,
-  formatQuotaDisplay
+  formatQuotaDisplay,
+  getMonthsInQuarter,
+  getQuarterFromMonth,
+  isCurrentMonth,
+  isPastMonth,
+  getMonthName
 };

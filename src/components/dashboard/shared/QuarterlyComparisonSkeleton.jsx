@@ -18,6 +18,9 @@ const QuarterlyComparisonSkeleton = () => (
         <div className="h-6 w-64 bg-gray-200 rounded"></div>
       </div>
       <div className="flex items-center gap-3">
+        {/* Period Type Selector */}
+        <div className="h-8 w-20 bg-gray-200 rounded"></div>
+        
         {/* Filter Dropdown */}
         <div className="flex items-center gap-2">
           <Filter size={16} className="text-gray-300" />

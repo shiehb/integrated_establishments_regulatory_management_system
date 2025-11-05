@@ -22,57 +22,98 @@ import QuarterlyComparisonSkeleton from "./QuarterlyComparisonSkeleton";
 
 /**
  * QuarterlyComparisonCard
- * A compact, dashboard-friendly quarterly comparison component.
+ * A compact, dashboard-friendly performance comparison component.
+ * Supports monthly, quarterly, and yearly comparison views.
  */
 const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
   const [selectedLaw, setSelectedLaw] = useState('all');
+  const [periodType, setPeriodType] = useState(() => {
+    // Initialize from data if available, otherwise default to quarterly
+    return data?.period_type || 'quarterly';
+  });
+  const [baseData, setBaseData] = useState(data);
   const [filteredData, setFilteredData] = useState(null);
   const [isLoadingFilter, setIsLoadingFilter] = useState(false);
   
-  // Fetch filtered data when law changes
+  // Update baseData when data prop changes
   useEffect(() => {
-    const fetchFilteredData = async () => {
-      if (selectedLaw === 'all') {
-        setFilteredData(null); // Clear filtered data for 'all'
+    if (data && (!data.period_type || data.period_type === 'quarterly')) {
+      setBaseData(data);
+    }
+  }, [data]);
+  
+  // Fetch data when period type changes (if different from data prop period type)
+  useEffect(() => {
+    const fetchDataForPeriod = async () => {
+      // If period type is quarterly and data prop is quarterly, use data prop
+      if (periodType === 'quarterly' && data && (!data.period_type || data.period_type === 'quarterly')) {
+        setBaseData(data);
+        setFilteredData(null);
         return;
       }
       
-      if (!data) return; // Don't fetch if no base data
-      
-      setIsLoadingFilter(true);
-      try {
-        const filteredResponse = await getQuarterlyComparison({ law: selectedLaw });
-        // Validate the response structure
-        if (filteredResponse && filteredResponse.current_quarter && filteredResponse.last_quarter) {
-          setFilteredData(filteredResponse);
-        } else {
-          setFilteredData(null);
+      // If period type is different from data prop, fetch new data
+      if (selectedLaw === 'all') {
+        setIsLoadingFilter(true);
+        try {
+          const newData = await getQuarterlyComparison({ 
+            period_type: periodType 
+          });
+          if (newData && (newData.current_period || newData.current_quarter)) {
+            setBaseData(newData);
+            setFilteredData(null);
+          }
+        } catch {
+          setBaseData(null);
+        } finally {
+          setIsLoadingFilter(false);
         }
-      } catch {
-        setFilteredData(null); // Clear filtered data on error
-      } finally {
-        setIsLoadingFilter(false);
+      } else {
+        // If law filter is active, fetch filtered data
+        setIsLoadingFilter(true);
+        try {
+          const filteredResponse = await getQuarterlyComparison({ 
+            law: selectedLaw,
+            period_type: periodType 
+          });
+          if (filteredResponse && (filteredResponse.current_period || filteredResponse.current_quarter)) {
+            setFilteredData(filteredResponse);
+          } else {
+            setFilteredData(null);
+          }
+        } catch {
+          setFilteredData(null);
+        } finally {
+          setIsLoadingFilter(false);
+        }
       }
     };
     
-    fetchFilteredData();
-  }, [selectedLaw, data]);
+    fetchDataForPeriod();
+  }, [periodType, selectedLaw, data]);
   
   if (isLoading || isLoadingFilter) return <QuarterlyComparisonSkeleton />;
 
-  if (!data || !data.current_quarter || !data.last_quarter) {
+  // Support both new (current_period/last_period) and old (current_quarter/last_quarter) data structures
+  const getCurrentPeriod = (data) => data?.current_period || data?.current_quarter;
+  const getLastPeriod = (data) => data?.last_period || data?.last_quarter;
+
+  // Use filtered data if available, otherwise use baseData, fallback to data prop
+  const displayData = filteredData || baseData || data;
+
+  if (!displayData || (!getCurrentPeriod(displayData) || !getLastPeriod(displayData))) {
     return (
       <div className="bg-white border-b border-r border-gray-300 p-4 flex items-center justify-center text-gray-500 text-sm">
-        No data available
+        {isLoadingFilter ? 'Loading data...' : 'No data available'}
       </div>
     );
   }
-
-  // Use filtered data if available, otherwise use original data
-  const displayData = filteredData || data;
   
   // Add null checks to prevent errors
-  if (!displayData || !displayData.current_quarter || !displayData.last_quarter) {
+  const currentPeriod = getCurrentPeriod(displayData);
+  const lastPeriod = getLastPeriod(displayData);
+  
+  if (!currentPeriod || !lastPeriod) {
     return (
       <div className="bg-white border-b border-r border-gray-300 p-4 flex items-center justify-center text-gray-500 text-sm">
         {isLoadingFilter ? 'Loading filtered data...' : 'No data available'}
@@ -80,12 +121,16 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
     );
   }
 
+  // Get period type from data or use state
+  const dataPeriodType = displayData.period_type || periodType;
+  
   const noData =
-    displayData.current_quarter.total_finished === 0 &&
-    displayData.last_quarter.total_finished === 0;
+    currentPeriod.total_finished === 0 &&
+    lastPeriod.total_finished === 0;
 
   const getTrendIcon = () => {
-    switch (data.trend) {
+    const trend = displayData?.trend || data?.trend || 'stable';
+    switch (trend) {
       case "up":
         return <TrendingUp size={14} className="text-emerald-400" />;
       case "down":
@@ -96,7 +141,8 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
   };
 
   const getTrendBadgeColor = () => {
-    switch (data.trend) {
+    const trend = displayData?.trend || data?.trend || 'stable';
+    switch (trend) {
       case "up":
         return "bg-emerald-50 text-emerald-700 border border-emerald-300";
       case "down":
@@ -106,7 +152,25 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
     }
   };
 
-  const handleRefresh = () => onRefresh && onRefresh();
+  const handleRefresh = () => {
+    if (onRefresh) {
+      // Refresh with current period type
+      onRefresh(periodType);
+    }
+  };
+
+  const handlePeriodTypeChange = (newPeriodType) => {
+    setPeriodType(newPeriodType);
+    setFilteredData(null); // Clear filtered data when period changes
+    // Data will be fetched automatically via useEffect
+  };
+
+  // Period type options
+  const periodOptions = [
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'quarterly', label: 'Quarterly' },
+    { value: 'yearly', label: 'Yearly' }
+  ];
 
   // Law options for filtering
   const lawOptions = [
@@ -118,26 +182,53 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
     { value: 'RA-9003', label: 'RA-9003' }
   ];
 
+  // Get period labels based on period type
+  const getPeriodLabel = (periodType, periodText) => {
+    switch (periodType) {
+      case 'monthly':
+        return periodText; // Already formatted as "Jan 2025"
+      case 'yearly':
+        return periodText; // Already formatted as "2025"
+      default: // quarterly
+        return periodText; // Already formatted as "Jan-Mar 2025"
+    }
+  };
+
+  const getPeriodDescription = (periodType, isCurrent) => {
+    switch (periodType) {
+      case 'monthly':
+        return isCurrent ? 'Current Month' : 'Last Month';
+      case 'yearly':
+        return isCurrent ? 'Current Year' : 'Last Year';
+      default: // quarterly
+        return isCurrent ? 'Current Quarter' : 'Last Quarter';
+    }
+  };
+
   // Calculate totals for comparison using display data
-  const lastQuarterTotal = displayData.last_quarter.total_finished;
-  const currentQuarterTotal = displayData.current_quarter.total_finished;
-  const totalChange = currentQuarterTotal - lastQuarterTotal;
-  const totalChangePercent = lastQuarterTotal > 0 ? ((totalChange / lastQuarterTotal) * 100).toFixed(1) : 0;
+  const lastPeriodTotal = lastPeriod.total_finished;
+  const currentPeriodTotal = currentPeriod.total_finished;
+  const totalChange = currentPeriodTotal - lastPeriodTotal;
+  const totalChangePercent = lastPeriodTotal > 0 ? ((totalChange / lastPeriodTotal) * 100).toFixed(1) : 0;
+
+  // Get period name (support both 'period' and 'quarter' fields for backward compatibility)
+  const lastPeriodName = lastPeriod.period || lastPeriod.quarter || '';
+  const currentPeriodName = currentPeriod.period || currentPeriod.quarter || '';
 
   const chartData = [
     {
-      name: displayData.last_quarter.quarter,
-      compliant: displayData.last_quarter.compliant,
-      nonCompliant: displayData.last_quarter.non_compliant,
-      total: displayData.last_quarter.total_finished,
-      period: "Last Quarter",
+      name: getPeriodLabel(dataPeriodType, lastPeriodName),
+      compliant: lastPeriod.compliant,
+      nonCompliant: lastPeriod.non_compliant,
+      total: lastPeriod.total_finished,
+      period: getPeriodDescription(dataPeriodType, false),
     },
     {
-      name: displayData.current_quarter.quarter,
-      compliant: displayData.current_quarter.compliant,
-      nonCompliant: displayData.current_quarter.non_compliant,
-      total: displayData.current_quarter.total_finished,
-      period: "Current Quarter",
+      name: getPeriodLabel(dataPeriodType, currentPeriodName),
+      compliant: currentPeriod.compliant,
+      nonCompliant: currentPeriod.non_compliant,
+      total: currentPeriod.total_finished,
+      period: getPeriodDescription(dataPeriodType, true),
     },
   ];
 
@@ -189,11 +280,26 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
           <BarChart3 size={20} className="text-sky-600" />
-            Quarterly Performance Comparison
+            Performance Comparison
         </h3>
         <div className="flex items-center gap-3">
+          {/* Period Type Selector */}
+          <div className="flex items-center gap-2">
+            <select
+              value={periodType}
+              onChange={(e) => handlePeriodTypeChange(e.target.value)}
+              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+            >
+              {periodOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          
           {/* Law Filter */}
-        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <Filter size={16} className="text-gray-500" />
             <select
               value={selectedLaw}
@@ -213,13 +319,13 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
             )}
           </div>
           
-          {!noData && (
+          {!noData && displayData.change_percentage !== undefined && (
             <div
               className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold ${getTrendBadgeColor()}`}
             >
               {getTrendIcon()}
-              {data.change_percentage > 0 ? "+" : ""}
-              {data.change_percentage}%
+              {displayData.change_percentage > 0 ? "+" : ""}
+              {displayData.change_percentage}%
             </div>
           )}
           <button
@@ -240,7 +346,7 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
           <div className="flex items-center justify-center text-gray-400 h-40">
           <div className="text-center">
               <BarChart3 size={36} className="mx-auto mb-2 opacity-30" />
-              <p className="text-xs font-medium">No quarterly data</p>
+              <p className="text-xs font-medium">No {dataPeriodType} data</p>
               {selectedLaw !== 'all' && (
                 <p className="text-xs text-gray-500 mt-1">Try selecting "All Laws" to see complete data</p>
               )}
@@ -312,12 +418,12 @@ const QuarterlyComparisonCard = ({ data, isLoading, onRefresh }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="text-sm">
-                <span className="text-gray-600">Last Quarter Total:</span>
-                <span className="ml-2 font-semibold text-gray-800">{lastQuarterTotal}</span>
+                <span className="text-gray-600">{getPeriodDescription(dataPeriodType, false)} Total:</span>
+                <span className="ml-2 font-semibold text-gray-800">{lastPeriodTotal}</span>
               </div>
               <div className="text-sm">
-                <span className="text-gray-600">Current Quarter Total:</span>
-                <span className="ml-2 font-semibold text-gray-800">{currentQuarterTotal}</span>
+                <span className="text-gray-600">{getPeriodDescription(dataPeriodType, true)} Total:</span>
+                <span className="ml-2 font-semibold text-gray-800">{currentPeriodTotal}</span>
               </div>
             </div>
             <div className="flex items-center gap-2">

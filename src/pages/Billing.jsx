@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
@@ -45,7 +44,6 @@ const lawOptions = [
 ];
 
 export default function Billing() {
-  const navigate = useNavigate();
   const [billingRecords, setBillingRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -66,7 +64,6 @@ export default function Billing() {
 
   // Advanced controls state
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   

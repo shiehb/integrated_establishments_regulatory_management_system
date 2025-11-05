@@ -665,12 +665,46 @@ export const getQuotas = async (params = {}) => {
 };
 
 export const setQuota = async (quotaData) => {
+  // Support both single quota and bulk (array) quotas
   const res = await api.post('inspections/set_quota/', quotaData);
+  
+  // If bulk response, return the full response object (includes results and errors)
+  if (res.data.results) {
+    return res.data; // Return full object with results, errors, message
+  }
+  
+  // Single quota response
   return res.data;
 };
 
 export const autoAdjustQuotas = async (params = {}) => {
   const res = await api.post('inspections/auto_adjust_quotas/', params);
+  return res.data;
+};
+
+// Quarterly evaluation functions
+export const evaluateQuarter = async (evaluationData) => {
+  const res = await api.post('inspections/evaluate_quarter/', evaluationData);
+  return res.data;
+};
+
+export const getQuarterlyEvaluations = async (params = {}) => {
+  const res = await api.get('inspections/get_quarterly_evaluations/', { params });
+  return res.data;
+};
+
+export const manualEvaluateQuarter = async (evaluationData) => {
+  const res = await api.post('inspections/manual_evaluate_quarter/', evaluationData);
+  return res.data;
+};
+
+export const applyCarryOver = async (carryOverData) => {
+  const res = await api.post('inspections/apply_carry_over/', carryOverData);
+  return res.data;
+};
+
+export const getYearlySummary = async (year) => {
+  const res = await api.get('inspections/yearly-summary/', { params: { year } });
   return res.data;
 };
 

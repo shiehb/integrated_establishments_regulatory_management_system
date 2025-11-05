@@ -21,6 +21,10 @@ class SystemConfigurationSerializer(serializers.ModelSerializer):
             'rotate_refresh_tokens',
             'blacklist_after_rotation',
             'backup_custom_path',
+            'backup_schedule_frequency',
+            'backup_retention_days',
+            'quota_carry_over_policy',
+            'quota_carry_over_enabled',
             'created_at',
             'updated_at',
             'is_active'
@@ -92,7 +96,11 @@ class SystemConfigurationUpdateSerializer(serializers.ModelSerializer):
             'refresh_token_lifetime_days',
             'rotate_refresh_tokens',
             'blacklist_after_rotation',
-            'backup_custom_path'
+            'backup_custom_path',
+            'backup_schedule_frequency',
+            'backup_retention_days',
+            'quota_carry_over_policy',
+            'quota_carry_over_enabled'
         ]
     
     def validate_email_host_password(self, value):

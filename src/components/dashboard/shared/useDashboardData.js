@@ -46,7 +46,7 @@ export const useDashboardData = (userRole = null) => {
         getEstablishments(params),
         getInspections({...params, page_size: 1000}), // Get large page size for total count
         getComplianceStats(params),
-        getQuarterlyComparison(params)
+        getQuarterlyComparison({...params, period_type: 'quarterly'}) // Default to quarterly for backward compatibility
       ]);
       
       

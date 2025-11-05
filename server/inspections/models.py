@@ -656,17 +656,24 @@ class BillingRecord(models.Model):
 
 class ComplianceQuota(models.Model):
     """
-    Quarterly quota management for compliance law inspections.
+    Monthly/Quarterly quota management for compliance law inspections.
     Supports auto-adjustment when accomplishments exceed targets.
+    Quotas are stored by month, with quarter derived for reference.
     """
     law = models.CharField(
         max_length=50, 
         help_text="Law code (e.g., PD-1586, RA-6969, RA-8749, RA-9275, RA-9003)"
     )
     year = models.IntegerField(help_text="Year of the quota")
+    month = models.IntegerField(
+        choices=[(1, 'January'), (2, 'February'), (3, 'March'), (4, 'April'),
+                 (5, 'May'), (6, 'June'), (7, 'July'), (8, 'August'),
+                 (9, 'September'), (10, 'October'), (11, 'November'), (12, 'December')],
+        help_text="Month 1-12"
+    )
     quarter = models.IntegerField(
         choices=[(1, 'Q1'), (2, 'Q2'), (3, 'Q3'), (4, 'Q4')],
-        help_text="Quarter 1-4"
+        help_text="Quarter 1-4 (derived from month)"
     )
     target = models.IntegerField(help_text="Target number of inspections")
     auto_adjusted = models.BooleanField(
@@ -684,26 +691,46 @@ class ComplianceQuota(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ['law', 'year', 'quarter']
-        ordering = ['year', 'quarter', 'law']
+        unique_together = [('law', 'year', 'month')]
+        ordering = ['year', 'month', 'law']
         indexes = [
-            models.Index(fields=['law', 'year', 'quarter']),
-            models.Index(fields=['year', 'quarter']),
+            models.Index(fields=['law', 'year', 'month']),
+            models.Index(fields=['year', 'month']),
+            models.Index(fields=['year', 'quarter']),  # Keep for backward compatibility
         ]
 
     def __str__(self):
-        return f"{self.law} Q{self.quarter} {self.year}: {self.accomplished}/{self.target}"
+        month_names = ['January', 'February', 'March', 'April', 'May', 'June',
+                       'July', 'August', 'September', 'October', 'November', 'December']
+        month_name = month_names[self.month - 1] if self.month else 'Unknown'
+        return f"{self.law} {month_name} {self.year}: {self.accomplished}/{self.target}"
+
+    def save(self, *args, **kwargs):
+        """Override save to ensure quarter is derived from month"""
+        if self.month and not self.quarter:
+            self.quarter = self.get_quarter_from_month(self.month)
+        elif self.month:
+            # Ensure quarter matches month
+            derived_quarter = self.get_quarter_from_month(self.month)
+            if self.quarter != derived_quarter:
+                self.quarter = derived_quarter
+        super().save(*args, **kwargs)
 
     @property
     def accomplished(self):
         """
         Calculate accomplished inspections for this quota period.
         Counts finished inspections where this law is in their applicable environmental laws.
+        Uses month-specific date range for monthly quotas.
         """
         from datetime import datetime
         
-        # Get quarter date range
-        quarter_start, quarter_end = self.get_quarter_dates()
+        # Get month date range for monthly quotas
+        if self.month:
+            month_start, month_end = self.get_month_dates(self.month)
+        else:
+            # Fallback to quarter date range (for backward compatibility)
+            month_start, month_end = self.get_quarter_dates()
         
         # Count finished inspections
         finished_statuses = [
@@ -713,10 +740,10 @@ class ComplianceQuota(models.Model):
             'CLOSED_COMPLIANT', 'CLOSED_NON_COMPLIANT'
         ]
         
-        # Get all finished inspections in this quarter
+        # Get all finished inspections in this month/period
         finished_inspections = Inspection.objects.filter(
             current_status__in=finished_statuses,
-            updated_at__range=[quarter_start, quarter_end]
+            updated_at__range=[month_start, month_end]
         ).prefetch_related('form')
         
         # Count inspections where this law is in their applicable environmental laws
@@ -751,6 +778,57 @@ class ComplianceQuota(models.Model):
             start = timezone.datetime(self.year, 10, 1, 0, 0, 0)
             end = timezone.datetime(self.year, 12, 31, 23, 59, 59)
         return start, end
+    
+    def get_month_dates(self, month):
+        """Get start and end dates for a specific month"""
+        from django.utils import timezone
+        from calendar import monthrange
+        
+        # Validate month
+        if month < 1 or month > 12:
+            raise ValueError(f"Month must be between 1 and 12, got {month}")
+        
+        # Get last day of month (handles leap years for February)
+        last_day = monthrange(self.year, month)[1]
+        
+        start = timezone.datetime(self.year, month, 1, 0, 0, 0)
+        end = timezone.datetime(self.year, month, last_day, 23, 59, 59)
+        return start, end
+    
+    def get_accomplished_for_month(self, month):
+        """Calculate accomplished inspections for a specific month"""
+        from datetime import datetime
+        
+        # Get month date range
+        month_start, month_end = self.get_month_dates(month)
+        
+        # Count finished inspections (same logic as accomplished property)
+        finished_statuses = [
+            'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT',
+            'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
+            'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT',
+            'CLOSED_COMPLIANT', 'CLOSED_NON_COMPLIANT'
+        ]
+        
+        # Get all finished inspections in this month
+        finished_inspections = Inspection.objects.filter(
+            current_status__in=finished_statuses,
+            updated_at__range=[month_start, month_end]
+        ).prefetch_related('form')
+        
+        # Count inspections where this law is in their applicable environmental laws
+        count = 0
+        for inspection in finished_inspections:
+            if hasattr(inspection, 'form') and inspection.form:
+                checklist = inspection.form.checklist if hasattr(inspection.form, 'checklist') else {}
+                general = checklist.get('general', {})
+                applicable_laws = general.get('environmental_laws', [])
+                
+                # Check if this quota's law is in the inspection's applicable laws
+                if self.law in applicable_laws:
+                    count += 1
+        
+        return count
 
     def auto_adjust_next_quarter(self):
         """Auto-set next quarter quota if current accomplishments exceed target"""
@@ -790,6 +868,106 @@ class ComplianceQuota(models.Model):
     def exceeded(self):
         """Check if accomplishments exceed target"""
         return self.accomplished > self.target
+    
+    @staticmethod
+    def get_months_in_quarter(quarter):
+        """Return list of month numbers for a quarter"""
+        quarter_map = {1: [1, 2, 3], 2: [4, 5, 6], 3: [7, 8, 9], 4: [10, 11, 12]}
+        return quarter_map.get(quarter, [])
+    
+    @staticmethod
+    def get_quarter_from_month(month):
+        """Get quarter number from month (1-12)"""
+        if month in [1, 2, 3]:
+            return 1
+        elif month in [4, 5, 6]:
+            return 2
+        elif month in [7, 8, 9]:
+            return 3
+        else:  # month in [10, 11, 12]
+            return 4
+    
+    @staticmethod
+    def get_quarterly_totals(law, year, quarter):
+        """Calculate total target and achieved for a quarter from monthly quotas"""
+        months = ComplianceQuota.get_months_in_quarter(quarter)
+        # Get all monthly quotas for this quarter
+        quotas = ComplianceQuota.objects.filter(law=law, year=year, month__in=months)
+        total_target = sum(q.target for q in quotas) if quotas.exists() else 0
+        total_achieved = sum(q.accomplished for q in quotas) if quotas.exists() else 0
+        return total_target, total_achieved
+
+
+class QuarterlyEvaluation(models.Model):
+    """
+    Quarterly evaluation summaries for compliance law inspections.
+    Tracks quarter-level performance and carry-over amounts.
+    """
+    STATUS_CHOICES = [
+        ('ACHIEVED', 'Achieved'),
+        ('EXCEEDED', 'Exceeded'),
+        ('NOT_ACHIEVED', 'Not Achieved'),
+    ]
+    
+    law = models.CharField(
+        max_length=50,
+        help_text="Law code (e.g., PD-1586, RA-6969, RA-8749, RA-9275, RA-9003)"
+    )
+    year = models.IntegerField(help_text="Year of the quarter")
+    quarter = models.IntegerField(
+        choices=[(1, 'Q1'), (2, 'Q2'), (3, 'Q3'), (4, 'Q4')],
+        help_text="Quarter 1-4"
+    )
+    quarterly_target = models.IntegerField(help_text="Sum of all 3 months' targets")
+    quarterly_achieved = models.IntegerField(help_text="Sum of all 3 months' accomplished")
+    quarter_status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        help_text="Status of the quarter"
+    )
+    surplus = models.IntegerField(
+        default=0,
+        help_text="Positive if exceeded target, 0 otherwise"
+    )
+    deficit = models.IntegerField(
+        default=0,
+        help_text="Positive if not achieved target, 0 otherwise"
+    )
+    remarks = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Admin notes about the quarter evaluation"
+    )
+    evaluated_at = models.DateTimeField(auto_now_add=True)
+    evaluated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="User who evaluated this quarter"
+    )
+    is_archived = models.BooleanField(
+        default=True,
+        help_text="Auto-archived after evaluation"
+    )
+    
+    class Meta:
+        unique_together = ['law', 'year', 'quarter']
+        ordering = ['-year', '-quarter', 'law']
+        indexes = [
+            models.Index(fields=['law', 'year', 'quarter']),
+            models.Index(fields=['year', 'quarter']),
+        ]
+    
+    def __str__(self):
+        return f"{self.law} Q{self.quarter} {self.year}: {self.quarter_status}"
+    
+    @property
+    def percentage(self):
+        """Calculate percentage of target achieved"""
+        if self.quarterly_target == 0:
+            return 0
+        return round((self.quarterly_achieved / self.quarterly_target) * 100, 1)
 
 
 class ReinspectionSchedule(models.Model):

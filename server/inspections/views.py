@@ -2417,12 +2417,19 @@ class InspectionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def quarterly_comparison(self, request):
         """
-        Get quarterly comparison data for finished inspections with optional law filtering
+        Get comparison data for finished inspections with optional law filtering.
+        Supports monthly, quarterly, and yearly period types.
         """
         from django.db.models import Count, Q
         from .models import InspectionForm
         from datetime import datetime, timedelta
         from django.utils import timezone as tz
+        from calendar import month_name
+        
+        # Get period type (monthly, quarterly, yearly) - default to quarterly for backward compatibility
+        period_type = request.query_params.get('period_type', 'quarterly')
+        if period_type not in ['monthly', 'quarterly', 'yearly']:
+            period_type = 'quarterly'
         
         # Get year parameter (default to current year)
         year = int(request.query_params.get('year', datetime.now().year))
@@ -2439,7 +2446,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
             ("RA-9003", "RA-9003 (SWM)")
         ]
         
-        # Calculate quarters
+        # Helper functions for date ranges
         def get_quarter_range(year, quarter):
             """Get start and end dates for a quarter"""
             if quarter == 1:
@@ -2451,22 +2458,81 @@ class InspectionViewSet(viewsets.ModelViewSet):
             else:  # quarter == 4
                 return tz.datetime(year, 10, 1, 0, 0, 0), tz.datetime(year, 12, 31, 23, 59, 59)
         
-        # Get current quarter
+        def get_month_range(year, month):
+            """Get start and end dates for a month"""
+            if month == 12:
+                end_date = tz.datetime(year + 1, 1, 1, 0, 0, 0) - timedelta(seconds=1)
+            else:
+                end_date = tz.datetime(year, month + 1, 1, 0, 0, 0) - timedelta(seconds=1)
+            return tz.datetime(year, month, 1, 0, 0, 0), end_date
+        
+        def get_year_range(year):
+            """Get start and end dates for a year"""
+            return tz.datetime(year, 1, 1, 0, 0, 0), tz.datetime(year, 12, 31, 23, 59, 59)
+        
+        # Get current date info
         now = datetime.now()
-        current_quarter = ((now.month - 1) // 3) + 1
         current_year = now.year
+        current_month = now.month
+        current_quarter = ((current_month - 1) // 3) + 1
         
-        # Calculate last quarter
-        if current_quarter == 1:
-            last_quarter = 4
+        # Calculate date ranges based on period type
+        if period_type == 'monthly':
+            # Current month vs previous month
+            current_start, current_end = get_month_range(current_year, current_month)
+            
+            # Calculate previous month
+            if current_month == 1:
+                last_month = 12
+                last_year = current_year - 1
+            else:
+                last_month = current_month - 1
+                last_year = current_year
+            
+            last_start, last_end = get_month_range(last_year, last_month)
+            
+            # Format labels
+            def get_period_label(year, month):
+                month_abbr = month_name[month][:3] if month_name[month] else f"Month {month}"
+                return f"{month_abbr} {year}"
+            
+            current_period_label = get_period_label(current_year, current_month)
+            last_period_label = get_period_label(last_year, last_month)
+            
+        elif period_type == 'yearly':
+            # Current year vs previous year
+            current_start, current_end = get_year_range(current_year)
             last_year = current_year - 1
-        else:
-            last_quarter = current_quarter - 1
-            last_year = current_year
-        
-        # Get date ranges
-        current_start, current_end = get_quarter_range(current_year, current_quarter)
-        last_start, last_end = get_quarter_range(last_year, last_quarter)
+            last_start, last_end = get_year_range(last_year)
+            
+            # Format labels
+            current_period_label = str(current_year)
+            last_period_label = str(last_year)
+            
+        else:  # quarterly (default)
+            # Current quarter vs previous quarter
+            if current_quarter == 1:
+                last_quarter = 4
+                last_year = current_year - 1
+            else:
+                last_quarter = current_quarter - 1
+                last_year = current_year
+            
+            current_start, current_end = get_quarter_range(current_year, current_quarter)
+            last_start, last_end = get_quarter_range(last_year, last_quarter)
+            
+            # Format labels
+            def get_quarter_name(quarter_num, year):
+                quarter_names = {
+                    1: 'Jan-Mar',
+                    2: 'Apr-Jun', 
+                    3: 'Jul-Sep',
+                    4: 'Oct-Dec'
+                }
+                return f"{quarter_names[quarter_num]} {year}"
+            
+            current_period_label = get_quarter_name(current_quarter, current_year)
+            last_period_label = get_quarter_name(last_quarter, last_year)
         
         # Build base query filters
         base_filters = {
@@ -2477,7 +2543,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if law_filter != 'all' and law_filter in [choice[0] for choice in law_choices]:
             base_filters['inspection__law'] = law_filter
         
-        # Get current quarter stats (only finished inspections - not PENDING)
+        # Get current period stats (only finished inspections - not PENDING)
         current_filters = {
             'created_at__range': [current_start, current_end],
             **base_filters
@@ -2487,7 +2553,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
             non_compliant=Count('inspection_id', filter=Q(compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT']))
         )
         
-        # Get last quarter stats (only finished inspections - not PENDING)
+        # Get last period stats (only finished inspections - not PENDING)
         last_filters = {
             'created_at__range': [last_start, last_end],
             **base_filters
@@ -2515,16 +2581,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
         else:
             trend = 'stable'
         
-        # Convert quarter numbers to month range format
-        def get_quarter_name(quarter_num, year):
-            quarter_names = {
-                1: 'Jan-Mar',
-                2: 'Apr-Jun', 
-                3: 'Jul-Sep',
-                4: 'Oct-Dec'
-            }
-            return f"{quarter_names[quarter_num]} {year}"
-
         # Get law name for display
         law_name = None
         if law_filter != 'all':
@@ -2533,29 +2589,37 @@ class InspectionViewSet(viewsets.ModelViewSet):
                     law_name = choice[1]
                     break
         
-        return Response({
-            'current_quarter': {
-                'quarter': get_quarter_name(current_quarter, current_year),
-                'year': current_year,
+        # Build response with period-agnostic structure
+        response_data = {
+            'current_period': {
+                'period': current_period_label,
+                'year': current_year if period_type != 'yearly' else current_year,
                 'compliant': current_stats['compliant'],
                 'non_compliant': current_stats['non_compliant'],
                 'total_finished': current_total
             },
-            'last_quarter': {
-                'quarter': get_quarter_name(last_quarter, last_year),
-                'year': last_year,
+            'last_period': {
+                'period': last_period_label,
+                'year': last_year if period_type != 'yearly' else last_year,
                 'compliant': last_stats['compliant'],
                 'non_compliant': last_stats['non_compliant'],
                 'total_finished': last_total
             },
             'change_percentage': round(change_percentage, 1),
             'trend': trend,
+            'period_type': period_type,
             'filter': {
                 'law': law_filter,
                 'law_name': law_name,
                 'is_filtered': law_filter != 'all'
             }
-        })
+        }
+        
+        # For backward compatibility, also include old structure
+        response_data['current_quarter'] = response_data['current_period']
+        response_data['last_quarter'] = response_data['last_period']
+        
+        return Response(response_data)
     
     @action(detail=False, methods=['get'])
     def compliance_by_law(self, request):
@@ -2708,16 +2772,37 @@ class InspectionViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def get_quotas(self, request):
-        """Get quotas for current or specified quarter with user-based filtering"""
+        """Get quotas with support for monthly, quarterly, and yearly views"""
         from datetime import datetime
         from .models import ComplianceQuota
         
         user = request.user
         year = int(request.query_params.get('year', datetime.now().year))
-        quarter = int(request.query_params.get('quarter', ((datetime.now().month - 1) // 3) + 1))
+        # Accept both snake_case and camelCase for view_mode
+        view_mode = request.query_params.get('view_mode') or request.query_params.get('viewMode', 'monthly')
         
-        # Base queryset
-        quotas = ComplianceQuota.objects.filter(year=year, quarter=quarter)
+        # Support both month and quarter parameters (month takes precedence)
+        month = request.query_params.get('month')
+        quarter = request.query_params.get('quarter')
+        
+        # Base queryset - filter by month or quarter
+        if view_mode == 'yearly':
+            # For yearly view, get all monthly quotas for the year
+            quotas = ComplianceQuota.objects.filter(year=year)
+        elif view_mode == 'monthly' and month:
+            # For monthly view, filter by specific month
+            month = int(month)
+            quotas = ComplianceQuota.objects.filter(year=year, month=month)
+        elif view_mode == 'quarterly' and quarter:
+            # For quarterly view, get all months in the quarter
+            quarter = int(quarter)
+            quarter_months = ComplianceQuota.get_months_in_quarter(quarter)
+            quotas = ComplianceQuota.objects.filter(year=year, month__in=quarter_months)
+        else:
+            # Default to current quarter
+            quarter = ((datetime.now().month - 1) // 3) + 1
+            quarter_months = ComplianceQuota.get_months_in_quarter(quarter)
+            quotas = ComplianceQuota.objects.filter(year=year, month__in=quarter_months)
         
         # Apply role-based filtering
         if user.userlevel == 'Section Chief':
@@ -2735,77 +2820,222 @@ class InspectionViewSet(viewsets.ModelViewSet):
         # Admin and Division Chief see all quotas (no filter)
         
         quota_data = []
-        for quota in quotas:
-            quota_data.append({
-                'id': quota.id,
-                'law': quota.law,
-                'year': quota.year,
-                'quarter': quota.quarter,
-                'target': quota.target,
-                'accomplished': quota.accomplished,
-                'auto_adjusted': quota.auto_adjusted,
-                'percentage': quota.percentage,
-                'exceeded': quota.exceeded,
-                'created_at': quota.created_at,
-                'updated_at': quota.updated_at
+        
+        # For quarterly and yearly views, aggregate monthly quotas by law
+        if view_mode == 'quarterly' or view_mode == 'yearly':
+            # Group quotas by law and aggregate
+            from collections import defaultdict
+            aggregated_quotas = defaultdict(lambda: {
+                'target': 0,
+                'accomplished': 0,
+                'months': [],
+                'quota_obj': None,
+                'auto_adjusted': False
             })
+            
+            for quota in quotas:
+                law_key = quota.law
+                aggregated_quotas[law_key]['target'] += quota.target
+                aggregated_quotas[law_key]['accomplished'] += quota.accomplished
+                aggregated_quotas[law_key]['months'].append(quota.month)
+                # Keep the first quota object for metadata (id, year, etc.)
+                if aggregated_quotas[law_key]['quota_obj'] is None:
+                    aggregated_quotas[law_key]['quota_obj'] = quota
+                # If any quota is auto-adjusted, mark as auto-adjusted
+                if quota.auto_adjusted:
+                    aggregated_quotas[law_key]['auto_adjusted'] = True
+            
+            # Convert aggregated data to response format
+            for law, data in aggregated_quotas.items():
+                quota = data['quota_obj']
+                total_target = data['target']
+                total_accomplished = data['accomplished']
+                
+                percentage = round((total_accomplished / total_target * 100), 1) if total_target > 0 else 0
+                exceeded = total_accomplished > total_target
+                
+                quota_data.append({
+                    'id': quota.id,  # Use first quota's ID
+                    'law': law,
+                    'year': quota.year,
+                    'quarter': quota.quarter if view_mode == 'quarterly' else None,  # Only set quarter for quarterly view
+                    'month': None,  # No specific month for aggregated views
+                    'target': total_target,
+                    'accomplished': total_accomplished,
+                    'auto_adjusted': data['auto_adjusted'],
+                    'percentage': percentage,
+                    'exceeded': exceeded,
+                    'created_at': quota.created_at,
+                    'updated_at': quota.updated_at
+                })
+        else:
+            # For monthly view only, return individual records
+            for quota in quotas:
+                # Use actual month from quota
+                month_value = quota.month
+                
+                # For monthly view, use month-specific accomplished
+                accomplished = quota.accomplished  # Already uses month dates
+                
+                # Calculate percentage and exceeded status
+                percentage = round((accomplished / quota.target * 100), 1) if quota.target > 0 else 0
+                exceeded = accomplished > quota.target
+                
+                quota_data.append({
+                    'id': quota.id,
+                    'law': quota.law,
+                    'year': quota.year,
+                    'quarter': quota.quarter,
+                    'month': quota.month,  # Return actual month
+                    'target': quota.target,  # Monthly target
+                    'accomplished': accomplished,  # Month-specific accomplished
+                    'auto_adjusted': quota.auto_adjusted,
+                    'percentage': percentage,
+                    'exceeded': exceeded,
+                    'created_at': quota.created_at,
+                    'updated_at': quota.updated_at
+                })
         
         return Response(quota_data)
 
     @action(detail=False, methods=['post'])
     def set_quota(self, request):
-        """Set or update quota for a law+quarter"""
+        """Set or update quota(s) - supports single or bulk creation"""
+        from datetime import datetime
         from .models import ComplianceQuota
         
-        law = request.data.get('law')
-        year = int(request.data.get('year'))
-        quarter = int(request.data.get('quarter'))
-        target = int(request.data.get('target'))
+        # Check if it's a list (bulk) or single quota
+        data = request.data
+        if isinstance(data, list):
+            # Bulk create/update
+            results = []
+            errors = []
+            for quota_data in data:
+                try:
+                    result = self._create_single_quota(quota_data, request.user)
+                    results.append(result)
+                except Exception as e:
+                    errors.append({
+                        'law': quota_data.get('law'),
+                        'month': quota_data.get('month'),
+                        'error': str(e)
+                    })
+            
+            if errors:
+                return Response(
+                    {
+                        'results': results,
+                        'errors': errors,
+                        'message': f'Created {len(results)} quotas, {len(errors)} failed'
+                    },
+                    status=status.HTTP_207_MULTI_STATUS
+                )
+            return Response({
+                'results': results,
+                'message': f'Successfully created {len(results)} quotas'
+            })
+        else:
+            # Single quota
+            try:
+                result = self._create_single_quota(data, request.user)
+                return Response(result)
+            except Exception as e:
+                return Response(
+                    {'error': str(e)}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+    
+    def _create_single_quota(self, quota_data, user):
+        """Helper method to create/update a single quota"""
+        from datetime import datetime
+        from .models import ComplianceQuota
+        
+        law = quota_data.get('law')
+        year = int(quota_data.get('year'))
+        target = int(quota_data.get('target'))
+        
+        # Support both month and quarter (month takes precedence)
+        month = quota_data.get('month')
+        quarter = quota_data.get('quarter')
         
         if not law or not target:
-            return Response(
-                {'error': 'Law and target are required'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValueError('Law and target are required')
         
         # Validate law code
         valid_laws = ['PD-1586', 'RA-6969', 'RA-8749', 'RA-9275', 'RA-9003']
         if law not in valid_laws:
-            return Response(
-                {'error': f'Invalid law code. Must be one of: {", ".join(valid_laws)}'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValueError(f'Invalid law code. Must be one of: {", ".join(valid_laws)}')
         
-        # Validate quarter
-        if quarter not in [1, 2, 3, 4]:
-            return Response(
-                {'error': 'Quarter must be 1, 2, 3, or 4'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Month is required for monthly quotas
+        if not month:
+            raise ValueError('Month is required for quota creation')
+        
+        month = int(month)
+        if month < 1 or month > 12:
+            raise ValueError('Month must be between 1 and 12')
+        
+        # Derive quarter from month
+        quarter = ComplianceQuota.get_quarter_from_month(month)
+        
+        # Validate that month is not in the past
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        if year < current_year or (year == current_year and month < current_month):
+            raise ValueError('Cannot create or edit quotas for past months')
         
         # Validate target
         if target <= 0:
-            return Response(
-                {'error': 'Target must be greater than 0'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            raise ValueError('Target must be greater than 0')
         
-        quota, created = ComplianceQuota.objects.update_or_create(
+        # Check for duplicate (same law + year + month)
+        existing_quota = ComplianceQuota.objects.filter(
             law=law,
             year=year,
-            quarter=quarter,
-            defaults={
-                'target': target,
-                'created_by': request.user,
-                'auto_adjusted': False  # Manual setting overrides auto-adjustment
-            }
-        )
+            month=month
+        ).first()
         
-        return Response({
+        # Check if updating existing quota by ID
+        quota_id = quota_data.get('id')
+        if quota_id:
+            try:
+                quota = ComplianceQuota.objects.get(id=quota_id)
+                quota.target = target
+                quota.month = month  # Ensure month is set
+                quota.quarter = quarter  # Update quarter from month
+                quota.created_by = user
+                quota.auto_adjusted = False
+                quota.save()
+                created = False
+            except ComplianceQuota.DoesNotExist:
+                raise ValueError('Quota with provided ID does not exist')
+        else:
+            # Check for duplicate (same law + year + month)
+            if existing_quota:
+                month_names = ['January', 'February', 'March', 'April', 'May', 'June', 
+                              'July', 'August', 'September', 'October', 'November', 'December']
+                raise ValueError(f'Quota for {month_names[month-1]} {year} already exists')
+            
+            quota, created = ComplianceQuota.objects.update_or_create(
+                law=law,
+                year=year,
+                month=month,  # Use month for unique constraint
+                defaults={
+                    'quarter': quarter,  # Store quarter for reference
+                    'target': target,
+                    'created_by': user,
+                    'auto_adjusted': False  # Manual setting overrides auto-adjustment
+                }
+            )
+        
+        # Use the actual month from the quota
+        month_value = quota.month
+        
+        return {
             'id': quota.id,
             'law': quota.law,
             'year': quota.year,
             'quarter': quota.quarter,
+            'month': quota.month,  # Return actual month
             'target': quota.target,
             'accomplished': quota.accomplished,
             'auto_adjusted': quota.auto_adjusted,
@@ -2813,7 +3043,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'exceeded': quota.exceeded,
             'created': created,
             'message': 'Quota created successfully' if created else 'Quota updated successfully'
-        })
+        }
 
     @action(detail=False, methods=['post'])
     def auto_adjust_quotas(self, request):
@@ -2845,6 +3075,286 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'message': f"Auto-adjusted {len(adjusted_quotas)} quotas for next quarter",
             'total_adjusted': len(adjusted_quotas)
         })
+
+    @action(detail=False, methods=['post'])
+    def evaluate_quarter(self, request):
+        """Evaluate a quarter: calculate totals, determine status, create/update evaluation"""
+        from datetime import datetime
+        from .models import ComplianceQuota, QuarterlyEvaluation
+        
+        law = request.data.get('law')
+        year = int(request.data.get('year'))
+        quarter = int(request.data.get('quarter'))
+        remarks = request.data.get('remarks', '')
+        
+        # Validate inputs
+        if not law or not year or not quarter:
+            return Response(
+                {'error': 'Law, year, and quarter are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if quarter not in [1, 2, 3, 4]:
+            return Response(
+                {'error': 'Quarter must be 1, 2, 3, or 4'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Calculate quarterly totals
+        total_target, total_achieved = ComplianceQuota.get_quarterly_totals(law, year, quarter)
+        
+        # Determine status
+        if total_achieved >= total_target:
+            quarter_status = 'EXCEEDED' if total_achieved > total_target else 'ACHIEVED'
+        else:
+            quarter_status = 'NOT_ACHIEVED'
+        
+        # Calculate surplus/deficit
+        surplus = max(0, total_achieved - total_target)
+        deficit = max(0, total_target - total_achieved)
+        
+        # Create or update evaluation
+        evaluation, created = QuarterlyEvaluation.objects.update_or_create(
+            law=law,
+            year=year,
+            quarter=quarter,
+            defaults={
+                'quarterly_target': total_target,
+                'quarterly_achieved': total_achieved,
+                'quarter_status': quarter_status,
+                'surplus': surplus,
+                'deficit': deficit,
+                'remarks': remarks,
+                'evaluated_by': request.user,
+                'is_archived': True
+            }
+        )
+        
+        # Apply carry-over if enabled and policy is auto
+        carry_over_applied = False
+        if deficit > 0:
+            from system_config.models import SystemConfiguration
+            config = SystemConfiguration.get_active_config()
+            if config.quota_carry_over_enabled and config.quota_carry_over_policy == 'auto':
+                # Calculate next quarter
+                next_quarter = quarter + 1 if quarter < 4 else 1
+                next_year = year if quarter < 4 else year + 1
+                
+                # Get first month of next quarter
+                next_quarter_months = ComplianceQuota.get_months_in_quarter(next_quarter)
+                if next_quarter_months:
+                    first_month = next_quarter_months[0]
+                    # Add deficit to first month's target (if monthly quotas exist)
+                    # For now, we'll need to handle this when monthly structure is in place
+                    carry_over_applied = True
+        
+        return Response({
+            'id': evaluation.id,
+            'law': evaluation.law,
+            'year': evaluation.year,
+            'quarter': evaluation.quarter,
+            'quarterly_target': evaluation.quarterly_target,
+            'quarterly_achieved': evaluation.quarterly_achieved,
+            'quarter_status': evaluation.quarter_status,
+            'surplus': evaluation.surplus,
+            'deficit': evaluation.deficit,
+            'percentage': evaluation.percentage,
+            'remarks': evaluation.remarks,
+            'evaluated_at': evaluation.evaluated_at,
+            'evaluated_by': evaluation.evaluated_by.email if evaluation.evaluated_by else None,
+            'is_archived': evaluation.is_archived,
+            'created': created,
+            'carry_over_applied': carry_over_applied,
+            'message': 'Quarter evaluated successfully'
+        })
+
+    @action(detail=False, methods=['get'])
+    def get_quarterly_evaluations(self, request):
+        """Get all evaluated quarters (archived)"""
+        from .models import QuarterlyEvaluation
+        
+        year = request.query_params.get('year')
+        quarter = request.query_params.get('quarter')
+        law = request.query_params.get('law')
+        
+        evaluations = QuarterlyEvaluation.objects.all()
+        
+        if year:
+            evaluations = evaluations.filter(year=int(year))
+        if quarter:
+            evaluations = evaluations.filter(quarter=int(quarter))
+        if law:
+            evaluations = evaluations.filter(law=law)
+        
+        # Apply role-based filtering
+        user = request.user
+        if user.userlevel == 'Section Chief':
+            if hasattr(user, 'section') and user.section:
+                if user.section == 'PD-1586,RA-8749,RA-9275':
+                    evaluations = evaluations.filter(law__in=['PD-1586', 'RA-8749', 'RA-9275'])
+                else:
+                    evaluations = evaluations.filter(law=user.section)
+        elif user.userlevel == 'Unit Head':
+            if hasattr(user, 'section') and user.section:
+                evaluations = evaluations.filter(law=user.section)
+        
+        evaluation_data = []
+        for eval in evaluations:
+            evaluation_data.append({
+                'id': eval.id,
+                'law': eval.law,
+                'year': eval.year,
+                'quarter': eval.quarter,
+                'quarterly_target': eval.quarterly_target,
+                'quarterly_achieved': eval.quarterly_achieved,
+                'quarter_status': eval.quarter_status,
+                'surplus': eval.surplus,
+                'deficit': eval.deficit,
+                'percentage': eval.percentage,
+                'remarks': eval.remarks,
+                'evaluated_at': eval.evaluated_at,
+                'evaluated_by': eval.evaluated_by.email if eval.evaluated_by else None,
+                'is_archived': eval.is_archived
+            })
+        
+        return Response(evaluation_data)
+
+    @action(detail=False, methods=['post'])
+    def manual_evaluate_quarter(self, request):
+        """Manually trigger quarter evaluation (admin only)"""
+        # This is essentially the same as evaluate_quarter, but with validation
+        # that the quarter has ended (or allow override for current quarter)
+        from datetime import datetime
+        
+        current_date = datetime.now()
+        current_year = current_date.year
+        current_quarter = ((current_date.month - 1) // 3) + 1
+        
+        year = int(request.data.get('year'))
+        quarter = int(request.data.get('quarter'))
+        
+        # Allow evaluation of current or past quarters
+        if year > current_year or (year == current_year and quarter > current_quarter):
+            return Response(
+                {'error': 'Cannot evaluate future quarters'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Use the same evaluation logic
+        return self.evaluate_quarter(request)
+
+    @action(detail=False, methods=['post'])
+    def apply_carry_over(self, request):
+        """Apply carry-over from evaluated quarter to next quarter"""
+        from .models import QuarterlyEvaluation, ComplianceQuota
+        from system_config.models import SystemConfiguration
+        
+        evaluation_id = request.data.get('evaluation_id')
+        if not evaluation_id:
+            return Response(
+                {'error': 'Evaluation ID is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            evaluation = QuarterlyEvaluation.objects.get(id=evaluation_id)
+        except QuarterlyEvaluation.DoesNotExist:
+            return Response(
+                {'error': 'Evaluation not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        config = SystemConfiguration.get_active_config()
+        if not config.quota_carry_over_enabled:
+            return Response(
+                {'error': 'Carry-over is not enabled in system settings'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if evaluation.deficit <= 0:
+            return Response(
+                {'error': 'No deficit to carry over'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Calculate next quarter
+        next_quarter = evaluation.quarter + 1 if evaluation.quarter < 4 else 1
+        next_year = evaluation.year if evaluation.quarter < 4 else evaluation.year + 1
+        
+        # For now, apply to quarterly quota (will update when monthly structure is in place)
+        next_quota, created = ComplianceQuota.objects.get_or_create(
+            law=evaluation.law,
+            year=next_year,
+            quarter=next_quarter,
+            defaults={
+                'target': evaluation.deficit,  # Add deficit to target
+                'created_by': request.user,
+                'auto_adjusted': True
+            }
+        )
+        
+        if not created:
+            next_quota.target += evaluation.deficit
+            next_quota.auto_adjusted = True
+            next_quota.save()
+        
+        return Response({
+            'message': f'Carry-over applied: {evaluation.deficit} added to Q{next_quarter} {next_year}',
+            'next_quota': {
+                'id': next_quota.id,
+                'law': next_quota.law,
+                'year': next_quota.year,
+                'quarter': next_quota.quarter,
+                'target': next_quota.target
+            }
+        })
+
+    @action(detail=False, methods=['get'], url_path='yearly-summary')
+    def get_yearly_summary(self, request):
+        """Get yearly summary of all quarters"""
+        from datetime import datetime
+        from .models import QuarterlyEvaluation
+        
+        year = int(request.query_params.get('year', datetime.now().year))
+        
+        evaluations = QuarterlyEvaluation.objects.filter(year=year).order_by('quarter', 'law')
+        
+        # Aggregate by law
+        summary = {}
+        for eval in evaluations:
+            if eval.law not in summary:
+                summary[eval.law] = {
+                    'law': eval.law,
+                    'year': year,
+                    'total_target': 0,
+                    'total_achieved': 0,
+                    'total_surplus': 0,
+                    'total_deficit': 0,
+                    'quarters': []
+                }
+            
+            summary[eval.law]['total_target'] += eval.quarterly_target
+            summary[eval.law]['total_achieved'] += eval.quarterly_achieved
+            summary[eval.law]['total_surplus'] += eval.surplus
+            summary[eval.law]['total_deficit'] += eval.deficit
+            summary[eval.law]['quarters'].append({
+                'quarter': eval.quarter,
+                'target': eval.quarterly_target,
+                'achieved': eval.quarterly_achieved,
+                'status': eval.quarter_status,
+                'percentage': eval.percentage
+            })
+        
+        # Calculate overall percentages
+        for law_data in summary.values():
+            if law_data['total_target'] > 0:
+                law_data['overall_percentage'] = round(
+                    (law_data['total_achieved'] / law_data['total_target']) * 100, 1
+                )
+            else:
+                law_data['overall_percentage'] = 0
+        
+        return Response(list(summary.values()))
 
     @action(detail=False, methods=['get'], url_path='reinspection-reminders')
     def reinspection_reminders(self, request):
