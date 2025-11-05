@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'system_config.apps.SystemConfigConfig',
     'system',
     'reports',
+    'help',
     'django_celery_beat',
 ]
 

@@ -21,6 +21,7 @@ urlpatterns = [
     path('api/notifications/', include('notifications.urls')),
     path('api/system/', include('system_config.urls')),
     path('api/reports/', include('reports.urls')),
+    path('api/help/', include('help.urls')),
 
     # 🔹 Backup & Restore endpoints
     path('api/db/', include('system.urls')),   # <---- add this line

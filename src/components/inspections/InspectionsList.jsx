@@ -594,7 +594,11 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   // 📑 Tab state for role-based tabs with localStorage persistence
   const { loadFromStorage: loadTabFromStorage, saveToStorage: saveTabToStorage } = useLocalStorageTab("inspections_list");
   const [activeTab, setActiveTab] = useState(() => {
-    const availableTabs = roleTabs[userLevel] || ['all'];
+    // Normalize userLevel to match constants (capitalize first letter, lowercase rest)
+    const normalizedUserLevel = userLevel 
+      ? userLevel.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
+      : 'Admin';
+    const availableTabs = roleTabs[normalizedUserLevel] || roleTabs['Admin'] || ['all_inspections'];
     const savedTab = loadTabFromStorage();
     // Check if saved tab is still available for current user level
     if (savedTab && availableTabs.includes(savedTab)) {
@@ -1012,8 +1016,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         const profile = await getProfile();
         setCurrentUser(profile);
         
+        // Normalize userLevel from profile to match constants
+        const normalizedUserLevel = profile?.userlevel 
+          ? profile.userlevel.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
+          : userLevel;
+        
         // Set default tab based on user level
-        const availableTabs = roleTabs[userLevel] || ['all'];
+        const availableTabs = roleTabs[normalizedUserLevel] || roleTabs['Admin'] || ['all_inspections'];
         const tabs = availableTabs.map(tab => ({
           id: tab,
           label: tabDisplayNames[tab] || tab,
@@ -1029,6 +1038,20 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     fetchUserProfile();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only fetch on mount, not on every tab change
+
+  // Update activeTab when userLevel changes
+  useEffect(() => {
+    const normalizedUserLevel = userLevel 
+      ? userLevel.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
+      : 'Admin';
+    const availableTabs = roleTabs[normalizedUserLevel] || roleTabs['Admin'] || ['all_inspections'];
+    
+    // If current activeTab is not in available tabs, reset to first available tab
+    if (availableTabs.length > 0 && !availableTabs.includes(activeTab)) {
+      setActiveTab(availableTabs[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userLevel]);
 
   // Fetch inspections when dependencies change
   useEffect(() => {

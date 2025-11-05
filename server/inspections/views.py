@@ -108,6 +108,8 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Role-based filtering
         if user.userlevel == 'Admin':
+            # Admin sees all inspections regardless of tab
+            # The tab parameter is ignored for Admin users - they see everything
             pass  # Admin sees all
         elif user.userlevel == 'Division Chief':
             queryset = self._filter_division_chief(queryset, user, tab)

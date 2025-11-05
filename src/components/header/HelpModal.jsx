@@ -1,9 +1,11 @@
 // src/components/header/HelpModal.jsx
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Search, HelpCircle, X, Clock, Zap, Target, ArrowLeft, BookOpen } from "lucide-react";
-import { helpTopics } from "../../data/helpData";
+import { Search, HelpCircle, X, Clock, Zap, Target, ArrowLeft, BookOpen, Edit } from "lucide-react";
+import { helpTopics as defaultHelpTopics } from "../../data/helpData";
 import { filterTopicsByUserLevel, normalizeUserLevel } from "../../utils/helpUtils";
+import { getHelpTopics } from "../../services/helpApi";
+import { getProfile } from "../../services/api";
 
 const RECENT_TOPICS_KEY = "recentHelpTopics";
 const MAX_RECENT_TOPICS = 5;
@@ -23,9 +25,35 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
   const [activeTab, setActiveTab] = useState('quick-start');
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'detail'
   const [selectedTopic, setSelectedTopic] = useState(null);
+  const [helpTopics, setHelpTopics] = useState(defaultHelpTopics);
+  const [profile, setProfile] = useState(null);
   const modalRef = useRef(null);
   const closeButtonRef = useRef(null);
   const previousFocusRef = useRef(null);
+
+  // Fetch user profile to check if admin
+  useEffect(() => {
+    getProfile()
+      .then(setProfile)
+      .catch(() => setProfile(null));
+  }, []);
+
+  // Fetch help data from API with fallback to static files
+  useEffect(() => {
+    const loadHelpData = async () => {
+      try {
+        const topicsData = await getHelpTopics();
+        if (Array.isArray(topicsData) && topicsData.length > 0) {
+          setHelpTopics(topicsData);
+        }
+      } catch (error) {
+        console.warn('Failed to load help data from API, using default data:', error);
+        // Keep default data from static imports
+      }
+    };
+
+    loadHelpData();
+  }, []);
 
   // Load recent topics from localStorage
   useEffect(() => {
@@ -201,11 +229,6 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
     setSelectedTopic(null);
   };
 
-  const handleOpenFullHelpPage = () => {
-    onClose();
-    navigate("/help");
-  };
-
   // Highlight search terms in text
   const highlightText = (text, query) => {
     if (!query) return text;
@@ -251,31 +274,43 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
             onClick={(e) => e.stopPropagation()}
             className="w-full h-full md:w-[90vw] md:max-w-3xl md:max-h-[80vh] md:min-h-[65vh] flex flex-col bg-white md:rounded-xl shadow-2xl border border-gray-200 transform transition-all duration-300 ease-out scale-100 opacity-100 animate-modalEntry"
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 md:rounded-t-xl bg-sky-50">
+            {/* Header - Simple and Minimal */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
               <h2 
                 id="help-modal-title"
-                className="flex items-center text-lg font-semibold text-sky-700"
+                className="flex items-center text-base font-semibold text-gray-800"
               >
-                <HelpCircle className="w-5 h-5 mr-2" />
+                <HelpCircle className="w-4 h-4 mr-2" />
                 Help Center
-                <span className="ml-2 text-xs font-normal text-gray-500 hidden md:inline">
-                  (ESC to close)
-                </span>
               </h2>
-              <button
-                ref={closeButtonRef}
-                onClick={onClose}
-                className="p-1.5 transition-all duration-200 rounded-full hover:bg-gray-200"
-                aria-label="Close help center"
-              >
-                <X className="w-5 h-5 text-gray-600" />
-              </button>
+              <div className="flex items-center gap-2">
+                {(profile?.userlevel === 'Admin' || profile?.is_staff || profile?.is_superuser) && (
+                  <button
+                    onClick={() => {
+                      onClose();
+                      navigate('/help/editor');
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded transition-colors"
+                    title="Edit Help Content"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    Edit Help
+                  </button>
+                )}
+                <button
+                  ref={closeButtonRef}
+                  onClick={onClose}
+                  className="p-1.5 transition-all duration-200 rounded hover:bg-gray-100"
+                  aria-label="Close help center"
+                >
+                  <X className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
             </div>
 
             {/* Search bar - Only show in list view */}
             {viewMode === 'list' && (
-              <div className="px-4 py-3 bg-gray-50">
+              <div className="px-4 py-3 bg-white border-b border-gray-200">
               <div className="relative">
                 <Search className="absolute w-4 h-4 text-gray-400 -translate-y-1/2 left-3 top-1/2" />
                 <input
@@ -283,7 +318,7 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
                   placeholder="Search help topics..."
                   value={helpSearchQuery}
                   onChange={handleHelpSearch}
-                    className="w-full py-2 pl-10 pr-4 text-sm transition-all duration-200 bg-white border border-gray-300 rounded-lg hover:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                    className="w-full py-2 pl-10 pr-4 text-sm bg-white border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500"
                     aria-label="Search help topics"
                 />
                 </div>
@@ -292,7 +327,7 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
 
             {/* Tab Navigation - Only show in list view */}
             {viewMode === 'list' && (
-              <div className="flex border-b border-gray-200 bg-white px-2">
+              <div className="flex border-b border-gray-200 bg-white">
                 {TABS.map((tab) => {
                   const Icon = tab.icon;
                   return (
@@ -304,10 +339,10 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
                           setHelpSearchQuery('');
                         }
                       }}
-                      className={`flex items-center px-4 py-3 text-sm font-medium transition-all duration-200 border-b-2 ${
+                      className={`flex items-center px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${
                         activeTab === tab.id
                           ? 'border-sky-600 text-sky-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          : 'border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300'
                       }`}
                     >
                       <Icon className="w-4 h-4 mr-2" />
@@ -329,11 +364,10 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
                       <li
                         key={topic.id}
                           onClick={() => handleHelpSuggestionClick(topic)}
-                          className="help-topic-card p-3 transition-all duration-200 border border-gray-200 bg-white rounded-lg cursor-pointer hover:bg-sky-50 hover:border-sky-300 hover:shadow-sm"
+                          className="p-3 transition-colors border border-gray-200 bg-white rounded cursor-pointer hover:bg-gray-50 hover:border-gray-300"
                           role="button"
                           tabIndex={0}
                           onKeyPress={(e) => e.key === 'Enter' && handleHelpSuggestionClick(topic)}
-                          style={{ animationDelay: `${index * 50}ms` }}
                         >
                           <div className="text-sm font-semibold text-gray-900">
                             {activeTab === 'all' && helpSearchQuery 
@@ -406,10 +440,10 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
                             {selectedTopic.steps.map((step, index) => (
                               <div 
                                 key={index} 
-                                className="border-l-4 border-sky-500 pl-4 pb-4"
+                                className="border-l-2 border-sky-500 pl-4 pb-4"
                               >
-                                <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-sky-100 text-sky-700 text-sm font-bold mr-2">
+                                <h3 className="text-base font-semibold text-gray-800 mb-2">
+                                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-sky-100 text-sky-700 text-xs font-bold mr-2">
                                     {index + 1}
                                   </span>
                                   {step.title}
@@ -438,16 +472,6 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
                 )}
             </div>
 
-            {/* Footer */}
-            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 md:rounded-b-xl">
-              <button
-                onClick={handleOpenFullHelpPage}
-                className="flex items-center justify-center w-full py-2 text-sm font-medium transition-all duration-200 rounded-lg text-sky-600 hover:text-sky-700 hover:bg-sky-50"
-              >
-                <HelpCircle className="w-4 h-4 mr-2" />
-                Open Full Help Page (Optional)
-              </button>
-            </div>
           </div>
         </div>
       )}

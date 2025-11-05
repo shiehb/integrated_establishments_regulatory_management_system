@@ -4,7 +4,6 @@ import { filterMenuByRole, groupMenuByCategory } from "../constants/menuConfig";
 
 export default function Sidebar({ userLevel = "public", isOpen = true, onHelpClick }) {
   const location = useLocation();
-  const isHelpPage = location.pathname === '/help';
 
   // Get filtered menu items based on user role
   const filteredMenu = filterMenuByRole(userLevel);
@@ -86,25 +85,17 @@ export default function Sidebar({ userLevel = "public", isOpen = true, onHelpCli
           <div className="p-2 border-t border-slate-200 bg-gradient-to-r from-slate-50 to-transparent">
             <button
               onClick={onHelpClick}
-              className={`flex items-center px-3 py-2.5 w-full rounded-lg transition-all duration-300 ease-in-out group ${
-                isHelpPage
-                  ? "bg-gradient-to-r from-sky-600 to-sky-700 text-white shadow-md border-l-4 border-sky-500"
-                  : "text-slate-700 hover:bg-slate-50 hover:text-slate-900 hover:scale-[1.02] hover:shadow-sm"
-              }`}
+              className="flex items-center px-3 py-2.5 w-full rounded-lg transition-all duration-300 ease-in-out group text-slate-700 hover:bg-slate-50 hover:text-slate-900 hover:scale-[1.02] hover:shadow-sm"
               title={!isOpen ? "Help Center" : undefined}
               data-tooltip={!isOpen ? "Help Center" : undefined}
               aria-label="Open Help Center"
             >
               <HelpCircle 
                 size={22} 
-                className={`flex-shrink-0 transition-all duration-300 ${
-                  isHelpPage ? "text-white" : "text-slate-500 group-hover:text-sky-600"
-                }`} 
+                className="flex-shrink-0 transition-all duration-300 text-slate-500 group-hover:text-sky-600" 
               />
               {isOpen && (
-                <span className={`ml-3 text-sm font-medium truncate transition-all duration-300 ${
-                  isHelpPage ? "font-semibold" : ""
-                }`}>
+                <span className="ml-3 text-sm font-medium truncate transition-all duration-300">
                   Help Center
                 </span>
               )}
@@ -143,25 +134,17 @@ export default function Sidebar({ userLevel = "public", isOpen = true, onHelpCli
         <div className="p-2 border-t border-slate-200 bg-gradient-to-r from-slate-50 to-transparent">
           <button
             onClick={onHelpClick}
-            className={`flex items-center px-3 py-2.5 w-full rounded-lg transition-all duration-300 ease-in-out group ${
-              isHelpPage
-                ? "bg-gradient-to-r from-sky-600 to-sky-700 text-white shadow-md border-l-4 border-sky-500"
-                : "text-slate-700 hover:bg-slate-50 hover:text-slate-900 hover:scale-[1.02] hover:shadow-sm"
-            }`}
+            className="flex items-center px-3 py-2.5 w-full rounded-lg transition-all duration-300 ease-in-out group text-slate-700 hover:bg-slate-50 hover:text-slate-900 hover:scale-[1.02] hover:shadow-sm"
             title={!isOpen ? "Help Center" : undefined}
             data-tooltip={!isOpen ? "Help Center" : undefined}
             aria-label="Open Help Center"
           >
             <HelpCircle 
               size={22} 
-              className={`flex-shrink-0 transition-all duration-300 ${
-                isHelpPage ? "text-white" : "text-slate-500 group-hover:text-sky-600"
-              }`} 
+              className="flex-shrink-0 transition-all duration-300 text-slate-500 group-hover:text-sky-600" 
             />
             {isOpen && (
-              <span className={`ml-3 text-sm font-medium truncate transition-all duration-300 ${
-                isHelpPage ? "font-semibold" : ""
-              }`}>
+              <span className="ml-3 text-sm font-medium truncate transition-all duration-300">
                 Help Center
               </span>
             )}

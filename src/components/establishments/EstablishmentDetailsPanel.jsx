@@ -3,12 +3,11 @@ import {
   Building2, 
   Calendar, 
   FileText, 
-  MapIcon,
-  Icon
+  MapIcon
 } from "lucide-react";
 
 // Helper component for consistent detail row styling
-const DetailRow = ({ icon:  label, value, className = "" }) => (
+const DetailRow = ({ icon: Icon, label, value, className = "" }) => (
   <div className={`flex items-start gap-3 p-2 rounded ${className}`}>
     <Icon size={16} className="mt-0.5 text-sky-600 flex-shrink-0" />
     <div className="flex-1 min-w-0">

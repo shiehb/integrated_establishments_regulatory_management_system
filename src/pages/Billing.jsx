@@ -11,7 +11,8 @@ import {
   ArrowDown,
   Loader2,
   Building,
-  Eye
+  Eye,
+  X
 } from "lucide-react";
 import PaginationControls from "../components/PaginationControls";
 import { useLocalStoragePagination } from "../hooks/useLocalStoragePagination";
@@ -392,7 +393,7 @@ export default function Billing() {
 
 
           {/* Billing Records Table */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto h-[calc(100vh-280px)]">
               <table className="w-full">
                 <thead>
