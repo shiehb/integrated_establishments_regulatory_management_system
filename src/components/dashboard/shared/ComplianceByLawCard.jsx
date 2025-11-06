@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   BarChart3,
   RefreshCw,
@@ -23,6 +23,7 @@ import ComplianceByLawSkeleton from "./ComplianceByLawSkeleton";
  *
  * A dashboard card that displays compliance statistics grouped by law using a vertical stacked bar chart.
  * Shows pending, compliant, and non-compliant inspections for each law.
+ * Supports monthly, quarterly, and yearly period filtering (defaults to quarterly).
  *
  * @param {Object} props - Component props
  * @param {string|null} props.userRole - User role for filtering data (optional)
@@ -30,7 +31,8 @@ import ComplianceByLawSkeleton from "./ComplianceByLawSkeleton";
  * @returns {JSX.Element} Compliance by law card component
  */
 const ComplianceByLawCard = ({ userRole = null, onViewAll }) => {
-  const { isLoading, data, chartData, error, refetch } = useComplianceByLawChart(userRole);
+  const [periodType, setPeriodType] = useState('quarterly');
+  const { isLoading, data, chartData, error, refetch } = useComplianceByLawChart(userRole, periodType);
 
   if (isLoading) {
     return <ComplianceByLawSkeleton />;
@@ -49,6 +51,18 @@ const ComplianceByLawCard = ({ userRole = null, onViewAll }) => {
       onViewAll('/inspections');
     }
   };
+
+  const handlePeriodTypeChange = (newPeriodType) => {
+    setPeriodType(newPeriodType);
+    // Data will be fetched automatically via useEffect in the hook
+  };
+
+  // Period type options
+  const periodOptions = [
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'quarterly', label: 'Quarterly' },
+    { value: 'yearly', label: 'Yearly' }
+  ];
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }) => {
@@ -114,6 +128,19 @@ const ComplianceByLawCard = ({ userRole = null, onViewAll }) => {
           Compliance Status by Law
         </h3>
         <div className="flex items-center gap-3">
+          {/* Period Type Selector */}
+          <select
+            value={periodType}
+            onChange={(e) => handlePeriodTypeChange(e.target.value)}
+            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+          >
+            {periodOptions.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          
           {onViewAll && (
             <button
               onClick={handleViewAll}

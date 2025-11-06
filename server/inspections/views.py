@@ -2624,10 +2624,19 @@ class InspectionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def compliance_by_law(self, request):
         """
-        Get compliance statistics grouped by law with role-based filtering
+        Get compliance statistics grouped by law with role-based filtering.
+        Supports monthly, quarterly, and yearly period filtering (defaults to quarterly).
         """
         from django.db.models import Count, Q
         from .models import InspectionForm, Inspection
+        from datetime import datetime, timedelta
+        from django.utils import timezone as tz
+        from calendar import month_name
+        
+        # Get period type (monthly, quarterly, yearly) - default to 'quarterly'
+        period_type = request.query_params.get('period_type', 'quarterly')
+        if period_type not in ['monthly', 'quarterly', 'yearly']:
+            period_type = 'quarterly'
         
         user = request.user
         law_choices = [
@@ -2637,6 +2646,45 @@ class InspectionViewSet(viewsets.ModelViewSet):
             ("RA-9275", "RA-9275 (WATER)"),
             ("RA-9003", "RA-9003 (WASTE)")
         ]
+        
+        # Helper functions for date ranges (same as quarterly_comparison)
+        def get_quarter_range(year, quarter):
+            """Get start and end dates for a quarter"""
+            if quarter == 1:
+                return tz.datetime(year, 1, 1, 0, 0, 0), tz.datetime(year, 3, 31, 23, 59, 59)
+            elif quarter == 2:
+                return tz.datetime(year, 4, 1, 0, 0, 0), tz.datetime(year, 6, 30, 23, 59, 59)
+            elif quarter == 3:
+                return tz.datetime(year, 7, 1, 0, 0, 0), tz.datetime(year, 9, 30, 23, 59, 59)
+            else:  # quarter == 4
+                return tz.datetime(year, 10, 1, 0, 0, 0), tz.datetime(year, 12, 31, 23, 59, 59)
+        
+        def get_month_range(year, month):
+            """Get start and end dates for a month"""
+            if month == 12:
+                end_date = tz.datetime(year + 1, 1, 1, 0, 0, 0) - timedelta(seconds=1)
+            else:
+                end_date = tz.datetime(year, month + 1, 1, 0, 0, 0) - timedelta(seconds=1)
+            return tz.datetime(year, month, 1, 0, 0, 0), end_date
+        
+        def get_year_range(year):
+            """Get start and end dates for a year"""
+            return tz.datetime(year, 1, 1, 0, 0, 0), tz.datetime(year, 12, 31, 23, 59, 59)
+        
+        # Calculate date range based on period type
+        now = datetime.now()
+        current_year = now.year
+        current_month = now.month
+        current_quarter = ((current_month - 1) // 3) + 1
+        
+        if period_type == 'monthly':
+            current_start, current_end = get_month_range(current_year, current_month)
+        elif period_type == 'quarterly':
+            current_start, current_end = get_quarter_range(current_year, current_quarter)
+        else:  # yearly
+            current_start, current_end = get_year_range(current_year)
+        
+        date_filter = Q(created_at__range=[current_start, current_end])
         
         # Get selected laws from query parameter
         selected_laws = request.query_params.getlist('laws')
@@ -2709,8 +2757,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
             # Get inspection IDs for compliance stats
             inspection_ids = filtered_inspections.values_list('id', flat=True)
             
+            # Build compliance stats query with optional date filter
+            compliance_query = Q(inspection_id__in=inspection_ids)
+            if date_filter:
+                compliance_query &= date_filter
+            
             # Get compliance stats for these inspections
-            law_stats = InspectionForm.objects.filter(inspection_id__in=inspection_ids).aggregate(
+            law_stats = InspectionForm.objects.filter(compliance_query).aggregate(
                 pending=Count('inspection_id', filter=Q(compliance_decision='PENDING')),
                 compliant=Count('inspection_id', filter=Q(compliance_decision='COMPLIANT')),
                 non_compliant=Count('inspection_id', filter=Q(compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT']))
@@ -2727,7 +2780,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 'total': total
             })
         
-        return Response(stats_by_law)
+        # Return data with period_type for frontend reference
+        return Response({
+            'data': stats_by_law,
+            'period_type': period_type
+        })
     
     @action(detail=False, methods=['get'])
     def tab_counts(self, request):

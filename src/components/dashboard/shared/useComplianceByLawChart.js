@@ -8,13 +8,14 @@ import { getComplianceByLaw } from '../../../services/api';
  * Provides loading states, error handling, and data refresh functionality.
  * 
  * @param {string|null} userRole - User role for filtering data (optional)
+ * @param {string} periodType - Period type for filtering: 'monthly', 'quarterly', 'yearly' (default: 'quarterly')
  * @returns {Object} Compliance by law data and utilities
  * @returns {boolean} returns.isLoading - Loading state
  * @returns {Array} returns.data - Raw compliance data by law
  * @returns {Object} returns.chartData - Transformed data for Chart.js
  * @returns {Function} returns.refetch - Function to refresh data
  */
-export const useComplianceByLawChart = (userRole = null) => {
+export const useComplianceByLawChart = (userRole = null, periodType = 'quarterly') => {
   const [isLoading, setIsLoading] = useState(true);
   const [data, setData] = useState([]);
   const [error, setError] = useState(null);
@@ -26,8 +27,13 @@ export const useComplianceByLawChart = (userRole = null) => {
       // Role-based filtering parameters
       const params = userRole ? { role: userRole } : {};
       
+      // Add period_type (always required now)
+      params.period_type = periodType || 'quarterly';
+      
       const response = await getComplianceByLaw(params);
-      setData(response || []);
+      // Handle both new format (with data property) and old format (array) for backward compatibility
+      const responseData = response?.data || response || [];
+      setData(responseData);
     } catch (err) {
       console.error("Error fetching compliance by law data:", err);
       setError(err);
@@ -39,7 +45,7 @@ export const useComplianceByLawChart = (userRole = null) => {
 
   useEffect(() => {
     fetchData();
-  }, [userRole]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userRole, periodType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Transform data for Recharts stacked bar chart
   const chartData = useMemo(() => {

@@ -18,6 +18,9 @@ const ComplianceByLawSkeleton = () => (
         <div className="h-6 w-48 bg-gray-200 rounded"></div>
       </div>
       <div className="flex items-center gap-3">
+        {/* Period Type Selector */}
+        <div className="h-8 w-24 bg-gray-200 rounded"></div>
+        
         <div className="w-6 h-6 bg-gray-200 rounded"></div>
         <div className="w-6 h-6 bg-gray-200 rounded"></div>
       </div>
