@@ -178,7 +178,7 @@ export const validatePhoneOrFax = (value) => {
 /* ======================
    Email validation helpers
    ====================== */
-export const validateEmailAddress = (email) => {
+export const validateEmailAddress = (email, options = {}) => {
   if (!email || email.trim() === "") {
     return { isValid: false, message: "Email address is required" };
   }
@@ -253,6 +253,27 @@ export const validateEmailAddress = (email) => {
     domainPart === domain || domainPart.endsWith('.' + domain)
   );
 
+  const { disallowedEmails } = options || {};
+  if (disallowedEmails) {
+    let disallowedSet = null;
+
+    if (disallowedEmails instanceof Set) {
+      disallowedSet = disallowedEmails;
+    } else if (Array.isArray(disallowedEmails)) {
+      disallowedSet = new Set(
+        disallowedEmails
+          .filter(Boolean)
+          .map((item) => item.trim().toLowerCase())
+      );
+    }
+
+    if (disallowedSet && disallowedSet.has(trimmedEmail)) {
+      return {
+        isValid: false,
+        message: "Email address cannot match an existing system user account.",
+      };
+    }
+  }
 
   return { isValid: true, message: "" };
 };

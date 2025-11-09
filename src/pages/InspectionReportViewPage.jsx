@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useNotifications } from '../components/NotificationManager';
 import api from '../services/api';
@@ -124,6 +124,81 @@ const InspectionReportViewPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const formatViolationsByLaw = useCallback((violationsByLaw) => {
+    if (!violationsByLaw || Object.keys(violationsByLaw).length === 0) {
+      return '';
+    }
+
+    const formatted = [];
+    let lawCounter = 1;
+
+    Object.entries(violationsByLaw).forEach(([law, entries]) => {
+      if (!law) return;
+      formatted.push(`${lawCounter}. ${law}:`);
+
+      if (entries.length > 0) {
+        entries.forEach((entry, index) => {
+          const sanitized = entry.replace(/^•\s*/, '');
+          formatted.push(`   ${lawCounter}.${index + 1} ${sanitized}`);
+        });
+      } else {
+        formatted.push(`   ${lawCounter}.1 No specific violations recorded`);
+      }
+
+      formatted.push('');
+      lawCounter += 1;
+    });
+
+    return formatted.join('\n').trim();
+  }, []);
+
+  const formatLegacyViolations = useCallback((rawViolations) => {
+    if (!rawViolations) return '';
+
+    const tokens = rawViolations
+      .split(',')
+      .map(token => token.trim())
+      .filter(Boolean);
+
+    if (tokens.length === 0) return rawViolations.trim();
+
+    const grouped = [];
+    let currentGroup = null;
+
+    tokens.forEach((token) => {
+      const isBullet = token.startsWith('•');
+      const sanitized = token.replace(/^•\s*/, '').replace(/[;]+$/, '');
+
+      if (!isBullet) {
+        const law = sanitized.replace(/[:]+$/, '').trim();
+        if (!law) return;
+        currentGroup = {
+          law,
+          items: []
+        };
+        grouped.push(currentGroup);
+      } else {
+        if (!currentGroup) {
+          currentGroup = {
+            law: 'Violations',
+            items: []
+          };
+          grouped.push(currentGroup);
+        }
+        if (sanitized) {
+          currentGroup.items.push(sanitized);
+        }
+      }
+    });
+
+    const violationsByLaw = {};
+    grouped.forEach(({ law, items }) => {
+      violationsByLaw[law] = items;
+    });
+
+    return formatViolationsByLaw(violationsByLaw);
+  }, [formatViolationsByLaw]);
+
   // Auto-populate violations from form data
   const violationsFound = useMemo(() => {
     if (!formData) return '';
@@ -131,11 +206,11 @@ const InspectionReportViewPage = () => {
     // First check if there are existing violations from the database
     const existingViolations = inspectionData?.form?.violations_found;
     if (existingViolations) {
-      return existingViolations;
+      const needsFormatting = existingViolations.includes('•') || existingViolations.includes(',');
+      return needsFormatting ? formatLegacyViolations(existingViolations) : existingViolations;
     }
     
     // Auto-generate violations from non-compliant items
-    const violations = [];
     const violationsByLaw = {};
     
     if (formData.complianceItems) {
@@ -147,7 +222,7 @@ const InspectionReportViewPage = () => {
           if (!violationsByLaw[lawInfo]) {
             violationsByLaw[lawInfo] = [];
           }
-          violationsByLaw[lawInfo].push(`• ${requirement}: ${item.remarks}`);
+          violationsByLaw[lawInfo].push(`${requirement}: ${item.remarks}`);
         }
       });
     }
@@ -160,21 +235,13 @@ const InspectionReportViewPage = () => {
           if (!violationsByLaw[lawInfo]) {
             violationsByLaw[lawInfo] = [];
           }
-          violationsByLaw[lawInfo].push(`• ${system.system}: ${system.remarks}`);
+          violationsByLaw[lawInfo].push(`${system.system}: ${system.remarks}`);
         }
       });
     }
     
-    Object.keys(violationsByLaw).forEach((law) => {
-      violations.push(`${law}:`);
-      violationsByLaw[law].forEach((violation) => {
-        violations.push(`  ${violation}`);
-      });
-      violations.push('');
-    });
-    
-    return violations.join('\n').trim();
-  }, [formData, inspectionData]);
+    return formatViolationsByLaw(violationsByLaw);
+  }, [formData, inspectionData, formatLegacyViolations, formatViolationsByLaw]);
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';

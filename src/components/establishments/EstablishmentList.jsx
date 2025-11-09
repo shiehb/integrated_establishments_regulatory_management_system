@@ -462,7 +462,7 @@ export default function EstablishmentList({
       </div>
 
       {/* Table */}
-      <div className="overflow-auto h-[calc(100vh-270px)] border border-gray-300 rounded scroll-smooth custom-scrollbar">
+      <div className="overflow-auto h-[calc(100vh-260px)] border border-gray-300 rounded scroll-smooth custom-scrollbar">
         <table className="w-full">
           <thead>
             <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
@@ -622,7 +622,7 @@ export default function EstablishmentList({
           </tbody>
         </table>
       </div>
-
+      <div className="mt-2">
       {/* Pagination */}
       <PaginationControls
         currentPage={currentPage}
@@ -639,6 +639,7 @@ export default function EstablishmentList({
         endItem={endItem}
         storageKey="establishments_list"
       />
+      </div>
 
     </div>
   );

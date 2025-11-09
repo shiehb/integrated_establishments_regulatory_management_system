@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useRef, forwardRef } from "react";
+import React, { useEffect, useState, useRef, useMemo, forwardRef } from "react";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import { formatInput, validatePhoneOrFax, validateEmailAddress, validateInspectionDateTime } from "./utils";
 import SectionHeader from "./SectionHeader";
+
+const PCO_ACCREDITATION_REGEX = /^PCO\d+-\d{8}-\d{4}$/;
 
 /* ---------------------------
    General Information
@@ -14,6 +16,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
   errors,
   clearError,
   isReadOnly = false,
+  systemUserEmails = [],
 }, ref) {
   // State for phone/fax validation
   const [phoneValidation, setPhoneValidation] = useState({ isValid: false, message: "" });
@@ -21,6 +24,8 @@ const GeneralInformation = forwardRef(function GeneralInformation({
   const [emailValidation, setEmailValidation] = useState({ isValid: false, message: "" });
   // State for date/time validation
   const [dateTimeValidation, setDateTimeValidation] = useState({ isValid: false, message: "" });
+  // State for PCO accreditation validation
+  const [pcoValidation, setPcoValidation] = useState({ isValid: false, message: "" });
   // State for confirmation modal
   const [confirmationModal, setConfirmationModal] = useState({ 
     isOpen: false, 
@@ -32,6 +37,14 @@ const GeneralInformation = forwardRef(function GeneralInformation({
   // Ref to track if we've already processed inspection data
   const hasProcessedInspectionData = useRef(false);
   const processedInspectionId = useRef(null);
+
+  const normalizedUserEmails = useMemo(() => {
+    return new Set(
+      (systemUserEmails || [])
+        .filter(Boolean)
+        .map((email) => email.trim().toLowerCase())
+    );
+  }, [systemUserEmails]);
 
   // Autofill when inspectionData provided (only if no existing data)
   useEffect(() => {
@@ -132,12 +145,31 @@ const GeneralInformation = forwardRef(function GeneralInformation({
   // Validate email when data changes
   useEffect(() => {
     if (data.email_address && data.email_address.trim() !== "") {
-      const validation = validateEmailAddress(data.email_address);
+      const validation = validateEmailAddress(data.email_address, {
+        disallowedEmails: normalizedUserEmails,
+      });
       setEmailValidation(validation);
     } else {
       setEmailValidation({ isValid: false, message: "" });
     }
-  }, [data.email_address]);
+  }, [data.email_address, normalizedUserEmails]);
+
+  // Validate PCO accreditation number when it changes
+  useEffect(() => {
+    const value = data.pco_accreditation_no || "";
+    if (value.trim() === "") {
+      setPcoValidation({ isValid: false, message: "" });
+      return;
+    }
+
+    const isValid = PCO_ACCREDITATION_REGEX.test(value);
+    setPcoValidation({
+      isValid,
+      message: isValid
+        ? "PCO accreditation number format looks good."
+        : "Use format PCO#-MMDDYYYY-#### (e.g., PCO1-12092022-3730)."
+    });
+  }, [data.pco_accreditation_no]);
 
   // Validate date/time when data changes
   useEffect(() => {
@@ -180,11 +212,34 @@ const GeneralInformation = forwardRef(function GeneralInformation({
     
     // Only validate if user has entered something (not on initial load)
     if (formattedValue.trim() !== "") {
-      const validation = validateEmailAddress(formattedValue);
+      const validation = validateEmailAddress(formattedValue, {
+        disallowedEmails: normalizedUserEmails,
+      });
       setEmailValidation(validation);
     } else {
       setEmailValidation({ isValid: false, message: "" });
     }
+  };
+
+  // Handle PCO accreditation validation
+  const handlePcoAccreditationChange = (value) => {
+    const formattedValue = formatInput.upper(value);
+    setData({ ...data, pco_accreditation_no: formattedValue });
+
+    if (clearError) clearError("pco_accreditation_no");
+
+    if (formattedValue.trim() === "") {
+      setPcoValidation({ isValid: false, message: "" });
+      return;
+    }
+
+    const isValid = PCO_ACCREDITATION_REGEX.test(formattedValue);
+    setPcoValidation({
+      isValid,
+      message: isValid
+        ? "PCO accreditation number format looks good."
+        : "Use format PCO#-MMDDYYYY-#### (e.g., PCO1-12092022-3730)."
+    });
   };
 
   // Handle date/time validation
@@ -720,12 +775,27 @@ const GeneralInformation = forwardRef(function GeneralInformation({
               PCO Accreditation No.<span className="text-red-600">*</span>
             </label>
             <input
-              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+              className={`w-full px-3 py-2 text-gray-900 uppercase bg-white border rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
+                data.pco_accreditation_no && data.pco_accreditation_no.trim() !== ""
+                  ? pcoValidation.isValid
+                    ? "border-green-500"
+                    : "border-red-500"
+                  : "border-gray-300"
+              }`}
               value={data.pco_accreditation_no || ""}
-              onChange={(e) => updateField("pco_accreditation_no", e.target.value)}
-              placeholder="Enter PCO accreditation number"
+              onChange={(e) => handlePcoAccreditationChange(e.target.value)}
+              placeholder="e.g., PCO1-12092022-3730"
               disabled={isReadOnly}
             />
+            {data.pco_accreditation_no && data.pco_accreditation_no.trim() !== "" && (
+              <p
+                className={`text-xs mt-1 ${
+                  pcoValidation.isValid ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {pcoValidation.message}
+              </p>
+            )}
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">

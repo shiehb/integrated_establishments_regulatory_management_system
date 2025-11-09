@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
-import { saveInspectionDraft, completeInspection, getInspection, closeInspection, sendNOV, sendNOO, uploadFindingDocument, getFindingDocuments, deleteFindingDocument } from "../../services/api";
+import { validateEmailAddress } from "./utils";
+import { saveInspectionDraft, completeInspection, getInspection, closeInspection, sendNOV, sendNOO, uploadFindingDocument, getFindingDocuments, deleteFindingDocument, getUsers } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 import { getButtonVisibility as getRoleStatusButtonVisibility, canUserAccessInspection } from "../../utils/roleStatusMatrix";
@@ -139,6 +140,7 @@ export default function InspectionForm({ inspectionData }) {
   const [hasFormChanges, setHasFormChanges] = useState(false);
   const [hasActionTaken, setHasActionTaken] = useState(false);
   const [autoSaveStatus] = useState('saved'); // 'saving', 'saved', 'error'
+  const [systemUserEmails, setSystemUserEmails] = useState([]);
   
   // Tab navigation state and refs
   const [activeSection, setActiveSection] = useState('general');
@@ -158,6 +160,36 @@ export default function InspectionForm({ inspectionData }) {
     findings: findingsRef,
     recommendations: recommendationsRef
   }), []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchSystemUserEmails = async () => {
+      try {
+        const data = await getUsers({ page_size: 1000 });
+        const users = Array.isArray(data?.results)
+          ? data.results
+          : Array.isArray(data)
+            ? data
+            : [];
+        const emailList = users
+          .map((user) => user?.email?.trim().toLowerCase())
+          .filter(Boolean);
+
+        if (isMounted) {
+          setSystemUserEmails([...new Set(emailList)]);
+        }
+      } catch (error) {
+        console.error("Failed to load system user emails:", error);
+      }
+    };
+
+    fetchSystemUserEmails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Function to determine compliance status based on form data
   const determineComplianceStatus = () => {
@@ -793,9 +825,12 @@ export default function InspectionForm({ inspectionData }) {
     if (!general.email_address) {
       errs.email_address = "Email Address is required.";
     } else {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(general.email_address))
-        errs.email_address = "Enter a valid email.";
+      const emailValidation = validateEmailAddress(general.email_address, {
+        disallowedEmails: systemUserEmails,
+      });
+      if (!emailValidation.isValid) {
+        errs.email_address = emailValidation.message || "Enter a valid email.";
+      }
     }
 
     if (general.inspection_date_time) {
@@ -1610,6 +1645,7 @@ export default function InspectionForm({ inspectionData }) {
             setGeneral(newData);
             setHasFormChanges(true);
           }}
+          systemUserEmails={systemUserEmails}
           onLawFilterChange={(selectedLaws) => {
             setLawFilter(selectedLaws);
             // Clear systems and compliance items for unselected laws

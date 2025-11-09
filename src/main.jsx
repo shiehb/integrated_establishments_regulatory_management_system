@@ -34,6 +34,8 @@ import RoleRoute from "./components/RoleRoute";
 import { SearchProvider } from "./contexts/SearchContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import NotificationContainer from "./components/NotificationManager";
+import LawManagement from "./pages/LawManagement";
+import AuditLogs from "./pages/AuditLogs";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -105,6 +107,15 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route path="/debug-actions" element={<DebugActions />} />
 
             <Route
+              path="/laws"
+              element={
+                <RoleRoute allowed={["Admin"]}>
+                  <LawManagement />
+                </RoleRoute>
+              }
+            />
+
+            <Route
               path="/billing"
               element={
                 <RoleRoute allowed={["Legal Unit"]}>
@@ -133,6 +144,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               element={
                 <RoleRoute allowed={["Admin"]}>
                   <DatabaseBackup />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/audit-logs"
+              element={
+                <RoleRoute allowed={["Admin"]}>
+                  <AuditLogs />
                 </RoleRoute>
               }
             />

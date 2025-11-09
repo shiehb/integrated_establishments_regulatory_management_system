@@ -8,6 +8,9 @@ from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
+from audit.constants import AUDIT_ACTIONS, AUDIT_MODULES
+from audit.utils import log_activity
+
 from .models import Inspection, InspectionForm, InspectionDocument, InspectionHistory, NoticeOfViolation, NoticeOfOrder, BillingRecord
 from .serializers import (
     InspectionSerializer, InspectionCreateSerializer, InspectionFormSerializer,
@@ -17,6 +20,7 @@ from .serializers import (
 from .utils import send_inspection_forward_notification, create_forward_notification
 
 User = get_user_model()
+USER_HAS_DISTRICT = any(field.name == 'district' for field in User._meta.get_fields())
 
 
 def capture_inspector_info(form, user):
@@ -25,6 +29,29 @@ def capture_inspector_info(form, user):
         form.inspected_by = user
         return True  # Indicates this was the first fill-out
     return False  # Not first fill-out
+
+
+def audit_inspection_event(user, inspection, action, description, request, metadata=None):
+    """Helper to standardize inspection audit logging."""
+    reference = getattr(inspection, "reference_no", None) or getattr(inspection, "reference_number", None)
+    payload = {
+        "entity_id": inspection.id,
+        "entity_name": reference or f"Inspection #{inspection.id}",
+        "status": "success",
+        "current_status": inspection.current_status,
+        "assigned_to": getattr(inspection.assigned_to, "email", None),
+    }
+    if metadata:
+        payload.update(metadata)
+
+    log_activity(
+        user,
+        action,
+        module=AUDIT_MODULES["INSPECTIONS"],
+        description=description,
+        metadata=payload,
+        request=request,
+    )
 
 
 class InspectionViewSet(viewsets.ModelViewSet):
@@ -108,9 +135,51 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Role-based filtering
         if user.userlevel == 'Admin':
-            # Admin sees all inspections regardless of tab
-            # The tab parameter is ignored for Admin users - they see everything
-            pass  # Admin sees all
+            # Admin sees all inspections but can filter by workflow stage tabs
+            final_statuses = [
+                'SECTION_COMPLETED_COMPLIANT',
+                'SECTION_COMPLETED_NON_COMPLIANT',
+                'UNIT_COMPLETED_COMPLIANT',
+                'UNIT_COMPLETED_NON_COMPLIANT',
+                'MONITORING_COMPLETED_COMPLIANT',
+                'MONITORING_COMPLETED_NON_COMPLIANT',
+                'SECTION_REVIEWED',
+                'UNIT_REVIEWED',
+                'DIVISION_REVIEWED',
+                'LEGAL_REVIEW',
+                'NOV_SENT',
+                'NOO_SENT',
+                'CLOSED_COMPLIANT',
+                'CLOSED_NON_COMPLIANT'
+            ]
+            completed_statuses = [
+                'SECTION_COMPLETED_COMPLIANT',
+                'SECTION_COMPLETED_NON_COMPLIANT',
+                'UNIT_COMPLETED_COMPLIANT',
+                'UNIT_COMPLETED_NON_COMPLIANT',
+                'MONITORING_COMPLETED_COMPLIANT',
+                'MONITORING_COMPLETED_NON_COMPLIANT'
+            ]
+            review_statuses = ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED']
+            legal_statuses = ['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
+
+            if tab == 'inspection_complete':
+                queryset = queryset.filter(current_status__in=completed_statuses)
+            elif tab == 'under_review':
+                queryset = queryset.filter(current_status__in=review_statuses)
+            elif tab == 'legal_action':
+                queryset = queryset.filter(current_status__in=legal_statuses)
+            elif tab == 'compliant':
+                queryset = queryset.filter(
+                    form__compliance_decision='COMPLIANT',
+                    current_status__in=final_statuses
+                )
+            elif tab == 'non_compliant':
+                queryset = queryset.filter(
+                    form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
+                    current_status__in=final_statuses
+                )
+            # All other tabs fall back to the unfiltered queryset for Admin
         elif user.userlevel == 'Division Chief':
             queryset = self._filter_division_chief(queryset, user, tab)
         elif user.userlevel == 'Section Chief':
@@ -194,22 +263,19 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if user.section == 'PD-1586,RA-8749,RA-9275':
             law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
         
-        if tab == 'received':
+        if tab == 'section_assigned' or tab == 'received':
             # Show inspections assigned to this Section Chief but not yet started
             return queryset.filter(
                 law_filter,
                 current_status='SECTION_ASSIGNED'
             )
-        elif tab == 'my_inspections':
-            # Show inspections that this Section Chief is working on (in-progress AND completed)
-            # Only show inspections assigned to this user
+        elif tab == 'section_in_progress' or tab == 'my_inspections':
+            # Show inspections that this Section Chief is currently working on
             return queryset.filter(
                 law_filter,
                 assigned_to=user,
                 current_status__in=[
-                    'SECTION_IN_PROGRESS',
-                    'SECTION_COMPLETED_COMPLIANT',
-                    'SECTION_COMPLETED_NON_COMPLIANT'
+                    'SECTION_IN_PROGRESS'
                 ]
             )
         elif tab == 'forwarded':
@@ -223,39 +289,67 @@ class InspectionViewSet(viewsets.ModelViewSet):
                     'MONITORING_IN_PROGRESS'
                 ]
             )
-        elif tab == 'review':
-            # Show inspections that need Section Chief review (completed work from Unit/Monitoring)
-            # Differentiate based on section type
-            if user.section == 'PD-1586,RA-8749,RA-9275':
-                # Combined section: has Unit Head in hierarchy
-                # Show ONLY Unit completed work and Unit reviewed (monitoring goes through Unit Head)
-                return queryset.filter(
-                    law_filter,
-                    current_status__in=[
-                        'UNIT_COMPLETED_COMPLIANT',
-                        'UNIT_COMPLETED_NON_COMPLIANT',
-                        'UNIT_REVIEWED'
-                    ]
-                )
-            else:
-                # Individual sections: NO Unit Head, goes directly to Monitoring
-                # Show only Monitoring completed work
-                return queryset.filter(
-                    law_filter,
-                    current_status__in=[
-                        'MONITORING_COMPLETED_COMPLIANT',
-                        'MONITORING_COMPLETED_NON_COMPLIANT'
-                    ]
-                )
-        elif tab == 'compliance':
-            # Show final status inspections (completed work through entire workflow)
-            # Filter by Section Chief's own work or their section's work
+        elif tab == 'inspection_complete':
+            # Show inspections completed by Section Chiefs or forwarded units
+            complete_statuses = [
+                'SECTION_COMPLETED_COMPLIANT',
+                'SECTION_COMPLETED_NON_COMPLIANT',
+                'UNIT_COMPLETED_COMPLIANT',
+                'UNIT_COMPLETED_NON_COMPLIANT',
+                'MONITORING_COMPLETED_COMPLIANT',
+                'MONITORING_COMPLETED_NON_COMPLIANT'
+            ]
+            return queryset.filter(
+                law_filter,
+                current_status__in=complete_statuses
+            )
+        elif tab == 'under_review':
+            # Show inspections that are in any review stage
+            review_statuses = [
+                'UNIT_REVIEWED',
+                'SECTION_REVIEWED',
+                'DIVISION_REVIEWED'
+            ]
+            return queryset.filter(
+                law_filter,
+                current_status__in=review_statuses
+            )
+        elif tab == 'legal_action':
+            # Show inspections that have progressed to legal action
+            return queryset.filter(
+                law_filter,
+                current_status__in=['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
+            )
+        elif tab == 'compliant':
+            # Show only COMPLIANT inspections
             return queryset.filter(
                 law_filter,
                 Q(form__inspected_by=user) | 
                 Q(form__inspected_by__userlevel='Section Chief', form__inspected_by__section=user.section) |
                 Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) |
                 Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
+                form__compliance_decision='COMPLIANT',
+                current_status__in=[
+                    'SECTION_COMPLETED_COMPLIANT',
+                    'SECTION_COMPLETED_NON_COMPLIANT',
+                    'SECTION_REVIEWED',
+                    'DIVISION_REVIEWED',
+                    'LEGAL_REVIEW',
+                    'NOV_SENT',
+                    'NOO_SENT',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
+            )
+        elif tab == 'non_compliant':
+            # Show only NON_COMPLIANT inspections
+            return queryset.filter(
+                law_filter,
+                Q(form__inspected_by=user) | 
+                Q(form__inspected_by__userlevel='Section Chief', form__inspected_by__section=user.section) |
+                Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) |
+                Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
+                form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
                 current_status__in=[
                     'SECTION_COMPLETED_COMPLIANT',
                     'SECTION_COMPLETED_NON_COMPLIANT',
@@ -279,22 +373,19 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if user.section == 'PD-1586,RA-8749,RA-9275':
             law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
         
-        if tab == 'received':
+        if tab == 'unit_assigned' or tab == 'received':
             # Show inspections assigned to this Unit Head but not yet started
             return queryset.filter(
                 law_filter,
                 current_status='UNIT_ASSIGNED'
             )
-        elif tab == 'my_inspections':
-            # Show inspections that this Unit Head is working on (in-progress AND completed)
-            # Only show inspections assigned to this user
+        elif tab == 'unit_in_progress' or tab == 'my_inspections':
+            # Show inspections that this Unit Head is currently working on
             return queryset.filter(
                 law_filter,
                 assigned_to=user,
                 current_status__in=[
-                    'UNIT_IN_PROGRESS',
-                    'UNIT_COMPLETED_COMPLIANT',
-                    'UNIT_COMPLETED_NON_COMPLIANT'
+                    'UNIT_IN_PROGRESS'
                 ]
             )
         elif tab == 'forwarded':
@@ -306,24 +397,53 @@ class InspectionViewSet(viewsets.ModelViewSet):
                     'MONITORING_IN_PROGRESS'
                 ]
             )
-        elif tab == 'review':
-            # Show inspections that need Unit Head review (completed work from Monitoring)
+        elif tab == 'inspection_complete':
+            # Show inspections completed by Unit Heads or Monitoring Personnel
             return queryset.filter(
                 law_filter,
                 current_status__in=[
+                    'UNIT_COMPLETED_COMPLIANT',
+                    'UNIT_COMPLETED_NON_COMPLIANT',
                     'MONITORING_COMPLETED_COMPLIANT',
-                    'MONITORING_COMPLETED_NON_COMPLIANT',
-                    'UNIT_REVIEWED'
+                    'MONITORING_COMPLETED_NON_COMPLIANT'
                 ]
             )
-        elif tab == 'compliance':
-            # Show final status inspections (completed work through entire workflow)
-            # Filter by Unit Head's own work or their section's work
+        elif tab == 'under_review':
+            # Show inspections in review stages after Unit Head evaluation
+            return queryset.filter(
+                law_filter,
+                current_status__in=[
+                    'UNIT_REVIEWED',
+                    'SECTION_REVIEWED',
+                    'DIVISION_REVIEWED'
+                ]
+            )
+        elif tab == 'compliant':
+            # Show only COMPLIANT inspections
             return queryset.filter(
                 law_filter,
                 Q(form__inspected_by=user) | 
                 Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) | 
                 Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
+                form__compliance_decision='COMPLIANT',
+                current_status__in=[
+                    'UNIT_COMPLETED_COMPLIANT',
+                    'UNIT_COMPLETED_NON_COMPLIANT',
+                    'UNIT_REVIEWED',
+                    'SECTION_REVIEWED',
+                    'DIVISION_REVIEWED',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
+            )
+        elif tab == 'non_compliant':
+            # Show only NON_COMPLIANT inspections
+            return queryset.filter(
+                law_filter,
+                Q(form__inspected_by=user) | 
+                Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) | 
+                Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
+                form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
                 current_status__in=[
                     'UNIT_COMPLETED_COMPLIANT',
                     'UNIT_COMPLETED_NON_COMPLIANT',
@@ -352,11 +472,51 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 assigned_to=user,
                 current_status='MONITORING_IN_PROGRESS'
             )
-        elif tab == 'completed':
-            # Show inspections that this Monitoring Personnel has completed and those in review
-            # Filter by who actually performed the inspection, not current assignee
+        elif tab == 'inspection_complete' or tab == 'completed':
+            # Show inspections that this Monitoring Personnel has completed
             return queryset.filter(
                 Q(form__inspected_by=user) | Q(assigned_to=user, form__inspected_by__isnull=True),
+                current_status__in=[
+                    'MONITORING_COMPLETED_COMPLIANT',
+                    'MONITORING_COMPLETED_NON_COMPLIANT',
+                    'UNIT_REVIEWED',
+                    'SECTION_REVIEWED', 
+                    'DIVISION_REVIEWED'
+                ]
+            )
+        elif tab == 'under_review':
+            # Show inspections currently under review after Monitoring completion
+            return queryset.filter(
+                Q(form__inspected_by=user) | Q(assigned_to=user, form__inspected_by__isnull=True),
+                current_status__in=[
+                    'UNIT_REVIEWED',
+                    'SECTION_REVIEWED', 
+                    'DIVISION_REVIEWED'
+                ]
+            )
+        elif tab == 'compliant':
+            # Show only COMPLIANT inspections
+            return queryset.filter(
+                Q(form__inspected_by=user) | Q(assigned_to=user, form__inspected_by__isnull=True),
+                form__compliance_decision='COMPLIANT',
+                current_status__in=[
+                    'MONITORING_COMPLETED_COMPLIANT',
+                    'MONITORING_COMPLETED_NON_COMPLIANT',
+                    'UNIT_REVIEWED',
+                    'SECTION_REVIEWED', 
+                    'DIVISION_REVIEWED',
+                    'LEGAL_REVIEW',
+                    'NOV_SENT',
+                    'NOO_SENT',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
+            )
+        elif tab == 'non_compliant':
+            # Show only NON_COMPLIANT inspections
+            return queryset.filter(
+                Q(form__inspected_by=user) | Q(assigned_to=user, form__inspected_by__isnull=True),
+                form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
                 current_status__in=[
                     'MONITORING_COMPLETED_COMPLIANT',
                     'MONITORING_COMPLETED_NON_COMPLIANT',
@@ -382,20 +542,75 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if tab == 'all_inspections':
             # Show ALL inspections they created - covers entire workflow
             return queryset.filter(created_by=user)
-        elif tab == 'review':
-            # Show inspections that need Division Chief review
-            # Includes section completed and section reviewed (awaiting division review)
+        elif tab == 'draft':
+            # Show inspections still in draft state created by the Division Chief
+            return queryset.filter(
+                created_by=user,
+                current_status='CREATED'
+            )
+        elif tab == 'section_assigned':
+            # Show inspections assigned to Section Chiefs
+            return queryset.filter(current_status='SECTION_ASSIGNED')
+        elif tab == 'section_in_progress':
+            # Show inspections actively being worked on by Section Chiefs
+            return queryset.filter(current_status='SECTION_IN_PROGRESS')
+        elif tab == 'inspection_complete':
+            # Show inspections marked complete at any operational level
             return queryset.filter(
                 current_status__in=[
                     'SECTION_COMPLETED_COMPLIANT',
                     'SECTION_COMPLETED_NON_COMPLIANT',
-                    'SECTION_REVIEWED'
+                    'UNIT_COMPLETED_COMPLIANT',
+                    'UNIT_COMPLETED_NON_COMPLIANT',
+                    'MONITORING_COMPLETED_COMPLIANT',
+                    'MONITORING_COMPLETED_NON_COMPLIANT'
                 ]
             )
-        elif tab == 'reviewed':
-            # Show inspections that Division Chief has reviewed (DIVISION_REVIEWED status)
+        elif tab == 'under_review':
+            # Show inspections currently under review
             return queryset.filter(
-                current_status='DIVISION_REVIEWED'
+                current_status__in=[
+                    'UNIT_REVIEWED',
+                    'SECTION_REVIEWED',
+                    'DIVISION_REVIEWED'
+                ]
+            )
+        elif tab == 'legal_action':
+            # Show inspections that have progressed to legal action
+            return queryset.filter(
+                current_status__in=['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
+            )
+        elif tab == 'compliant':
+            # Show only COMPLIANT inspections
+            return queryset.filter(
+                form__compliance_decision='COMPLIANT',
+                current_status__in=[
+                    'SECTION_COMPLETED_COMPLIANT',
+                    'SECTION_COMPLETED_NON_COMPLIANT',
+                    'SECTION_REVIEWED',
+                    'DIVISION_REVIEWED',
+                    'LEGAL_REVIEW',
+                    'NOV_SENT',
+                    'NOO_SENT',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
+            )
+        elif tab == 'non_compliant':
+            # Show only NON_COMPLIANT inspections
+            return queryset.filter(
+                form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
+                current_status__in=[
+                    'SECTION_COMPLETED_COMPLIANT',
+                    'SECTION_COMPLETED_NON_COMPLIANT',
+                    'SECTION_REVIEWED',
+                    'DIVISION_REVIEWED',
+                    'LEGAL_REVIEW',
+                    'NOV_SENT',
+                    'NOO_SENT',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
             )
         else:
             # Default to all inspections created by them
@@ -413,6 +628,32 @@ class InspectionViewSet(viewsets.ModelViewSet):
             # Show NOO sent and closed non-compliant (per tabStatusMapping)
             return queryset.filter(
                 current_status__in=['NOO_SENT', 'CLOSED_NON_COMPLIANT']
+            )
+        elif tab == 'compliant':
+            # Show only COMPLIANT inspections
+            return queryset.filter(
+                form__compliance_decision='COMPLIANT',
+                current_status__in=[
+                    'DIVISION_REVIEWED',
+                    'LEGAL_REVIEW',
+                    'NOV_SENT',
+                    'NOO_SENT',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
+            )
+        elif tab == 'non_compliant':
+            # Show only NON_COMPLIANT inspections
+            return queryset.filter(
+                form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
+                current_status__in=[
+                    'DIVISION_REVIEWED',
+                    'LEGAL_REVIEW',
+                    'NOV_SENT',
+                    'NOO_SENT',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
             )
         else:
             # Default: show all legal unit inspections
@@ -688,6 +929,18 @@ class InspectionViewSet(viewsets.ModelViewSet):
             remarks='Assigned to self'
         )
         
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["ASSIGN"],
+            f"{user.email} assigned inspection to self",
+            request,
+            metadata={
+                "previous_status": prev_status,
+                "new_status": inspection.current_status,
+            },
+        )
+
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
     
@@ -735,6 +988,19 @@ class InspectionViewSet(viewsets.ModelViewSet):
             remarks=remarks
         )
         
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"{user.email} moved inspection to {inspection.current_status}",
+            request,
+            metadata={
+                "previous_status": prev_status,
+                "new_status": inspection.current_status,
+                "remarks": remarks,
+            },
+        )
+
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
     
@@ -794,6 +1060,19 @@ class InspectionViewSet(viewsets.ModelViewSet):
             remarks=remarks
         )
         
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"{user.email} started inspection (status {next_status})",
+            request,
+            metadata={
+                "previous_status": prev_status,
+                "new_status": next_status,
+                "remarks": remarks,
+            },
+        )
+
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
     
@@ -827,6 +1106,17 @@ class InspectionViewSet(viewsets.ModelViewSet):
             remarks=remarks
         )
         
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"{user.email} continued inspection",
+            request,
+            metadata={
+                "remarks": remarks,
+            },
+        )
+
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
     
@@ -901,6 +1191,12 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 changed_by=user,
                 remarks='Status changed to In Progress when draft was saved'
             )
+            audit_metadata = {
+                "previous_status": prev_status,
+                "new_status": inspection.current_status,
+                "remarks": "Status changed to In Progress when draft was saved",
+                "draft": True,
+            }
         else:
             # Log draft save without status change
             InspectionHistory.objects.create(
@@ -910,6 +1206,21 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 changed_by=user,
                 remarks='Saved inspection form as draft'
             )
+            audit_metadata = {
+                "previous_status": inspection.current_status,
+                "new_status": inspection.current_status,
+                "remarks": "Saved inspection form as draft",
+                "draft": True,
+            }
+
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"{user.email} saved inspection draft",
+            request,
+            metadata=audit_metadata,
+        )
         
         serializer = self.get_serializer(inspection)
         return Response({
@@ -1004,6 +1315,17 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 new_status=inspection.current_status,
                 changed_by=user,
                 remarks='Auto-saved inspection form'
+            )
+            audit_inspection_event(
+                user,
+                inspection,
+                AUDIT_ACTIONS["UPDATE"],
+                f"{user.email} auto-saved inspection form",
+                request,
+                metadata={
+                    "auto_save": True,
+                    "remarks": "Auto-saved inspection form",
+                },
             )
         
         return Response({
@@ -1476,27 +1798,32 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection = self.get_object()
         
         # Get all monitoring personnel for the inspection's law
+        ordering = ['first_name', 'last_name']
+        if USER_HAS_DISTRICT:
+            ordering = ['district'] + ordering
+        
         monitoring_personnel = User.objects.filter(
             userlevel='Monitoring Personnel',
             section=inspection.law,
             is_active=True
-        ).order_by('district', 'first_name', 'last_name')
+        ).order_by(*ordering)
         
         # Separate district-based and other personnel
         district_personnel = []
         other_personnel = []
         
         for person in monitoring_personnel:
+            district_value = getattr(person, 'district', None) if USER_HAS_DISTRICT else None
             person_data = {
                 'id': person.id,
                 'first_name': person.first_name,
                 'last_name': person.last_name,
                 'email': person.email,
-                'district': person.district,
-                'is_district_match': person.district == inspection.district
+                'district': district_value,
+                'is_district_match': USER_HAS_DISTRICT and inspection.district and district_value == inspection.district
             }
             
-            if person.district == inspection.district:
+            if USER_HAS_DISTRICT and inspection.district and district_value == inspection.district:
                 district_personnel.append(person_data)
             else:
                 other_personnel.append(person_data)
@@ -1616,11 +1943,14 @@ class InspectionViewSet(viewsets.ModelViewSet):
                     )
             else:
                 # Auto-assignment: Prefer same district if available
-                if inspection.district:
+                if USER_HAS_DISTRICT and inspection.district:
                     next_assignee = monitoring_query.filter(district=inspection.district).first()
                     if not next_assignee:
                         # No district match - return available options instead of error
-                        available_personnel = monitoring_query.values('id', 'first_name', 'last_name', 'email', 'district')
+                        value_fields = ['id', 'first_name', 'last_name', 'email']
+                        if USER_HAS_DISTRICT:
+                            value_fields.append('district')
+                        available_personnel = monitoring_query.values(*value_fields)
                         return Response(
                             {
                                 'error': f'No Monitoring Personnel found for {inspection.law} in district {inspection.district}.',
@@ -1633,8 +1963,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
                     next_assignee = monitoring_query.first()
                     if not next_assignee:
                         # No Monitoring Personnel found - return error
+                        error_message = f'No Monitoring Personnel found for {inspection.law}. Please assign Monitoring Personnel before forwarding.'
                         return Response(
-                            {'error': f'No Monitoring Personnel found for {inspection.law}. Please assign Monitoring Personnel before forwarding.'},
+                            {'error': error_message},
                             status=status.HTTP_400_BAD_REQUEST
                         )
         else:
@@ -2795,11 +3126,12 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Define tab mappings (simplified - use existing get_queryset logic)
         tab_list = {
-            'Division Chief': ['all_inspections', 'review', 'reviewed'],
-            'Section Chief': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
-            'Unit Head': ['received', 'my_inspections', 'forwarded', 'review', 'compliance'],
-            'Monitoring Personnel': ['assigned', 'in_progress', 'completed'],
-            'Legal Unit': ['legal_review', 'nov_sent', 'noo_sent']
+            'Admin': ['all_inspections', 'inspection_complete', 'compliant', 'non_compliant'],
+            'Division Chief': ['all_inspections', 'draft', 'section_assigned', 'section_in_progress', 'inspection_complete', 'under_review', 'legal_action', 'compliant', 'non_compliant'],
+            'Section Chief': ['section_assigned', 'section_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'legal_action', 'compliant', 'non_compliant'],
+            'Unit Head': ['unit_assigned', 'unit_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
+            'Monitoring Personnel': ['assigned', 'in_progress', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
+            'Legal Unit': ['legal_review', 'nov_sent', 'noo_sent', 'compliant', 'non_compliant']
         }
         
         user_level = user.userlevel

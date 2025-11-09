@@ -48,7 +48,7 @@ export default function PaginationControls({
   };
 
   return (
-    <div className="flex flex-col items-center justify-between gap-4 py-2 sm:flex-row">
+    <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
       {/* Results Info */}
       <div className="text-sm text-gray-600">
         Showing {showStartItem} to {showEndItem} of {displayTotal} records

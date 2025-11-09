@@ -144,9 +144,9 @@ export default function InspectionReportsTable({ userLevel, userProfile }) {
     
     switch (userLevel) {
       case 'Section Chief':
-        return { ...baseParams, tab: 'received' };
+      return { ...baseParams, tab: 'section_assigned' };
       case 'Unit Head':
-        return { ...baseParams, tab: 'received' };
+      return { ...baseParams, tab: 'unit_assigned' };
       case 'Monitoring Personnel':
         return { ...baseParams, tab: 'assigned' };
       case 'Legal Unit':
@@ -161,9 +161,9 @@ export default function InspectionReportsTable({ userLevel, userProfile }) {
     
     switch (userLevel) {
       case 'Section Chief':
-        return { ...baseParams, tab: 'my_inspections' };
+      return { ...baseParams, tab: 'section_in_progress' };
       case 'Unit Head':
-        return { ...baseParams, tab: 'my_inspections' };
+      return { ...baseParams, tab: 'unit_in_progress' };
       case 'Monitoring Personnel':
         return { ...baseParams, tab: 'in_progress' };
       case 'Legal Unit':

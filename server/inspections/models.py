@@ -252,21 +252,29 @@ class Inspection(models.Model):
         if self.law in ['PD-1586', 'RA-8749', 'RA-9275']:
             target_section = 'PD-1586,RA-8749,RA-9275'  # EIA, Air & Water Combined
         
+        user_has_district = any(field.name == 'district' for field in User._meta.get_fields())
+        
         # Auto-assign Section Chief
-        section_chief = User.objects.filter(
-            userlevel='Section Chief',
-            section=target_section,
-            district=self.district if self.district else None,
-            is_active=True
-        ).first()
+        section_filters = {
+            'userlevel': 'Section Chief',
+            'section': target_section,
+            'is_active': True,
+        }
+        if user_has_district:
+            if self.district:
+                section_filters['district'] = self.district
+            else:
+                section_filters['district__isnull'] = True
+        section_chief = User.objects.filter(**section_filters).first()
         
         # If no district match, find any section chief for this target section
-        if not section_chief and self.district:
-            section_chief = User.objects.filter(
-                userlevel='Section Chief',
-                section=target_section,
-                is_active=True
-            ).first()
+        if not section_chief:
+            fallback_filters = {
+                'userlevel': 'Section Chief',
+                'section': target_section,
+                'is_active': True,
+            }
+            section_chief = User.objects.filter(**fallback_filters).first()
         
         if section_chief and self.current_status == 'SECTION_ASSIGNED':
             self.assigned_to = section_chief
@@ -319,8 +327,14 @@ class Inspection(models.Model):
                     target_section = 'PD-1586,RA-8749,RA-9275'  # EIA, Air & Water Combined
                 query = query.filter(section=target_section)
         
+        user_has_district = any(field.name == 'district' for field in User._meta.get_fields())
+        
         # For all roles except division/legal, prefer same district
-        if self.district and required_level not in ['Division Chief', 'Legal Unit']:
+        if (
+            user_has_district
+            and self.district
+            and required_level not in ['Division Chief', 'Legal Unit']
+        ):
             district_user = query.filter(district=self.district).first()
             if district_user:
                 return district_user

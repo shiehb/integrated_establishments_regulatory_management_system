@@ -22,6 +22,7 @@ from django.utils.dateparse import parse_datetime
 from notifications.models import Notification
 
 # Audit logging
+from audit.constants import AUDIT_ACTIONS, AUDIT_MODULES
 from audit.utils import log_activity
 
 User = get_user_model()
@@ -41,6 +42,18 @@ class LoginView(APIView):
         password = request.data.get('password')
 
         if not email or not password:
+            log_activity(
+                None,
+                AUDIT_ACTIONS["LOGIN"],
+                module=AUDIT_MODULES["AUTH"],
+                description="Login attempt with missing credentials",
+                metadata={
+                    "email": email,
+                    "status": "failed",
+                    "reason": "missing_credentials",
+                },
+                request=request,
+            )
             return Response({
                 'error': 'Email and password are required.',
                 'error_code': 'MISSING_CREDENTIALS'
@@ -52,6 +65,19 @@ class LoginView(APIView):
             # Check if account is locked
             if user.is_account_currently_locked():
                 remaining_time = self._get_remaining_lockout_time(user)
+                log_activity(
+                    user,
+                    AUDIT_ACTIONS["LOGIN"],
+                    module=AUDIT_MODULES["AUTH"],
+                    description=f"Login blocked for locked account {email}",
+                    metadata={
+                        "email": email,
+                        "status": "failed",
+                        "reason": "account_locked",
+                        "remaining_minutes": remaining_time,
+                    },
+                    request=request,
+                )
                 return Response({
                     'error': f'Account locked. Try again in {remaining_time} minutes.',
                     'error_code': 'ACCOUNT_LOCKED',
@@ -69,6 +95,18 @@ class LoginView(APIView):
                 except User.DoesNotExist:
                     pass
                 
+                log_activity(
+                    None,
+                    AUDIT_ACTIONS["LOGIN"],
+                    module=AUDIT_MODULES["AUTH"],
+                    description=f"Invalid login attempt for {email}",
+                    metadata={
+                        "email": email,
+                        "status": "failed",
+                        "reason": "invalid_credentials",
+                    },
+                    request=request,
+                )
                 return Response({
                     'error': 'Invalid email or password.',
                     'error_code': 'INVALID_CREDENTIALS'
@@ -76,6 +114,18 @@ class LoginView(APIView):
             
             # Check if user is active
             if not user.is_active:
+                log_activity(
+                    user,
+                    AUDIT_ACTIONS["LOGIN"],
+                    module=AUDIT_MODULES["AUTH"],
+                    description=f"Login blocked for deactivated user {email}",
+                    metadata={
+                        "email": email,
+                        "status": "failed",
+                        "reason": "account_deactivated",
+                    },
+                    request=request,
+                )
                 return Response({
                     'error': 'Account deactivated. Contact administrator.',
                     'error_code': 'ACCOUNT_DEACTIVATED'
@@ -92,6 +142,18 @@ class LoginView(APIView):
             refresh = RefreshToken.for_user(user)
             access_token = refresh.access_token
             
+            log_activity(
+                user,
+                AUDIT_ACTIONS["LOGIN"],
+                module=AUDIT_MODULES["AUTH"],
+                description=f"{user.email} logged in",
+                metadata={
+                    "user_id": user.id,
+                    "email": user.email,
+                    "status": "success",
+                },
+                request=request,
+            )
             return Response({
                 'success': True,
                 'message': 'Login successful',
@@ -103,12 +165,37 @@ class LoginView(APIView):
             }, status=status.HTTP_200_OK)
             
         except User.DoesNotExist:
+            log_activity(
+                None,
+                AUDIT_ACTIONS["LOGIN"],
+                module=AUDIT_MODULES["AUTH"],
+                description=f"Invalid login attempt for unknown user {email}",
+                metadata={
+                    "email": email,
+                    "status": "failed",
+                    "reason": "invalid_credentials",
+                },
+                request=request,
+            )
             return Response({
                 'error': 'Invalid email or password.',
                 'error_code': 'INVALID_CREDENTIALS'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
         except Exception as e:
+            log_activity(
+                None,
+                AUDIT_ACTIONS["LOGIN"],
+                module=AUDIT_MODULES["AUTH"],
+                description=f"Login error for {email}",
+                metadata={
+                    "email": email,
+                    "status": "failed",
+                    "reason": "exception",
+                    "error": str(e),
+                },
+                request=request,
+            )
             return Response({
                 'error': 'Login failed. Please try again.',
                 'error_code': 'LOGIN_ERROR'
@@ -164,9 +251,16 @@ class RegisterView(APIView):
             # 📌 Log user creation
             log_activity(
                 request.user if request.user.is_authenticated else None,
-                "create",
-                f"New user registered: {user.email} with auto-generated password",
-                request=request
+                AUDIT_ACTIONS["CREATE"],
+                module=AUDIT_MODULES["USERS"],
+                description=f"{(request.user.email if request.user.is_authenticated else 'System')} registered user {user.email}",
+                metadata={
+                    "entity_name": user.email,
+                    "entity_id": user.id,
+                    "role": user.userlevel,
+                    "status": "success",
+                },
+                request=request,
             )
 
             self.create_new_user_notifications(user)
@@ -394,24 +488,45 @@ class UserUpdateView(generics.RetrieveUpdateAPIView):
                 send_welcome_email(user, new_password)
                 log_activity(
                     self.request.user,
-                    "update",
-                    f"Updated user email from {original_email} to {user.email}. New password generated and sent.",
-                    request=self.request
+                    AUDIT_ACTIONS["UPDATE"],
+                    module=AUDIT_MODULES["USERS"],
+                    description=f"{self.request.user.email} changed email for {original_email} to {user.email}",
+                    metadata={
+                        "entity_name": user.email,
+                        "entity_id": user.id,
+                        "before": {"email": original_email},
+                        "after": {"email": user.email},
+                        "status": "success",
+                    },
+                    request=self.request,
                 )
             except Exception as e:
                 # Log the error but don't fail the update
                 log_activity(
                     self.request.user,
-                    "error",
-                    f"Updated user email to {user.email} but failed to send email: {str(e)}",
-                    request=self.request
+                    AUDIT_ACTIONS["SYSTEM"],
+                    module=AUDIT_MODULES["USERS"],
+                    description=f"{self.request.user.email} updated {user.email} but failed to send welcome email",
+                    metadata={
+                        "entity_name": user.email,
+                        "entity_id": user.id,
+                        "status": "failed",
+                        "error": str(e),
+                    },
+                    request=self.request,
                 )
         else:
             log_activity(
                 self.request.user,
-                "update",
-                f"Updated user: {user.email}",
-                request=self.request
+                AUDIT_ACTIONS["UPDATE"],
+                module=AUDIT_MODULES["USERS"],
+                description=f"{self.request.user.email} updated user {user.email}",
+                metadata={
+                    "entity_name": user.email,
+                    "entity_id": user.id,
+                    "status": "success",
+                },
+                request=self.request,
             )
 
 
@@ -459,9 +574,17 @@ def toggle_user_active(request, pk):
 
         log_activity(
             request.user,
-            "update",
-            f"Toggled active status for {user.email} → {user.is_active}",
-            request=request
+            AUDIT_ACTIONS["UPDATE"],
+            module=AUDIT_MODULES["USERS"],
+            description=f"{request.user.email} {'activated' if new_active_status else 'deactivated'} user {user.email}",
+            metadata={
+                "entity_name": user.email,
+                "entity_id": user.id,
+                "status": "success",
+                "before": {"is_active": not new_active_status},
+                "after": {"is_active": new_active_status},
+            },
+            request=request,
         )
 
         # Send email notification to the user
@@ -571,7 +694,18 @@ def change_password(request):
     user.updated_at = timezone.now()
     user.save()
 
-    log_activity(user, "update", f"Password changed for {user.email}", request=request)
+    log_activity(
+        user,
+        AUDIT_ACTIONS["UPDATE"],
+        module=AUDIT_MODULES["AUTH"],
+        description=f"{user.email} changed password",
+        metadata={
+            "user_id": user.id,
+            "status": "success",
+            "operation": "change_password",
+        },
+        request=request,
+    )
 
     return Response({
         'detail': 'Password changed successfully.',
@@ -609,7 +743,18 @@ def first_time_change_password(request):
     user.updated_at = timezone.now()
     user.save()
 
-    log_activity(user, "update", f"First-time password set for {user.email}", request=request)
+    log_activity(
+        user,
+        AUDIT_ACTIONS["UPDATE"],
+        module=AUDIT_MODULES["AUTH"],
+        description=f"{user.email} completed first-time password setup",
+        metadata={
+            "user_id": user.id,
+            "status": "success",
+            "operation": "first_time_change_password",
+        },
+        request=request,
+    )
 
     return Response({
         'detail': 'Password changed successfully.',
@@ -687,7 +832,18 @@ def reset_password_with_otp(request):
 
     cache.delete(f"otp_{email}")
 
-    log_activity(user, "update", f"Password reset via OTP for {user.email}", request=request)
+    log_activity(
+        user,
+        AUDIT_ACTIONS["UPDATE"],
+        module=AUDIT_MODULES["AUTH"],
+        description=f"{user.email} reset password via OTP",
+        metadata={
+            "user_id": user.id,
+            "status": "success",
+            "operation": "reset_password_otp",
+        },
+        request=request,
+    )
 
     return Response({
         'detail': 'Password reset successfully.',

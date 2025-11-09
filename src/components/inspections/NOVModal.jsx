@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Mail, Calendar, FileText, AlertTriangle, CheckCircle, ArrowLeft } from 'lucide-react';
 import LayoutForm from '../LayoutForm';
 
@@ -13,6 +13,74 @@ const NOVModal = ({ open, onClose, onConfirm, inspection, loading }) => {
     remarks: '',
     complianceStatus: null
   });
+
+  const formatLegacyViolations = useCallback((rawViolations) => {
+    if (!rawViolations) return '';
+
+    const hasLegacyMarkers = rawViolations.includes('•') || rawViolations.includes(',');
+    if (!hasLegacyMarkers) {
+      return rawViolations.trim();
+    }
+
+    const tokens = rawViolations
+      .split(',')
+      .map(token => token.trim())
+      .filter(Boolean);
+
+    if (tokens.length === 0) {
+      return rawViolations.trim();
+    }
+
+    const grouped = [];
+    let currentGroup = null;
+
+    tokens.forEach((token) => {
+      const isBullet = token.startsWith('•');
+      const sanitized = token.replace(/^•\s*/, '').replace(/[;]+$/, '');
+
+      if (!isBullet) {
+        const law = sanitized.replace(/[:]+$/, '').trim();
+        if (!law) return;
+        currentGroup = {
+          law,
+          items: []
+        };
+        grouped.push(currentGroup);
+      } else {
+        if (!currentGroup) {
+          currentGroup = {
+            law: 'Violations',
+            items: []
+          };
+          grouped.push(currentGroup);
+        }
+        if (sanitized) {
+          currentGroup.items.push(sanitized);
+        }
+      }
+    });
+
+    const formatted = [];
+    let lawCounter = 1;
+
+    grouped.forEach(({ law, items }) => {
+      if (!law) return;
+      formatted.push(`${lawCounter}. ${law}:`);
+
+      if (items.length > 0) {
+        items.forEach((item, index) => {
+          formatted.push(`   ${lawCounter}.${index + 1} ${item}`);
+        });
+      } else {
+        formatted.push(`   ${lawCounter}.1 No specific violations recorded`);
+      }
+
+      formatted.push('');
+      lawCounter += 1;
+    });
+
+    return formatted.join('\n').trim();
+  }, []);
 
   useEffect(() => {
     if (open && inspection) {
@@ -40,17 +108,19 @@ const NOVModal = ({ open, onClose, onConfirm, inspection, loading }) => {
                            establishment?.contact_person ||
                            '';
       
+      const formattedViolations = formatLegacyViolations(violationsFound);
+
       setFormData(prev => ({
         ...prev,
         recipientEmail,
         recipientName: establishment?.name || '',
         contactPerson, // Auto-populate contact person
-        violations: violationsFound, // Auto-populate violations field
+        violations: formattedViolations || violationsFound, // Auto-populate violations field
         complianceStatus,
         complianceDeadline: getDefaultDeadline(30) // 30 days from now
       }));
     }
-  }, [open, inspection]);
+  }, [open, inspection, formatLegacyViolations]);
 
   const getDefaultDeadline = (days) => {
     const date = new Date();

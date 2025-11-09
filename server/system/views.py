@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 import logging
 import traceback
 from .models import BackupRecord
+from audit.constants import AUDIT_ACTIONS, AUDIT_MODULES
+from audit.utils import log_activity
 
 logger = logging.getLogger(__name__)
 
@@ -335,6 +337,9 @@ def backup_database(request):
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
     
+    actor = getattr(request, "user", None)
+    audit_user = actor if getattr(actor, "is_authenticated", False) else None
+
     try:
         # Parse request body
         if request.content_type == 'application/json':
@@ -348,6 +353,17 @@ def backup_database(request):
         # Require path parameter
         custom_path = body.get("path", "")
         if not custom_path:
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["BACKUP"],
+                module=AUDIT_MODULES["BACKUP"],
+                description="Backup request rejected: missing directory path",
+                metadata={
+                    "status": "failed",
+                    "reason": "missing_path",
+                },
+                request=request,
+            )
             return JsonResponse({"error": "Backup directory path is required"}, status=400)
         
         # Create directory if missing
@@ -397,23 +413,64 @@ def backup_database(request):
                             shell=True
                         )
                     
-                    if result.returncode != 0:
-                        error_msg = result.stderr if result.stderr else "Unknown mysqldump error"
-                        logger.error(f"MySQL dump failed: {error_msg}")
-                        # Clean up failed backup file
-                        if os.path.exists(file_path):
-                            os.remove(file_path)
-                        return JsonResponse({
-                            "error": f"MySQL backup failed: {error_msg}"
-                        }, status=500)
+                        if result.returncode != 0:
+                            error_msg = result.stderr if result.stderr else "Unknown mysqldump error"
+                            logger.error(f"MySQL dump failed: {error_msg}")
+                            # Clean up failed backup file
+                            if os.path.exists(file_path):
+                                os.remove(file_path)
+                            log_activity(
+                                audit_user,
+                                AUDIT_ACTIONS["BACKUP"],
+                                module=AUDIT_MODULES["BACKUP"],
+                                description=f"mysqldump backup failed for {db_config['name']}",
+                                metadata={
+                                    "status": "failed",
+                                    "reason": "mysqldump_error",
+                                    "error": error_msg,
+                                    "file_name": file_name,
+                                    "path": file_path,
+                                },
+                                request=request,
+                            )
+                            return JsonResponse({
+                                "error": f"MySQL backup failed: {error_msg}"
+                            }, status=500)
                         
                 except subprocess.TimeoutExpired:
                     if os.path.exists(file_path):
                         os.remove(file_path)
+                    log_activity(
+                        audit_user,
+                        AUDIT_ACTIONS["BACKUP"],
+                        module=AUDIT_MODULES["BACKUP"],
+                        description=f"Backup timed out for database {db_config['name']}",
+                        metadata={
+                            "status": "failed",
+                            "reason": "timeout",
+                            "file_name": file_name,
+                            "path": file_path,
+                        },
+                        request=request,
+                    )
                     return JsonResponse({"error": "Backup timed out after 5 minutes"}, status=500)
                 except Exception as e:
                     if os.path.exists(file_path):
                         os.remove(file_path)
+                    log_activity(
+                        audit_user,
+                        AUDIT_ACTIONS["BACKUP"],
+                        module=AUDIT_MODULES["BACKUP"],
+                        description=f"mysqldump raised exception for {db_config['name']}",
+                        metadata={
+                            "status": "failed",
+                            "reason": "mysqldump_exception",
+                            "error": str(e),
+                            "file_name": file_name,
+                            "path": file_path,
+                        },
+                        request=request,
+                    )
                     return JsonResponse({"error": f"MySQL backup error: {str(e)}"}, status=500)
             else:
                 # Fallback to Python-based SQL backup
@@ -421,6 +478,20 @@ def backup_database(request):
                 if not success:
                     if os.path.exists(file_path):
                         os.remove(file_path)
+                    log_activity(
+                        audit_user,
+                        AUDIT_ACTIONS["BACKUP"],
+                        module=AUDIT_MODULES["BACKUP"],
+                        description=f"Python backup failed for database {db_config['name']}",
+                        metadata={
+                            "status": "failed",
+                            "reason": "python_backup_error",
+                            "error": message,
+                            "file_name": file_name,
+                            "path": file_path,
+                        },
+                        request=request,
+                    )
                     return JsonResponse({"error": message}, status=500)
                 
         elif 'sqlite3' in db_engine:
@@ -459,6 +530,21 @@ def backup_database(request):
             # Don't fail the request if record creation fails, but log it
             backup_record = None
         
+        log_activity(
+            audit_user,
+            AUDIT_ACTIONS["BACKUP"],
+            module=AUDIT_MODULES["BACKUP"],
+            description=f"{getattr(audit_user, 'email', 'System')} created backup {file_name}",
+            metadata={
+                "status": "success",
+                "file_name": file_name,
+                "path": file_path,
+                "location": custom_path,
+                "size_bytes": file_size,
+            },
+            request=request,
+        )
+
         return JsonResponse({
             "message": "Backup created successfully!",
             "fileName": file_name,
@@ -471,6 +557,18 @@ def backup_database(request):
     except Exception as e:
         logger.error(f"Backup error: {str(e)}")
         logger.error(traceback.format_exc())
+        log_activity(
+            audit_user,
+            AUDIT_ACTIONS["BACKUP"],
+            module=AUDIT_MODULES["BACKUP"],
+            description="Unhandled exception during backup",
+            metadata={
+                "status": "failed",
+                "reason": "exception",
+                "error": str(e),
+            },
+            request=request,
+        )
         return JsonResponse({"error": f"Backup failed: {str(e)}"}, status=500)
 
 
@@ -480,6 +578,9 @@ def restore_database(request):
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
         
+    actor = getattr(request, "user", None)
+    audit_user = actor if getattr(actor, "is_authenticated", False) else None
+
     try:
         file = request.FILES.get("file")
         file_name = None
@@ -534,15 +635,63 @@ def restore_database(request):
             except BackupRecord.DoesNotExist:
                 # Fallback to old behavior: check default backup directory
                 if '..' in file_name or file_name.startswith('/'):
+                    log_activity(
+                        audit_user,
+                        AUDIT_ACTIONS["RESTORE"],
+                        module=AUDIT_MODULES["BACKUP"],
+                        description="Restore request rejected due to invalid file name",
+                        metadata={
+                            "status": "failed",
+                            "reason": "invalid_file_name",
+                            "file_name": file_name,
+                        },
+                        request=request,
+                    )
                     return JsonResponse({"error": "Invalid file name"}, status=400)
                 file_path = os.path.join(BACKUP_DIR, file_name)
         else:
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["RESTORE"],
+                module=AUDIT_MODULES["BACKUP"],
+                description="Restore request rejected: no file provided",
+                metadata={
+                    "status": "failed",
+                    "reason": "missing_file",
+                },
+                request=request,
+            )
             return JsonResponse({"error": "No file provided"}, status=400)
 
         if not os.path.exists(file_path):
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["RESTORE"],
+                module=AUDIT_MODULES["BACKUP"],
+                description="Restore request failed: backup file not found",
+                metadata={
+                    "status": "failed",
+                    "reason": "file_not_found",
+                    "file_name": file_name,
+                    "path": file_path,
+                },
+                request=request,
+            )
             return JsonResponse({"error": "Backup file not found"}, status=404)
 
         if not file_path.endswith(".sql"):
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["RESTORE"],
+                module=AUDIT_MODULES["BACKUP"],
+                description="Restore request rejected: invalid file type",
+                metadata={
+                    "status": "failed",
+                    "reason": "invalid_extension",
+                    "file_name": file_name,
+                },
+                request=request,
+            )
             return JsonResponse({"error": "Only .sql files are supported"}, status=400)
 
         db_config = get_db_config()
@@ -576,21 +725,88 @@ def restore_database(request):
                         
                     if result.returncode != 0:
                         error_msg = result.stderr if result.stderr else "Unknown mysql error"
+                        log_activity(
+                            audit_user,
+                            AUDIT_ACTIONS["RESTORE"],
+                            module=AUDIT_MODULES["BACKUP"],
+                            description=f"MySQL restore failed for {db_config['name']}",
+                            metadata={
+                                "status": "failed",
+                                "reason": "mysql_error",
+                                "error": error_msg,
+                                "file_name": file_name,
+                                "path": file_path,
+                            },
+                            request=request,
+                        )
                         return JsonResponse({
                             "error": f"MySQL restore failed: {error_msg}"
                         }, status=500)
                         
                 except subprocess.TimeoutExpired:
+                    log_activity(
+                        audit_user,
+                        AUDIT_ACTIONS["RESTORE"],
+                        module=AUDIT_MODULES["BACKUP"],
+                        description=f"MySQL restore timed out for {db_config['name']}",
+                        metadata={
+                            "status": "failed",
+                            "reason": "timeout",
+                            "file_name": file_name,
+                            "path": file_path,
+                        },
+                        request=request,
+                    )
                     return JsonResponse({"error": "Restore timed out after 5 minutes"}, status=500)
             else:
                 # Fallback to Python-based SQL restore
                 success, message = restore_sql_backup_python(db_config, file_path)
                 if not success:
+                    log_activity(
+                        audit_user,
+                        AUDIT_ACTIONS["RESTORE"],
+                        module=AUDIT_MODULES["BACKUP"],
+                        description=f"Python-based restore failed for {db_config['name']}",
+                        metadata={
+                            "status": "failed",
+                            "reason": "python_restore_error",
+                            "error": message,
+                            "file_name": file_name,
+                            "path": file_path,
+                        },
+                        request=request,
+                    )
                     return JsonResponse({"error": message}, status=500)
                 
         elif 'sqlite3' in db_engine:
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["RESTORE"],
+                module=AUDIT_MODULES["BACKUP"],
+                description="Restore request rejected: SQLite engine not supported for SQL restore",
+                metadata={
+                    "status": "failed",
+                    "reason": "unsupported_sqlite_restore",
+                    "file_name": file_name,
+                    "path": file_path,
+                },
+                request=request,
+            )
             return JsonResponse({"error": "SQLite restore from SQL not supported"}, status=400)
         else:
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["RESTORE"],
+                module=AUDIT_MODULES["BACKUP"],
+                description=f"Restore request rejected: unsupported engine {db_engine}",
+                metadata={
+                    "status": "failed",
+                    "reason": "unsupported_engine",
+                    "file_name": file_name,
+                    "path": file_path,
+                },
+                request=request,
+            )
             return JsonResponse({"error": f"Unsupported database for SQL restore: {db_engine}"}, status=400)
 
         # Create new BackupRecord entry for restore activity log
@@ -623,11 +839,37 @@ def restore_database(request):
             logger.error(f"Failed to create restore log BackupRecord: {str(e)}")
             # Don't fail the restore operation if log creation fails
         
+        log_activity(
+            audit_user,
+            AUDIT_ACTIONS["RESTORE"],
+            module=AUDIT_MODULES["BACKUP"],
+            description=f"{getattr(audit_user, 'email', 'System')} restored database from {file_name}",
+            metadata={
+                "status": "success",
+                "file_name": file_name,
+                "path": file_path,
+                "backup_record_id": getattr(original_backup_record, 'id', None),
+                "restore_record": restore_file_name,
+            },
+            request=request,
+        )
         return JsonResponse({"message": "Database restored successfully!"})
 
     except Exception as e:
         logger.error(f"Restore error: {str(e)}")
         logger.error(traceback.format_exc())
+        log_activity(
+            audit_user,
+            AUDIT_ACTIONS["RESTORE"],
+            module=AUDIT_MODULES["BACKUP"],
+            description="Unhandled exception during restore",
+            metadata={
+                "status": "failed",
+                "reason": "exception",
+                "error": str(e),
+            },
+            request=request,
+        )
         return JsonResponse({"error": f"Restore failed: {str(e)}"}, status=500)
 
 @csrf_exempt
@@ -636,9 +878,24 @@ def download_backup(request, file_name):
     if request.method != "GET":
         return JsonResponse({"error": "Method not allowed"}, status=405)
         
+    actor = getattr(request, "user", None)
+    audit_user = actor if getattr(actor, "is_authenticated", False) else None
+
     try:
         # Security check: prevent directory traversal
         if '..' in file_name or '/' in file_name or '\\' in file_name:
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["EXPORT"],
+                module=AUDIT_MODULES["BACKUP"],
+                description="Backup download blocked due to invalid file name",
+                metadata={
+                    "status": "failed",
+                    "reason": "invalid_file_name",
+                    "file_name": file_name,
+                },
+                request=request,
+            )
             return JsonResponse({"error": "Invalid file name"}, status=400)
         
         # Try to find BackupRecord to get location
@@ -651,21 +908,71 @@ def download_backup(request, file_name):
             file_path = os.path.join(BACKUP_DIR, file_name)
         
         if not os.path.exists(file_path):
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["EXPORT"],
+                module=AUDIT_MODULES["BACKUP"],
+                description="Backup download failed: file not found",
+                metadata={
+                    "status": "failed",
+                    "reason": "file_not_found",
+                    "file_name": file_name,
+                    "path": file_path,
+                },
+                request=request,
+            )
             return JsonResponse({"error": "File not found"}, status=404)
         
         # Ensure it's a backup file
         if not file_name.endswith('.sql'):
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["EXPORT"],
+                module=AUDIT_MODULES["BACKUP"],
+                description="Backup download rejected: invalid file type",
+                metadata={
+                    "status": "failed",
+                    "reason": "invalid_extension",
+                    "file_name": file_name,
+                },
+                request=request,
+            )
             return JsonResponse({"error": "Not a backup file"}, status=400)
             
         # Serve the file for download
         with open(file_path, 'rb') as f:
             response = HttpResponse(f.read(), content_type='application/octet-stream')
             response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["EXPORT"],
+                module=AUDIT_MODULES["BACKUP"],
+                description=f"{getattr(audit_user, 'email', 'System')} downloaded backup {file_name}",
+                metadata={
+                    "status": "success",
+                    "file_name": file_name,
+                    "path": file_path,
+                },
+                request=request,
+            )
             return response
             
     except Exception as e:
         logger.error(f"Download backup error: {str(e)}")
         logger.error(traceback.format_exc())
+        log_activity(
+            audit_user,
+            AUDIT_ACTIONS["EXPORT"],
+            module=AUDIT_MODULES["BACKUP"],
+            description="Unhandled exception during backup download",
+            metadata={
+                "status": "failed",
+                "reason": "exception",
+                "error": str(e),
+                "file_name": file_name,
+            },
+            request=request,
+        )
         return JsonResponse({"error": f"Download failed: {str(e)}"}, status=500)
 
 def list_backups(request):
@@ -724,9 +1031,24 @@ def delete_backup(request, file_name):
     if request.method not in ["DELETE", "POST"]:
         return JsonResponse({"error": "Method not allowed"}, status=405)
         
+    actor = getattr(request, "user", None)
+    audit_user = actor if getattr(actor, "is_authenticated", False) else None
+
     try:
         # Security check: prevent directory traversal
         if '..' in file_name or '/' in file_name or '\\' in file_name:
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["DELETE"],
+                module=AUDIT_MODULES["BACKUP"],
+                description="Backup deletion blocked due to invalid file name",
+                metadata={
+                    "status": "failed",
+                    "reason": "invalid_file_name",
+                    "file_name": file_name,
+                },
+                request=request,
+            )
             return JsonResponse({"error": "Invalid file name"}, status=400)
         
         # Find BackupRecord
@@ -741,18 +1063,80 @@ def delete_backup(request, file_name):
             # Delete record
             backup_record.delete()
             
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["DELETE"],
+                module=AUDIT_MODULES["BACKUP"],
+                description=f"{getattr(audit_user, 'email', 'System')} deleted backup {file_name}",
+                metadata={
+                    "status": "success",
+                    "file_name": file_name,
+                    "path": file_path,
+                },
+                request=request,
+            )
             return JsonResponse({"message": "Backup deleted successfully"})
         except BackupRecord.DoesNotExist:
             # Fallback: try to delete file from default directory
             file_path = os.path.join(BACKUP_DIR, file_name)
             if os.path.exists(file_path):
                 if not file_name.endswith('.sql'):
+                    log_activity(
+                        audit_user,
+                        AUDIT_ACTIONS["DELETE"],
+                        module=AUDIT_MODULES["BACKUP"],
+                        description="Backup deletion rejected: invalid file type",
+                        metadata={
+                            "status": "failed",
+                            "reason": "invalid_extension",
+                            "file_name": file_name,
+                        },
+                        request=request,
+                    )
                     return JsonResponse({"error": "Not a backup file"}, status=400)
                 os.remove(file_path)
+                log_activity(
+                    audit_user,
+                    AUDIT_ACTIONS["DELETE"],
+                    module=AUDIT_MODULES["BACKUP"],
+                    description=f"{getattr(audit_user, 'email', 'System')} deleted orphaned backup {file_name}",
+                    metadata={
+                        "status": "success",
+                        "file_name": file_name,
+                        "path": file_path,
+                    },
+                    request=request,
+                )
                 return JsonResponse({"message": "Backup file deleted successfully (record not found)"})
+            log_activity(
+                audit_user,
+                AUDIT_ACTIONS["DELETE"],
+                module=AUDIT_MODULES["BACKUP"],
+                description="Backup deletion failed: file not found",
+                metadata={
+                    "status": "failed",
+                    "reason": "file_not_found",
+                    "file_name": file_name,
+                    "path": file_path,
+                },
+                request=request,
+            )
             return JsonResponse({"error": "Backup not found"}, status=404)
         
     except Exception as e:
         logger.error(f"Delete backup error: {str(e)}")
         logger.error(traceback.format_exc())
+        log_activity(
+            audit_user,
+            AUDIT_ACTIONS["DELETE"],
+            module=AUDIT_MODULES["BACKUP"],
+            description="Unhandled exception during backup deletion",
+            metadata={
+                "status": "failed",
+                "reason": "exception",
+                "error": str(e),
+                "file_name": file_name,
+            },
+            request=request,
+        )
         return JsonResponse({"error": f"Delete failed: {str(e)}"}, status=500)

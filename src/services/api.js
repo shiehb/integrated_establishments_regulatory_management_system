@@ -796,6 +796,29 @@ export const getEstablishmentNotifications = async () => {
 };
 
 // -------------------------------------------------
+// Laws Management
+// -------------------------------------------------
+export const getLaws = async (params = {}) => {
+  const res = await api.get("laws/", { params });
+  return res.data;
+};
+
+export const getLawById = async (id) => {
+  const res = await api.get(`laws/${id}/`);
+  return res.data;
+};
+
+export const createLaw = async (payload) => {
+  const res = await api.post("laws/", payload);
+  return res.data;
+};
+
+export const updateLaw = async (id, payload) => {
+  const res = await api.put(`laws/${id}/`, payload);
+  return res.data;
+};
+
+// -------------------------------------------------
 // Activity Logs
 // -------------------------------------------------
 export const getActivityLogs = async () => {

@@ -10,6 +10,8 @@ import {
   Database,
   Map as MapIcon,
   BookOpen,
+  Scale,
+  History,
 } from "lucide-react";
 
 // Menu configuration with role-based access control
@@ -26,6 +28,14 @@ export const MENU_CONFIG = [
     name: "Users",
     path: "/users",
     icon: Users,
+    roles: ["Admin"],
+    category: "Administration"
+  },
+  {
+    id: "laws",
+    name: "Law Management",
+    path: "/laws",
+    icon: Scale,
     roles: ["Admin"],
     category: "Administration"
   },
@@ -81,6 +91,14 @@ export const MENU_CONFIG = [
     name: "Backup & Restore",
     path: "/database-backup",
     icon: Database,
+    roles: ["Admin"],
+    category: "Administration"
+  },
+  {
+    id: "audit-logs",
+    name: "Audit Logs",
+    path: "/audit-logs",
+    icon: History,
     roles: ["Admin"],
     category: "Administration"
   },

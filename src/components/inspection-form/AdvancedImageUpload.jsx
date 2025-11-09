@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, X, FileText, Image as ImageIcon, AlertCircle, CheckCircle, Loader, Plus } from 'lucide-react';
+import { Upload, X, AlertCircle, CheckCircle, Loader, Plus } from 'lucide-react';
 import ImageLightbox from './ImageLightbox';
 
 /**
@@ -12,8 +12,8 @@ export default function AdvancedImageUpload({
   onUpload,
   onDelete,
   maxFileSize = 5 * 1024 * 1024, // 5MB default
-  allowedFormats = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'],
-  maxFiles = 10,
+  allowedFormats = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'],
+  maxFiles = 100,
   showCaptions = true,
   isReadOnly = false,
   label = "Upload Evidence Documents",
@@ -35,12 +35,9 @@ export default function AdvancedImageUpload({
     }
 
     // Check file format
-    if (!allowedFormats.includes(file.type)) {
-      const allowedExts = allowedFormats.map(format => {
-        if (format.startsWith('image/')) return format.replace('image/', '').toUpperCase();
-        if (format === 'application/pdf') return 'PDF';
-        return format;
-      }).join(', ');
+    const isImage = file.type?.startsWith('image/');
+    if (!isImage || !allowedFormats.includes(file.type)) {
+      const allowedExts = [...new Set(allowedFormats.map(format => format.replace('image/', '').toUpperCase()))].join(', ');
       errors.push(`${file.name}: Invalid format. Allowed: ${allowedExts}`);
     }
 
@@ -81,14 +78,14 @@ export default function AdvancedImageUpload({
     handleFiles(files);
   };
 
-  // Process files
+  // Process images
   const handleFiles = (files) => {
     const errors = [];
     const validFiles = [];
 
-    // Check max files limit
+    // Check max images limit
     if (images.length + files.length > maxFiles) {
-      errors.push(`Maximum ${maxFiles} files allowed. You have ${images.length} files and tried to add ${files.length} more.`);
+      errors.push(`Maximum ${maxFiles} images allowed. You have ${images.length} images and tried to add ${files.length} more.`);
       setUploadErrors(errors);
       return;
     }
@@ -200,20 +197,14 @@ export default function AdvancedImageUpload({
     }
   };
 
-  // Get file icon
-  const getFileIcon = (type) => {
-    if (type === 'application/pdf') {
-      return <FileText className="w-8 h-8 text-red-600" />;
-    }
-    return <ImageIcon className="w-8 h-8 text-gray-400" />;
-  };
-
   // Format file size
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / 1024 / 1024).toFixed(1) + ' MB';
   };
+
+  const acceptTypes = ['image/*', ...allowedFormats].join(',');
 
   return (
     <div className="space-y-3">
@@ -262,19 +253,19 @@ export default function AdvancedImageUpload({
             >
               <Upload className={`mx-auto ${isDragging ? 'text-sky-600' : 'text-gray-400'} transition-colors`} size={32} />
               <p className="mt-3 text-base font-medium text-gray-700">
-                {isDragging ? 'Drop files here' : 'Drag & drop files here or click to browse'}
+                {isDragging ? 'Drop images here' : 'Drag & drop images here or click to browse'}
               </p>
               <p className="mt-2 text-sm text-gray-500">
-                JPG, PNG, WEBP, PDF • Max {(maxFileSize / 1024 / 1024).toFixed(0)}MB • Max {maxFiles} files
+                JPG, PNG, WEBP • Max {(maxFileSize / 1024 / 1024).toFixed(0)}MB • Max {maxFiles} images
               </p>
               <p className="text-sm text-gray-400 mt-1">
-                {images.length}/{maxFiles} files selected
+                {images.length}/{maxFiles} images selected
               </p>
               <input
                 ref={fileInputRef}
                 type="file"
                 multiple
-                accept={allowedFormats.join(',')}
+                accept={acceptTypes}
                 className="hidden"
                 onChange={handleFileChange}
                 disabled={images.length >= maxFiles}
@@ -303,7 +294,7 @@ export default function AdvancedImageUpload({
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept={allowedFormats.join(',')}
+                  accept={acceptTypes}
                   className="hidden"
                   onChange={handleFileChange}
                   disabled={images.length >= maxFiles}
@@ -321,18 +312,11 @@ export default function AdvancedImageUpload({
                     className="relative h-24 bg-gray-100 flex items-center justify-center cursor-pointer hover:scale-105 transition-transform"
                     onClick={() => openLightbox(index)}
                   >
-                    {image.type === 'application/pdf' ? (
-                      <div className="flex flex-col items-center">
-                        {getFileIcon(image.type)}
-                        <span className="text-xs text-gray-600 mt-1">PDF Document</span>
-                      </div>
-                    ) : (
-                      <img
-                        src={image.url}
-                        alt={image.caption || image.name}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
+                    <img
+                      src={image.url}
+                      alt={image.caption || image.name}
+                      className="w-full h-full object-cover"
+                    />
                     
                     {/* Delete Button */}
                     {!isReadOnly && (
@@ -389,7 +373,7 @@ export default function AdvancedImageUpload({
                     {showCaptions && (
                       <input
                         type="text"
-                        placeholder="Add caption..."
+                        placeholder="Add description..."
                         value={image.caption}
                         onChange={(e) => updateCaption(image.id, e.target.value)}
                         disabled={isReadOnly}

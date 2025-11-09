@@ -11,7 +11,10 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  User
+  User,
+  Send,
+  FileText,
+  Building
 } from "lucide-react";
 import {
   getProfile, 
@@ -93,35 +96,6 @@ const getDeadlineStatus = (deadline) => {
   };
 };
 
-// Helper function to get compliance status from inspection
-const getComplianceStatusInfo = (inspection) => {
-  // First check form.compliance_decision
-  if (inspection.form?.compliance_decision) {
-    return {
-      status: inspection.form.compliance_decision,
-      color: inspection.form.compliance_decision === 'COMPLIANT' ? 'text-green-600 bg-green-50' :
-             inspection.form.compliance_decision === 'NON_COMPLIANT' ? 'text-red-600 bg-red-50' :
-             inspection.form.compliance_decision === 'PARTIALLY_COMPLIANT' ? 'text-yellow-600 bg-yellow-50' :
-             'text-gray-600 bg-gray-50',
-      label: inspection.form.compliance_decision === 'COMPLIANT' ? 'Compliant' :
-             inspection.form.compliance_decision === 'NON_COMPLIANT' ? 'Non-Compliant' :
-             inspection.form.compliance_decision === 'PARTIALLY_COMPLIANT' ? 'Partially Compliant' :
-             'Pending'
-    };
-  }
-  
-  // Fallback: extract from current_status
-  if (inspection.current_status) {
-    if (inspection.current_status.includes('_COMPLIANT') && !inspection.current_status.includes('NON')) {
-      return { status: 'COMPLIANT', color: 'text-green-600 bg-green-50', label: 'Compliant' };
-    } else if (inspection.current_status.includes('NON_COMPLIANT')) {
-      return { status: 'NON_COMPLIANT', color: 'text-red-600 bg-red-50', label: 'Non-Compliant' };
-    }
-  }
-  
-  return { status: 'PENDING', color: 'text-gray-600 bg-gray-50', label: 'Pending' };
-};
-
 // Helper function to calculate days since submission
 const getSubmissionAge = (date) => {
   if (!date) return { days: null, text: 'Unknown', color: 'text-gray-400' };
@@ -194,18 +168,6 @@ const getAssignmentAge = (date) => {
   return { days: diffDays, text: `${diffDays} days`, color: 'text-red-600 font-semibold' };
 };
 
-// Helper function to determine priority
-const getPriority = (inspection) => {
-  // Priority logic based on law type or establishment category
-  const highPriorityLaws = ['RA-8749', 'RA-9275']; // Air & Water Quality Acts
-  
-  if (highPriorityLaws.includes(inspection.law)) {
-    return { level: 'HIGH', color: 'text-red-600 bg-red-50', label: 'High' };
-  }
-  
-  return { level: 'NORMAL', color: 'text-blue-600 bg-blue-50', label: 'Normal' };
-};
-
 // Helper function to format date as MM/DD/YYYY
 const formatDate = (date) => {
   if (!date) return 'N/A';
@@ -213,19 +175,29 @@ const formatDate = (date) => {
 };
 
 // Helper function to get column span for different tabs
-const getTabColspan = (activeTab) => {
+const getTabColspan = (activeTab, userLevel = null) => {
+  // Special case: Legal Unit in noo_sent tab has 7 columns (no Payment Status)
+  if (activeTab === 'noo_sent' && userLevel === 'Legal Unit') {
+    return 7;
+  }
+  
   const tabColspans = {
-    'nov_sent': 11,
-    'noo_sent': 11,
-    'review': 11,
-    'received': 12,
-    'my_inspections': 11,
-    'forwarded': 11,
-    'compliance': 11,
-    'assigned': 11,
-    'in_progress': 11,
-    'completed': 11,
-    'default': 8
+    'nov_sent': 8,      // 1 checkbox + 4 core (Code, Establishments, Law, Status) + 2 tab-specific + 1 Actions
+    'noo_sent': 8,      // 1 checkbox + 4 core + 2 tab-specific + 1 Actions
+    'draft': 6,
+    'section_assigned': 8,
+    'section_in_progress': 8,
+    'unit_assigned': 8,
+    'unit_in_progress': 8,
+    'inspection_complete': 6,
+    'under_review': 7,
+    'forwarded': 8,
+    'legal_action': 6,
+    'assigned': 7,      // 1 checkbox + 4 core + 1 tab-specific + 1 Actions
+    'in_progress': 8,
+    'compliant': 6,     // Same as completed tab
+    'non_compliant': 6, // Same as completed tab
+    'default': 6
   };
   return tabColspans[activeTab] || tabColspans['default'];
 };
@@ -235,26 +207,30 @@ const getEmptyStateMessage = (activeTab, userLevel) => {
   const emptyStateMessages = {
     'Division Chief': {
       all_inspections: 'No inspections available. Create a new inspection to get started.',
-      review: 'All caught up! No inspections pending your review.'
+      inspection_complete: 'No inspections marked complete yet. Check back soon.',
+      under_review: 'All caught up! No inspections pending your review.',
+      legal_action: 'No inspections currently in legal action.'
     },
     'Section Chief': {
-      received: 'No new assignments. Check back later or view forwarded inspections.',
-      my_inspections: 'No inspections currently in progress. Start by assigning yourself to an inspection.',
+      section_assigned: 'No new assignments. Check back later or view forwarded inspections.',
+      section_in_progress: 'No inspections currently in progress. Start by assigning yourself to an inspection.',
       forwarded: 'No inspections forwarded to other personnel.',
-      review: 'All caught up! No inspections pending your review.',
-      compliance: 'No completed inspections to display.'
+      inspection_complete: 'No inspections completed yet.',
+      under_review: 'All caught up! No inspections pending your review.',
+      legal_action: 'No inspections currently in legal action.'
     },
     'Unit Head': {
-      received: 'No new assignments from Section Chief.',
-      my_inspections: 'No inspections currently in progress.',
+      unit_assigned: 'No new assignments from Section Chief.',
+      unit_in_progress: 'No inspections currently in progress.',
       forwarded: 'No inspections forwarded to Monitoring Personnel.',
-      review: 'All caught up! No inspections pending your review.',
-      compliance: 'No completed inspections to display.'
+      inspection_complete: 'No inspections completed yet.',
+      under_review: 'All caught up! No inspections pending your review.'
     },
     'Monitoring Personnel': {
       assigned: 'No new assignments waiting to start.',
       in_progress: 'No inspections currently in progress.',
-      completed: 'No completed inspections to display.'
+      inspection_complete: 'No completed inspections to display.',
+      under_review: 'All caught up! Nothing pending review.'
     },
     'Legal Unit': {
       legal_review: 'No cases assigned for legal review.',
@@ -285,9 +261,39 @@ const getActionDialogContent = (action, inspection, userLevel, pendingForwardAct
       confirmText: 'Confirm Forward',
       message: () => {
         const selectedPersonnel = pendingForwardAction?.selectedPersonnelName;
+        const selectedInspections = pendingForwardAction?.inspections || [];
+        const selectionCount = pendingForwardAction?.inspectionIds?.length || 1;
         return (
           <div className="space-y-3">
-            <p>Are you sure you want to forward this inspection?</p>
+            <p>
+              Are you sure you want to forward
+              {selectionCount > 1 ? ` these ${selectionCount} inspections?` : ' this inspection?'}
+            </p>
+            {selectionCount > 1 && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+                  Selected Inspections
+                </p>
+                <ul className="space-y-1 text-sm text-gray-700 list-disc list-inside">
+                  {selectedInspections.slice(0, 3).map((item) => (
+                    <li key={item.id}>
+                      <span className="font-medium">{item.code}</span>
+                      {item.establishments_detail?.length ? (
+                        <span className="text-gray-500">
+                          {' '}
+                          — {item.establishments_detail.map((est) => est.name).join(', ')}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                  {selectionCount > 3 && (
+                    <li className="text-gray-500">
+                      + {selectionCount - 3} more
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
             {selectedPersonnel && (
               <div className="bg-sky-50 border border-sky-200 rounded-lg p-3">
                 <p className="text-sm font-medium text-sky-900">
@@ -576,6 +582,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   
   // 🔄 Action loading state
   const [actionLoading, setActionLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   
   // 🔄 Monitoring personnel selection state
   const [showMonitoringModal, setShowMonitoringModal] = useState(false);
@@ -610,6 +617,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
   // ✅ Bulk select
   const [selectedInspections, setSelectedInspections] = useState([]);
+  const [isBulkForward, setIsBulkForward] = useState(false);
 
   // Handle tab change with localStorage persistence
   const handleTabChange = (newTab) => {
@@ -631,7 +639,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     refreshData 
   } = useOptimizedInspections(userLevel, currentUser);
 
-  const fetchAllInspections = useCallback(async () => {
+  const fetchAllInspections = useCallback(async (options = {}) => {
     if (!currentUser) return;
 
     const params = {
@@ -669,7 +677,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       params.order_direction = sortConfig.direction;
     }
 
-    await fetchInspections(params);
+    await fetchInspections(params, options);
   }, [
     currentPage, 
     pageSize, 
@@ -684,6 +692,17 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     currentUser, 
     fetchInspections
   ]);
+
+  const handleManualRefresh = useCallback(async () => {
+    if (!currentUser) return;
+    setRefreshing(true);
+    try {
+      await fetchAllInspections({ force: true });
+      refreshData('inspections');
+    } finally {
+      setRefreshing(false);
+    }
+  }, [currentUser, fetchAllInspections, refreshData]);
 
   // All filtering and sorting is now done server-side
   // Use inspections directly from API
@@ -714,9 +733,9 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
   // Helper function to determine if actions should be shown
   const shouldShowActions = useCallback((userLevel, activeTab) => {
-    // Division Chief users can perform actions in review and reviewed tabs
+    // Division Chief users can perform actions in the under review tab
     if (userLevel === 'Division Chief') {
-      return activeTab === 'review' || activeTab === 'reviewed';
+      return activeTab === 'under_review';
     }
     
     // Legal Unit users in legal_review tab should see review buttons, but noo_sent tab should only see view buttons
@@ -735,6 +754,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       console.error('Inspection not found:', inspectionId);
       return;
     }
+    
+    setIsBulkForward(false);
     
     // 5-Button Strategy Implementation
     
@@ -811,6 +832,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       
       if (userLevel === 'Section Chief' && isCombinedSection) {
         // Combined section forwards to Unit - show confirmation directly
+        setPendingForwardAction({
+          inspection,
+          inspections: [inspection],
+          inspectionIds: [inspection.id],
+          action,
+          forwardData: { target: 'unit', remarks: 'Forwarded to next level' }
+        });
         setActionConfirmation({ 
           open: true, 
           inspection, 
@@ -818,7 +846,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         });
       } else if (userLevel === 'Section Chief' || userLevel === 'Unit Head') {
         // Individual sections and Unit Head - show monitoring modal first
-        setPendingForwardAction({ inspection, action, forwardData: { target: 'monitoring' } });
+        setPendingForwardAction({ 
+          inspection, 
+          inspections: [inspection],
+          inspectionIds: [inspection.id],
+          action, 
+          forwardData: { target: 'monitoring' } 
+        });
         setShowMonitoringModal(true);
       }
       return;
@@ -826,8 +860,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     
     // 5. "Send to Legal" / "Close" buttons - Final actions
     if (action === 'send_to_legal' || action === 'close') {
-      // Special case: In "reviewed" tab with DIVISION_REVIEWED status, navigate to review page
-      if (activeTab === 'reviewed' && inspection.current_status === 'DIVISION_REVIEWED' && userLevel === 'Division Chief') {
+      // Special case: In "under_review" tab with DIVISION_REVIEWED status, navigate to review page
+      if (activeTab === 'under_review' && inspection.current_status === 'DIVISION_REVIEWED' && userLevel === 'Division Chief') {
         window.location.href = `/inspections/${inspectionId}/review`;
         return;
       }
@@ -873,13 +907,14 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       inspection, 
       action 
     });
-  }, [inspections, handleAction, notifications, userLevel]);
+  }, [inspections, handleAction, notifications, userLevel, activeTab, currentUser]);
 
 
   // Execute confirmed action
   const executeAction = useCallback(async () => {
     const { inspection, action } = actionConfirmation;
-    if (!inspection || !action) return;
+    if (!action) return;
+    if (!inspection && action !== 'forward') return;
 
     setActionLoading(true);
 
@@ -902,6 +937,30 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       
       // For forward action, determine target based on user level and section type
       if (action === 'forward') {
+        if (isBulkForward && pendingForwardAction?.inspectionIds?.length) {
+          const ids = pendingForwardAction.inspectionIds;
+          const forwardData = {
+            remarks: 'Forwarded to next level',
+            ...(pendingForwardAction.forwardData || {})
+          };
+
+          for (const id of ids) {
+            await handleAction(action, id, forwardData);
+          }
+
+          notifications.success(
+            `${ids.length} inspection${ids.length > 1 ? 's' : ''} forwarded successfully`,
+            { title: 'Inspections Forwarded' }
+          );
+
+          setPendingForwardAction(null);
+          setActionConfirmation({ open: false, inspection: null, action: null });
+          setSelectedInspections([]);
+          setIsBulkForward(false);
+          await fetchAllInspections({ force: true });
+          return;
+        }
+
         let forwardData = {
           remarks: 'Forwarded to next level'
         };
@@ -909,7 +968,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         // Check if we already have monitoring personnel selected
         if (pendingForwardAction?.forwardData?.assigned_monitoring_id) {
           // Use the pre-selected monitoring personnel
-          forwardData = pendingForwardAction.forwardData;
+          forwardData = { ...pendingForwardAction.forwardData };
           
           await handleAction(action, inspection.id, forwardData);
           notifications.success(
@@ -920,6 +979,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
           // Reset states
           setPendingForwardAction(null);
           setActionConfirmation({ open: false, inspection: null, action: null });
+          setSelectedInspections((prev) => prev.filter((id) => id !== inspection.id));
+          await fetchAllInspections({ force: true });
           return;
         }
         
@@ -928,13 +989,16 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
           const isCombinedSection = currentUser?.section === 'PD-1586,RA-8749,RA-9275';
           
           if (isCombinedSection) {
-            forwardData.target = 'unit';
-            await handleAction(action, inspection.id, forwardData);
+            const combinedForwardData = { ...forwardData, target: 'unit' };
+            await handleAction(action, inspection.id, combinedForwardData);
             notifications.success(
               `Inspection ${inspection.code} forwarded to Unit Head`, 
               { title: 'Inspection Forwarded' }
             );
             setActionConfirmation({ open: false, inspection: null, action: null });
+            setPendingForwardAction(null);
+            setSelectedInspections((prev) => prev.filter((id) => id !== inspection.id));
+            await fetchAllInspections({ force: true });
             return;
           }
         }
@@ -947,35 +1011,42 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       // Error is already handled in the hook
     } finally {
       setActionLoading(false);
+      if (action === 'forward' && isBulkForward) {
+        setIsBulkForward(false);
+      }
     }
-  }, [actionConfirmation, handleAction, userLevel, notifications, currentUser]);
+  }, [actionConfirmation, handleAction, userLevel, notifications, currentUser, isBulkForward, pendingForwardAction, fetchAllInspections, setSelectedInspections]);
 
   // Handle monitoring personnel selection
-  const handleMonitoringPersonnelSelect = useCallback(async (monitoringId, selectedPerson) => {
+  const handleMonitoringPersonnelSelect = useCallback((monitoringId, selectedPerson) => {
     if (!pendingForwardAction) return;
 
     // Get the selected personnel name
     const selectedPersonnelName = selectedPerson ? 
       `${selectedPerson.first_name} ${selectedPerson.last_name}` : 
       'Selected Personnel';
+    const inspectionForConfirmation = pendingForwardAction.inspection || pendingForwardAction.inspections?.[0] || null;
 
     // Close monitoring modal
     setShowMonitoringModal(false);
     
     // Add monitoring ID and personnel name to pending action
-    setPendingForwardAction({
-      ...pendingForwardAction,
-      forwardData: {
-        ...pendingForwardAction.forwardData,
-        assigned_monitoring_id: monitoringId
-      },
-      selectedPersonnelName: selectedPersonnelName
+    setPendingForwardAction((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        forwardData: {
+          ...(prev.forwardData || {}),
+          assigned_monitoring_id: monitoringId
+        },
+        selectedPersonnelName
+      };
     });
     
     // Show confirmation dialog
     setActionConfirmation({
       open: true,
-      inspection: pendingForwardAction.inspection,
+      inspection: inspectionForConfirmation,
       action: 'forward'
     });
   }, [pendingForwardAction]);
@@ -984,6 +1055,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   const handleMonitoringModalClose = useCallback(() => {
     setShowMonitoringModal(false);
     setPendingForwardAction(null);
+    setIsBulkForward(false);
   }, []);
 
   // Delete inspection function
@@ -1089,18 +1161,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     }
   }, [location.state]);
 
-  const formatFullDate = (dateString) => {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    return date.toLocaleString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
 
   // ✅ Sorting handler
   const handleSort = (fieldKey, directionKey = null) => {
@@ -1146,6 +1206,46 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       setSelectedInspections(inspections.map((i) => i.id));
     }
   };
+
+  const handleBulkForwardClick = useCallback(() => {
+    if (selectedInspections.length === 0) return;
+
+    const selectedItems = inspections.filter((inspection) =>
+      selectedInspections.includes(inspection.id)
+    );
+
+    if (selectedItems.length === 0) return;
+
+    setIsBulkForward(true);
+
+    const inspectionIds = selectedItems.map((item) => item.id);
+    const isCombinedSection = currentUser?.section === 'PD-1586,RA-8749,RA-9275';
+
+    if (userLevel === 'Section Chief' && isCombinedSection) {
+      setPendingForwardAction({
+        inspection: selectedItems[0],
+        inspections: selectedItems,
+        inspectionIds,
+        action: 'forward',
+        forwardData: { target: 'unit', remarks: 'Forwarded to next level' }
+      });
+      setActionConfirmation({
+        open: true,
+        inspection: selectedItems[0],
+        action: 'forward'
+      });
+      return;
+    }
+
+    setPendingForwardAction({
+      inspection: selectedItems[0],
+      inspections: selectedItems,
+      inspectionIds,
+      action: 'forward',
+      forwardData: { target: 'monitoring' }
+    });
+    setShowMonitoringModal(true);
+  }, [selectedInspections, inspections, currentUser, userLevel, setPendingForwardAction, setShowMonitoringModal, setActionConfirmation]);
 
   // Toggle filter checkboxes
   const toggleLaw = (law) =>
@@ -1193,18 +1293,19 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
   // Helper function to get export/print columns based on activeTab
   const getExportColumns = useCallback(() => {
-    if (activeTab === 'nov_sent') return ["Code", "Establishments", "Law", "NOV Sent Date", "Compliance Deadline", "Deadline Status", "Status", "Created Date"];
-    if (activeTab === 'noo_sent' && userLevel !== 'Legal Unit') return ["Code", "Establishments", "Law", "NOO Sent Date", "Payment Deadline", "Payment Status", "Status", "Created Date"];
-    if (activeTab === 'noo_sent' && userLevel === 'Legal Unit') return ["Code", "Establishments", "Law", "NOO Sent Date", "Payment Deadline", "Status", "Created Date"];
-    if (activeTab === 'review') return ["Code", "Establishments", "Law", "Compliance", "Submitted By", "Submitted On", "Status", "Created Date"];
-    if (activeTab === 'received') return ["Code", "Establishments", "Law", "Assigned Date", "Assigned By", "Priority", "Days Waiting", "Status", "Created Date"];
-    if (activeTab === 'my_inspections') return ["Code", "Establishments", "Law", "Started Date", "Days Active", "Last Activity", "Status", "Created Date"];
-    if (activeTab === 'forwarded') return ["Code", "Establishments", "Law", "Forwarded To", "Forwarded Date", "Days Since Forward", "Status", "Created Date"];
-    if (activeTab === 'compliance') return ["Code", "Establishments", "Law", "Final Compliance", "Completion Date", "Days Since Completion", "Status", "Created Date"];
-    if (activeTab === 'assigned') return ["Code", "Establishments", "Law", "Assigned Date", "Assigned By", "Priority", "Status", "Created Date"];
-    if (activeTab === 'in_progress') return ["Code", "Establishments", "Law", "Started Date", "Days Active", "Last Activity", "Status", "Created Date"];
-    if (activeTab === 'completed') return ["Code", "Establishments", "Law", "Compliance", "Completed Date", "Review Status", "Status", "Created Date"];
-    return ["Code", "Establishments", "Law", "Status", "Inspected By", "Created Date"];
+    if (activeTab === 'nov_sent') return ["Code", "Establishments", "Law", "Compliance Deadline", "Deadline Status", "Status"];
+    if (activeTab === 'noo_sent' && userLevel !== 'Legal Unit') return ["Code", "Establishments", "Law", "Payment Deadline", "Payment Status", "Status"];
+    if (activeTab === 'noo_sent' && userLevel === 'Legal Unit') return ["Code", "Establishments", "Law", "Payment Deadline", "Status"];
+    if (['section_assigned', 'unit_assigned'].includes(activeTab)) return ["Code", "Establishments", "Law", "Days Waiting", "Assigned Date", "Status"];
+    if (['section_in_progress', 'unit_in_progress'].includes(activeTab)) return ["Code", "Establishments", "Law", "Days Active", "Started Date", "Status"];
+    if (activeTab === 'forwarded') return ["Code", "Establishments", "Law", "Days Since Forward", "Forwarded To", "Status"];
+    if (activeTab === 'assigned') return ["Code", "Establishments", "Law", "Assigned Date", "Status"];
+    if (activeTab === 'in_progress') return ["Code", "Establishments", "Law", "Days Active", "Last Activity", "Status"];
+    if (activeTab === 'inspection_complete') return ["Code", "Establishments", "Law", "Status"];
+    if (activeTab === 'under_review') return ["Code", "Establishments", "Law", "Submitted On", "Status"];
+    if (activeTab === 'compliant') return ["Code", "Establishments", "Law", "Status"];
+    if (activeTab === 'non_compliant') return ["Code", "Establishments", "Law", "Status"];
+    return ["Code", "Establishments", "Law", "Status"];
   }, [activeTab, userLevel]);
 
   // Helper function to get export/print rows based on activeTab
@@ -1218,15 +1319,11 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             ? inspection.establishments_detail.map(est => est.name).join(', ')
             : 'No establishments',
           inspection.law,
-          inspection.form?.nov?.sent_date 
-            ? new Date(inspection.form.nov.sent_date).toLocaleDateString()
-            : 'Not sent',
           inspection.form?.nov?.compliance_deadline
             ? new Date(inspection.form.nov.compliance_deadline).toLocaleDateString()
             : 'No deadline',
           deadlineStatus.text,
-          inspection.simplified_status || inspection.current_status,
-          new Date(inspection.created_at).toLocaleDateString()
+          inspection.simplified_status || inspection.current_status
         ];
       } else if (activeTab === 'noo_sent' && userLevel !== 'Legal Unit') {
         const paymentStatus = getPaymentStatus(inspection.form?.noo);
@@ -1236,15 +1333,11 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             ? inspection.establishments_detail.map(est => est.name).join(', ')
             : 'No establishments',
           inspection.law,
-          inspection.form?.noo?.sent_date 
-            ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
-            : 'Not sent',
           inspection.form?.noo?.payment_deadline
             ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
             : 'No deadline',
           paymentStatus.text,
-          inspection.simplified_status || inspection.current_status,
-          new Date(inspection.created_at).toLocaleDateString()
+          inspection.simplified_status || inspection.current_status
         ];
       } else if (activeTab === 'noo_sent' && userLevel === 'Legal Unit') {
         return [
@@ -1253,17 +1346,79 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             ? inspection.establishments_detail.map(est => est.name).join(', ')
             : 'No establishments',
           inspection.law,
-          inspection.form?.noo?.sent_date 
-            ? new Date(inspection.form.noo.sent_date).toLocaleDateString()
-            : 'Not sent',
           inspection.form?.noo?.payment_deadline
             ? new Date(inspection.form.noo.payment_deadline).toLocaleDateString()
             : 'No deadline',
-          inspection.simplified_status || inspection.current_status,
-          new Date(inspection.created_at).toLocaleDateString()
+          inspection.simplified_status || inspection.current_status
         ];
-      } else if (activeTab === 'review') {
-        const complianceInfo = getComplianceStatusInfo(inspection);
+      } else if (['section_assigned', 'unit_assigned'].includes(activeTab)) {
+        const assignmentAge = getAssignmentAge(inspection.updated_at);
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          assignmentAge.text,
+          formatDate(inspection.updated_at),
+          inspection.simplified_status || inspection.current_status
+        ];
+      } else if (['section_in_progress', 'unit_in_progress'].includes(activeTab)) {
+        const daysActive = getAssignmentAge(inspection.updated_at);
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          daysActive.text,
+          formatDate(inspection.updated_at),
+          inspection.simplified_status || inspection.current_status
+        ];
+      } else if (activeTab === 'forwarded') {
+        const forwardedAge = getAssignmentAge(inspection.updated_at);
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          forwardedAge.text,
+          inspection.assigned_to_name || 'Not assigned',
+          inspection.simplified_status || inspection.current_status
+        ];
+      } else if (activeTab === 'assigned') {
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          formatDate(inspection.updated_at),
+          inspection.simplified_status || inspection.current_status
+        ];
+      } else if (activeTab === 'in_progress') {
+        const daysActive = getAssignmentAge(inspection.updated_at);
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          daysActive.text,
+          formatDate(inspection.form?.updated_at || inspection.updated_at),
+          inspection.simplified_status || inspection.current_status
+        ];
+      } else if (activeTab === 'inspection_complete') {
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          inspection.simplified_status || inspection.current_status
+        ];
+      } else if (activeTab === 'under_review') {
         const submissionAge = getSubmissionAge(inspection.form?.updated_at || inspection.updated_at);
         return [
           inspection.code,
@@ -1271,11 +1426,26 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             ? inspection.establishments_detail.map(est => est.name).join(', ')
             : 'No establishments',
           inspection.law,
-          complianceInfo.label,
-          inspection.form?.inspected_by_name || inspection.assigned_to_name || 'Unknown',
           submissionAge.text,
-          inspection.simplified_status || inspection.current_status,
-          new Date(inspection.created_at).toLocaleDateString()
+          inspection.simplified_status || inspection.current_status
+        ];
+      } else if (activeTab === 'compliant') {
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          inspection.simplified_status || inspection.current_status
+        ];
+      } else if (activeTab === 'non_compliant') {
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          inspection.simplified_status || inspection.current_status
         ];
       }
       return [
@@ -1284,12 +1454,36 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
           ? inspection.establishments_detail.map(est => est.name).join(', ')
           : 'No establishments',
         inspection.law,
-        inspection.simplified_status || inspection.current_status,
-        inspection.inspected_by_name || 'Not Inspected',
-        new Date(inspection.created_at).toLocaleDateString()
+        inspection.simplified_status || inspection.current_status
       ];
     });
   }, [activeTab, userLevel]);
+
+  const toolbarActions = useMemo(() => {
+    const actions = [];
+
+    if ((userLevel === 'Section Chief' || userLevel === 'Unit Head') && selectedInspections.length > 0) {
+      actions.push({
+        onClick: handleBulkForwardClick,
+        icon: Send,
+        title: "Forward Selected",
+        text: "Forward Selected",
+        variant: "primary"
+      });
+    }
+
+    if (userLevel === 'Division Chief') {
+      actions.push({
+        onClick: onAdd,
+        icon: Plus,
+        title: "Add Inspection",
+        text: "Add Inspection",
+        variant: "primary"
+      });
+    }
+
+    return actions;
+  }, [userLevel, selectedInspections.length, handleBulkForwardClick, onAdd]);
 
   // Custom filters dropdown
   const customFiltersDropdown = useMemo(() => {
@@ -1400,10 +1594,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             dateTo={dateTo}
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
+            onRefresh={handleManualRefresh}
+            isRefreshing={refreshing || loading}
             exportConfig={canExportAndPrint(userLevel, 'inspections') ? {
               title: "Inspections Export Report",
               fileName: activeTab === 'nov_sent' ? 'nov_inspections_export' :
-                        activeTab === 'review' ? 'review_inspections_export' :
+                        activeTab === 'under_review' ? 'review_inspections_export' :
+                        activeTab === 'inspection_complete' ? 'inspection_complete_export' :
                         'inspections_export',
               columns: getExportColumns(),
               rows: getExportRows(selectedInspections.length > 0 ? selectedInspections : inspections)
@@ -1415,13 +1612,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               rows: getExportRows(selectedInspections.length > 0 ? selectedInspections : inspections),
               selectedCount: selectedInspections.length
             } : undefined}
-            additionalActions={userLevel === 'Division Chief' ? [{
-              onClick: onAdd,
-              icon: Plus,
-              title: "Add Inspection",
-              text: "Add Inspection",
-              variant: "primary"
-            }] : []}
+            additionalActions={toolbarActions}
           />
         </div>
       </div>
@@ -1435,7 +1626,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       />
 
       {/* Table Container with Scroll */}
-      <div className="overflow-auto border border-gray-300 rounded h-[calc(100vh-325px)] scroll-smooth custom-scrollbar">
+      <div className="overflow-auto border border-gray-300 rounded h-[calc(100vh-315px)] scroll-smooth custom-scrollbar">
         <table className="w-full min-w-[800px]">
           <thead>
             <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
@@ -1458,7 +1649,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               {/* Conditionally show NOV-specific columns */}
               {activeTab === 'nov_sent' && (
                 <>
-                  <th className="px-3 py-2 border-b border-gray-300">NOV Sent Date</th>
                   <th className="px-3 py-2 border-b border-gray-300">Compliance Deadline</th>
                   <th className="px-3 py-2 text-center border-b border-gray-300">Deadline Status</th>
                 </>
@@ -1467,96 +1657,64 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               {/* Conditionally show NOO-specific columns */}
               {activeTab === 'noo_sent' && userLevel !== 'Legal Unit' && (
                 <>
-                  <th className="px-3 py-2 border-b border-gray-300">NOO Sent Date</th>
                   <th className="px-3 py-2 border-b border-gray-300">Payment Deadline</th>
                   <th className="px-3 py-2 text-center border-b border-gray-300">Payment Status</th>
                 </>
               )}
               {activeTab === 'noo_sent' && userLevel === 'Legal Unit' && (
                 <>
-                  <th className="px-3 py-2 border-b border-gray-300">NOO Sent Date</th>
                   <th className="px-3 py-2 border-b border-gray-300">Payment Deadline</th>
                 </>
               )}
               
-              {/* Conditionally show Review-specific columns */}
-              {activeTab === 'review' && (
+              {/* Conditionally show Under Review columns */}
+              {activeTab === 'under_review' && (
                 <>
-                  <th className="px-3 py-2 text-center border-b border-gray-300">Compliance</th>
-                  <th className="px-3 py-2 border-b border-gray-300">Submitted By</th>
                   <th className="px-3 py-2 text-center border-b border-gray-300">Submitted On</th>
                 </>
               )}
               
-              {/* Conditionally show Received columns */}
-              {activeTab === 'received' && (
+              {/* Conditionally show Assigned columns */}
+              {['section_assigned', 'unit_assigned'].includes(activeTab) && (
                 <>
-                  <th className="px-3 py-2 border-b border-gray-300">Assigned Date</th>
-                  <th className="px-3 py-2 border-b border-gray-300">Assigned By</th>
-                  <th className="px-3 py-2 text-center border-b border-gray-300">Priority</th>
                   <th className="px-3 py-2 text-center border-b border-gray-300">Days Waiting</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Assigned Date</th>
                 </>
               )}
               
-              {/* Conditionally show My Inspections columns */}
-              {activeTab === 'my_inspections' && (
+              {/* Conditionally show In Progress columns for Section/Unit */}
+              {['section_in_progress', 'unit_in_progress'].includes(activeTab) && (
                 <>
-                  <th className="px-3 py-2 border-b border-gray-300">Started Date</th>
                   <th className="px-3 py-2 text-center border-b border-gray-300">Days Active</th>
-                  <th className="px-3 py-2 border-b border-gray-300">Last Activity</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Started Date</th>
                 </>
               )}
               
               {/* Conditionally show Forwarded columns */}
               {activeTab === 'forwarded' && (
                 <>
-                  <th className="px-3 py-2 border-b border-gray-300">Forwarded To</th>
-                  <th className="px-3 py-2 border-b border-gray-300">Forwarded Date</th>
                   <th className="px-3 py-2 text-center border-b border-gray-300">Days Since Forward</th>
+                  <th className="px-3 py-2 border-b border-gray-300">Forwarded To</th>
                 </>
               )}
               
               {/* Conditionally show Compliance columns */}
-              {activeTab === 'compliance' && (
-                <>
-                  <th className="px-3 py-2 text-center border-b border-gray-300">Final Compliance</th>
-                  <th className="px-3 py-2 border-b border-gray-300">Completion Date</th>
-                  <th className="px-3 py-2 text-center border-b border-gray-300">Days Since Completion</th>
-                </>
-              )}
-              
               {/* Conditionally show Assigned columns (Monitoring Personnel) */}
               {activeTab === 'assigned' && (
                 <>
                   <th className="px-3 py-2 border-b border-gray-300">Assigned Date</th>
-                  <th className="px-3 py-2 border-b border-gray-300">Assigned By</th>
-                  <th className="px-3 py-2 text-center border-b border-gray-300">Priority</th>
                 </>
               )}
               
               {/* Conditionally show In Progress columns (Monitoring Personnel) */}
               {activeTab === 'in_progress' && (
                 <>
-                  <th className="px-3 py-2 border-b border-gray-300">Started Date</th>
                   <th className="px-3 py-2 text-center border-b border-gray-300">Days Active</th>
                   <th className="px-3 py-2 border-b border-gray-300">Last Activity</th>
                 </>
               )}
               
-              {/* Conditionally show Completed columns (Monitoring Personnel) */}
-              {activeTab === 'completed' && (
-                <>
-                  <th className="px-3 py-2 text-center border-b border-gray-300">Compliance</th>
-                  <th className="px-3 py-2 border-b border-gray-300">Completed Date</th>
-                  <th className="px-3 py-2 text-center border-b border-gray-300">Review Status</th>
-                </>
-              )}
-              
               <th className="px-3 py-2 text-center border-b border-gray-300">Status</th>
-              <th className="px-3 py-2 border-b border-gray-300">Inspected By</th>
-              <th className="px-3 py-2 text-center border-b border-gray-300 cursor-pointer" onClick={() => handleSort("created_at")}>
-                <div className="flex items-center justify-center gap-1">Created {getSortIcon("created_at")}</div>
-              </th>
               <th className="px-3 py-2 text-center border-b border-gray-300">Actions</th>
             </tr>
           </thead>
@@ -1564,7 +1722,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             {loading ? (
               <tr>
                 <td
-                  colSpan={getTabColspan(activeTab)}
+                  colSpan={getTabColspan(activeTab, userLevel)}
                   className="px-2 py-6 text-center text-gray-500 border-b border-gray-300"
                 >
                   <div
@@ -1580,7 +1738,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             ) : filteredInspections.length === 0 ? (
               <tr>
                 <td
-                  colSpan={getTabColspan(activeTab)}
+                  colSpan={getTabColspan(activeTab, userLevel)}
                   className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
                 >
                   {hasActiveFilters ? (
@@ -1610,15 +1768,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                 const paymentStatus = activeTab === 'noo_sent' ? getPaymentStatus(inspection.form?.noo) : null;
                 
                 // Review tab data
-                const complianceInfo = activeTab === 'review' ? getComplianceStatusInfo(inspection) : null;
-                const submissionAge = activeTab === 'review' ? getSubmissionAge(inspection.form?.updated_at || inspection.updated_at) : null;
+                const submissionAge = activeTab === 'under_review' ? getSubmissionAge(inspection.form?.updated_at || inspection.updated_at) : null;
                 
-                // Received tab data
-                const assignmentAge = activeTab === 'received' ? getAssignmentAge(inspection.updated_at) : null;
-                const priority = (activeTab === 'received' || activeTab === 'assigned') ? getPriority(inspection) : null;
+                // Assigned tab data
+                const assignmentAge = ['section_assigned', 'unit_assigned'].includes(activeTab) ? getAssignmentAge(inspection.updated_at) : null;
                 
-                // My Inspections / In Progress tab data
-                const daysActive = (activeTab === 'my_inspections' || activeTab === 'in_progress') 
+                // In Progress tab data
+                const daysActive = (['section_in_progress', 'unit_in_progress'].includes(activeTab) || activeTab === 'in_progress') 
                   ? getAssignmentAge(inspection.updated_at) 
                   : null;
                 
@@ -1626,12 +1782,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                 const forwardedAge = activeTab === 'forwarded' ? getAssignmentAge(inspection.updated_at) : null;
                 
                 // Compliance / Completed tab data
-                const completionAge = (activeTab === 'compliance' || activeTab === 'completed') 
-                  ? getSubmissionAge(inspection.form?.updated_at || inspection.updated_at) 
-                  : null;
-                const completionCompliance = (activeTab === 'compliance' || activeTab === 'completed') 
-                  ? getComplianceStatusInfo(inspection) 
-                  : null;
                 
                 return (
                   <tr
@@ -1665,11 +1815,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {activeTab === 'nov_sent' && (
                       <>
                         <td className="px-3 py-2 border-b border-gray-300">
-                          {inspection.form?.nov?.sent_date 
-                            ? new Date(inspection.form.nov.sent_date).toLocaleDateString() 
-                            : 'Not sent'}
-                        </td>
-                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.form?.nov?.compliance_deadline
                             ? new Date(inspection.form.nov.compliance_deadline).toLocaleDateString()
                             : 'No deadline'}
@@ -1688,11 +1833,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {activeTab === 'noo_sent' && userLevel !== 'Legal Unit' && (
                       <>
                         <td className="px-3 py-2 border-b border-gray-300">
-                          {inspection.form?.noo?.sent_date 
-                            ? formatDate(inspection.form.noo.sent_date) 
-                            : 'Not sent'}
-                        </td>
-                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.form?.noo?.payment_deadline
                             ? formatDate(inspection.form.noo.payment_deadline)
                             : 'No deadline'}
@@ -1708,11 +1848,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {activeTab === 'noo_sent' && userLevel === 'Legal Unit' && (
                       <>
                         <td className="px-3 py-2 border-b border-gray-300">
-                          {inspection.form?.noo?.sent_date 
-                            ? formatDate(inspection.form.noo.sent_date) 
-                            : 'Not sent'}
-                        </td>
-                        <td className="px-3 py-2 border-b border-gray-300">
                           {inspection.form?.noo?.payment_deadline
                             ? formatDate(inspection.form.noo.payment_deadline)
                             : 'No deadline'}
@@ -1720,54 +1855,35 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                       </>
                     )}
                     
-                    {/* Conditionally show Review-specific data */}
-                    {activeTab === 'review' && (
+                    {/* Conditionally show Under Review data */}
+                    {activeTab === 'under_review' && (
                       <>
-                        <td className="px-3 py-2 text-center border-b border-gray-300">
-                          <span className={`px-2 py-0.5 text-xs rounded-full ${complianceInfo?.color}`}>
-                            {complianceInfo?.label}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 border-b border-gray-300">
-                          {inspection.form?.inspected_by_name || inspection.assigned_to_name || 'Unknown'}
-                        </td>
                         <td className={`px-3 py-2 text-center border-b border-gray-300 ${submissionAge?.color}`}>
                           {submissionAge?.text}
                         </td>
                       </>
                     )}
                     
-                    {/* Conditionally show Received columns */}
-                    {activeTab === 'received' && (
+                    {/* Conditionally show Assigned columns */}
+                    {['section_assigned', 'unit_assigned'].includes(activeTab) && (
                       <>
-                        <td className="px-3 py-2 border-b border-gray-300">
-                          {formatDate(inspection.updated_at)}
-                        </td>
-                        <td className="px-3 py-2 border-b border-gray-300">
-                          {inspection.created_by_name || 'Unknown'}
-                        </td>
-                        <td className="px-3 py-2 text-center border-b border-gray-300">
-                          <span className={`px-2 py-0.5 text-xs rounded-full ${priority?.color}`}>
-                            {priority?.label}
-                          </span>
-                        </td>
                         <td className={`px-3 py-2 text-center border-b border-gray-300 ${assignmentAge?.color}`}>
                           {assignmentAge?.text}
+                        </td>
+                        <td className="px-3 py-2 border-b border-gray-300">
+                          {formatDate(inspection.updated_at)}
                         </td>
                       </>
                     )}
                     
-                    {/* Conditionally show My Inspections columns */}
-                    {activeTab === 'my_inspections' && (
+                    {/* Conditionally show Section/Unit In Progress columns */}
+                    {['section_in_progress', 'unit_in_progress'].includes(activeTab) && (
                       <>
-                        <td className="px-3 py-2 border-b border-gray-300">
-                          {formatDate(inspection.updated_at)}
-                        </td>
                         <td className={`px-3 py-2 text-center border-b border-gray-300 ${daysActive?.color}`}>
                           {daysActive?.text}
                         </td>
                         <td className="px-3 py-2 border-b border-gray-300">
-                          {formatDate(inspection.form?.updated_at || inspection.updated_at)}
+                          {formatDate(inspection.updated_at)}
                         </td>
                       </>
                     )}
@@ -1775,48 +1891,21 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {/* Conditionally show Forwarded columns */}
                     {activeTab === 'forwarded' && (
                       <>
-                        <td className="px-3 py-2 border-b border-gray-300">
-                          {inspection.assigned_to_name || 'Not assigned'}
-                        </td>
-                        <td className="px-3 py-2 border-b border-gray-300">
-                          {formatDate(inspection.updated_at)}
-                        </td>
                         <td className={`px-3 py-2 text-center border-b border-gray-300 ${forwardedAge?.color}`}>
                           {forwardedAge?.text}
+                        </td>
+                        <td className="px-3 py-2 border-b border-gray-300">
+                          {inspection.assigned_to_name || 'Not assigned'}
                         </td>
                       </>
                     )}
                     
                     {/* Conditionally show Compliance columns */}
-                    {activeTab === 'compliance' && (
-                      <>
-                        <td className="px-3 py-2 text-center border-b border-gray-300">
-                          <span className={`px-2 py-0.5 text-xs rounded-full ${completionCompliance?.color}`}>
-                            {completionCompliance?.label}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 border-b border-gray-300">
-                          {formatDate(inspection.form?.updated_at || inspection.updated_at)}
-                        </td>
-                        <td className={`px-3 py-2 text-center border-b border-gray-300 ${completionAge?.color}`}>
-                          {completionAge?.text}
-                        </td>
-                      </>
-                    )}
-                    
                     {/* Conditionally show Assigned columns (Monitoring Personnel) */}
                     {activeTab === 'assigned' && (
                       <>
                         <td className="px-3 py-2 border-b border-gray-300">
                           {formatDate(inspection.updated_at)}
-                        </td>
-                        <td className="px-3 py-2 border-b border-gray-300">
-                          {inspection.created_by_name || 'Unknown'}
-                        </td>
-                        <td className="px-3 py-2 text-center border-b border-gray-300">
-                          <span className={`px-2 py-0.5 text-xs rounded-full ${priority?.color}`}>
-                            {priority?.label}
-                          </span>
                         </td>
                       </>
                     )}
@@ -1824,33 +1913,11 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {/* Conditionally show In Progress columns (Monitoring Personnel) */}
                     {activeTab === 'in_progress' && (
                       <>
-                        <td className="px-3 py-2 border-b border-gray-300">
-                          {formatDate(inspection.updated_at)}
-                        </td>
                         <td className={`px-3 py-2 text-center border-b border-gray-300 ${daysActive?.color}`}>
                           {daysActive?.text}
                         </td>
                         <td className="px-3 py-2 border-b border-gray-300">
                           {formatDate(inspection.form?.updated_at || inspection.updated_at)}
-                        </td>
-                      </>
-                    )}
-                    
-                    {/* Conditionally show Completed columns (Monitoring Personnel) */}
-                    {activeTab === 'completed' && (
-                      <>
-                        <td className="px-3 py-2 text-center border-b border-gray-300">
-                          <span className={`px-2 py-0.5 text-xs rounded-full ${completionCompliance?.color}`}>
-                            {completionCompliance?.label}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 border-b border-gray-300">
-                          {formatDate(inspection.form?.updated_at || inspection.updated_at)}
-                        </td>
-                        <td className="px-3 py-2 text-center border-b border-gray-300">
-                          <span className="px-2 py-0.5 text-xs rounded-full text-blue-600 bg-blue-50">
-                            {inspection.current_status?.includes('REVIEWED') ? 'Under Review' : 'Awaiting Review'}
-                          </span>
                         </td>
                       </>
                     )}
@@ -1859,12 +1926,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                       <StatusBadge 
                         status={inspection.current_status}
                       />
-                    </td>
-                    <td className="px-3 py-2 border-b border-gray-300">
-                      {inspection.inspected_by_name || 'Not Inspected'}
-                    </td>
-                    <td className="px-3 py-2 text-center border-b border-gray-300">
-                      {formatFullDate(inspection.created_at)}
                     </td>
                     <td className="px-3 py-2 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
                     {shouldShowActions(userLevel, activeTab) ? (
@@ -1908,7 +1969,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
           </tbody>
         </table>
       </div>
-
+      <div className="mt-2">
       {/* Pagination Controls */}
       <PaginationControls
         currentPage={currentPage}
@@ -1926,6 +1987,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         endItem={endItem}
         storageKey="inspections_list"
       />
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
@@ -1965,7 +2027,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             confirmColor={dialogContent.confirmColor}
             size="md"
             loading={actionLoading}
-            onCancel={() => setActionConfirmation({ open: false, inspection: null, action: null })}
+            onCancel={() => {
+              setActionConfirmation({ open: false, inspection: null, action: null });
+              if (isBulkForward) {
+                setPendingForwardAction(null);
+                setIsBulkForward(false);
+              }
+            }}
             onConfirm={executeAction}
           />
         );

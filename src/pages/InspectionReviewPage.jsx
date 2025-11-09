@@ -78,16 +78,78 @@ const InspectionReviewPage = () => {
       });
     }
     
-    // Format violations by law category with professional structure
-    Object.keys(violationsByLaw).forEach((law) => {
-      violations.push(`${law}:`);
-      violationsByLaw[law].forEach((violation) => {
-        violations.push(`  ${violation}`);
+    // Format violations by law category with professional structure and numbering
+    let violationCounter = 1;
+    Object.entries(violationsByLaw).forEach(([law, entries]) => {
+      violations.push(`${violationCounter}. ${law}:`);
+      entries.forEach((violation, index) => {
+        const sanitized = violation.replace(/^•\s*/, '');
+        violations.push(`   ${violationCounter}.${index + 1} ${sanitized}`);
       });
       violations.push(''); // Add blank line between categories
+      violationCounter += 1;
     });
     
     return violations.join('\n').trim();
+  }, []);
+
+  const formatLegacyViolations = useCallback((rawViolations) => {
+    if (!rawViolations) return '';
+
+    const tokens = rawViolations
+      .split(',')
+      .map(token => token.trim())
+      .filter(Boolean);
+
+    if (tokens.length === 0) return rawViolations.trim();
+
+    const grouped = [];
+    let currentGroup = null;
+
+    tokens.forEach((token) => {
+      const isBullet = token.startsWith('•');
+      const sanitized = token.replace(/^•\s*/, '').replace(/[;]+$/, '');
+
+      if (!isBullet) {
+        const law = sanitized.replace(/[:]+$/, '').trim();
+        if (!law) return;
+        currentGroup = {
+          law,
+          items: []
+        };
+        grouped.push(currentGroup);
+      } else {
+        if (!currentGroup) {
+          currentGroup = {
+            law: 'Violations',
+            items: []
+          };
+          grouped.push(currentGroup);
+        }
+        if (sanitized) {
+          currentGroup.items.push(sanitized);
+        }
+      }
+    });
+
+    const formatted = [];
+    let lawCounter = 1;
+
+    grouped.forEach(({ law, items }) => {
+      if (!law) return;
+      formatted.push(`${lawCounter}. ${law}:`);
+      if (items.length > 0) {
+        items.forEach((item, index) => {
+          formatted.push(`   ${lawCounter}.${index + 1} ${item}`);
+        });
+      } else {
+        formatted.push(`   ${lawCounter}.1 No specific violations recorded`);
+      }
+      formatted.push('');
+      lawCounter += 1;
+    });
+
+    return formatted.join('\n').trim();
   }, []);
 
   // Process compliance items for merged law citations (moved to top level)
@@ -227,14 +289,18 @@ const InspectionReviewPage = () => {
       
       if (existingViolations) {
         // Use existing violations from database
-        setViolationsFound(existingViolations);
+        const needsFormatting = existingViolations.includes('•') || existingViolations.includes(',');
+        const formattedViolations = needsFormatting
+          ? formatLegacyViolations(existingViolations)
+          : existingViolations;
+        setViolationsFound(formattedViolations);
       } else {
         // Auto-generate violations from non-compliant items
         const autoViolations = extractViolationsFromData(formData);
         setViolationsFound(autoViolations);
       }
     }
-  }, [formData, inspectionData, extractViolationsFromData]);
+  }, [formData, inspectionData, extractViolationsFromData, formatLegacyViolations]);
 
   const formatDate = (dateString) => {
     if (!dateString) return '-';

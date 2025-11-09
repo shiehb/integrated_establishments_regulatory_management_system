@@ -75,9 +75,9 @@ export const useOptimizedInspections = (userLevel, currentUser) => {
   }, [currentUser, cachedApiCall]);
 
   // Fetch inspections with cooldown protection
-  const fetchInspections = useCallback(async (params = {}) => {
+  const fetchInspections = useCallback(async (params = {}, options = {}) => {
     const now = Date.now();
-    if (now - lastFetchTime.current < fetchCooldown) {
+    if (!options.force && now - lastFetchTime.current < fetchCooldown) {
       return;
     }
     

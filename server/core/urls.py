@@ -11,6 +11,7 @@ from .views import GlobalSearchView, SearchFilterOptionsView, SearchSuggestionsV
 router = DefaultRouter()
 router.register(r'establishments', EstablishmentViewSet, basename='establishment')
 router.register(r'activity-logs', ActivityLogViewSet, basename='activitylog')
+router.register(r'audit-logs', ActivityLogViewSet, basename='auditlog')
 # Note: InspectionViewSet is registered in inspections/urls.py to allow custom endpoints
 
 urlpatterns = [

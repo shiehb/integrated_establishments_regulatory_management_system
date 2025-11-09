@@ -5,6 +5,7 @@ from django.contrib.auth.signals import user_logged_in, user_logged_out, user_lo
 from django.utils import timezone
 from .models import User
 from .utils.email_utils import send_welcome_email, send_security_alert
+from audit.constants import AUDIT_ACTIONS, AUDIT_MODULES
 from audit.utils import log_activity  # ✅ FIX: Import from audit app
 from system_config.models import SystemConfiguration  # Import for password generation
 
@@ -18,17 +19,28 @@ def log_user_activity(sender, instance, created, **kwargs):
         # Log user creation
         log_activity(
             instance,
-            "create",
-            f"New user account created: {instance.email} with auto-generated password",
-            request=None  # No request available in post_save
+            AUDIT_ACTIONS["CREATE"],
+            module=AUDIT_MODULES["USERS"],
+            description=f"User account created: {instance.email}",
+            metadata={
+                "entity_name": instance.email,
+                "entity_id": instance.id,
+                "role": instance.userlevel,
+                "status": "success",
+            },
         )
     else:
         # Log user update
         log_activity(
             instance,
-            "update",
-            f"User account updated: {instance.email}",
-            request=None  # No request available in post_save
+            AUDIT_ACTIONS["UPDATE"],
+            module=AUDIT_MODULES["USERS"],
+            description=f"User account updated: {instance.email}",
+            metadata={
+                "entity_name": instance.email,
+                "entity_id": instance.id,
+                "status": "success",
+            },
         )
 
 # 🔹 Handle user creation with password
@@ -46,9 +58,15 @@ def log_user_login(sender, request, user, **kwargs):
     
     log_activity(
         user,
-        "login",
-        f"User {user.email} logged in successfully",
-        request=request
+        AUDIT_ACTIONS["LOGIN"],
+        module=AUDIT_MODULES["AUTH"],
+        description=f"User {user.email} logged in successfully",
+        metadata={
+            "user_id": user.id,
+            "email": user.email,
+            "status": "success",
+        },
+        request=request,
     )
 
 
@@ -57,9 +75,15 @@ def log_user_login(sender, request, user, **kwargs):
 def log_user_logout(sender, request, user, **kwargs):
     log_activity(
         user,
-        "logout",
-        f"User {user.email} logged out",
-        request=request
+        AUDIT_ACTIONS["LOGOUT"],
+        module=AUDIT_MODULES["AUTH"],
+        description=f"User {user.email} logged out",
+        metadata={
+            "user_id": user.id,
+            "email": user.email,
+            "status": "success",
+        },
+        request=request,
     )
 
 
@@ -83,18 +107,35 @@ def handle_failed_login(sender, credentials, request, **kwargs):
             # Log the failed attempt
             log_activity(
                 user,
-                "login_failed",
-                f"Failed login attempt for {user.email} (attempt #{user.failed_login_attempts})",
-                request=request
+                AUDIT_ACTIONS["LOGIN"],
+                module=AUDIT_MODULES["AUTH"],
+                description=f"Failed login attempt for {user.email} (attempt #{user.failed_login_attempts})",
+                metadata={
+                    "user_id": user.id,
+                    "email": user.email,
+                    "status": "failed",
+                    "reason": "invalid_credentials",
+                    "attempt": user.failed_login_attempts,
+                    "ip": ip_address,
+                    "user_agent": user_agent,
+                },
+                request=request,
             )
             
         except User.DoesNotExist:
             # Log failed attempt for non-existent user
             log_activity(
                 None,
-                "login_failed",
-                f"Failed login attempt for non-existent user: {email}",
-                request=request
+                AUDIT_ACTIONS["LOGIN"],
+                module=AUDIT_MODULES["AUTH"],
+                description=f"Failed login attempt for non-existent user: {email}",
+                metadata={
+                    "email": email,
+                    "status": "failed",
+                    "reason": "invalid_credentials",
+                    "ip": get_client_ip(request),
+                },
+                request=request,
             )
 
 

@@ -753,7 +753,7 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
          </tbody>
          </table>
        </div>
-
+       <div className="mt-2">
        {/* Pagination Controls */}
        <PaginationControls
          currentPage={currentPage}
@@ -771,6 +771,8 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
          endItem={endItem}
          storageKey="users_list"
        />
+       </div>
+
 
     </div>
   );

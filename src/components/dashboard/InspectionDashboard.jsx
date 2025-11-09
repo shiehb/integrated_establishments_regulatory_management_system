@@ -40,12 +40,13 @@ export default function InspectionDashboard({ userLevel, userProfile, onNavigate
       
       if (response.ok) {
         const data = await response.json();
+        const tabCounts = data.tab_counts || {};
         setStats({
-          totalInspections: Object.values(data.tab_counts).reduce((sum, count) => sum + count, 0),
-          pendingInspections: data.tab_counts.created_inspections || data.tab_counts.received_from_section || 0,
-          completedInspections: data.tab_counts.my_inspections || 0,
-          nonCompliantInspections: data.tab_counts.legal_review || 0,
-          assignedInspections: data.tab_counts.assigned_inspections || 0,
+          totalInspections: Object.values(tabCounts).reduce((sum, count) => sum + count, 0),
+          pendingInspections: tabCounts.section_assigned || tabCounts.unit_assigned || tabCounts.assigned || 0,
+          completedInspections: tabCounts.inspection_complete || 0,
+          nonCompliantInspections: tabCounts.non_compliant || tabCounts.legal_review || 0,
+          assignedInspections: tabCounts.assigned || tabCounts.section_assigned || 0,
           overdueInspections: 0 // TODO: Implement overdue logic
         });
       }
@@ -92,7 +93,7 @@ export default function InspectionDashboard({ userLevel, userProfile, onNavigate
             description: 'Review completed inspections',
             icon: CheckCircle,
             color: 'bg-green-500',
-            action: () => onNavigate('completed')
+            action: () => onNavigate('inspection_complete')
           }
         );
         break;
@@ -104,21 +105,21 @@ export default function InspectionDashboard({ userLevel, userProfile, onNavigate
             description: 'Review new inspections from Division Chief',
             icon: FileText,
             color: 'bg-blue-500',
-            action: () => onNavigate('created_inspections')
+            action: () => onNavigate('section_assigned')
           },
           {
             title: 'My Inspections',
             description: 'Continue working on your inspections',
             icon: Clock,
             color: 'bg-yellow-500',
-            action: () => onNavigate('my_inspections')
+            action: () => onNavigate('section_in_progress')
           },
           {
             title: 'Forwarded List',
             description: 'Track forwarded inspections',
             icon: Users,
             color: 'bg-purple-500',
-            action: () => onNavigate('forwarded_list')
+            action: () => onNavigate('forwarded')
           }
         );
         break;
@@ -130,21 +131,21 @@ export default function InspectionDashboard({ userLevel, userProfile, onNavigate
             description: 'Review inspections from Section Chief',
             icon: FileText,
             color: 'bg-blue-500',
-            action: () => onNavigate('received_from_section')
+            action: () => onNavigate('unit_assigned')
           },
           {
             title: 'My Inspections',
             description: 'Continue working on your inspections',
             icon: Clock,
             color: 'bg-yellow-500',
-            action: () => onNavigate('my_inspections')
+            action: () => onNavigate('unit_in_progress')
           },
           {
             title: 'Forwarded List',
             description: 'Track inspections forwarded to monitoring',
             icon: Users,
             color: 'bg-purple-500',
-            action: () => onNavigate('forwarded_list')
+            action: () => onNavigate('forwarded')
           }
         );
         break;
@@ -156,14 +157,14 @@ export default function InspectionDashboard({ userLevel, userProfile, onNavigate
             description: 'Complete your assigned inspections',
             icon: FileText,
             color: 'bg-blue-500',
-            action: () => onNavigate('assigned_inspections')
+            action: () => onNavigate('assigned')
           },
           {
             title: 'Compliance Review',
             description: 'Review compliance status',
             icon: CheckCircle,
             color: 'bg-green-500',
-            action: () => onNavigate('compliance')
+            action: () => onNavigate('inspection_complete')
           }
         );
         break;
@@ -182,7 +183,7 @@ export default function InspectionDashboard({ userLevel, userProfile, onNavigate
             description: 'Manage violation cases',
             icon: FileText,
             color: 'bg-orange-500',
-            action: () => onNavigate('violations')
+            action: () => onNavigate('legal_action')
           }
         );
         break;
@@ -194,7 +195,7 @@ export default function InspectionDashboard({ userLevel, userProfile, onNavigate
             description: 'Browse all inspections',
             icon: FileText,
             color: 'bg-blue-500',
-            action: () => onNavigate('all')
+            action: () => onNavigate('all_inspections')
           }
         );
     }
