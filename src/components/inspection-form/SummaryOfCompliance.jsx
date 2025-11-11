@@ -1,7 +1,8 @@
-import React, { useEffect, forwardRef } from "react";
+import React, { useEffect, forwardRef, useMemo } from "react";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import { formatInput } from "./utils";
 import SectionHeader from "./SectionHeader";
+import SearchableSelect from "../common/SearchableSelect";
 
 /* ---------------------------
    Summary Of Compliance (with predefined remarks)
@@ -12,8 +13,6 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
   lawFilter, 
   errors, 
   isReadOnly = false,
-  systems,
-  setSystems,
   onComplianceChange
 }, ref) {
   useEffect(() => {
@@ -63,6 +62,61 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
       setItems(updatedItems);
     }
   }, [items, setItems]);
+
+  useEffect(() => {
+    const hasPD1586 = items.some(item => item.lawId === "PD-1586");
+    if (!hasPD1586) return;
+
+    let pdIndex = 0;
+    let hasChanges = false;
+
+    const updated = items.map((item) => {
+      if (item.lawId !== "PD-1586") {
+        return item;
+      }
+
+      pdIndex += 1;
+      const isFirst = pdIndex === 1;
+      const desiredConditionNumber = isFirst
+        ? "Condition No. 1"
+        : `Condition No. ${pdIndex}`;
+      const desiredRequirement = item.complianceRequirement || "";
+
+      const next = {
+        ...item,
+        conditionNumber: item.conditionNumber?.trim() || desiredConditionNumber,
+        compliant: item.compliant || "N/A",
+        complianceRequirement: desiredRequirement,
+        complianceRequirementDetails: item.complianceRequirementDetails || "",
+      };
+
+      if (
+        next.conditionNumber !== item.conditionNumber ||
+        next.compliant !== item.compliant ||
+        next.complianceRequirement !== item.complianceRequirement ||
+        next.complianceRequirementDetails !== item.complianceRequirementDetails
+      ) {
+        hasChanges = true;
+      }
+
+      return next;
+    });
+
+    if (hasChanges) {
+      setItems(updated);
+    }
+  }, [items, setItems]);
+
+  const selectedPD1586Requirements = useMemo(() => {
+    return items
+      .filter(
+        (item) =>
+          item.lawId === "PD-1586" &&
+          item.complianceRequirement &&
+          item.complianceRequirement !== "Others – please specify"
+      )
+      .map((item) => item.complianceRequirement.trim());
+  }, [items]);
 
 
   const updateItem = (
@@ -124,6 +178,7 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
     const rowsToValidate = pd1586Items.filter(item => 
       item.conditionNumber?.trim() || 
       item.complianceRequirement?.trim() || 
+      item.complianceRequirementDetails?.trim() ||
       item.compliant !== "N/A" ||
       item.remarks?.trim() ||
       item.remarksOption?.trim()
@@ -135,6 +190,12 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
         return true;
       }
       if (item.complianceRequirement?.trim() && !item.conditionNumber?.trim()) {
+        return true;
+      }
+      if (
+        item.complianceRequirement === "Others – please specify" &&
+        !item.complianceRequirementDetails?.trim()
+      ) {
         return true;
       }
       
@@ -172,14 +233,12 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
     setItems([...items, newRow]);
   };
 
-  // Delete PD-1586 row
   const handleDeletePD1586Row = (conditionId) => {
-    // Don't allow deleting the first default row (PD-1586-1)
     if (conditionId === "PD-1586-1") {
       return;
     }
-    
-    setItems(items.filter(item => item.conditionId !== conditionId));
+
+    setItems(items.filter((item) => item.conditionId !== conditionId));
   };
 
   const getLawFullName = (lawId) => {
@@ -235,7 +294,7 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                     </th>
                     <th className="py-2 px-3 border border-gray-300 w-15 text-sm font-semibold text-gray-700">Compliant</th>
                     <th className="py-2 px-3 border border-gray-300 w-50 text-sm font-semibold text-gray-700">Remarks</th>
-                    {lawId === "PD-1586" && !isReadOnly && lawItems.length >= 2 && (
+                    {lawId === "PD-1586" && !isReadOnly && (
                       <th className="py-2 px-3 border border-gray-300 w-20 text-sm font-semibold text-gray-700">Actions</th>
                     )}
                   </tr>
@@ -247,10 +306,16 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                     const item = lawId === "PD-1586" 
                       ? li 
                       : items.find(i => i.conditionId === li.conditionId);
-                    
-                    if (!item) return null;
+                  
+                  if (!item) return null;
 
-                    // Calculate rowSpan for merging duplicate lawCitation cells (only for non-PD-1586)
+                  const availableOptions = InspectionConstants.PD1586_COMPLIANCE_OPTIONS.filter((option) => {
+                    if (option === item.complianceRequirement) return true;
+                    if (option === "Others – please specify") return true;
+                    return !selectedPD1586Requirements.includes(option);
+                  });
+
+                  // Calculate rowSpan for merging duplicate lawCitation cells (only for non-PD-1586)
                     const currentCitation = lawId === "PD-1586" ? "" : (li.lawCitation || "");
                     const _nextCitation = lawId === "PD-1586" ? "" : (index < lawItems.length - 1 ? lawItems[index + 1].lawCitation || "" : "");
                     const prevCitation = lawId === "PD-1586" ? "" : (index > 0 ? lawItems[index - 1].lawCitation || "" : "");
@@ -275,8 +340,7 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                         {/* First column - Condition No. for PD-1586, Citation for others */}
                         {lawId === "PD-1586" ? (
                           <td className="py-1.5 px-3 border border-gray-300">
-                            <input
-                              type="text"
+                            <textarea
                               value={item.conditionNumber || ""}
                               onChange={(e) => {
                                 const itemIndex = items.findIndex(i => i.conditionId === item.conditionId);
@@ -284,11 +348,18 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                                   itemIndex,
                                   "conditionNumber",
                                   e.target.value,
-                                  formatInput.upper
+                                  (v) => v
                                 );
+                                e.target.style.height = "auto";
+                                e.target.style.height = Math.max(40, e.target.scrollHeight) + "px";
+                              }}
+                              ref={(el) => {
+                                if (el && !el.value.trim()) {
+                                  el.style.height = "40px";
+                                }
                               }}
                               placeholder="Enter condition number"
-                              className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                              className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[40px] resize-y overflow-auto"
                               disabled={isReadOnly}
                             />
                           </td>
@@ -307,29 +378,61 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                         {/* Requirement */}
                         <td className="py-1.5 px-3 border border-gray-300">
                           {lawId === "PD-1586" ? (
-                            <textarea
-                              value={item.complianceRequirement || ""}
-                              onChange={(e) => {
-                                const itemIndex = items.findIndex(i => i.conditionId === item.conditionId);
-                                updateItem(
-                                  itemIndex,
-                                  "complianceRequirement",
-                                  e.target.value,
-                                  formatInput.upper
-                                );
-                                // Auto-resize textarea
-                                e.target.style.height = 'auto';
-                                e.target.style.height = Math.max(40, e.target.scrollHeight) + 'px';
-                              }}
-                              ref={(el) => {
-                                if (el && !el.value.trim()) {
-                                  el.style.height = '40px';
-                                }
-                              }}
-                              placeholder="Enter compliance requirement"
-                              className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md min-h-[40px] uppercase focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-none overflow-hidden"
-                              disabled={isReadOnly}
-                            />
+                            <div className="space-y-2">
+                              <SearchableSelect
+                                name={`complianceRequirement-${item.conditionId}`}
+                                value={item.complianceRequirement || ""}
+                                onChange={(event) => {
+                                  const value = event.target.value;
+                                  const itemIndex = items.findIndex((i) => i.conditionId === item.conditionId);
+                                  if (itemIndex === -1) return;
+
+                                  const nextItems = [...items];
+                                  const current = nextItems[itemIndex];
+                                  nextItems[itemIndex] = {
+                                    ...current,
+                                    complianceRequirement: value,
+                                    complianceRequirementDetails:
+                                      value && value === current.complianceRequirement
+                                        ? current.complianceRequirementDetails || ""
+                                        : "",
+                                  };
+                                  setItems(nextItems);
+                                }}
+                                options={availableOptions}
+                                placeholder="-- Select Compliance Requirement --"
+                                isDisabled={isReadOnly}
+                                className="w-full"
+                              />
+
+                              {item.complianceRequirement && (
+                                <textarea
+                                  value={item.complianceRequirementDetails || ""}
+                                  onChange={(e) => {
+                                    const details = e.target.value;
+                                    const itemIndex = items.findIndex(
+                                      (i) => i.conditionId === item.conditionId
+                                    );
+                                    updateItem(
+                                      itemIndex,
+                                      "complianceRequirementDetails",
+                                      details,
+                                      (v) => v
+                                    );
+                                    e.target.style.height = "auto";
+                                    e.target.style.height = Math.max(40, e.target.scrollHeight) + "px";
+                                  }}
+                                  ref={(el) => {
+                                    if (el && !el.value.trim()) {
+                                      el.style.height = "40px";
+                                    }
+                                  }}
+                                  placeholder="Enter compliance requirement details"
+                                  className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md min-h-[40px] focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-y overflow-auto"
+                                  disabled={isReadOnly}
+                                />
+                              )}
+                            </div>
                           ) : (
                             <span className="text-sm text-gray-900">{li.complianceRequirement}</span>
                           )}
@@ -427,7 +530,7 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                                 }
                               }}
                               placeholder="Enter remarks"
-                              className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[40px] resize-none overflow-hidden"
+                              className="w-full px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 min-h-[40px] resize-y overflow-auto"
                               disabled={isReadOnly}
                             />
                           ) : (
@@ -480,7 +583,7 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                                     }
                                   }}
                                   placeholder={`ENTER DETAILS FOR: ${item.remarksOption.toUpperCase()}...`}
-                                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-gray-900 min-h-[40px] uppercase mt-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-none overflow-hidden"
+                                  className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-gray-900 min-h-[40px] uppercase mt-2 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-y overflow-auto"
                                   disabled={isReadOnly}
                                 />
                               )}
@@ -494,8 +597,7 @@ const SummaryOfCompliance = forwardRef(function SummaryOfCompliance({
                           )}
                         </td>
 
-                        {/* Actions column - Delete button for PD-1586 */}
-                        {lawId === "PD-1586" && !isReadOnly && lawItems.length >= 2 && (
+                        {lawId === "PD-1586" && !isReadOnly && (
                           <td className="py-1.5 px-2 border border-gray-300 text-center align-middle">
                             {item.conditionId !== "PD-1586-1" && (
                               <button

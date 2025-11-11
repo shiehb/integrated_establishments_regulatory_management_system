@@ -96,6 +96,31 @@ export const DENR_REMARKS_BY_CATEGORY = {
   ]
 };
 
+export const PD1586_COMPLIANCE_OPTIONS = [
+  "Project Description",
+  "Validating Survey / Air Quality Modeling",
+  "Air/Water Baseline Monitoring",
+  "Air Pollution Control Device",
+  "Emission and Effluent Standards",
+  "Conformance with Philippine EIS",
+  "Environmental Monitoring Program",
+  "Continuous Emission Monitoring System",
+  "Monitor Ground Level Concentrations",
+  "Solid and Hazardous Waste Management",
+  "Emergency Preparedness / Contingency Plan",
+  "Wastewater Treatment Facility Operation",
+  "Stormwater Management",
+  "Buffer Zone Maintenance",
+  "Flora and Fauna Management",
+  "Community Health and Safety Program",
+  "Traffic Management Plan",
+  "Climate Change Mitigation Measures",
+  "Ambient Noise Monitoring",
+  "Site Rehabilitation/Restoration Plan",
+  "Public Participation and IEC Activities",
+  "Others – please specify",
+];
+
 
 export const initialComplianceItems = [
   // PD-1586 (9 rows for ECC conditions)
@@ -104,8 +129,9 @@ export const initialComplianceItems = [
     applicableLaw:
       "PD-1586: Environmental Compliance Certificate (ECC) Conditionalities",
     conditionId: "PD-1586-1",
-    conditionNumber: "",
+    conditionNumber: "Condition No. 1",
     complianceRequirement: "",
+    complianceRequirementDetails: "",
     compliant: "N/A",
     remarks: "",
     category: "Documentation",
@@ -599,16 +625,15 @@ export const getComplianceItemsByLaw = (lawId) => {
 };
 
 export const addPD1586Condition = (existingItems = []) => {
-  const nextId = `PD-1586-${
-    existingItems.filter((i) => i.lawId === "PD-1586").length + 1
-  }`;
+  const nextIndex = existingItems.filter((i) => i.lawId === "PD-1586").length + 1;
   return {
     lawId: "PD-1586",
     applicableLaw:
       "Presidential Decree No. 1586 (Environmental Impact Statement System)",
-    conditionId: nextId,
-    conditionNumber: "",
+    conditionId: `PD-1586-${nextIndex}`,
+    conditionNumber: `Condition No. ${nextIndex}`,
     complianceRequirement: "",
+    complianceRequirementDetails: "",
     compliant: "N/A",
     remarks: "",
     category: "Documentation",

@@ -1945,21 +1945,28 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     </td>
                     <td className="px-3 py-2 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
                     {shouldShowActions(userLevel, activeTab) ? (
-                      (() => {
-                        let availableActions = inspection.available_actions || [];
-                        if (activeTab === 'in_progress') {
-                          availableActions = availableActions.filter(action => action !== 'forward');
-                        }
-                        return (
                       <InspectionActions 
                         inspection={inspection}
-                        availableActions={availableActions}
+                        availableActions={(inspection.available_actions || []).filter(action => {
+                          if (action !== 'forward') {
+                            return true;
+                          }
+                          const status = inspection.current_status;
+                          if (status === 'SECTION_IN_PROGRESS' && userLevel === 'Section Chief') {
+                            return false;
+                          }
+                          if (status === 'UNIT_IN_PROGRESS' && userLevel === 'Unit Head') {
+                            return false;
+                          }
+                          if (status === 'MONITORING_IN_PROGRESS' && userLevel === 'Monitoring Personnel') {
+                            return false;
+                          }
+                          return true;
+                        })}
                         onAction={handleActionClick}
                         loading={isActionLoading(inspection.id)}
                         userLevel={userLevel}
                       />
-                        );
-                      })()
                     ) : userLevel === 'Legal Unit' && activeTab === 'noo_sent' && inspection.current_status !== 'CLOSED_NON_COMPLIANT' ? (
                       <button
                         onClick={() => window.location.href = `/inspections/${inspection.id}/review`}

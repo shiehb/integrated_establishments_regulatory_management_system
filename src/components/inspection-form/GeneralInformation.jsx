@@ -2,6 +2,16 @@ import React, { useEffect, useState, useRef, useMemo, forwardRef } from "react";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import { formatInput, validatePhoneOrFax, validateEmailAddress, validateInspectionDateTime } from "./utils";
 import SectionHeader from "./SectionHeader";
+import SearchableSelect from "../common/SearchableSelect";
+import {
+  PRODUCT_LINES_BY_NATURE,
+  DEFAULT_PRODUCT_LINE_OPTIONS
+} from "../../constants/inspectionform/productLineOptions";
+import {
+  PRODUCTION_RATE_PRESETS,
+  getAllProductionRateValues,
+  getProductionRatePreset
+} from "../../constants/inspectionform/productionRatePresets";
 
 const PCO_ACCREDITATION_REGEX = /^PCO\d+-\d{8}-\d{4}$/;
 
@@ -37,6 +47,7 @@ const GeneralInformation = forwardRef(function GeneralInformation({
   // Ref to track if we've already processed inspection data
   const hasProcessedInspectionData = useRef(false);
   const processedInspectionId = useRef(null);
+  const lastAppliedPresetLine = useRef(null);
 
   const normalizedUserEmails = useMemo(() => {
     return new Set(
@@ -45,6 +56,30 @@ const GeneralInformation = forwardRef(function GeneralInformation({
         .map((email) => email.trim().toLowerCase())
     );
   }, [systemUserEmails]);
+
+  const normalizedNatureOfBusiness = useMemo(
+    () => (data.nature_of_business || "").trim().toUpperCase(),
+    [data.nature_of_business]
+  );
+
+  const productLineOptions = useMemo(() => {
+    const baseOptions =
+      PRODUCT_LINES_BY_NATURE[normalizedNatureOfBusiness] || [];
+
+    const merged = Array.from(
+      new Set([
+        ...baseOptions,
+        ...DEFAULT_PRODUCT_LINE_OPTIONS,
+        ...(data.product_lines ? [data.product_lines] : [])
+      ])
+    );
+
+    return merged.filter(Boolean);
+  }, [normalizedNatureOfBusiness, data.product_lines]);
+
+  const productionRateOptions = useMemo(() => {
+    return getAllProductionRateValues();
+  }, []);
 
   // Autofill when inspectionData provided (only if no existing data)
   useEffect(() => {
@@ -184,6 +219,77 @@ const GeneralInformation = forwardRef(function GeneralInformation({
   const updateField = (field, value, formatter = formatInput.upper) => {
     setData({ ...data, [field]: formatter(value) });
   };
+
+  const handleDeclaredProductionRateChange = (event) => {
+    const value = formatInput.upper(event.target.value || "");
+    setData({ ...data, declared_production_rate: value });
+    if (clearError) clearError("declared_production_rate");
+  };
+
+  const handleActualProductionRateChange = (event) => {
+    const value = formatInput.upper(event.target.value || "");
+    setData({ ...data, actual_production_rate: value });
+    if (clearError) clearError("actual_production_rate");
+  };
+
+  const handleProductLineChange = (event) => {
+    const rawValue = event.target.value || "";
+    const nextValue = formatInput.upper(rawValue);
+
+    const preset = getProductionRatePreset(nextValue);
+    const nextData = {
+      ...data,
+      product_lines: nextValue,
+      ...(preset && {
+        declared_production_rate: formatInput.upper(preset.declared || ""),
+        actual_production_rate: formatInput.upper(
+          preset.actual ?? preset.declared ?? ""
+        ),
+      }),
+    };
+
+    setData(nextData);
+    lastAppliedPresetLine.current = nextValue;
+
+    if (clearError) {
+      clearError("product_lines");
+      if (preset?.declared) clearError("declared_production_rate");
+      if (preset?.actual || preset?.declared) clearError("actual_production_rate");
+    }
+  };
+
+  useEffect(() => {
+    const normalizedLine = formatInput.upper((data.product_lines || "").trim());
+    if (!normalizedLine) return;
+
+    if (normalizedLine === lastAppliedPresetLine.current) return;
+
+    const preset = getProductionRatePreset(normalizedLine);
+    lastAppliedPresetLine.current = normalizedLine;
+
+    if (!preset) return;
+
+    const declared = formatInput.upper(preset.declared || "");
+    const actual = formatInput.upper(preset.actual ?? preset.declared ?? "");
+
+    if (
+      data.declared_production_rate === declared &&
+      data.actual_production_rate === actual
+    ) {
+      return;
+    }
+
+    setData({
+      ...data,
+      declared_production_rate: declared,
+      actual_production_rate: actual,
+    });
+
+    if (clearError) {
+      if (preset?.declared) clearError("declared_production_rate");
+      if (preset?.actual || preset?.declared) clearError("actual_production_rate");
+    }
+  }, [data.product_lines]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle phone/fax validation
   const handlePhoneFaxChange = (value) => {
@@ -694,37 +800,70 @@ const GeneralInformation = forwardRef(function GeneralInformation({
             <label className="block mb-1 text-sm font-medium text-gray-700">
               Product Lines<span className="text-red-600">*</span>
             </label>
-            <input
-              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-              value={data.product_lines || ""}
-              onChange={(e) => updateField("product_lines", e.target.value)}
-              placeholder="Enter product lines manufactured"
-              disabled={isReadOnly}
-            />
+            {productLineOptions.length > 0 ? (
+              <SearchableSelect
+                name="product_lines"
+                value={data.product_lines || ""}
+                onChange={handleProductLineChange}
+                options={productLineOptions}
+                placeholder="Select product line"
+                isDisabled={isReadOnly}
+                className={errors.product_lines ? "border-red-500" : ""}
+              />
+            ) : (
+              <input
+                className={`w-full px-3 py-2 text-gray-900 uppercase bg-white border rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 ${
+                  errors.product_lines ? "border-red-500" : "border-gray-300"
+                }`}
+                value={data.product_lines || ""}
+                onChange={(e) =>
+                  handleProductLineChange({ target: { value: e.target.value } })
+                }
+                placeholder="Enter product lines manufactured"
+                disabled={isReadOnly}
+              />
+            )}
+            {errors.product_lines && (
+              <p className="text-sm text-red-600">{errors.product_lines}</p>
+            )}
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
               Declared Production Rate<span className="text-red-600">*</span>
             </label>
-            <input
-              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+            <SearchableSelect
+              name="declared_production_rate"
               value={data.declared_production_rate || ""}
-              onChange={(e) => updateField("declared_production_rate", e.target.value)}
-              placeholder="Enter declared production rate"
-              disabled={isReadOnly}
+              onChange={handleDeclaredProductionRateChange}
+              options={productionRateOptions}
+              placeholder="Select or type declared rate"
+              isDisabled={isReadOnly}
+              allowCustomOption
+              customOptionLabel={(term) => `Use custom rate: ${term}`}
+              className={errors.declared_production_rate ? "border-red-500" : ""}
             />
+            {errors.declared_production_rate && (
+              <p className="text-sm text-red-600 mt-1">{errors.declared_production_rate}</p>
+            )}
           </div>
           <div>
             <label className="block mb-1 text-sm font-medium text-gray-700">
               Actual Production Rate<span className="text-red-600">*</span>
             </label>
-            <input
-              className="w-full px-3 py-2 text-gray-900 uppercase bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+            <SearchableSelect
+              name="actual_production_rate"
               value={data.actual_production_rate || ""}
-              onChange={(e) => updateField("actual_production_rate", e.target.value)}
-              placeholder="Enter actual production rate"
-              disabled={isReadOnly}
+              onChange={handleActualProductionRateChange}
+              options={productionRateOptions}
+              placeholder="Select or type actual rate"
+              isDisabled={isReadOnly}
+              allowCustomOption
+              customOptionLabel={(term) => `Use custom rate: ${term}`}
+              className={errors.actual_production_rate ? "border-red-500" : ""}
             />
+            {errors.actual_production_rate && (
+              <p className="text-sm text-red-600 mt-1">{errors.actual_production_rate}</p>
+            )}
           </div>
         </div>
       </div>

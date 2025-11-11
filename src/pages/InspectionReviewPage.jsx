@@ -713,7 +713,7 @@ const InspectionReviewPage = () => {
                   disabled={loading}
                 >
                   <FileCheck className="w-4 h-4 mr-1" />
-                  {reviewApproval ? 'Save & Approve' : 'Save & Submit'}
+                {reviewApproval ? 'Save & Approve' : 'Submit'}
                 </button>
                 )}
               </>
@@ -1498,7 +1498,7 @@ const InspectionReviewPage = () => {
           <div className="fixed inset-0 bg-white/30 backdrop-blur-md flex items-center justify-center z-50 print:hidden">
             <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full mx-4 p-6 border border-gray-200">
               <h3 className="text-lg font-semibold mb-4">
-                {actionType === 'save_and_submit' ? 'Confirm Save & Submit' :
+                {actionType === 'save_and_submit' ? 'Confirm Submit' :
                  actionType === 'save_and_approve' ? 'Confirm Save & Approve' :
                  actionType === 'mark_compliant' ? 'Mark as Compliant' :
                  actionType === 'mark_non_compliant' ? 'Mark as Non-Compliant' :
@@ -1541,7 +1541,7 @@ const InspectionReviewPage = () => {
                   disabled={loading}
                 >
                   {loading ? 'Processing...' : 
-                   actionType === 'save_and_submit' ? 'Save & Submit' :
+                  actionType === 'save_and_submit' ? 'Submit' :
                    actionType === 'save_and_approve' ? 'Save & Approve' :
                    actionType === 'mark_compliant' ? 'Mark as Compliant' :
                    actionType === 'mark_non_compliant' ? 'Mark as Non-Compliant' :

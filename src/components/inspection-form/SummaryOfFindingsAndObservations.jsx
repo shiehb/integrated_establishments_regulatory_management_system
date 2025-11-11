@@ -85,30 +85,49 @@ const SummaryOfFindingsAndObservations = forwardRef(function SummaryOfFindingsAn
     }
   }, [complianceItems]); // Remove systems and setSystems to prevent infinite loops
 
-  const updateSystem = (index, field, value, formatter = (v) => v) => {
+  // Helper to update Commitment system status/remarks
+  const updateCommitmentSystemStatus = (index, status) => {
     const clone = [...systems];
     const system = clone[index];
 
-    if (field === "compliant") {
-      if (value === "Yes") {
-        // ✅ Clear remarks when user selects Compliant - let them input their own
-        clone[index] = {
-          ...system,
-          compliant: "Yes",
-          nonCompliant: false,
-          remarks: ""
-        };
-      } else if (value === "No") {
-        // ✅ Keep existing remarks when non-compliant
-        clone[index] = {
-          ...system,
-          compliant: "No",
-          nonCompliant: true
-        };
-      }
-    } else {
-      clone[index] = { ...system, [field]: formatter(value) };
+    if (!system) return;
+
+    if (status === "Yes") {
+      clone[index] = {
+        ...system,
+        compliant: "Yes",
+        nonCompliant: false,
+        notApplicable: false
+      };
+    } else if (status === "No") {
+      clone[index] = {
+        ...system,
+        compliant: "No",
+        nonCompliant: true,
+        notApplicable: false
+      };
+    } else if (status === "NA") {
+      clone[index] = {
+        ...system,
+        compliant: false,
+        nonCompliant: false,
+        notApplicable: true
+      };
     }
+
+    setSystems(clone);
+  };
+
+  const updateCommitmentSystemRemarks = (index, value) => {
+    const clone = [...systems];
+    const system = clone[index];
+
+    if (!system) return;
+
+    clone[index] = {
+      ...system,
+      remarks: value
+    };
 
     setSystems(clone);
   };
@@ -144,50 +163,89 @@ const SummaryOfFindingsAndObservations = forwardRef(function SummaryOfFindingsAn
           );
           if (globalIndex === -1) return null;
 
+          const isCommitmentSystem = s.system === "Commitment/s from previous Technical Conference";
+          const statusLabel = s.compliant === "Yes"
+            ? "Compliant"
+            : s.notApplicable
+            ? "Not Applicable"
+            : s.nonCompliant === true || s.compliant === "No"
+            ? "Non-Compliant"
+            : "Not Assessed";
+
+          const statusClass =
+            s.compliant === "Yes"
+              ? "bg-green-50 border-green-200 text-green-700"
+              : s.notApplicable
+              ? "bg-gray-100 border-gray-300 text-gray-700"
+              : s.nonCompliant === true || s.compliant === "No"
+              ? "bg-red-50 border-red-200 text-red-700"
+              : "bg-gray-100 border-gray-200 text-gray-600";
+
           return (
             <div key={`${s.system}-${globalIndex}`} className="p-2.5 bg-gray-50 border border-gray-300 rounded-md">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="font-medium text-sm text-gray-900">
                   {s.system}
                 </div>
-                <div className="flex gap-4">
-                  <label className="text-sm text-gray-900">
-                    <input
-                      type="radio"
-                      checked={s.compliant === "Yes"}
-                      onChange={() => updateSystem(globalIndex, "compliant", "Yes")}
-                      className="mr-1.5 text-sky-600 focus:ring-sky-500"
-                      disabled={isReadOnly}
-                    />{" "}
-                    Compliant
-                  </label>
-                  <label className="text-sm text-gray-900">
-                    <input
-                      type="radio"
-                      checked={s.nonCompliant === true}
-                      onChange={() => updateSystem(globalIndex, "compliant", "No")}
-                      className="mr-1.5 text-sky-600 focus:ring-sky-500"
-                      disabled={isReadOnly}
-                    />{" "}
-                    Non-Compliant
-                  </label>
-                </div>
+                {isCommitmentSystem && !isReadOnly ? (
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center text-xs font-medium text-gray-700">
+                      <input
+                        type="radio"
+                        className="mr-1.5 text-sky-600 focus:ring-sky-500"
+                        checked={s.compliant === "Yes"}
+                        onChange={() => updateCommitmentSystemStatus(globalIndex, "Yes")}
+                      />
+                      Compliant
+                    </label>
+                    <label className="flex items-center text-xs font-medium text-gray-700">
+                      <input
+                        type="radio"
+                        className="mr-1.5 text-sky-600 focus:ring-sky-500"
+                        checked={s.nonCompliant === true || s.compliant === "No"}
+                        onChange={() => updateCommitmentSystemStatus(globalIndex, "No")}
+                      />
+                      Non-Compliant
+                    </label>
+                    <label className="flex items-center text-xs font-medium text-gray-700">
+                      <input
+                        type="radio"
+                        className="mr-1.5 text-sky-600 focus:ring-sky-500"
+                        checked={s.notApplicable === true}
+                        onChange={() => updateCommitmentSystemStatus(globalIndex, "NA")}
+                      />
+                      Not Applicable
+                    </label>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Status
+                    </span>
+                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${statusClass}`}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="mt-2.5">
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-gray-700">
+                <div className="space-y-1.5">
+                  <span className="text-xs font-medium text-gray-700">
                     Findings Summary
-                  </label>
-                  <textarea
-                    value={s.remarks || ""}
-                    onChange={(e) =>
-                      updateSystem(globalIndex, "remarks", e.target.value, formatInput.upper)
-                    }
-                    placeholder="Enter findings summary..."
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white text-gray-900 min-h-[200px] focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
-                    disabled={isReadOnly}
-                  />
+                  </span>
+                  {isReadOnly ? (
+                    <div className="w-full border border-gray-200 rounded-md bg-gray-50 text-sm text-gray-700 px-3 py-2 min-h-[160px] whitespace-pre-line">
+                      {s.remarks?.trim() ? s.remarks : "No findings summary recorded."}
+                    </div>
+                  ) : (
+                    <textarea
+                      value={s.remarks || ""}
+                      onChange={(e) => updateCommitmentSystemRemarks(globalIndex, e.target.value)}
+                      placeholder="Enter findings summary..."
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 min-h-[160px] focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-y overflow-auto"
+                    />
+                  )}
                 </div>
               </div>
 
