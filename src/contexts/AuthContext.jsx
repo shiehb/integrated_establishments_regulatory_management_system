@@ -265,14 +265,19 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       
       // Call logout API if tokens exist
-      const { refresh } = TokenManager.getTokens();
+      const { access, refresh } = TokenManager.getTokens();
       if (refresh) {
         try {
+          const headers = {
+            'Content-Type': 'application/json',
+          };
+          if (access) {
+            headers.Authorization = `Bearer ${access}`;
+          }
+
           await fetch(`${API_BASE_URL}auth/logout/`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers,
             body: JSON.stringify({ refresh }),
           });
         } catch (error) {

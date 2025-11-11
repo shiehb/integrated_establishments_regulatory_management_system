@@ -870,113 +870,46 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 )
     
     @action(detail=True, methods=['post'])
-    def assign_to_me(self, request, pk=None):
-        """Assign inspection to current user (Section/Unit only)"""
-        inspection = self.get_object()
-        user = request.user
-        
-        # Check user level
-        if user.userlevel not in ['Section Chief', 'Unit Head']:
-            return Response(
-                {'error': 'Only Section Chiefs and Unit Heads can assign to themselves'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Check if already assigned
-        if inspection.assigned_to and inspection.assigned_to != user:
-            return Response(
-                {'error': f'Already assigned to {inspection.assigned_to}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Determine the correct status based on user level and current status
-        if user.userlevel == 'Section Chief':
-            if inspection.current_status == 'CREATED':
-                new_status = 'SECTION_ASSIGNED'
-            elif inspection.current_status == 'SECTION_ASSIGNED':
-                # When Section Chief assigns to themselves, move to in progress
-                new_status = 'SECTION_IN_PROGRESS'
-            else:
-                new_status = inspection.current_status
-        elif user.userlevel == 'Unit Head':
-            if inspection.current_status == 'SECTION_COMPLETED':
-                new_status = 'UNIT_ASSIGNED'
-            elif inspection.current_status == 'UNIT_ASSIGNED':
-                # When Unit Head assigns to themselves, move to in progress
-                new_status = 'UNIT_IN_PROGRESS'
-            else:
-                new_status = inspection.current_status
-        else:
-            # If already in correct status, just assign
-            new_status = inspection.current_status
-        
-        # Assign user and update status if needed
-        prev_status = inspection.current_status
-        inspection.assigned_to = user
-        if new_status != prev_status:
-            inspection.current_status = new_status
-        inspection.save()
-        
-        # Log history
-        InspectionHistory.objects.create(
-            inspection=inspection,
-            previous_status=prev_status,
-            new_status=inspection.current_status,
-            changed_by=user,
-            assigned_to=inspection.assigned_to,
-            law=inspection.law,
-            section=user.section,
-            remarks='Assigned to self'
-        )
-        
-        audit_inspection_event(
-            user,
-            inspection,
-            AUDIT_ACTIONS["ASSIGN"],
-            f"{user.email} assigned inspection to self",
-            request,
-            metadata={
-                "previous_status": prev_status,
-                "new_status": inspection.current_status,
-            },
-        )
-
-        serializer = self.get_serializer(inspection)
-        return Response(serializer.data)
-    
-    @action(detail=True, methods=['post'])
     def inspect(self, request, pk=None):
         """Move inspection to My Inspections (Section Chief/Unit Head/Monitoring Personnel)"""
         inspection = self.get_object()
         user = request.user
         
-        # Check if user can act
-        if inspection.assigned_to != user:
-            return Response(
-                {'error': 'You are not assigned to this inspection'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        
-        # Check if inspection is in correct status
-        if inspection.current_status not in ['SECTION_ASSIGNED', 'UNIT_ASSIGNED', 'MONITORING_ASSIGNED']:
+        valid_statuses = ['SECTION_ASSIGNED', 'UNIT_ASSIGNED', 'MONITORING_ASSIGNED']
+        if inspection.current_status not in valid_statuses:
             return Response(
                 {'error': f'Cannot inspect from status {inspection.current_status}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        # Move to IN_PROGRESS status (this moves it to My Inspections tab)
+
+        status_map = {
+            'SECTION_ASSIGNED': 'SECTION_IN_PROGRESS',
+            'UNIT_ASSIGNED': 'UNIT_IN_PROGRESS',
+            'MONITORING_ASSIGNED': 'MONITORING_IN_PROGRESS',
+        }
+        next_status = status_map.get(inspection.current_status)
+
+        if not inspection.can_transition_to(next_status, user):
+            return Response(
+                {'error': f'You are not authorized to transition to {next_status}'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Assign to current user if needed
+        reassigned = False
+        if inspection.assigned_to != user:
+            inspection.assigned_to = user
+            reassigned = True
+
         prev_status = inspection.current_status
-        if inspection.current_status == 'SECTION_ASSIGNED':
-            inspection.current_status = 'SECTION_IN_PROGRESS'
-        elif inspection.current_status == 'UNIT_ASSIGNED':
-            inspection.current_status = 'UNIT_IN_PROGRESS'
-        elif inspection.current_status == 'MONITORING_ASSIGNED':
-            inspection.current_status = 'MONITORING_IN_PROGRESS'
-        
+        inspection.current_status = next_status
         inspection.save()
         
         # Log history
-        remarks = request.data.get('remarks', 'Moved to My Inspections')
+        default_remarks = 'Moved to My Inspections'
+        if reassigned:
+            default_remarks = 'Self-assigned and moved to My Inspections'
+        remarks = request.data.get('remarks', default_remarks)
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
@@ -1065,6 +998,123 @@ class InspectionViewSet(viewsets.ModelViewSet):
             inspection,
             AUDIT_ACTIONS["UPDATE"],
             f"{user.email} started inspection (status {next_status})",
+            request,
+            metadata={
+                "previous_status": prev_status,
+                "new_status": next_status,
+                "remarks": remarks,
+            },
+        )
+
+        serializer = self.get_serializer(inspection)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=["post"])
+    def return_to_previous(self, request, pk=None):
+        """Return inspection to previous assignment stage."""
+        inspection = self.get_object()
+        user = request.user
+
+        next_status = None
+        next_assignee = None
+
+        if inspection.current_status == "MONITORING_ASSIGNED":
+            if user.userlevel not in ["Monitoring Personnel", "Unit Head"]:
+                return Response(
+                    {"error": "Only Monitoring Personnel or Unit Heads can return monitoring assignments"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            previous_stage = (
+                InspectionHistory.objects.filter(
+                    inspection=inspection,
+                    new_status__in=["UNIT_ASSIGNED", "SECTION_ASSIGNED"],
+                )
+                .order_by("-created_at")
+                .first()
+            )
+
+            if previous_stage:
+                next_status = previous_stage.new_status
+                next_assignee = previous_stage.assigned_to
+
+            if not next_status:
+                target = request.data.get("target", "unit")
+                next_status = "SECTION_ASSIGNED" if target == "section" else "UNIT_ASSIGNED"
+        elif inspection.current_status == "UNIT_ASSIGNED":
+            if user.userlevel != "Unit Head":
+                return Response(
+                    {"error": "Only Unit Heads can return unit assignments"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            previous_stage = (
+                InspectionHistory.objects.filter(
+                    inspection=inspection,
+                    new_status="SECTION_ASSIGNED",
+                )
+                .order_by("-created_at")
+                .first()
+            )
+            if previous_stage:
+                next_status = "SECTION_ASSIGNED"
+                next_assignee = previous_stage.assigned_to
+            else:
+                next_status = "SECTION_ASSIGNED"
+        else:
+            return Response(
+                {"error": f"Return not allowed from status {inspection.current_status}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not inspection.can_transition_to(next_status, user):
+            return Response(
+                {"error": f"Invalid transition to {next_status}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not next_assignee:
+            next_assignee = inspection.get_next_assignee(next_status)
+
+        if not next_assignee and next_status == "UNIT_ASSIGNED":
+            # Fallback to Section Chief when no Unit Head is available
+            next_status = "SECTION_ASSIGNED"
+            next_assignee = inspection.get_next_assignee(next_status)
+
+        if not next_assignee:
+            return Response(
+                {"error": f"No assignee found for status {next_status}"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        prev_status = inspection.current_status
+        inspection.current_status = next_status
+        inspection.assigned_to = next_assignee
+        inspection.save()
+
+        remarks = request.data.get("remarks")
+        if not remarks:
+            status_messages = {
+                "UNIT_ASSIGNED": "Returned to Unit Head",
+                "SECTION_ASSIGNED": "Returned to Section Chief",
+            }
+            remarks = status_messages.get(next_status, "Returned to previous stage")
+
+        InspectionHistory.objects.create(
+            inspection=inspection,
+            previous_status=prev_status,
+            new_status=next_status,
+            changed_by=user,
+            assigned_to=inspection.assigned_to,
+            law=inspection.law,
+            section=user.section,
+            remarks=remarks,
+        )
+
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"{user.email} returned inspection to {inspection.assigned_to}",
             request,
             metadata={
                 "previous_status": prev_status,
@@ -1840,14 +1890,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
         """Forward inspection to next level"""
         inspection = self.get_object()
         user = request.user
-        
-        # Check if user can act (allow forwarding even if not assigned)
-        # This allows Section Chief to forward from "Received" tab without claiming first
-        if inspection.assigned_to and inspection.assigned_to != user:
-            return Response(
-                {'error': f'Already assigned to {inspection.assigned_to}'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
         
         # Determine next status
         status_map = {

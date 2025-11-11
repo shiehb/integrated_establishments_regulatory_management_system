@@ -263,7 +263,7 @@ class InspectionSerializer(serializers.ModelSerializer):
         # Define actions based on status and user level - 5 Button Strategy
         actions_map = {
             # Initial creation - Division Chief can assign to sections
-            ('CREATED', 'Division Chief'): ['assign_to_me', 'forward'],
+            ('CREATED', 'Division Chief'): ['forward'],
             
             # Section Chief workflow
             ('SECTION_ASSIGNED', 'Section Chief'): ['inspect', 'forward'],
@@ -272,13 +272,15 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('SECTION_COMPLETED_NON_COMPLIANT', 'Division Chief'): ['review'],  # NO forward, auto-assigned
             
             # Unit Head workflow
-            ('UNIT_ASSIGNED', 'Unit Head'): ['inspect', 'forward'],
+            ('UNIT_ASSIGNED', 'Unit Head'): ['inspect', 'forward', 'return_to_previous'],
             ('UNIT_IN_PROGRESS', 'Unit Head'): ['continue', 'forward'],
             ('UNIT_COMPLETED_COMPLIANT', 'Section Chief'): ['review'],  # NO forward, auto-assigned
             ('UNIT_COMPLETED_NON_COMPLIANT', 'Section Chief'): ['review'],  # NO forward, auto-assigned
             
             # Monitoring Personnel workflow
             ('MONITORING_ASSIGNED', 'Monitoring Personnel'): ['inspect'],
+            ('MONITORING_ASSIGNED', 'Monitoring Personnel'): ['inspect', 'return_to_previous'],
+            ('MONITORING_ASSIGNED', 'Unit Head'): ['forward', 'return_to_previous'],
             ('MONITORING_IN_PROGRESS', 'Monitoring Personnel'): ['continue'],
             ('MONITORING_COMPLETED_COMPLIANT', 'Unit Head'): ['review'],  # NO forward, auto-assigned
             ('MONITORING_COMPLETED_NON_COMPLIANT', 'Unit Head'): ['review'],  # NO forward, auto-assigned
@@ -318,28 +320,36 @@ class InspectionSerializer(serializers.ModelSerializer):
                 # If no form data, default to both actions
                 available_actions = ['send_to_legal', 'close']
         
-        # Special case: Unassigned users can assign to themselves
-        if status in ['SECTION_ASSIGNED', 'UNIT_ASSIGNED'] and obj.assigned_to != user:
-            if (status == 'SECTION_ASSIGNED' and user.userlevel == 'Section Chief') or \
-               (status == 'UNIT_ASSIGNED' and user.userlevel == 'Unit Head'):
-                return ['assign_to_me', 'forward']
-        
         # Special case: Monitoring Personnel with MONITORING_ASSIGNED status
         if status == 'MONITORING_ASSIGNED' and user.userlevel == 'Monitoring Personnel':
-            return ['inspect']
+            actions = ['inspect']
+            if 'return_to_previous' in available_actions:
+                actions.append('return_to_previous')
+            return actions
         
         # Filter actions based on assignment status
         if obj.assigned_to == user:
             # User is assigned - can perform all available actions
             return available_actions
         else:
-            # User is not assigned - can only assign to themselves or perform review actions
+            # User is not assigned - allow stage owners to take over or perform review/final actions
             filtered_actions = []
             for action in available_actions:
-                if action == 'assign_to_me':
+                if action == 'inspect' and (
+                    (status == 'SECTION_ASSIGNED' and user.userlevel == 'Section Chief') or
+                    (status == 'UNIT_ASSIGNED' and user.userlevel == 'Unit Head') or
+                    (status == 'MONITORING_ASSIGNED' and user.userlevel == 'Monitoring Personnel')
+                ):
+                    filtered_actions.append(action)
+                elif action == 'forward' and user.userlevel in ['Section Chief', 'Unit Head', 'Division Chief']:
                     filtered_actions.append(action)
                 elif action == 'review' and user.userlevel in ['Unit Head', 'Section Chief', 'Division Chief']:
                     # Unit Head, Section Chief, and Division Chief can review inspections even if not assigned (for review tab)
+                    filtered_actions.append(action)
+                elif action == 'return_to_previous' and (
+                    (status == 'MONITORING_ASSIGNED' and user.userlevel == 'Unit Head') or
+                    (status == 'UNIT_ASSIGNED' and user.userlevel == 'Unit Head')
+                ):
                     filtered_actions.append(action)
                 elif action in ['send_to_legal', 'close'] and user.userlevel == 'Division Chief':
                     # Division Chief can perform these actions even if not directly assigned

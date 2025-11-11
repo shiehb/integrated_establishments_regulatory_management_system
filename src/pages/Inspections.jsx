@@ -9,7 +9,6 @@ import {
   getEstablishments,
   getAvailableEstablishments, 
   createInspection,
-  assignToMe,
   startInspection,
   completeInspection,
   forwardInspection,
@@ -73,10 +72,7 @@ export default function Inspections() {
       let actionMessage = '';
       
       // Call the appropriate backend API based on current status and action
-      if (actionType === 'assign_to_me') {
-        result = await assignToMe(inspection.id);
-        actionMessage = `Inspection ${inspection.code} has been assigned to you.`;
-      } else if (actionType === 'start') {
+      if (actionType === 'start') {
         result = await startInspection(inspection.id);
         actionMessage = `Inspection ${inspection.code} has been started.`;
       } else if (actionType === 'forward_to_legal') {

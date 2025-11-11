@@ -1,29 +1,36 @@
-import React, { useState, useEffect } from 'react';
-import { Bell, Calendar, AlertTriangle, RefreshCw, Clock } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Bell, Calendar, AlertTriangle, RefreshCw, Clock, Filter } from 'lucide-react';
 import { getReinspectionReminders } from '../../services/api';
+import TableToolbar from '../common/TableToolbar';
+
+const complianceOptions = [
+  { value: 'all', label: 'All Statuses' },
+  { value: 'COMPLIANT', label: 'Compliant' },
+  { value: 'NON_COMPLIANT', label: 'Non-Compliant' }
+];
 
 const ReinspectionReminders = () => {
   const [allReminders, setAllReminders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overdue');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     fetchReinspectionReminders();
   }, []);
 
-  const fetchReinspectionReminders = async () => {
+  const fetchReinspectionReminders = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      
       const data = await getReinspectionReminders();
-      
-      // Set reminders
       setAllReminders(data || []);
     } catch (error) {
       console.error('Failed to fetch reinspection reminders:', error);
-      console.error('Error details:', error.response);
       if (error.response?.status === 403) {
         setError('Access denied. Only Division Chiefs can view reinspection reminders.');
       } else {
@@ -31,11 +38,30 @@ const ReinspectionReminders = () => {
       }
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
+  }, []);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchReinspectionReminders();
   };
 
-  // Categorize reminders by time periods
-  const categorizeReminders = () => {
+  const filteredReminders = useMemo(() => {
+    return allReminders.filter((reminder) => {
+      const matchesSearch =
+        !searchQuery ||
+        reminder.establishment_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        reminder.original_inspection_code?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesStatus =
+        statusFilter === 'all' ? true : reminder.compliance_status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [allReminders, searchQuery, statusFilter]);
+
+  const categorizeReminders = useCallback((reminders = filteredReminders) => {
     const categories = {
       overdue: [],
       thisMonth: [],
@@ -45,7 +71,7 @@ const ReinspectionReminders = () => {
       beyond12Months: []
     };
 
-    allReminders.forEach(reminder => {
+    reminders.forEach((reminder) => {
       const daysUntilDue = reminder.days_until_due;
 
       if (daysUntilDue < 0) {
@@ -64,7 +90,19 @@ const ReinspectionReminders = () => {
     });
 
     return categories;
-  };
+  }, [filteredReminders]);
+
+  const categories = categorizeReminders();
+  const tabs = [
+    { key: 'overdue', label: 'Overdue', count: categories.overdue.length },
+    { key: 'thisMonth', label: 'This Month', count: categories.thisMonth.length },
+    { key: 'next3Months', label: 'Next 3 Months', count: categories.next3Months.length },
+    { key: 'next6Months', label: 'Next 6 Months', count: categories.next6Months.length },
+    { key: 'next12Months', label: 'Next 12 Months', count: categories.next12Months.length },
+    { key: 'beyond12Months', label: 'Beyond 12 Months', count: categories.beyond12Months.length }
+  ];
+
+  const currentCategory = categories[activeTab] || [];
 
   const getUrgencyColor = (daysUntilDue) => {
     if (daysUntilDue <= 0) return 'text-red-600 bg-red-100 border-red-300';
@@ -74,7 +112,6 @@ const ReinspectionReminders = () => {
   };
 
   const getUrgencyIcon = (daysUntilDue) => {
-    if (daysUntilDue <= 0) return <AlertTriangle className="h-5 w-5" />;
     if (daysUntilDue <= 7) return <AlertTriangle className="h-5 w-5" />;
     return <Calendar className="h-5 w-5" />;
   };
@@ -94,235 +131,224 @@ const ReinspectionReminders = () => {
     });
   };
 
-  const getTabCount = (category) => {
-    const categories = categorizeReminders();
-    return categories[category].length;
-  };
-
-  const getTabIcon = (tabName) => {
-    switch (tabName) {
-      case 'overdue': return <AlertTriangle className="h-4 w-4" />;
-      case 'thisMonth': return <Clock className="h-4 w-4" />;
-      case 'next3Months': return <Calendar className="h-4 w-4" />;
-      case 'next6Months': return <Calendar className="h-4 w-4" />;
-      case 'next12Months': return <Calendar className="h-4 w-4" />;
-      case 'beyond12Months': return <Calendar className="h-4 w-4" />;
-      default: return <Calendar className="h-4 w-4" />;
-    }
-  };
-
-  const renderRemindersList = (reminders) => {
-    if (!reminders || reminders.length === 0) {
-      return (
-        <div className="text-center py-8">
-          <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500">No reinspection reminders in this period</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        {reminders.map((reminder) => (
-          <div
-            key={reminder.id}
-            className={`p-4 rounded-lg border-l-4 ${getUrgencyColor(reminder.days_until_due)}`}
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center mb-2">
-                  {getUrgencyIcon(reminder.days_until_due)}
-                  <h4 className="ml-2 font-medium text-gray-900">{reminder.establishment_name}</h4>
-                </div>
-                <p className="text-sm text-gray-600 mb-1">
-                  <span className="font-medium">Address:</span> {reminder.establishment_address}
-                </p>
-                <p className="text-sm text-gray-600 mb-1">
-                  <span className="font-medium">Original Inspection:</span> {reminder.original_inspection_code}
-                </p>
-                <p className="text-sm text-gray-600 mb-1">
-                  <span className="font-medium">Compliance Status:</span> 
-                  <span className={`ml-1 px-2 py-1 rounded-full text-xs font-medium ${
-                    reminder.compliance_status === 'COMPLIANT' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {reminder.compliance_status === 'COMPLIANT' ? 'Compliant' : 'Non-Compliant'}
-                  </span>
-                </p>
-                <p className="text-sm font-medium text-gray-900">
-                  <span className="font-medium">Due Date:</span> {formatDate(reminder.due_date)}
-                </p>
-              </div>
-              <div className="text-right">
-                <div className={`px-3 py-1 rounded-full text-xs font-medium ${getUrgencyColor(reminder.days_until_due)}`}>
-                  {getUrgencyText(reminder.days_until_due)}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {reminder.days_until_due === 0 ? 'Today' : 
-                   reminder.days_until_due < 0 ? `${Math.abs(reminder.days_until_due)} days overdue` :
-                   `${reminder.days_until_due} days`}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  if (loading) {
-    return (
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center">
-            <Bell className="h-6 w-6 text-blue-600 mr-2" />
-            <h3 className="text-lg font-medium text-gray-900">Reinspection Reminders</h3>
-          </div>
-        </div>
-        <div className="p-6">
-          <div className="animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
-            <div className="space-y-3">
-              <div className="h-3 bg-gray-200 rounded"></div>
-              <div className="h-3 bg-gray-200 rounded w-5/6"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center">
-            <Bell className="h-6 w-6 text-blue-600 mr-2" />
-            <h3 className="text-lg font-medium text-gray-900">Reinspection Reminders</h3>
-          </div>
-        </div>
-        <div className="p-6">
-          <div className="text-center py-8">
-            <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-            <p className="text-red-600 font-medium mb-2">Error Loading Reminders</p>
-            <p className="text-gray-500 text-sm">{error}</p>
-            <button
-              onClick={fetchReinspectionReminders}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const categories = categorizeReminders();
-  const tabs = [
-    { key: 'overdue', label: 'Overdue', count: getTabCount('overdue') },
-    { key: 'thisMonth', label: 'This Month', count: getTabCount('thisMonth') },
-    { key: 'next3Months', label: 'Next 3 Months', count: getTabCount('next3Months') },
-    { key: 'next6Months', label: 'Next 6 Months', count: getTabCount('next6Months') },
-    { key: 'next12Months', label: 'Next 12 Months', count: getTabCount('next12Months') },
-    { key: 'beyond12Months', label: 'Beyond 12 Months', count: getTabCount('beyond12Months') }
-  ];
-
-  // Ensure activeTab exists in categories
-  const currentCategory = categories[activeTab] || [];
-
-  // Show empty state if no reminders at all
-  if (!loading && !error && allReminders.length === 0) {
-    return (
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200">
+  const filterSidebar = (
+    filterPanelOpen && (
+      <div className="absolute right-0 z-20 w-64 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+        <div className="p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Bell className="h-6 w-6 text-blue-600 mr-2" />
-              <h3 className="text-lg font-medium text-gray-900">Reinspection Reminders</h3>
-              <span className="ml-2 px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-                0 Total
-              </span>
-            </div>
-            <button
-              onClick={fetchReinspectionReminders}
-              className="flex items-center text-sm text-blue-600 hover:text-blue-800 transition-colors"
-            >
-              <RefreshCw className="h-4 w-4 mr-1" />
-              Refresh
-            </button>
+            <span className="text-xs font-semibold text-gray-500 uppercase">Filters</span>
+            {(statusFilter !== 'all') && (
+              <button
+                onClick={() => setStatusFilter('all')}
+                className="text-xs text-sky-600 hover:underline"
+              >
+                Clear
+              </button>
+            )}
           </div>
-        </div>
-        <div className="p-12 text-center">
-          <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h4 className="text-lg font-medium text-gray-900 mb-2">No Reinspection Schedules</h4>
-          <p className="text-gray-500 max-w-md mx-auto">
-            There are currently no reinspection schedules in the system. 
-            Schedules will be automatically created when inspections are completed with status "Closed - Compliant" or "Closed - Non-Compliant".
-          </p>
-          <div className="mt-6 text-sm text-gray-400">
-            <p>• Non-compliant establishments: 1 year reinspection</p>
-            <p>• Compliant establishments: 2-3 years reinspection</p>
+
+          <div className="space-y-2">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Compliance Status
+            </span>
+            {complianceOptions.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => {
+                  setStatusFilter(option.value);
+                  setFilterPanelOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm rounded-md transition-colors ${
+                  statusFilter === option.value
+                    ? 'bg-sky-50 text-sky-700 font-medium'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <span>{option.label}</span>
+                {statusFilter === option.value && (
+                  <span className="w-2 h-2 bg-sky-600 rounded-full" />
+                )}
+              </button>
+            ))}
           </div>
         </div>
       </div>
-    );
-  }
+    )
+  );
+
+  const renderLoadingState = () => (
+    <tbody>
+      {Array.from({ length: 5 }).map((_, idx) => (
+        <tr key={idx} className="border-b border-gray-200 animate-pulse">
+          <td className="px-4 py-3">
+            <div className="h-3 bg-gray-200 rounded w-3/4" />
+          </td>
+          <td className="px-4 py-3">
+            <div className="h-3 bg-gray-200 rounded w-2/3" />
+          </td>
+          <td className="px-4 py-3">
+            <div className="h-3 bg-gray-200 rounded w-1/2" />
+          </td>
+          <td className="px-4 py-3 text-center">
+            <div className="mx-auto h-3 bg-gray-200 rounded w-16" />
+          </td>
+          <td className="px-4 py-3 text-center">
+            <div className="mx-auto h-3 bg-gray-200 rounded w-12" />
+          </td>
+          <td className="px-4 py-3 text-center">
+            <div className="mx-auto h-3 bg-gray-200 rounded w-20" />
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  );
+
+  const renderEmptyState = (message, icon = Calendar) => (
+    <tbody>
+      <tr>
+        <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+          <div className="flex flex-col items-center gap-3">
+            {React.createElement(icon, { className: 'h-12 w-12 text-gray-300' })}
+            <p className="text-sm">{message}</p>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  );
 
   return (
     <div className="bg-white rounded-lg shadow">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <Bell className="h-6 w-6 text-blue-600 mr-2" />
-            <h3 className="text-lg font-medium text-gray-900">Reinspection Reminders</h3>
-            <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
-              {allReminders.length} Total
-            </span>
+      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Bell className="h-6 w-6 text-blue-600" />
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Reinspection Reminders Management</h2>
+            <p className="text-sm text-gray-500">Monitor upcoming and overdue reinspections</p>
           </div>
-          <button
-            onClick={fetchReinspectionReminders}
-            className="flex items-center text-sm text-blue-600 hover:text-blue-800 transition-colors"
-          >
-            <RefreshCw className="h-4 w-4 mr-1" />
-            Refresh
-          </button>
         </div>
+        <button
+          onClick={handleRefresh}
+          className="flex items-center text-sm text-blue-600 hover:text-blue-800 transition-colors"
+        >
+          <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
       </div>
-      
-      {/* Tabs */}
+
+      <div className="px-6 py-4 border-b border-gray-200">
+        <TableToolbar
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          onSearchClear={() => setSearchQuery('')}
+          searchPlaceholder="Search establishments or inspection code..."
+          typeFilterValue={statusFilter}
+          typeFilterOptions={complianceOptions}
+          onTypeFilterChange={(value) => {
+            setStatusFilter(value);
+            setActiveTab('overdue');
+          }}
+          onFilterClick={() => setFilterPanelOpen(!filterPanelOpen)}
+          customFilterDropdown={filterSidebar}
+          filterOpen={filterPanelOpen}
+          onFilterClose={() => setFilterPanelOpen(false)}
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
+          additionalActions={[
+            {
+              onClick: () => setActiveTab('overdue'),
+              icon: Filter,
+              text: 'Reset Tabs'
+            }
+          ]}
+        />
+      </div>
+
       <div className="border-b border-gray-200">
-        <nav className="flex space-x-8 px-6" aria-label="Tabs">
+        <nav className="flex flex-wrap items-center gap-2 px-6 py-3 text-sm font-medium text-gray-600">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center ${
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
                 activeTab === tab.key
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
+                  : 'text-gray-600 hover:bg-gray-100 border border-transparent'
               }`}
             >
-              {getTabIcon(tab.key)}
-              <span className="ml-2">{tab.label}</span>
-              {tab.count > 0 && (
-                <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${
-                  activeTab === tab.key
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {tab.count}
-                </span>
+              {tab.key === 'overdue' ? (
+                <AlertTriangle className="h-4 w-4" />
+              ) : (
+                <Clock className="h-4 w-4" />
               )}
+              <span>{tab.label}</span>
+              <span
+                className={`px-2 py-0.5 text-xs rounded-full ${
+                  activeTab === tab.key ? 'bg-blue-200 text-blue-800' : 'bg-gray-200 text-gray-700'
+                }`}
+              >
+                {tab.count}
+              </span>
             </button>
           ))}
         </nav>
       </div>
 
-      {/* Tab Content */}
-      <div className="p-6">
-        {renderRemindersList(currentCategory)}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-gradient-to-r from-sky-600 to-sky-700 text-white text-xs uppercase tracking-wide">
+            <tr>
+              <th className="px-4 py-3">Establishment</th>
+              <th className="px-4 py-3">Inspection Code</th>
+              <th className="px-4 py-3">Due Date</th>
+              <th className="px-4 py-3 text-center">Days Remaining</th>
+              <th className="px-4 py-3 text-center">Compliance Status</th>
+              <th className="px-4 py-3 text-center">Urgency</th>
+            </tr>
+          </thead>
+          {loading && renderLoadingState()}
+          {!loading && error && renderEmptyState(error, AlertTriangle)}
+          {!loading && !error && currentCategory.length === 0 && renderEmptyState('No reinspection reminders in this period.')}
+          {!loading && !error && currentCategory.length > 0 && (
+            <tbody className="divide-y divide-gray-200">
+              {currentCategory.map((reminder) => (
+                <tr key={reminder.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-gray-800">{reminder.establishment_name}</div>
+                    <div className="text-xs text-gray-500">{reminder.establishment_address}</div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{reminder.original_inspection_code}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700">{formatDate(reminder.due_date)}</td>
+                  <td className="px-4 py-3 text-center text-sm text-gray-700">
+                    {reminder.days_until_due === 0
+                      ? 'Today'
+                      : reminder.days_until_due < 0
+                        ? `${Math.abs(reminder.days_until_due)} overdue`
+                        : `${reminder.days_until_due} days`}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
+                        reminder.compliance_status === 'COMPLIANT'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
+                    >
+                      {reminder.compliance_status === 'COMPLIANT' ? 'Compliant' : 'Non-Compliant'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getUrgencyColor(reminder.days_until_due)}`}
+                    >
+                      {getUrgencyIcon(reminder.days_until_due)}
+                      {getUrgencyText(reminder.days_until_due)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          )}
+        </table>
       </div>
     </div>
   );

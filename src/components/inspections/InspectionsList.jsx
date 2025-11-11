@@ -11,10 +11,10 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  User,
   Send,
   FileText,
-  Building
+  Building,
+  RotateCcw
 } from "lucide-react";
 import {
   getProfile, 
@@ -248,6 +248,12 @@ const getActionDialogContent = (action, inspection, userLevel, pendingForwardAct
     ? inspection.establishments_detail.map(est => est.name).join(', ')
     : 'No establishments';
 
+  const getReturnTargetLabel = (target) => {
+    if (target === 'section') return 'Section Chief';
+    if (target === 'unit') return 'Unit Head';
+    return 'previous stage';
+  };
+
   const actionConfig = {
     inspect: {
       title: 'Confirm Inspection Assignment',
@@ -301,6 +307,30 @@ const getActionDialogContent = (action, inspection, userLevel, pendingForwardAct
                 </p>
               </div>
             )}
+          </div>
+        );
+      }
+    },
+    return_to_previous: {
+      icon: <RotateCcw className="w-5 h-5 text-sky-600" />,
+      headerColor: 'sky',
+      title: 'Confirm Return',
+      confirmColor: 'sky',
+      confirmText: 'Return',
+      message: () => {
+        const target = pendingForwardAction?.returnTarget;
+        const destination = getReturnTargetLabel(target);
+
+        return (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-700">
+              Send inspection{' '}
+              <span className="font-medium">{inspection?.code}</span>{' '}
+              back to the {destination}?
+            </p>
+            <p className="text-xs text-gray-500">
+              Use this when the inspection was forwarded by mistake.
+            </p>
           </div>
         );
       }
@@ -424,51 +454,6 @@ const getActionDialogContent = (action, inspection, userLevel, pendingForwardAct
 
           <div className="text-sm text-gray-600">
             <p>Are you sure you want to {userLevel === 'Legal Unit' || userLevel === 'Division Chief' ? 'mark this as compliant' : 'close this inspection'}?</p>
-          </div>
-        </div>
-      )
-    },
-    assign_to_me: {
-      icon: <User className="w-5 h-5 text-indigo-600" />,
-      headerColor: 'indigo',
-      title: 'Assign Inspection to Me',
-      confirmColor: 'indigo',
-      confirmText: 'Assign to Me',
-      message: (
-        <div className="space-y-4">
-          {/* Inspection Details Card */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <FileText className="w-4 h-4 text-gray-600" />
-              <span className="font-medium text-gray-800">Inspection Details</span>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-gray-700">Code:</span>
-                <span className="text-gray-900">{inspection?.code}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Building className="w-4 h-4 text-gray-500" />
-                <span className="text-gray-700">{establishmentNames}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Assignment Info */}
-          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <User className="w-4 h-4 text-indigo-600" />
-              <span className="font-medium text-indigo-800">Assignment Details</span>
-            </div>
-            <div className="space-y-2 text-sm text-indigo-700">
-              <p>• This inspection will be assigned to you</p>
-              <p>• You will become responsible for this inspection</p>
-              <p>• You will have access to edit and manage the inspection</p>
-            </div>
-          </div>
-
-          <div className="text-sm text-gray-600">
-            <p>Are you sure you want to assign this inspection to yourself?</p>
           </div>
         </div>
       )
@@ -858,6 +843,23 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       return;
     }
     
+    if (action === 'return_to_previous') {
+      const defaultReturnTarget =
+        inspection.current_status === 'UNIT_ASSIGNED' ? 'section' : null;
+
+      setPendingForwardAction({
+        inspection,
+        action,
+        returnTarget: defaultReturnTarget
+      });
+      setActionConfirmation({
+        open: true,
+        inspection,
+        action
+      });
+      return;
+    }
+
     // 5. "Send to Legal" / "Close" buttons - Final actions
     if (action === 'send_to_legal' || action === 'close') {
       // Special case: In "under_review" tab with DIVISION_REVIEWED status, navigate to review page
@@ -1004,6 +1006,20 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         }
       }
       
+      if (action === 'return_to_previous') {
+        const payload = { remarks: 'Returned to previous stage' };
+
+        if (pendingForwardAction?.returnTarget) {
+          payload.target = pendingForwardAction.returnTarget;
+        }
+
+        await handleAction(action, inspection.id, payload);
+        setActionConfirmation({ open: false, inspection: null, action: null });
+        setPendingForwardAction(null);
+        await fetchAllInspections({ force: true });
+        return;
+      }
+
       // For other actions, just execute normally
       await handleAction(action, inspection.id);
       setActionConfirmation({ open: false, inspection: null, action: null });
@@ -1929,13 +1945,21 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     </td>
                     <td className="px-3 py-2 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
                     {shouldShowActions(userLevel, activeTab) ? (
+                      (() => {
+                        let availableActions = inspection.available_actions || [];
+                        if (activeTab === 'in_progress') {
+                          availableActions = availableActions.filter(action => action !== 'forward');
+                        }
+                        return (
                       <InspectionActions 
                         inspection={inspection}
-                        availableActions={inspection.available_actions || []}
+                        availableActions={availableActions}
                         onAction={handleActionClick}
                         loading={isActionLoading(inspection.id)}
                         userLevel={userLevel}
                       />
+                        );
+                      })()
                     ) : userLevel === 'Legal Unit' && activeTab === 'noo_sent' && inspection.current_status !== 'CLOSED_NON_COMPLIANT' ? (
                       <button
                         onClick={() => window.location.href = `/inspections/${inspection.id}/review`}

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNotifications } from '../components/NotificationManager';
 import {
-  assignToMe,
   inspectInspection,
   startInspection,
   continueInspection,
@@ -9,6 +8,7 @@ import {
   forwardInspection,
   reviewInspection,
   forwardToLegal,
+  returnInspection,
   sendToDivision,
   sendNOV,
   sendNOO,
@@ -24,7 +24,7 @@ export const useInspectionActions = (refreshInspections) => {
     
     try {
       // Show loading notification for long operations
-      const longOperations = ['complete', 'forward', 'send_nov', 'send_noo', 'close'];
+      const longOperations = ['complete', 'forward', 'return_to_previous', 'send_nov', 'send_noo', 'close'];
       if (longOperations.includes(action)) {
         notifications.info(
           'Processing your request...', 
@@ -40,11 +40,6 @@ export const useInspectionActions = (refreshInspections) => {
       let successTitle = '';
       
       switch (action) {
-        case 'assign_to_me':
-          result = await assignToMe(inspectionId);
-          successMessage = 'Inspection assigned to you successfully!';
-          successTitle = 'Inspection Assigned';
-          break;
         case 'inspect':
           result = await inspectInspection(inspectionId, data);
           successMessage = 'Inspection started successfully!';
@@ -74,6 +69,11 @@ export const useInspectionActions = (refreshInspections) => {
           result = await reviewInspection(inspectionId, data);
           successMessage = 'Review access granted successfully!';
           successTitle = 'Review Access Granted';
+          break;
+        case 'return_to_previous':
+          result = await returnInspection(inspectionId, data);
+          successMessage = 'Inspection returned successfully!';
+          successTitle = 'Inspection Returned';
           break;
         case 'forward_to_legal':
           result = await forwardToLegal(inspectionId, data);
@@ -110,7 +110,9 @@ export const useInspectionActions = (refreshInspections) => {
         duration: 4000
       });
 
-      refreshInspections();
+      if (typeof refreshInspections === 'function') {
+        await refreshInspections({ force: true });
+      }
       return result;
     } catch (error) {
       console.error(`Action ${action} failed:`, error);

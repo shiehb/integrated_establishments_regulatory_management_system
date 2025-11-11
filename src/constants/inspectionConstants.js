@@ -8,7 +8,8 @@ import {
   Scale, 
   FileText, 
   FileCheck, 
-  Lock 
+  Lock,
+  RotateCcw
 } from 'lucide-react';
 
 // Inspection workflow constants and mappings
@@ -118,6 +119,11 @@ export const actionButtonConfig = {
     label: 'Close',
     color: 'green',
     icon: Lock
+  },
+  return_to_previous: {
+    label: 'Return',
+    color: 'sky',
+    icon: RotateCcw
   }
 };
 

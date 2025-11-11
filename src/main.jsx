@@ -36,6 +36,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import NotificationContainer from "./components/NotificationManager";
 import LawManagement from "./pages/LawManagement";
 import AuditLogs from "./pages/AuditLogs";
+import ReinspectionRemindersPage from "./pages/ReinspectionReminders";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -152,6 +153,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               element={
                 <RoleRoute allowed={["Admin"]}>
                   <AuditLogs />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/reinspection-reminders"
+              element={
+                <RoleRoute allowed={["Division Chief"]}>
+                  <ReinspectionRemindersPage />
                 </RoleRoute>
               }
             />

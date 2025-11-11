@@ -180,6 +180,7 @@ class Inspection(models.Model):
             'UNIT_ASSIGNED': {
                 'UNIT_IN_PROGRESS': ['Unit Head'],
                 'MONITORING_ASSIGNED': ['Unit Head'],  # Can forward directly
+                'SECTION_ASSIGNED': ['Unit Head'],  # Return to Section Chief
             },
             'UNIT_IN_PROGRESS': {
                 'UNIT_COMPLETED_COMPLIANT': ['Unit Head'],
@@ -196,6 +197,8 @@ class Inspection(models.Model):
             },
             'MONITORING_ASSIGNED': {
                 'MONITORING_IN_PROGRESS': ['Monitoring Personnel'],
+                'UNIT_ASSIGNED': ['Monitoring Personnel', 'Unit Head'],  # Return to Unit Head
+                'SECTION_ASSIGNED': ['Unit Head'],  # Optional return to Section Chief
             },
             'MONITORING_IN_PROGRESS': {
                 'MONITORING_COMPLETED_COMPLIANT': ['Monitoring Personnel'],

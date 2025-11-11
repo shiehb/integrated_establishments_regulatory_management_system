@@ -12,6 +12,7 @@ import {
   BookOpen,
   Scale,
   History,
+  Bell,
 } from "lucide-react";
 
 // Menu configuration with role-based access control
@@ -71,6 +72,14 @@ export const MENU_CONFIG = [
     category: "Management"
   },
   {
+    id: "reinspection-reminders",
+    name: "Reinspection Reminders",
+    path: "/reinspection-reminders",
+    icon: Bell,
+    roles: ["Division Chief"],
+    category: "Management"
+  },
+  {
     id: "billing",
     name: "Billing Records",
     path: "/billing",
@@ -96,7 +105,7 @@ export const MENU_CONFIG = [
   },
   {
     id: "audit-logs",
-    name: "Audit Logs",
+    name: "Audit Trails",
     path: "/audit-logs",
     icon: History,
     roles: ["Admin"],

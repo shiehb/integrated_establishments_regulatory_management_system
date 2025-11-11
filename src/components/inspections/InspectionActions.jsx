@@ -51,15 +51,18 @@ const InspectionActions = ({
         const IconComponent = config.icon;
         const isDisabled = loading;
         const buttonLabel = getActionLabel(action, config);
+        const actionColorClass = config.customColorClass
+          ? config.customColorClass
+          : getActionColorClass(action);
 
         return (
           <button
             key={action}
             onClick={() => handleActionClick(action)}
             disabled={isDisabled}
-            className={`flex items-center gap-1 px-2 py-1 text-xs text-white transition-colors rounded ${
-              getActionColorClass(action)
-            } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`flex items-center gap-1 px-2 py-1 text-xs text-white transition-colors rounded ${actionColorClass} ${
+              isDisabled ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
             title={buttonLabel}
           >
             <IconComponent size={12} />

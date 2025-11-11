@@ -12,8 +12,19 @@ const api = axios.create({
 
 // Attach access token to every request
 api.interceptors.request.use((config) => {
+  const authExcludedPaths = [
+    "auth/login/",
+    "auth/register/",
+    "auth/token/refresh/",
+  ];
+
+  if (config?.url && authExcludedPaths.some((path) => config.url.includes(path))) {
+    return config;
+  }
+
   const token = localStorage.getItem("access");
   if (token) {
+    config.headers = config.headers ?? {};
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -331,21 +342,6 @@ export const deleteInspection = async (id) => {
 };
 
 // Workflow Action Functions
-export const assignToMe = async (id) => {
-  try {
-    const res = await api.post(`inspections/${id}/assign_to_me/`);
-    return res.data;
-  } catch (error) {
-    const enhancedError = new Error(
-      error.response?.data?.detail ||
-        error.response?.data?.error ||
-        "Failed to assign inspection to yourself. Please try again."
-    );
-    enhancedError.response = error.response;
-    throw enhancedError;
-  }
-};
-
 export const inspectInspection = async (id, data = {}) => {
   try {
     const res = await api.post(`inspections/${id}/inspect/`, data);
@@ -490,6 +486,21 @@ export const forwardToLegal = async (id, data = {}) => {
       error.response?.data?.detail ||
         error.response?.data?.error ||
         "Failed to forward to legal unit. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const returnInspection = async (id, data = {}) => {
+  try {
+    const res = await api.post(`inspections/${id}/return_to_previous/`, data);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to return inspection. Please try again."
     );
     enhancedError.response = error.response;
     throw enhancedError;
