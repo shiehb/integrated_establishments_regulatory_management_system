@@ -27,6 +27,7 @@ const InspectionReviewPage = () => {
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [actionType, setActionType] = useState('');
+  const [returnRemarks, setReturnRemarks] = useState('');
   
   // Image lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -367,7 +368,10 @@ const InspectionReviewPage = () => {
       forward_legal: `inspections/${id}/forward_to_legal/`,
       send_nov: `inspections/${id}/send_nov/`,
       send_noo: `inspections/${id}/send_noo/`,
-      reject: `inspections/${id}/return_to_division/`,
+      return_to_monitoring: `inspections/${id}/return_to_monitoring/`,
+      return_to_unit: `inspections/${id}/return_to_unit/`,
+      return_to_section: `inspections/${id}/return_to_section/`,
+      return_to_division: `inspections/${id}/return_to_division/`,
       mark_compliant: `inspections/${id}/close/`,
       mark_non_compliant: `inspections/${id}/close/`,
       save_and_submit: `inspections/${id}/complete/`,
@@ -382,7 +386,13 @@ const InspectionReviewPage = () => {
 
     // Prepare payload based on action type
     let payload = {};
-    if (actionType === 'mark_compliant') {
+    if (actionType.startsWith('return_')) {
+      if (!returnRemarks.trim()) {
+        notifications.error('Please provide remarks before returning the inspection.');
+        return;
+      }
+      payload = { remarks: returnRemarks.trim() };
+    } else if (actionType === 'mark_compliant') {
       payload = { final_status: 'CLOSED_COMPLIANT', remarks: 'Marked as compliant by Legal Unit' };
     } else if (actionType === 'mark_non_compliant') {
       payload = { final_status: 'CLOSED_NON_COMPLIANT', remarks: 'Marked as non-compliant by Legal Unit' };
@@ -503,6 +513,22 @@ const InspectionReviewPage = () => {
           successMessage = 'Inspection forwarded to Legal Unit for enforcement!';
           successTitle = 'Forwarded to Legal';
           break;
+        case 'return_to_monitoring':
+          successMessage = 'Inspection returned to Monitoring with remarks.';
+          successTitle = 'Returned to Monitoring';
+          break;
+        case 'return_to_unit':
+          successMessage = 'Inspection returned to Unit Head with remarks.';
+          successTitle = 'Returned to Unit';
+          break;
+        case 'return_to_section':
+          successMessage = 'Inspection returned to Section Chief with remarks.';
+          successTitle = 'Returned to Section';
+          break;
+        case 'return_to_division':
+          successMessage = 'Inspection returned to Division Chief with remarks.';
+          successTitle = 'Returned to Division';
+          break;
         default:
           successMessage = 'Action completed successfully!';
           successTitle = 'Action Complete';
@@ -512,7 +538,7 @@ const InspectionReviewPage = () => {
         title: successTitle,
         duration: 5000
       });
-      
+      setReturnRemarks('');
       navigate('/inspections');
     } catch (error) {
       console.error('❌ Error executing review action:', error);
@@ -532,6 +558,9 @@ const InspectionReviewPage = () => {
       setShowNOOModal(true);
     } else {
       setActionType(type);
+      if (type.startsWith('return_')) {
+        setReturnRemarks('');
+      }
       setShowConfirm(true);
     }
   };
@@ -742,6 +771,7 @@ const InspectionReviewPage = () => {
                 {!userLoading && currentUser?.userlevel === 'Unit Head' && 
                  (inspectionData?.current_status === 'MONITORING_COMPLETED_COMPLIANT' || 
                   inspectionData?.current_status === 'MONITORING_COMPLETED_NON_COMPLIANT') && (
+                  <>
                   <button
                     onClick={() => handleActionClick('approve_unit')}
                     className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
@@ -750,6 +780,15 @@ const InspectionReviewPage = () => {
                     <UserCheck className="w-4 h-4 mr-1" />
                     Approve
                   </button>
+                    <button
+                      onClick={() => handleActionClick('return_to_monitoring')}
+                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-500 rounded hover:bg-gray-600 transition-colors"
+                      disabled={loading}
+                    >
+                      <CornerDownLeft className="w-4 h-4 mr-1" />
+                      Return
+                    </button>
+                  </>
                 )}
                 {!userLoading && currentUser?.userlevel === 'Section Chief' && 
                  (inspectionData?.current_status === 'UNIT_COMPLETED_COMPLIANT' || 
@@ -757,6 +796,7 @@ const InspectionReviewPage = () => {
                   inspectionData?.current_status === 'UNIT_REVIEWED' ||
                   inspectionData?.current_status === 'MONITORING_COMPLETED_COMPLIANT' ||
                   inspectionData?.current_status === 'MONITORING_COMPLETED_NON_COMPLIANT') && (
+                  <>
                   <button
                     onClick={() => handleActionClick('approve_section')}
                     className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
@@ -764,7 +804,20 @@ const InspectionReviewPage = () => {
                   >
                     <Users className="w-4 h-4 mr-1" />
                     Approve
+                    </button>
+                    {(inspectionData?.current_status === 'UNIT_COMPLETED_COMPLIANT' ||
+                      inspectionData?.current_status === 'UNIT_COMPLETED_NON_COMPLIANT' ||
+                      inspectionData?.current_status === 'UNIT_REVIEWED') && (
+                      <button
+                        onClick={() => handleActionClick('return_to_unit')}
+                        className="flex items-center px-3 py-1 text-sm text-white bg-gray-500 rounded hover:bg-gray-600 transition-colors"
+                        disabled={loading}
+                      >
+                        <CornerDownLeft className="w-4 h-4 mr-1" />
+                        Return
                   </button>
+                    )}
+                  </>
                 )}
                 {!userLoading && currentUser?.userlevel === 'Division Chief' && 
                  (inspectionData?.current_status === 'SECTION_COMPLETED_COMPLIANT' || 
@@ -818,7 +871,7 @@ const InspectionReviewPage = () => {
                         ) : (
                           <button
                             onClick={() => handleActionClick('forward_legal')}
-                            className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
+                            className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
                             disabled={loading}
                           >
                             <Scale className="w-4 h-4 mr-1" />
@@ -826,6 +879,19 @@ const InspectionReviewPage = () => {
                           </button>
                         )}
                       </>
+                    )}
+
+                    {(inspectionData?.current_status === 'SECTION_COMPLETED_COMPLIANT' ||
+                      inspectionData?.current_status === 'SECTION_COMPLETED_NON_COMPLIANT' ||
+                      inspectionData?.current_status === 'SECTION_REVIEWED') && (
+                      <button
+                        onClick={() => handleActionClick('return_to_section')}
+                        className="flex items-center px-3 py-1 text-sm text-white bg-gray-500 rounded hover:bg-gray-600 transition-colors"
+                        disabled={loading}
+                      >
+                        <CornerDownLeft className="w-4 h-4 mr-1" />
+                        Return
+                      </button>
                     )}
                   </>
                 )}
@@ -840,6 +906,14 @@ const InspectionReviewPage = () => {
                     >
                       <Mail className="w-4 h-4 mr-1" />
                       Send NOV
+                    </button>
+                    <button
+                      onClick={() => handleActionClick('return_to_division')}
+                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-500 rounded hover:bg-gray-600 transition-colors"
+                      disabled={loading}
+                    >
+                      <CornerDownLeft className="w-4 h-4 mr-1" />
+                      Return
                     </button>
                   </>
                 )}
@@ -864,6 +938,14 @@ const InspectionReviewPage = () => {
                       <FileText className="w-4 h-4 mr-1" />
                       Send NOO
                     </button>
+                    <button
+                      onClick={() => handleActionClick('return_to_division')}
+                      className="flex items-center px-3 py-1 text-sm text-white bg-yellow-600 rounded hover:bg-yellow-700 transition-colors"
+                      disabled={loading}
+                    >
+                      <CornerDownLeft className="w-4 h-4 mr-1" />
+                      Return to Division Chief
+                    </button>
                   </>
                 )}
                 
@@ -878,6 +960,14 @@ const InspectionReviewPage = () => {
                     >
                       <XCircle className="w-4 h-4 mr-1" />
                       Mark as Non-Compliant
+                    </button>
+                    <button
+                      onClick={() => handleActionClick('return_to_division')}
+                      className="flex items-center px-3 py-1 text-sm text-white bg-yellow-600 rounded hover:bg-yellow-700 transition-colors"
+                      disabled={loading}
+                    >
+                      <CornerDownLeft className="w-4 h-4 mr-1" />
+                      Return to Division Chief
                     </button>
                   </>
                 )}
@@ -1505,6 +1595,10 @@ const InspectionReviewPage = () => {
                  actionType === 'forward_legal' ? 'Send to Legal' :
                  actionType === 'approve_unit' ? 'Approve & Forward' :
                  actionType === 'approve_section' ? 'Approve & Forward' :
+                 actionType === 'return_to_monitoring' ? 'Return' :
+                 actionType === 'return_to_unit' ? 'Return' :
+                 actionType === 'return_to_section' ? 'Return' :
+                 actionType === 'return_to_division' ? 'Return' :
                  'Confirm Action'}
               </h3>
               
@@ -1523,13 +1617,34 @@ const InspectionReviewPage = () => {
                           ? 'This will approve the inspection and forward it to the Section Chief for review.'
                           : actionType === 'approve_section' 
                             ? 'This will approve the inspection and forward it to the Division Chief for review.'
+                            : actionType === 'return_to_monitoring'
+                              ? 'Provide remarks explaining why this inspection is being returned to the Monitoring Personnel.'
+                              : actionType === 'return_to_unit'
+                                ? 'Provide remarks explaining why this inspection is being returned to the Unit Head for further action.'
+                                : actionType === 'return_to_section'
+                                  ? 'Provide remarks explaining why this inspection is being returned to the Section Chief for further action.'
+                                  : actionType === 'return_to_division'
+                                    ? 'Provide remarks explaining why this inspection is being returned to the Division Chief for further action.'
                             : 'Are you sure you want to proceed with this action?'
                 }
               </p>
 
+              {actionType.startsWith('return_') && (
+                <textarea
+                  value={returnRemarks}
+                  onChange={(e) => setReturnRemarks(e.target.value)}
+                  placeholder="Enter remarks for returning this inspection..."
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 min-h-[120px] focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-y overflow-auto mb-4"
+                  disabled={loading}
+                />
+              )}
+
               <div className="flex justify-end gap-3 mt-6">
                 <button
-                  onClick={() => setShowConfirm(false)}
+                  onClick={() => {
+                    setShowConfirm(false);
+                    setReturnRemarks('');
+                  }}
                   className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
                   disabled={loading}
                 >
@@ -1548,6 +1663,10 @@ const InspectionReviewPage = () => {
                    actionType === 'forward_legal' ? 'Send to Legal' :
                    actionType === 'approve_unit' ? 'Approve & Forward' :
                    actionType === 'approve_section' ? 'Approve & Forward' :
+                   actionType === 'return_to_monitoring' ? 'Return' :
+                   actionType === 'return_to_unit' ? 'Return' :
+                   actionType === 'return_to_section' ? 'Return' :
+                   actionType === 'return_to_division' ? 'Return' :
                    'Confirm'}
                 </button>
               </div>

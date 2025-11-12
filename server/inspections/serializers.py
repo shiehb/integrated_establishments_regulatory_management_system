@@ -303,22 +303,9 @@ class InspectionSerializer(serializers.ModelSerializer):
         key = (status, user.userlevel)
         available_actions = actions_map.get(key, [])
         
-        # Special case: DIVISION_REVIEWED - actions based on compliance status
+        # Special case: DIVISION_REVIEWED - actions handled via manual buttons (review only)
         if status == 'DIVISION_REVIEWED' and user.userlevel == 'Division Chief':
-            # Check compliance status from form data
-            try:
-                form = obj.form
-                compliance_decision = form.compliance_decision if hasattr(form, 'compliance_decision') else 'PENDING'
-                
-                if compliance_decision == 'COMPLIANT':
-                    # Compliant: Show close action (will be rendered as "Mark as Compliant")
-                    available_actions = ['close']
-                else:
-                    # Non-compliant: Show send_to_legal action
-                    available_actions = ['send_to_legal']
-            except:
-                # If no form data, default to both actions
-                available_actions = ['send_to_legal', 'close']
+            return []
         
         # Special case: Monitoring Personnel with MONITORING_ASSIGNED status
         if status == 'MONITORING_ASSIGNED' and user.userlevel == 'Monitoring Personnel':

@@ -152,32 +152,15 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 'CLOSED_COMPLIANT',
                 'CLOSED_NON_COMPLIANT'
             ]
-            completed_statuses = [
-                'SECTION_COMPLETED_COMPLIANT',
-                'SECTION_COMPLETED_NON_COMPLIANT',
-                'UNIT_COMPLETED_COMPLIANT',
-                'UNIT_COMPLETED_NON_COMPLIANT',
-                'MONITORING_COMPLETED_COMPLIANT',
-                'MONITORING_COMPLETED_NON_COMPLIANT'
-            ]
-            review_statuses = ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED']
-            legal_statuses = ['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
-
-            if tab == 'inspection_complete':
-                queryset = queryset.filter(current_status__in=completed_statuses)
-            elif tab == 'under_review':
-                queryset = queryset.filter(current_status__in=review_statuses)
-            elif tab == 'legal_action':
-                queryset = queryset.filter(current_status__in=legal_statuses)
-            elif tab == 'compliant':
+            if tab == 'compliant':
                 queryset = queryset.filter(
                     form__compliance_decision='COMPLIANT',
-                    current_status__in=final_statuses
+                    current_status='CLOSED_COMPLIANT'
                 )
             elif tab == 'non_compliant':
                 queryset = queryset.filter(
                     form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
-                    current_status__in=final_statuses
+                    current_status='CLOSED_NON_COMPLIANT'
                 )
             # All other tabs fall back to the unfiltered queryset for Admin
         elif user.userlevel == 'Division Chief':
@@ -263,13 +246,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if user.section == 'PD-1586,RA-8749,RA-9275':
             law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
         
-        if tab == 'section_assigned' or tab == 'received':
+        if tab == 'section_assigned':
             # Show inspections assigned to this Section Chief but not yet started
             return queryset.filter(
                 law_filter,
                 current_status='SECTION_ASSIGNED'
             )
-        elif tab == 'section_in_progress' or tab == 'my_inspections':
+        elif tab == 'section_in_progress':
             # Show inspections that this Section Chief is currently working on
             return queryset.filter(
                 law_filter,
@@ -314,12 +297,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 law_filter,
                 current_status__in=review_statuses
             )
-        elif tab == 'legal_action':
-            # Show inspections that have progressed to legal action
-            return queryset.filter(
-                law_filter,
-                current_status__in=['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
-            )
         elif tab == 'compliant':
             # Show only COMPLIANT inspections
             return queryset.filter(
@@ -329,17 +306,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) |
                 Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
                 form__compliance_decision='COMPLIANT',
-                current_status__in=[
-                    'SECTION_COMPLETED_COMPLIANT',
-                    'SECTION_COMPLETED_NON_COMPLIANT',
-                    'SECTION_REVIEWED',
-                    'DIVISION_REVIEWED',
-                    'LEGAL_REVIEW',
-                    'NOV_SENT',
-                    'NOO_SENT',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
+                current_status='CLOSED_COMPLIANT'
             )
         elif tab == 'non_compliant':
             # Show only NON_COMPLIANT inspections
@@ -350,17 +317,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) |
                 Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
-                current_status__in=[
-                    'SECTION_COMPLETED_COMPLIANT',
-                    'SECTION_COMPLETED_NON_COMPLIANT',
-                    'SECTION_REVIEWED',
-                    'DIVISION_REVIEWED',
-                    'LEGAL_REVIEW',
-                    'NOV_SENT',
-                    'NOO_SENT',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
+                current_status='CLOSED_NON_COMPLIANT'
             )
         else:
             # Default: show all inspections for this section
@@ -373,13 +330,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if user.section == 'PD-1586,RA-8749,RA-9275':
             law_filter = Q(law=user.section) | Q(law='PD-1586') | Q(law='RA-8749') | Q(law='RA-9275')
         
-        if tab == 'unit_assigned' or tab == 'received':
+        if tab == 'unit_assigned':
             # Show inspections assigned to this Unit Head but not yet started
             return queryset.filter(
                 law_filter,
                 current_status='UNIT_ASSIGNED'
             )
-        elif tab == 'unit_in_progress' or tab == 'my_inspections':
+        elif tab == 'unit_in_progress':
             # Show inspections that this Unit Head is currently working on
             return queryset.filter(
                 law_filter,
@@ -426,15 +383,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) | 
                 Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
                 form__compliance_decision='COMPLIANT',
-                current_status__in=[
-                    'UNIT_COMPLETED_COMPLIANT',
-                    'UNIT_COMPLETED_NON_COMPLIANT',
-                    'UNIT_REVIEWED',
-                    'SECTION_REVIEWED',
-                    'DIVISION_REVIEWED',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
+                current_status='CLOSED_COMPLIANT'
             )
         elif tab == 'non_compliant':
             # Show only NON_COMPLIANT inspections
@@ -444,15 +393,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) | 
                 Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
-                current_status__in=[
-                    'UNIT_COMPLETED_COMPLIANT',
-                    'UNIT_COMPLETED_NON_COMPLIANT',
-                    'UNIT_REVIEWED',
-                    'SECTION_REVIEWED',
-                    'DIVISION_REVIEWED',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
+                current_status='CLOSED_NON_COMPLIANT'
             )
         else:
             # Default: show all inspections for this section
@@ -472,7 +413,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 assigned_to=user,
                 current_status='MONITORING_IN_PROGRESS'
             )
-        elif tab == 'inspection_complete' or tab == 'completed':
+        elif tab == 'inspection_complete':
             # Show inspections that this Monitoring Personnel has completed
             return queryset.filter(
                 Q(form__inspected_by=user) | Q(assigned_to=user, form__inspected_by__isnull=True),
@@ -499,36 +440,14 @@ class InspectionViewSet(viewsets.ModelViewSet):
             return queryset.filter(
                 Q(form__inspected_by=user) | Q(assigned_to=user, form__inspected_by__isnull=True),
                 form__compliance_decision='COMPLIANT',
-                current_status__in=[
-                    'MONITORING_COMPLETED_COMPLIANT',
-                    'MONITORING_COMPLETED_NON_COMPLIANT',
-                    'UNIT_REVIEWED',
-                    'SECTION_REVIEWED', 
-                    'DIVISION_REVIEWED',
-                    'LEGAL_REVIEW',
-                    'NOV_SENT',
-                    'NOO_SENT',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
+                current_status='CLOSED_COMPLIANT'
             )
         elif tab == 'non_compliant':
             # Show only NON_COMPLIANT inspections
             return queryset.filter(
                 Q(form__inspected_by=user) | Q(assigned_to=user, form__inspected_by__isnull=True),
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
-                current_status__in=[
-                    'MONITORING_COMPLETED_COMPLIANT',
-                    'MONITORING_COMPLETED_NON_COMPLIANT',
-                    'UNIT_REVIEWED',
-                    'SECTION_REVIEWED', 
-                    'DIVISION_REVIEWED',
-                    'LEGAL_REVIEW',
-                    'NOV_SENT',
-                    'NOO_SENT',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
+                current_status='CLOSED_NON_COMPLIANT'
             )
         else:
             # Default: show all assigned inspections
@@ -542,75 +461,28 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if tab == 'all_inspections':
             # Show ALL inspections they created - covers entire workflow
             return queryset.filter(created_by=user)
-        elif tab == 'draft':
-            # Show inspections still in draft state created by the Division Chief
-            return queryset.filter(
-                created_by=user,
-                current_status='CREATED'
-            )
-        elif tab == 'section_assigned':
-            # Show inspections assigned to Section Chiefs
-            return queryset.filter(current_status='SECTION_ASSIGNED')
-        elif tab == 'section_in_progress':
-            # Show inspections actively being worked on by Section Chiefs
-            return queryset.filter(current_status='SECTION_IN_PROGRESS')
-        elif tab == 'inspection_complete':
-            # Show inspections marked complete at any operational level
-            return queryset.filter(
-                current_status__in=[
-                    'SECTION_COMPLETED_COMPLIANT',
-                    'SECTION_COMPLETED_NON_COMPLIANT',
-                    'UNIT_COMPLETED_COMPLIANT',
-                    'UNIT_COMPLETED_NON_COMPLIANT',
-                    'MONITORING_COMPLETED_COMPLIANT',
-                    'MONITORING_COMPLETED_NON_COMPLIANT'
-                ]
-            )
-        elif tab == 'under_review':
-            # Show inspections currently under review
-            return queryset.filter(
-                current_status__in=[
-                    'UNIT_REVIEWED',
-                    'SECTION_REVIEWED',
-                    'DIVISION_REVIEWED'
-                ]
-            )
-        elif tab == 'legal_action':
-            # Show inspections that have progressed to legal action
-            return queryset.filter(
-                current_status__in=['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
-            )
+        elif tab == 'review':
+            # Show inspections ready for Division Chief review
+            review_statuses = [
+                'SECTION_REVIEWED',
+                'SECTION_COMPLETED_COMPLIANT',
+                'SECTION_COMPLETED_NON_COMPLIANT'
+            ]
+            return queryset.filter(current_status__in=review_statuses)
+        elif tab == 'reviewed':
+            # Show inspections already reviewed by the Division Chief
+            return queryset.filter(current_status='DIVISION_REVIEWED')
         elif tab == 'compliant':
             # Show only COMPLIANT inspections
             return queryset.filter(
                 form__compliance_decision='COMPLIANT',
-                current_status__in=[
-                    'SECTION_COMPLETED_COMPLIANT',
-                    'SECTION_COMPLETED_NON_COMPLIANT',
-                    'SECTION_REVIEWED',
-                    'DIVISION_REVIEWED',
-                    'LEGAL_REVIEW',
-                    'NOV_SENT',
-                    'NOO_SENT',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
+                current_status='CLOSED_COMPLIANT'
             )
         elif tab == 'non_compliant':
             # Show only NON_COMPLIANT inspections
             return queryset.filter(
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
-                current_status__in=[
-                    'SECTION_COMPLETED_COMPLIANT',
-                    'SECTION_COMPLETED_NON_COMPLIANT',
-                    'SECTION_REVIEWED',
-                    'DIVISION_REVIEWED',
-                    'LEGAL_REVIEW',
-                    'NOV_SENT',
-                    'NOO_SENT',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
+                current_status='CLOSED_NON_COMPLIANT'
             )
         else:
             # Default to all inspections created by them
@@ -633,27 +505,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
             # Show only COMPLIANT inspections
             return queryset.filter(
                 form__compliance_decision='COMPLIANT',
-                current_status__in=[
-                    'DIVISION_REVIEWED',
-                    'LEGAL_REVIEW',
-                    'NOV_SENT',
-                    'NOO_SENT',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
+                current_status='CLOSED_COMPLIANT'
             )
         elif tab == 'non_compliant':
             # Show only NON_COMPLIANT inspections
             return queryset.filter(
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
-                current_status__in=[
-                    'DIVISION_REVIEWED',
-                    'LEGAL_REVIEW',
-                    'NOV_SENT',
-                    'NOO_SENT',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
+                current_status='CLOSED_NON_COMPLIANT'
             )
         else:
             # Default: show all legal unit inspections
@@ -3168,9 +3026,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Define tab mappings (simplified - use existing get_queryset logic)
         tab_list = {
-            'Admin': ['all_inspections', 'inspection_complete', 'compliant', 'non_compliant'],
-            'Division Chief': ['all_inspections', 'draft', 'section_assigned', 'section_in_progress', 'inspection_complete', 'under_review', 'legal_action', 'compliant', 'non_compliant'],
-            'Section Chief': ['section_assigned', 'section_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'legal_action', 'compliant', 'non_compliant'],
+            'Admin': ['all_inspections', 'compliant', 'non_compliant'],
+            'Division Chief': ['all_inspections', 'review', 'reviewed', 'compliant', 'non_compliant'],
+            'Section Chief': ['section_assigned', 'section_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
             'Unit Head': ['unit_assigned', 'unit_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
             'Monitoring Personnel': ['assigned', 'in_progress', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
             'Legal Unit': ['legal_review', 'nov_sent', 'noo_sent', 'compliant', 'non_compliant']

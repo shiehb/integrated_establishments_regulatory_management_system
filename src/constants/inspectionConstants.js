@@ -1,13 +1,10 @@
 // Import Lucide icons
 import { 
-  User, 
   Play, 
-  CheckCircle, 
   ArrowRight, 
   Eye, 
   Scale, 
   FileText, 
-  FileCheck, 
   Lock,
   RotateCcw
 } from 'lucide-react';
@@ -18,11 +15,9 @@ import {
 export const statusDisplayMap = {
   // Creation Stage (Gray)
   CREATED: { label: 'Draft', color: 'gray' },
-  
-  // Assignment Stage (Blue)
-  SECTION_ASSIGNED: { label: 'Assigned', color: 'blue' },
-  UNIT_ASSIGNED: { label: 'Assigned', color: 'blue' },
-  MONITORING_ASSIGNED: { label: 'Assigned', color: 'blue' },
+  SECTION_ASSIGNED: { label: 'Assigned', color: 'gray' },
+  UNIT_ASSIGNED: { label: 'Assigned', color: 'gray' },
+  MONITORING_ASSIGNED: { label: 'Assigned', color: 'gray' },
   
   // In Progress Stage (Amber)
   SECTION_IN_PROGRESS: { label: 'In Progress', color: 'amber' },
@@ -54,33 +49,46 @@ export const statusDisplayMap = {
 
 // Role-based tabs configuration
 export const roleTabs = {
-  'Admin': ['all_inspections', 'inspection_complete', 'compliant', 'non_compliant'], // Admin sees all inspections in read-only mode
-  'Division Chief': ['all_inspections', 'draft', 'section_assigned', 'section_in_progress', 'inspection_complete', 'under_review', 'legal_action', 'compliant', 'non_compliant'],
-  'Section Chief': ['section_assigned', 'section_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'legal_action', 'compliant', 'non_compliant'],
+  'Admin': ['all_inspections', 'compliant', 'non_compliant'], // Admin sees all inspections in read-only mode
+  'Division Chief': ['all_inspections', 'review', 'reviewed', 'compliant', 'non_compliant'],
+  'Section Chief': ['section_assigned', 'section_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
   'Unit Head': ['unit_assigned', 'unit_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
   'Monitoring Personnel': ['assigned', 'in_progress', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
   'Legal Unit': ['legal_review', 'nov_sent', 'noo_sent', 'compliant', 'non_compliant']
 };
 
-// Tab display names
+// Tab display names (organized and complete)
 export const tabDisplayNames = {
+  // General
   all_inspections: 'All Inspections',
-  draft: 'Draft',
-  section_assigned: 'Assigned',
-  section_in_progress: 'In Progress',
+  compliant: 'Compliant',
+  non_compliant: 'Non-Compliant',
+
+  // Division Chief Review Workflow
+  review: 'Review',
+  reviewed: 'Reviewed',
+
+  // Shared Workflow (Section / Unit / Monitoring)
+  under_review: 'Under Review',
   forwarded: 'Forwarded',
   inspection_complete: 'Inspection Complete',
-  under_review: 'Under Review',
-  legal_action: 'Legal Action',
-  assigned: 'Assigned',
-  in_progress: 'In Progress',
+
+  // Section-Level Workflow
+  section_assigned: 'Assigned',
+  section_in_progress: 'In Progress',
+
+  // Unit-Level Workflow
   unit_assigned: 'Assigned',
   unit_in_progress: 'In Progress',
+
+  // Monitoring Workflow
+  assigned: 'Assigned',
+  in_progress: 'In Progress',
+
+  // Legal Process
   legal_review: 'Legal Review',
   nov_sent: 'NOV Sent',
   noo_sent: 'NOO Sent',
-  compliant: 'Compliant',
-  non_compliant: 'Non-Compliant'
 };
 
 // Action button configurations with Lucide icons - 5 Button Strategy
@@ -107,22 +115,12 @@ export const actionButtonConfig = {
   },
   send_to_legal: {
     label: 'Send to Legal',
-    color: 'sky',
-    icon: Scale
-  },
-  send_noo: {
-    label: 'Send NOO',
-    color: 'sky',
-    icon: FileText
-  },
-  close: {
-    label: 'Close',
     color: 'green',
-    icon: Lock
+    icon: Scale
   },
   return_to_previous: {
     label: 'Return',
-    color: 'sky',
+    color: 'gray',
     icon: RotateCcw
   }
 };
@@ -174,7 +172,8 @@ export const getActionButtonColorClass = (action) => {
     sky: 'bg-sky-600 hover:bg-sky-700',
     green: 'bg-green-600 hover:bg-green-700',
     red: 'bg-red-600 hover:bg-red-700',
-    orange: 'bg-orange-600 hover:bg-orange-700'
+    orange: 'bg-orange-600 hover:bg-orange-700',
+    gray: 'bg-gray-500 hover:bg-gray-600'
   };
   
   return colorMap[config.color] || 'bg-gray-500 hover:bg-gray-600';
@@ -225,86 +224,10 @@ export const canUserSeeInspection = (status, userLevel) => {
   return visibilityMap[userLevel]?.includes(status) || false;
 };
 
-// Check if inspection is assigned to current user's role
-const isInspectionAssignedToRole = (status, userLevel, inspection, currentUserId) => {
-  // Direct assignment check
-  const isDirectlyAssigned = inspection?.assigned_to?.id === currentUserId;
-  
-  // Status-based role assignment check
-  const statusRoleMap = {
-    'Monitoring Personnel': ['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS', 'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'],
-    'Unit Head': ['UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT'],
-    'Section Chief': ['SECTION_ASSIGNED', 'SECTION_IN_PROGRESS', 'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT'],
-    'Division Chief': ['SECTION_REVIEWED', 'DIVISION_REVIEWED'],
-    'Legal Unit': ['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']
-  };
-  
-  const relevantStatuses = statusRoleMap[userLevel] || [];
-  const isStatusMatch = relevantStatuses.includes(status);
-  
-  // For Monitoring Personnel, also check if assigned_monitoring matches current user
-  if (userLevel === 'Monitoring Personnel' && inspection?.assigned_monitoring?.id === currentUserId) {
-    return true;
-  }
-  
-  // Return true if either directly assigned OR status matches role
-  return isDirectlyAssigned || isStatusMatch;
-};
-
 // Get standardized status label (same for all roles)
 export const getRoleBasedStatusLabel = (status) => {
   // Return standardized label from statusDisplayMap for all users
   return statusDisplayMap[status]?.label || status;
-};
-
-// Generic status for non-assigned users
-const getGenericStatusLabel = (status, userLevel) => {
-  // Role-specific generic labels for forwarded work
-  const roleGenericLabels = {
-    'Section Chief': {
-      UNIT_ASSIGNED: 'Forwarded to Unit',
-      UNIT_IN_PROGRESS: 'Forwarded to Unit',
-      MONITORING_ASSIGNED: 'Forwarded to Monitoring',
-      MONITORING_IN_PROGRESS: 'Forwarded to Monitoring',
-      MONITORING_COMPLETED_COMPLIANT: 'Completed by Monitoring',
-      MONITORING_COMPLETED_NON_COMPLIANT: 'Completed by Monitoring'
-    },
-    'Unit Head': {
-      MONITORING_ASSIGNED: 'Forwarded to Monitoring',
-      MONITORING_IN_PROGRESS: 'Forwarded to Monitoring'
-    }
-  };
-  
-  if (roleGenericLabels[userLevel]?.[status]) {
-    return roleGenericLabels[userLevel][status];
-  }
-  
-  // Default professional business labels
-  const genericLabels = {
-    CREATED: 'Created',
-    SECTION_ASSIGNED: 'With Section Chief',
-    SECTION_IN_PROGRESS: 'In Process - Section',
-    SECTION_COMPLETED_COMPLIANT: 'Completed - Section',
-    SECTION_COMPLETED_NON_COMPLIANT: 'Completed - Section',
-    UNIT_ASSIGNED: 'With Unit Head',
-    UNIT_IN_PROGRESS: 'In Process - Unit',
-    UNIT_COMPLETED_COMPLIANT: 'Completed - Unit',
-    UNIT_COMPLETED_NON_COMPLIANT: 'Completed - Unit',
-    MONITORING_ASSIGNED: 'With Monitoring Personnel',
-    MONITORING_IN_PROGRESS: 'In Process - Monitoring',
-    MONITORING_COMPLETED_COMPLIANT: 'Completed - Monitoring',
-    MONITORING_COMPLETED_NON_COMPLIANT: 'Completed - Monitoring',
-    UNIT_REVIEWED: 'Under Review',
-    SECTION_REVIEWED: 'Under Review',
-    DIVISION_REVIEWED: 'Under Review',
-    LEGAL_REVIEW: 'Legal Review',
-    NOV_SENT: 'NOV Issued',
-    NOO_SENT: 'NOO Issued',
-    CLOSED_COMPLIANT: 'Closed - Compliant',
-    CLOSED_NON_COMPLIANT: 'Closed - Non-Compliant'
-  };
-  
-  return genericLabels[status] || status;
 };
 
 // Tab-Status Mapping: Defines which statuses appear in which tabs for each role
@@ -313,49 +236,36 @@ const getGenericStatusLabel = (status, userLevel) => {
 export const tabStatusMapping = {
   'Division Chief': {
     all_inspections: [
-      'CREATED', 'SECTION_ASSIGNED', 'SECTION_IN_PROGRESS', 
-      'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT',
-      'UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_COMPLETED_COMPLIANT', 
-      'UNIT_COMPLETED_NON_COMPLIANT', 'MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS',
-      'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT',
-      'UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED',
-      'LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT',
-      'CLOSED_COMPLIANT', 'CLOSED_NON_COMPLIANT'
-    ],
-    draft: ['CREATED'],
-    section_assigned: ['SECTION_ASSIGNED'],
-    section_in_progress: ['SECTION_IN_PROGRESS'],
-    inspection_complete: [
-      'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT',
-      'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
-      'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
-    ],
-    under_review: ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED'],
-    legal_action: ['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT'],
-    compliant: [
+      'CREATED',
+      'SECTION_ASSIGNED',
+      'SECTION_IN_PROGRESS',
       'SECTION_COMPLETED_COMPLIANT',
-      'UNIT_COMPLETED_COMPLIANT',
-      'MONITORING_COMPLETED_COMPLIANT',
-      'SECTION_REVIEWED',
-      'UNIT_REVIEWED',
-      'DIVISION_REVIEWED',
-      'LEGAL_REVIEW',
-      'NOV_SENT',
-      'NOO_SENT',
-      'CLOSED_COMPLIANT'
-    ],
-    non_compliant: [
       'SECTION_COMPLETED_NON_COMPLIANT',
+      'UNIT_ASSIGNED',
+      'UNIT_IN_PROGRESS',
+      'UNIT_COMPLETED_COMPLIANT',
       'UNIT_COMPLETED_NON_COMPLIANT',
+      'MONITORING_ASSIGNED',
+      'MONITORING_IN_PROGRESS',
+      'MONITORING_COMPLETED_COMPLIANT',
       'MONITORING_COMPLETED_NON_COMPLIANT',
-      'SECTION_REVIEWED',
       'UNIT_REVIEWED',
+      'SECTION_REVIEWED',
       'DIVISION_REVIEWED',
       'LEGAL_REVIEW',
       'NOV_SENT',
       'NOO_SENT',
+      'CLOSED_COMPLIANT',
       'CLOSED_NON_COMPLIANT'
-    ]
+    ],
+    review: [
+      'SECTION_REVIEWED',
+      'SECTION_COMPLETED_COMPLIANT',
+      'SECTION_COMPLETED_NON_COMPLIANT'
+    ],
+    reviewed: ['DIVISION_REVIEWED'],
+    compliant: ['CLOSED_COMPLIANT'],
+    non_compliant: ['CLOSED_NON_COMPLIANT'],
   },
   'Section Chief': {
     section_assigned: ['SECTION_ASSIGNED'],
@@ -371,30 +281,8 @@ export const tabStatusMapping = {
     ],
     under_review: ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED'],
     legal_action: ['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT'],
-    compliant: [
-      'SECTION_COMPLETED_COMPLIANT',
-      'UNIT_COMPLETED_COMPLIANT',
-      'MONITORING_COMPLETED_COMPLIANT',
-      'SECTION_REVIEWED',
-      'UNIT_REVIEWED',
-      'DIVISION_REVIEWED',
-      'LEGAL_REVIEW',
-      'NOV_SENT',
-      'NOO_SENT',
-      'CLOSED_COMPLIANT'
-    ],
-    non_compliant: [
-      'SECTION_COMPLETED_NON_COMPLIANT',
-      'UNIT_COMPLETED_NON_COMPLIANT',
-      'MONITORING_COMPLETED_NON_COMPLIANT',
-      'SECTION_REVIEWED',
-      'UNIT_REVIEWED',
-      'DIVISION_REVIEWED',
-      'LEGAL_REVIEW',
-      'NOV_SENT',
-      'NOO_SENT',
-      'CLOSED_NON_COMPLIANT'
-    ]
+    compliant: ['CLOSED_COMPLIANT'],
+    non_compliant: ['CLOSED_NON_COMPLIANT']
   },
   'Unit Head': {
     unit_assigned: ['UNIT_ASSIGNED'],
@@ -405,22 +293,8 @@ export const tabStatusMapping = {
       'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
     ],
     under_review: ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED'],
-    compliant: [
-      'UNIT_COMPLETED_COMPLIANT',
-      'MONITORING_COMPLETED_COMPLIANT',
-      'UNIT_REVIEWED',
-      'SECTION_REVIEWED',
-      'DIVISION_REVIEWED',
-      'CLOSED_COMPLIANT'
-    ],
-    non_compliant: [
-      'UNIT_COMPLETED_NON_COMPLIANT',
-      'MONITORING_COMPLETED_NON_COMPLIANT',
-      'UNIT_REVIEWED',
-      'SECTION_REVIEWED',
-      'DIVISION_REVIEWED',
-      'CLOSED_NON_COMPLIANT'
-    ]
+    compliant: ['CLOSED_COMPLIANT'],
+    non_compliant: ['CLOSED_NON_COMPLIANT']
   },
   'Monitoring Personnel': {
     assigned: ['MONITORING_ASSIGNED'],
@@ -429,25 +303,15 @@ export const tabStatusMapping = {
       'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
     ],
     under_review: ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED'],
-    compliant: [
-      'MONITORING_COMPLETED_COMPLIANT',
-      'UNIT_REVIEWED',
-      'SECTION_REVIEWED',
-      'DIVISION_REVIEWED',
-      'CLOSED_COMPLIANT'
-    ],
-    non_compliant: [
-      'MONITORING_COMPLETED_NON_COMPLIANT',
-      'UNIT_REVIEWED',
-      'SECTION_REVIEWED',
-      'DIVISION_REVIEWED',
-      'CLOSED_NON_COMPLIANT'
-    ]
+    compliant: ['CLOSED_COMPLIANT'],
+    non_compliant: ['CLOSED_NON_COMPLIANT']
   },
   'Legal Unit': {
     legal_review: ['LEGAL_REVIEW'],
     nov_sent: ['NOV_SENT'],
-    noo_sent: ['NOO_SENT', 'CLOSED_NON_COMPLIANT']
+    noo_sent: ['NOO_SENT', 'CLOSED_NON_COMPLIANT'],
+    compliant: ['CLOSED_COMPLIANT'],
+    non_compliant: ['CLOSED_NON_COMPLIANT']
   }
 };
 
@@ -473,4 +337,23 @@ export const canUserPerformActions = (userLevel) => {
   // Admin users can view all inspections but cannot perform any actions
   // Division Chief users can view all inspections but cannot perform any actions
   return userLevel !== 'Admin' && userLevel !== 'Division Chief';
+};
+
+export const tabStatusFilters = {
+  draft: ['CREATED', 'DRAFT'],
+  section_assigned: ['SECTION_ASSIGNED'],
+  section_in_progress: ['SECTION_IN_PROGRESS'],
+  review: ['UNIT_REVIEWED', 'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT', 'SECTION_REVIEWED'],
+  forwarded: ['FORWARDED', 'UNIT_ASSIGNED', 'UNIT_IN_PROGRESS'],
+  inspection_complete: ['INSPECTION_COMPLETE'],
+  under_review: ['UNDER_REVIEW'],
+  reviewed: ['DIVISION_REVIEWED'],
+  legal_action: ['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT'],
+  assigned: ['MONITORING_ASSIGNED', 'UNIT_ASSIGNED'],
+  in_progress: ['MONITORING_IN_PROGRESS', 'UNIT_IN_PROGRESS'],
+  unit_assigned: ['UNIT_ASSIGNED'],
+  unit_in_progress: ['UNIT_IN_PROGRESS'],
+  legal_review: ['LEGAL_REVIEW'],
+  nov_sent: ['NOV_SENT'],
+  noo_sent: ['NOO_SENT', 'CLOSED_NON_COMPLIANT']
 };

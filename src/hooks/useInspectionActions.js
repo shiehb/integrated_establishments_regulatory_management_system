@@ -19,7 +19,7 @@ export const useInspectionActions = (refreshInspections) => {
   const notifications = useNotifications();
   const [loadingActions, setLoadingActions] = useState({});
 
-  const handleAction = async (action, inspectionId, data = {}) => {
+  const handleAction = async (action, inspectionId, data = {}, overrides = {}) => {
     setLoadingActions(prev => ({ ...prev, [inspectionId]: action }));
     
     try {
@@ -105,10 +105,22 @@ export const useInspectionActions = (refreshInspections) => {
       }
 
       // Show success notification
-      notifications.success(successMessage, {
-        title: successTitle,
-        duration: 4000
-      });
+      const {
+        successMessage: overrideMessage,
+        successTitle: overrideTitle,
+        successDuration: overrideDuration
+      } = overrides || {};
+
+      const finalMessage = overrideMessage !== undefined ? overrideMessage : successMessage;
+      const finalTitle = overrideTitle !== undefined ? overrideTitle : successTitle;
+      const finalDuration = overrideDuration !== undefined ? overrideDuration : 4000;
+
+      if (finalMessage) {
+        notifications.success(finalMessage, {
+          title: finalTitle,
+          duration: finalDuration
+        });
+      }
 
       if (typeof refreshInspections === 'function') {
         await refreshInspections({ force: true });
