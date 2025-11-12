@@ -21,6 +21,7 @@ const InspectionReviewPage = () => {
   const urlParams = new URLSearchParams(location.search);
   const mode = urlParams.get('mode') || 'review';
   const reviewApproval = urlParams.get('reviewApproval') === 'true';
+  const tabParam = urlParams.get('tab');
   
   const [inspectionData, setInspectionData] = useState(null);
   const [formData, setFormData] = useState(null);
@@ -231,7 +232,9 @@ const InspectionReviewPage = () => {
   const fetchInspectionData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get(`inspections/${id}/`);
+      const response = await api.get(`inspections/${id}/`, {
+        params: tabParam ? { tab: tabParam } : undefined
+      });
       
       setInspectionData(response.data);
       
@@ -253,11 +256,16 @@ const InspectionReviewPage = () => {
       }
     } catch (error) {
       console.error('❌ Error fetching inspection:', error);
+      if (error.response?.status === 404) {
+        notifications.error('Inspection not found or no longer available.');
+        navigate(-1);
+      } else {
       notifications.error(`Failed to load inspection data: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, tabParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset state when ID changes
   useEffect(() => {
@@ -268,13 +276,11 @@ const InspectionReviewPage = () => {
   // Load data based on mode
   useEffect(() => {
     if (mode === 'preview') {
-      // Preview mode: use navigation state
-      if (location.state) {
+      if (location.state?.inspectionData && location.state?.formData) {
         setFormData(location.state.formData);
         setInspectionData(location.state.inspectionData);
       } else {
-        notifications.error('No data to preview');
-        navigate(-1);
+        fetchInspectionData();
       }
     } else {
       // Review mode: fetch from API
@@ -653,28 +659,49 @@ const InspectionReviewPage = () => {
   const getButtonVisibility = () => {
     const userLevel = currentUser?.userlevel;
     const status = inspectionData?.current_status;
-    
-    // Check if we're in preview mode
     const isPreviewMode = mode === 'preview';
-    
-    // Check if user can access this inspection
-    const canAccess = canUserAccessInspection(userLevel, status);
-    if (!canAccess) {
-      console.warn(`🚫 User ${userLevel} cannot access inspection with status ${status}`);
+
+    if (!status || !userLevel) {
       return {
         showCloseButton: false,
-        showBackButton: false,
+        showBackButton: isPreviewMode,
         showSaveSubmitButton: false
       };
     }
-    
-    // Get button visibility from unified role-status matrix
-    const roleStatusConfig = getRoleStatusButtonVisibility(userLevel, status, isPreviewMode, null, reviewApproval);
+
+    const roleStatusConfig = getRoleStatusButtonVisibility(
+      userLevel,
+      status,
+      isPreviewMode,
+      null,
+      reviewApproval
+    ) || {};
+
+    const isInProgressStatus = typeof status === 'string' && status.endsWith('_IN_PROGRESS');
+
+    if (!isPreviewMode) {
+      const canAccess = canUserAccessInspection(userLevel, status);
+      if (!canAccess) {
+        console.warn(`🚫 User ${userLevel} cannot access inspection with status ${status}`);
+        return {
+          showCloseButton: false,
+          showBackButton: false,
+          showSaveSubmitButton: false
+        };
+      }
+    }
+
+    const baseShowSaveSubmit =
+      !isPreviewMode || reviewApproval || (isPreviewMode && roleStatusConfig.showBack);
 
     return {
-      showCloseButton: roleStatusConfig.showClose,
-      showBackButton: roleStatusConfig.showBack,
-      showSaveSubmitButton: !isPreviewMode || reviewApproval || (isPreviewMode && roleStatusConfig.showBack) // Show Save & Submit in preview mode for in-progress statuses or when reviewApproval is true
+      showCloseButton: isPreviewMode ? false : roleStatusConfig.showClose,
+      showBackButton: isPreviewMode
+        ? (reviewApproval ? true : roleStatusConfig.showBack)
+        : roleStatusConfig.showBack,
+      showSaveSubmitButton: isPreviewMode
+        ? reviewApproval || (isInProgressStatus && roleStatusConfig.showBack)
+        : baseShowSaveSubmit // Maintain existing behaviour for review mode
     };
   };
 
@@ -696,54 +723,22 @@ const InspectionReviewPage = () => {
           <div className="flex items-center gap-2">
             {mode === 'preview' ? (
               <>
-                {/* Preview Mode: Use unified button visibility logic */}
-                {buttonVisibility.showBackButton && (
-                  <button
-                    onClick={() => {
-                      const status = inspectionData?.current_status;
-                      const inProgressStatuses = ['SECTION_IN_PROGRESS', 'UNIT_IN_PROGRESS', 'MONITORING_IN_PROGRESS'];
-                      const completedStatuses = [
-                        'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT',
-                        'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
-                        'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
-                      ];
-                      const reviewedStatuses = ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED'];
-                      
-                      if (inProgressStatuses.includes(status)) {
-                        // For in-progress statuses, go to form without review parameters
-                        navigate(`/inspections/${id}/form`);
-                      } else if (completedStatuses.includes(status) || reviewedStatuses.includes(status)) {
-                        // For completed and reviewed statuses, go to form with review parameters
-                        navigate(`/inspections/${id}/form?returnTo=review&reviewMode=true`);
-                      } else {
-                        // For all other statuses, go to form with review parameters
-                        navigate(`/inspections/${id}/form?returnTo=review&reviewMode=true`);
-                      }
-                    }}
-                    className="flex items-center px-3 py-1 text-sm text-black bg-gray-200 rounded hover:bg-gray-300 transition-colors"
-                  >
-                    <ArrowLeft className="w-4 h-4 mr-1" />
-                    Back
-                  </button>
-                )}
-                {buttonVisibility.showCloseButton && (
                 <button
-                  onClick={() => navigate('/inspections')}
-                    className="flex items-center px-3 py-1 text-sm text-black bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+                  onClick={() => navigate(-1)}
+                  className="flex items-center px-3 py-1 text-sm text-black bg-gray-200 rounded hover:bg-gray-300 transition-colors"
                 >
-                  <X className="w-4 h-4 mr-1" />
-                  Close
+                  <ArrowLeft className="w-4 h-4 mr-1" />
+                  Back
                 </button>
-                )}
                 {buttonVisibility.showSaveSubmitButton && (
-                <button
-                  onClick={() => handleActionClick(reviewApproval ? 'save_and_approve' : 'save_and_submit')}
-                  className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
-                  disabled={loading}
-                >
-                  <FileCheck className="w-4 h-4 mr-1" />
-                {reviewApproval ? 'Save & Approve' : 'Submit'}
-                </button>
+                  <button
+                    onClick={() => handleActionClick('save_and_submit')}
+                    className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
+                    disabled={loading}
+                  >
+                    <Send className="w-4 h-4 mr-1" />
+                    Save &amp; Submit
+                  </button>
                 )}
               </>
             ) : mode === 'review' ? (

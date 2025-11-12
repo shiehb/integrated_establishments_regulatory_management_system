@@ -13,6 +13,7 @@ export default function ConfirmationDialog({
   size = "sm", // sm, md, lg
   icon = null, // Optional icon component
   headerColor = null, // Optional header color (blue, orange, green, etc.)
+  children = null,
 }) {
   if (!open) return null;
 
@@ -88,6 +89,7 @@ export default function ConfirmationDialog({
             </div>
           )}
           {renderMessage()}
+          {children && <div className="mt-4">{children}</div>}
           
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 mt-6">

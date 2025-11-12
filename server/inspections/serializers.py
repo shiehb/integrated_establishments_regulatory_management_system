@@ -289,10 +289,10 @@ class InspectionSerializer(serializers.ModelSerializer):
             ('MONITORING_COMPLETED_NON_COMPLIANT', 'Section Chief'): ['review'],  # When no Unit Head
             
             # Review statuses (NO Forward button - removed as requested)
-            ('UNIT_REVIEWED', 'Section Chief'): ['review'],
-            ('SECTION_REVIEWED', 'Division Chief'): ['review'],
+            ('UNIT_REVIEWED', 'Section Chief'): ['review', 'return_to_monitoring'],
+            ('SECTION_REVIEWED', 'Division Chief'): ['review', 'return_to_unit'],
             # DIVISION_REVIEWED actions depend on compliance status - handled separately below
-            ('DIVISION_REVIEWED', 'Division Chief'): [],
+            ('DIVISION_REVIEWED', 'Division Chief'): ['return_to_section'],
             
             # Legal Unit actions
             ('LEGAL_REVIEW', 'Legal Unit'): ['review'],
@@ -305,7 +305,7 @@ class InspectionSerializer(serializers.ModelSerializer):
         
         # Special case: DIVISION_REVIEWED - actions handled via manual buttons (review only)
         if status == 'DIVISION_REVIEWED' and user.userlevel == 'Division Chief':
-            return []
+            return available_actions
         
         # Special case: Monitoring Personnel with MONITORING_ASSIGNED status
         if status == 'MONITORING_ASSIGNED' and user.userlevel == 'Monitoring Personnel':

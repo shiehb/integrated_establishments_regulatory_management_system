@@ -1,6 +1,8 @@
 """
 Refactored Inspection Views with Complete Workflow
 """
+import logging
+
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -17,10 +19,16 @@ from .serializers import (
     InspectionHistorySerializer, InspectionDocumentSerializer,
     InspectionActionSerializer, NOVSerializer, NOOSerializer, BillingRecordSerializer
 )
-from .utils import send_inspection_forward_notification, create_forward_notification
+from .utils import (
+    send_inspection_forward_notification,
+    create_forward_notification,
+    create_return_notification,
+)
 
 User = get_user_model()
 USER_HAS_DISTRICT = any(field.name == 'district' for field in User._meta.get_fields())
+
+logger = logging.getLogger(__name__)
 
 
 def capture_inspector_info(form, user):
@@ -273,29 +281,30 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 ]
             )
         elif tab == 'inspection_complete':
-            # Show inspections completed by Section Chiefs or forwarded units
-            complete_statuses = [
-                'SECTION_COMPLETED_COMPLIANT',
-                'SECTION_COMPLETED_NON_COMPLIANT',
-                'UNIT_COMPLETED_COMPLIANT',
-                'UNIT_COMPLETED_NON_COMPLIANT',
-                'MONITORING_COMPLETED_COMPLIANT',
-                'MONITORING_COMPLETED_NON_COMPLIANT'
-            ]
+            # Only show inspections this Section Chief personally completed
             return queryset.filter(
                 law_filter,
-                current_status__in=complete_statuses
+                form__inspected_by=user,
+                current_status__in=[
+                    'SECTION_COMPLETED_COMPLIANT',
+                    'SECTION_COMPLETED_NON_COMPLIANT'
+                ]
+            )
+        elif tab == 'review':
+            # Show inspections ready for Section Chief review
+            return queryset.filter(
+                law_filter,
+                current_status__in=[
+                    'UNIT_COMPLETED_COMPLIANT',
+                    'UNIT_COMPLETED_NON_COMPLIANT',
+                    'UNIT_REVIEWED'
+                ]
             )
         elif tab == 'under_review':
-            # Show inspections that are in any review stage
-            review_statuses = [
-                'UNIT_REVIEWED',
-                'SECTION_REVIEWED',
-                'DIVISION_REVIEWED'
-            ]
+            # Show inspections currently under Division review after Section hand-off
             return queryset.filter(
                 law_filter,
-                current_status__in=review_statuses
+                current_status='DIVISION_REVIEWED'
             )
         elif tab == 'compliant':
             # Show only COMPLIANT inspections
@@ -355,22 +364,29 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 ]
             )
         elif tab == 'inspection_complete':
-            # Show inspections completed by Unit Heads or Monitoring Personnel
+            # Only show inspections this Unit Head personally completed
+            return queryset.filter(
+                law_filter,
+                form__inspected_by=user,
+                current_status__in=[
+                    'UNIT_COMPLETED_COMPLIANT',
+                    'UNIT_COMPLETED_NON_COMPLIANT'
+                ]
+            )
+        elif tab == 'review':
+            # Show inspections ready for Unit Head review
             return queryset.filter(
                 law_filter,
                 current_status__in=[
-                    'UNIT_COMPLETED_COMPLIANT',
-                    'UNIT_COMPLETED_NON_COMPLIANT',
                     'MONITORING_COMPLETED_COMPLIANT',
                     'MONITORING_COMPLETED_NON_COMPLIANT'
                 ]
             )
         elif tab == 'under_review':
-            # Show inspections in review stages after Unit Head evaluation
+            # Show inspections now being reviewed by Section or Division Chiefs
             return queryset.filter(
                 law_filter,
                 current_status__in=[
-                    'UNIT_REVIEWED',
                     'SECTION_REVIEWED',
                     'DIVISION_REVIEWED'
                 ]
@@ -414,15 +430,12 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 current_status='MONITORING_IN_PROGRESS'
             )
         elif tab == 'inspection_complete':
-            # Show inspections that this Monitoring Personnel has completed
+            # Only show inspections this Monitoring Personnel personally completed
             return queryset.filter(
-                Q(form__inspected_by=user) | Q(assigned_to=user, form__inspected_by__isnull=True),
+                form__inspected_by=user,
                 current_status__in=[
                     'MONITORING_COMPLETED_COMPLIANT',
-                    'MONITORING_COMPLETED_NON_COMPLIANT',
-                    'UNIT_REVIEWED',
-                    'SECTION_REVIEWED', 
-                    'DIVISION_REVIEWED'
+                    'MONITORING_COMPLETED_NON_COMPLIANT'
                 ]
             )
         elif tab == 'under_review':
@@ -465,7 +478,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
             # Show inspections ready for Division Chief review
             review_statuses = [
                 'SECTION_REVIEWED',
-                'SECTION_COMPLETED_COMPLIANT',
+                    'SECTION_COMPLETED_COMPLIANT',
                 'SECTION_COMPLETED_NON_COMPLIANT'
             ]
             return queryset.filter(current_status__in=review_statuses)
@@ -1700,6 +1713,382 @@ class InspectionViewSet(viewsets.ModelViewSet):
                     remarks=f'Assigned to Section Chief for review (no Unit Head in workflow)'
                 )
     
+    def _last_history_entry(self, inspection, statuses, *, require_assignee=False):
+        """
+        Return the most recent history entry for the provided statuses.
+        """
+        history_qs = inspection.history.filter(new_status__in=statuses).order_by('-created_at')
+        if require_assignee:
+            history_qs = history_qs.filter(assigned_to__isnull=False)
+        return history_qs.first()
+
+    def _get_stage_assignee(self, inspection, stage_statuses, default_status, expected_userlevel=None):
+        """
+        Determine the most recent assignee for a workflow stage, preferring users with the expected role.
+        """
+        history_entries = inspection.history.filter(
+            new_status__in=stage_statuses,
+            assigned_to__isnull=False,
+        ).select_related('assigned_to').order_by('-created_at')
+
+        if expected_userlevel:
+            for entry in history_entries:
+                assigned_user = entry.assigned_to
+                if assigned_user and getattr(assigned_user, 'userlevel', None) == expected_userlevel:
+                    return assigned_user
+
+        entry = history_entries.first()
+        if entry and entry.assigned_to:
+            return entry.assigned_to
+
+        if default_status:
+            return inspection.get_next_assignee(default_status)
+        return None
+
+    def _execute_return_transition(
+        self,
+        *,
+        inspection,
+        user,
+        target_status,
+        assignee,
+        remarks,
+        request,
+        return_label,
+        extra_metadata=None,
+    ):
+        """
+        Apply the return transition, log history, send notifications, and audit.
+        """
+        if not assignee:
+            return Response(
+                {'error': f'No assignee found for status {target_status}'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        prev_status = inspection.current_status
+        inspection.current_status = target_status
+        inspection.assigned_to = assignee
+        inspection.save()
+
+        history_remarks = f"{return_label}: {remarks}" if return_label else remarks
+        InspectionHistory.objects.create(
+            inspection=inspection,
+            previous_status=prev_status,
+            new_status=target_status,
+            changed_by=user,
+            assigned_to=assignee,
+            law=inspection.law,
+            section=getattr(assignee, 'section', getattr(user, 'section', None)),
+            remarks=history_remarks,
+        )
+
+        try:
+            create_return_notification(
+                assignee,
+                inspection,
+                user,
+                target_status,
+                remarks,
+            )
+        except Exception as exc:  # pragma: no cover - notification failure should not block flow
+            logger.error(
+                "Failed to send return notification for %s: %s",
+                inspection.code,
+                exc,
+            )
+
+        metadata = {
+            "previous_status": prev_status,
+            "return_status": target_status,
+            "remarks": remarks,
+            "reassigned_to": getattr(assignee, "email", None),
+        }
+        if extra_metadata:
+            metadata.update(extra_metadata)
+
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"{user.email} returned inspection to {assignee.email}",
+            request,
+            metadata=metadata,
+        )
+
+        serializer = self.get_serializer(inspection)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def return_to_monitoring(self, request, pk=None):
+        """Unit Head returns inspection to Monitoring stage with remarks."""
+        inspection = self.get_object()
+        user = request.user
+
+        if user.userlevel != 'Unit Head':
+            return Response(
+                {'error': 'Only Unit Heads can return inspections to the monitoring stage.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        monitoring_completed_statuses = ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']
+        if inspection.current_status not in monitoring_completed_statuses:
+            return Response(
+                {'error': f'Cannot return to monitoring from status {inspection.current_status}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        remarks = (request.data.get('remarks') or '').strip()
+        if not remarks:
+            return Response(
+                {'error': 'Remarks are required when returning an inspection.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        monitoring_stage_statuses = [
+            'MONITORING_COMPLETED_COMPLIANT',
+            'MONITORING_COMPLETED_NON_COMPLIANT',
+            'MONITORING_IN_PROGRESS',
+            'MONITORING_ASSIGNED',
+        ]
+        assignee = self._get_stage_assignee(
+            inspection,
+            monitoring_stage_statuses,
+            'MONITORING_IN_PROGRESS',
+            expected_userlevel='Monitoring Personnel',
+        )
+
+        metadata = {
+            'original_stage_status': inspection.current_status,
+            'restored_stage_status': 'MONITORING_IN_PROGRESS',
+        }
+
+        return self._execute_return_transition(
+            inspection=inspection,
+            user=user,
+            target_status='MONITORING_IN_PROGRESS',
+            assignee=assignee,
+            remarks=remarks,
+            request=request,
+            return_label='Returned to Monitoring Personnel',
+            extra_metadata=metadata,
+        )
+
+    @action(detail=True, methods=['post'])
+    def return_to_unit(self, request, pk=None):
+        """Section Chief returns inspection to Unit (or Monitoring when Unit stage absent)."""
+        inspection = self.get_object()
+        user = request.user
+
+        if user.userlevel != 'Section Chief':
+            return Response(
+                {'error': 'Only Section Chiefs can return inspections to the unit stage.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        valid_statuses = [
+            'UNIT_REVIEWED',
+            'UNIT_COMPLETED_COMPLIANT',
+            'UNIT_COMPLETED_NON_COMPLIANT',
+            'MONITORING_COMPLETED_COMPLIANT',
+            'MONITORING_COMPLETED_NON_COMPLIANT',
+        ]
+        if inspection.current_status not in valid_statuses:
+            return Response(
+                {'error': f'Cannot return to unit from status {inspection.current_status}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        remarks = (request.data.get('remarks') or '').strip()
+        if not remarks:
+            return Response(
+                {'error': 'Remarks are required when returning an inspection.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        monitoring_completed_statuses = ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']
+        unit_completed_statuses = ['UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT']
+        unit_stage_statuses = unit_completed_statuses + ['UNIT_IN_PROGRESS', 'UNIT_ASSIGNED']
+        monitoring_stage_statuses = monitoring_completed_statuses + ['MONITORING_IN_PROGRESS', 'MONITORING_ASSIGNED']
+
+        metadata = {
+            'original_stage_status': inspection.current_status,
+        }
+
+        if inspection.current_status == 'UNIT_REVIEWED':
+            monitoring_entry = self._last_history_entry(inspection, monitoring_completed_statuses)
+            if not monitoring_entry:
+                return Response(
+                    {'error': 'Unable to locate previous monitoring completion status for this inspection.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            target_status = monitoring_entry.new_status
+            assignee = self._get_stage_assignee(
+                inspection,
+                monitoring_stage_statuses,
+                'MONITORING_IN_PROGRESS',
+                expected_userlevel='Monitoring Personnel',
+            )
+            metadata['restored_stage_status'] = target_status
+            return self._execute_return_transition(
+                inspection=inspection,
+                user=user,
+                target_status=target_status,
+                assignee=assignee,
+                remarks=remarks,
+                request=request,
+                return_label='Returned to Monitoring Personnel',
+                extra_metadata=metadata,
+            )
+
+        if inspection.current_status in unit_completed_statuses:
+            assignee = self._get_stage_assignee(
+                inspection,
+                unit_stage_statuses,
+                'UNIT_IN_PROGRESS',
+                expected_userlevel='Unit Head',
+            )
+            metadata['restored_stage_status'] = 'UNIT_IN_PROGRESS'
+            return self._execute_return_transition(
+                inspection=inspection,
+                user=user,
+                target_status='UNIT_IN_PROGRESS',
+                assignee=assignee,
+                remarks=remarks,
+                request=request,
+                return_label='Returned to Unit Head',
+                extra_metadata=metadata,
+            )
+
+        # Monitoring completed with no unit stage
+        unit_history_exists = inspection.history.filter(new_status__in=unit_stage_statuses + ['UNIT_REVIEWED']).exists()
+        if unit_history_exists:
+            return Response(
+                {'error': 'This inspection already passed through the unit stage and cannot return directly to monitoring as a no-unit workflow.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        assignee = self._get_stage_assignee(
+            inspection,
+            monitoring_stage_statuses,
+            'MONITORING_IN_PROGRESS',
+            expected_userlevel='Monitoring Personnel',
+        )
+        metadata['restored_stage_status'] = 'MONITORING_IN_PROGRESS'
+        return self._execute_return_transition(
+            inspection=inspection,
+            user=user,
+            target_status='MONITORING_IN_PROGRESS',
+            assignee=assignee,
+            remarks=remarks,
+            request=request,
+            return_label='Returned to Monitoring Personnel',
+            extra_metadata=metadata,
+        )
+
+    @action(detail=True, methods=['post'])
+    def return_to_section(self, request, pk=None):
+        """Division Chief returns inspection to Section stage with remarks."""
+        inspection = self.get_object()
+        user = request.user
+
+        if user.userlevel not in ['Division Chief']:
+            return Response(
+                {'error': 'Only Division Chiefs can return inspections to the section stage.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        valid_statuses = [
+            'SECTION_REVIEWED',
+            'SECTION_COMPLETED_COMPLIANT',
+            'SECTION_COMPLETED_NON_COMPLIANT',
+        ]
+        if inspection.current_status not in valid_statuses:
+            return Response(
+                {'error': f'Cannot return to section from status {inspection.current_status}.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        remarks = (request.data.get('remarks') or '').strip()
+        if not remarks:
+            return Response(
+                {'error': 'Remarks are required when returning an inspection.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        unit_completed_statuses = ['UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT']
+        monitoring_completed_statuses = ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']
+        unit_stage_statuses = unit_completed_statuses + ['UNIT_IN_PROGRESS', 'UNIT_ASSIGNED']
+        monitoring_stage_statuses = monitoring_completed_statuses + ['MONITORING_IN_PROGRESS', 'MONITORING_ASSIGNED']
+        section_stage_statuses = [
+            'SECTION_IN_PROGRESS',
+            'SECTION_ASSIGNED',
+            'SECTION_COMPLETED_COMPLIANT',
+            'SECTION_COMPLETED_NON_COMPLIANT',
+        ]
+
+        metadata = {
+            'original_stage_status': inspection.current_status,
+        }
+
+        if inspection.current_status == 'SECTION_REVIEWED':
+            unit_entry = self._last_history_entry(inspection, unit_completed_statuses)
+            if unit_entry:
+                target_status = unit_entry.new_status
+                assignee = self._get_stage_assignee(
+                    inspection,
+                    unit_stage_statuses,
+                    'UNIT_IN_PROGRESS',
+                    expected_userlevel='Unit Head',
+                )
+                metadata['restored_stage_status'] = target_status
+                return_label = 'Returned to Unit Head'
+            else:
+                monitoring_entry = self._last_history_entry(inspection, monitoring_completed_statuses)
+                if not monitoring_entry:
+                    return Response(
+                        {'error': 'Unable to determine previous workflow stage for this inspection.'},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+                target_status = monitoring_entry.new_status
+                assignee = self._get_stage_assignee(
+                    inspection,
+                    monitoring_stage_statuses,
+                    'MONITORING_IN_PROGRESS',
+                    expected_userlevel='Monitoring Personnel',
+                )
+                metadata['restored_stage_status'] = target_status
+                return_label = 'Returned to Monitoring Personnel'
+
+            return self._execute_return_transition(
+                inspection=inspection,
+                user=user,
+                target_status=target_status,
+                assignee=assignee,
+                remarks=remarks,
+                request=request,
+                return_label=return_label,
+                extra_metadata=metadata,
+            )
+
+        assignee = self._get_stage_assignee(
+            inspection,
+            section_stage_statuses,
+            'SECTION_IN_PROGRESS',
+            expected_userlevel='Section Chief',
+        )
+        metadata['restored_stage_status'] = 'SECTION_IN_PROGRESS'
+        return self._execute_return_transition(
+            inspection=inspection,
+            user=user,
+            target_status='SECTION_IN_PROGRESS',
+            assignee=assignee,
+            remarks=remarks,
+            request=request,
+            return_label='Returned to Section Chief',
+            extra_metadata=metadata,
+        )
+
     @action(detail=True, methods=['get'])
     def available_monitoring_personnel(self, request, pk=None):
         """Get available monitoring personnel for an inspection"""
@@ -1957,14 +2346,30 @@ class InspectionViewSet(viewsets.ModelViewSet):
             user_can_review = True
         else:
             # User is not assigned - check special cases
-            if user.userlevel == 'Unit Head' and inspection.current_status in ['UNIT_REVIEWED']:
-                # Unit Head can review UNIT_REVIEWED inspections even if not assigned
+            if user.userlevel == 'Unit Head' and inspection.current_status in [
+                'UNIT_REVIEWED',
+                'MONITORING_IN_PROGRESS',
+                'MONITORING_COMPLETED_COMPLIANT',
+                'MONITORING_COMPLETED_NON_COMPLIANT',
+            ]:
+                # Unit Head can review monitoring-stage work even if reassigned
                 user_can_review = True
-            elif user.userlevel == 'Section Chief' and inspection.current_status in ['SECTION_REVIEWED']:
-                # Section Chief can review SECTION_REVIEWED inspections even if not assigned
+            elif user.userlevel == 'Section Chief' and inspection.current_status in [
+                'SECTION_REVIEWED',
+                'UNIT_IN_PROGRESS',
+                'UNIT_COMPLETED_COMPLIANT',
+                'UNIT_COMPLETED_NON_COMPLIANT',
+                'UNIT_REVIEWED',
+            ]:
+                # Section Chief can review unit-stage work even if reassigned
                 user_can_review = True
-            elif user.userlevel == 'Division Chief' and inspection.current_status in ['DIVISION_REVIEWED']:
-                # Division Chief can review DIVISION_REVIEWED inspections even if not assigned
+            elif user.userlevel == 'Division Chief' and inspection.current_status in [
+                'DIVISION_REVIEWED',
+                'SECTION_REVIEWED',
+                'SECTION_COMPLETED_COMPLIANT',
+                'SECTION_COMPLETED_NON_COMPLIANT',
+            ]:
+                # Division Chief can review section-level work even if reassigned
                 user_can_review = True
             elif user.userlevel == 'Legal Unit' and inspection.current_status == 'LEGAL_REVIEW':
                 # Legal Unit can review inspections in LEGAL_REVIEW status even if not assigned
@@ -3028,8 +3433,8 @@ class InspectionViewSet(viewsets.ModelViewSet):
         tab_list = {
             'Admin': ['all_inspections', 'compliant', 'non_compliant'],
             'Division Chief': ['all_inspections', 'review', 'reviewed', 'compliant', 'non_compliant'],
-            'Section Chief': ['section_assigned', 'section_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
-            'Unit Head': ['unit_assigned', 'unit_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
+            'Section Chief': ['section_assigned', 'section_in_progress', 'forwarded', 'inspection_complete', 'review', 'under_review', 'compliant', 'non_compliant'],
+            'Unit Head': ['unit_assigned', 'unit_in_progress', 'forwarded', 'inspection_complete', 'review', 'under_review', 'compliant', 'non_compliant'],
             'Monitoring Personnel': ['assigned', 'in_progress', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
             'Legal Unit': ['legal_review', 'nov_sent', 'noo_sent', 'compliant', 'non_compliant']
         }

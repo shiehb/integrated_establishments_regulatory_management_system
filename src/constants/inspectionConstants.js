@@ -51,8 +51,8 @@ export const statusDisplayMap = {
 export const roleTabs = {
   'Admin': ['all_inspections', 'compliant', 'non_compliant'], // Admin sees all inspections in read-only mode
   'Division Chief': ['all_inspections', 'review', 'reviewed', 'compliant', 'non_compliant'],
-  'Section Chief': ['section_assigned', 'section_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
-  'Unit Head': ['unit_assigned', 'unit_in_progress', 'forwarded', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
+  'Section Chief': ['section_assigned', 'section_in_progress', 'forwarded', 'inspection_complete', 'review', 'under_review', 'compliant', 'non_compliant'],
+  'Unit Head': ['unit_assigned', 'unit_in_progress', 'forwarded', 'inspection_complete', 'review', 'under_review', 'compliant', 'non_compliant'],
   'Monitoring Personnel': ['assigned', 'in_progress', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
   'Legal Unit': ['legal_review', 'nov_sent', 'noo_sent', 'compliant', 'non_compliant']
 };
@@ -120,6 +120,21 @@ export const actionButtonConfig = {
   },
   return_to_previous: {
     label: 'Return',
+    color: 'gray',
+    icon: RotateCcw
+  },
+  return_to_monitoring: {
+    label: 'Return to Monitoring',
+    color: 'gray',
+    icon: RotateCcw
+  },
+  return_to_unit: {
+    label: 'Return to Unit',
+    color: 'gray',
+    icon: RotateCcw
+  },
+  return_to_section: {
+    label: 'Return to Section',
     color: 'gray',
     icon: RotateCcw
   }
@@ -279,6 +294,9 @@ export const tabStatusMapping = {
       'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
       'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
     ],
+    review: [
+      'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT', 'UNIT_REVIEWED'
+    ],
     under_review: ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED'],
     legal_action: ['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT'],
     compliant: ['CLOSED_COMPLIANT'],
@@ -290,6 +308,9 @@ export const tabStatusMapping = {
     forwarded: ['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS'],
     inspection_complete: [
       'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
+      'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
+    ],
+    review: [
       'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT'
     ],
     under_review: ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED'],
@@ -343,7 +364,12 @@ export const tabStatusFilters = {
   draft: ['CREATED', 'DRAFT'],
   section_assigned: ['SECTION_ASSIGNED'],
   section_in_progress: ['SECTION_IN_PROGRESS'],
-  review: ['UNIT_REVIEWED', 'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT', 'SECTION_REVIEWED'],
+  review: [
+    'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT',
+    'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
+    'UNIT_REVIEWED', 'SECTION_COMPLETED_COMPLIANT',
+    'SECTION_COMPLETED_NON_COMPLIANT', 'SECTION_REVIEWED'
+  ],
   forwarded: ['FORWARDED', 'UNIT_ASSIGNED', 'UNIT_IN_PROGRESS'],
   inspection_complete: ['INSPECTION_COMPLETE'],
   under_review: ['UNDER_REVIEW'],

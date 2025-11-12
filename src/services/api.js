@@ -507,6 +507,51 @@ export const returnInspection = async (id, data = {}) => {
   }
 };
 
+export const returnToMonitoring = async (id, data = {}) => {
+  try {
+    const res = await api.post(`inspections/${id}/return_to_monitoring/`, data);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to return inspection to monitoring. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const returnToUnit = async (id, data = {}) => {
+  try {
+    const res = await api.post(`inspections/${id}/return_to_unit/`, data);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to return inspection to unit. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const returnToSection = async (id, data = {}) => {
+  try {
+    const res = await api.post(`inspections/${id}/return_to_section/`, data);
+    return res.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.error ||
+        error.response?.data?.detail ||
+        "Failed to return inspection to section. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
 export const sendToSection = async (id, data = {}) => {
   try {
   const res = await api.post(`inspections/${id}/send_to_section/`, data);

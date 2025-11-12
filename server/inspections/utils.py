@@ -386,18 +386,18 @@ def create_forward_notification(recipient, inspection, forwarded_by, remarks=Non
     """
     try:
         from notifications.models import Notification
-        
+
         # Get establishment names
         establishment_names = [est.name for est in inspection.establishments.all()]
         establishment_list = ", ".join(establishment_names) if establishment_names else "No establishments"
-        
+
         # Create notification message
         forwarded_by_name = f"{forwarded_by.first_name} {forwarded_by.last_name}" if forwarded_by.first_name else forwarded_by.email
         message = f"Inspection {inspection.code} for {establishment_list} has been forwarded to you by {forwarded_by_name}."
-        
+
         if remarks:
             message += f" Remarks: {remarks}"
-        
+
         # Create notification
         notification = Notification.objects.create(
             recipient=recipient,
@@ -411,9 +411,63 @@ def create_forward_notification(recipient, inspection, forwarded_by, remarks=Non
         
         logger.info(f"In-app forward notification created for {recipient.email}")
         return notification
-        
+
     except Exception as e:
         logger.error(f"Failed to create in-app forward notification for {recipient.email}: {str(e)}")
+        return None
+
+
+def create_return_notification(recipient, inspection, returned_by, return_status, remarks=None):
+    """
+    Create in-app notification when inspection is returned for additional action.
+    """
+    try:
+        from notifications.models import Notification
+
+        establishment_names = [est.name for est in inspection.establishments.all()]
+        establishment_list = ", ".join(establishment_names) if establishment_names else "No establishments"
+
+        returned_by_name = (
+            f"{returned_by.first_name} {returned_by.last_name}".strip()
+            if returned_by and returned_by.first_name
+            else getattr(returned_by, "email", "System")
+        )
+
+        stage_map = {
+            'MONITORING_COMPLETED_COMPLIANT': 'Monitoring Personnel',
+            'MONITORING_COMPLETED_NON_COMPLIANT': 'Monitoring Personnel',
+            'MONITORING_IN_PROGRESS': 'Monitoring Personnel',
+            'UNIT_COMPLETED_COMPLIANT': 'Unit Head',
+            'UNIT_COMPLETED_NON_COMPLIANT': 'Unit Head',
+            'UNIT_IN_PROGRESS': 'Unit Head',
+            'SECTION_COMPLETED_COMPLIANT': 'Section Chief',
+            'SECTION_COMPLETED_NON_COMPLIANT': 'Section Chief',
+            'SECTION_IN_PROGRESS': 'Section Chief',
+        }
+        stage_label = stage_map.get(return_status, 'previous stage owner')
+
+        message = (
+            f"Inspection {inspection.code} for {establishment_list} was returned by "
+            f"{returned_by_name} to the {stage_label} for further action."
+        )
+        if remarks:
+            message += f" Remarks: {remarks}"
+
+        notification = Notification.objects.create(
+            recipient=recipient,
+            sender=returned_by,
+            notification_type='inspection_return',
+            title='Inspection Returned for Corrections',
+            message=message,
+            related_object_type='inspection',
+            related_object_id=getattr(inspection, 'id', None)
+        )
+
+        logger.info(f"In-app return notification created for {recipient.email}")
+        return notification
+
+    except Exception as e:
+        logger.error(f"Failed to create return notification for {recipient.email}: {str(e)}")
         return None
 
 

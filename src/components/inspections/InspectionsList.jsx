@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Plus,
   ArrowUp,
@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import {
   getProfile, 
-  deleteInspection
+  deleteInspection,
 } from "../../services/api";
 import StatusBadge from "./StatusBadge";
 import InspectionTabs from "./InspectionTabs";
@@ -250,10 +250,10 @@ const actionKeyMap = {
 
 const normalizeActionKey = (action) => actionKeyMap[action] || action;
 
-const getReturnTargetLabel = (target) => {
-  if (target === 'section') return 'Section Chief';
-  if (target === 'unit') return 'Unit Head';
-  return 'previous stage';
+  const getReturnTargetLabel = (target) => {
+    if (target === 'section') return 'Section Chief';
+    if (target === 'unit') return 'Unit Head';
+    return 'previous stage';
 };
 
 // Helper function to create action-specific dialog content
@@ -281,7 +281,7 @@ const getActionDialogContent = (rawAction, inspection, userLevel, pendingForward
     },
     start: {
       title: 'Start Inspection',
-      confirmColor: 'green',
+      confirmColor: 'sky',
       confirmText: 'Start Inspection',
       message: () => (
         <div className="space-y-3">
@@ -379,28 +379,67 @@ const getActionDialogContent = (rawAction, inspection, userLevel, pendingForward
       }
     },
     return_to_previous: {
-      icon: <RotateCcw className="w-5 h-5 text-sky-600" />,
-      headerColor: 'sky',
+      icon: <RotateCcw className="w-5 h-5 text-gray-600" />,
+      headerColor: null,
       title: 'Confirm Return',
       confirmColor: 'sky',
       confirmText: 'Return',
-      message: () => {
-        const target = pendingForwardAction?.returnTarget;
-        const destination = getReturnTargetLabel(target);
-
-        return (
-          <div className="space-y-3">
+      message: () => (
             <p className="text-sm text-gray-700">
-              Send inspection{' '}
-              <span className="font-medium">{inspection?.code}</span>{' '}
-              back to the {destination}?
-            </p>
-            <p className="text-xs text-gray-500">
-              Use this when the inspection was forwarded by mistake.
-            </p>
-          </div>
-        );
-      }
+          Send inspection <span className="font-medium">{inspection?.code}</span> back to the previous stage?
+        </p>
+      )
+    },
+    return_to_monitoring: {
+      icon: <RotateCcw className="w-5 h-5 text-sky-600" />,
+      headerColor: 'sky',
+      title: 'Return to Monitoring',
+      confirmColor: 'sky',
+      confirmText: 'Return',
+      message: () => (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">
+            Send inspection <span className="font-medium">{inspection?.code}</span> back to the Monitoring Personnel for additional action?
+          </p>
+          <p className="text-xs text-gray-500">
+            The monitoring team will be notified and the inspection will resume from their completed stage.
+          </p>
+        </div>
+      )
+    },
+    return_to_unit: {
+      icon: <RotateCcw className="w-5 h-5 text-sky-600" />,
+      headerColor: 'sky',
+      title: 'Return to Unit Head',
+      confirmColor: 'sky',
+      confirmText: 'Return',
+      message: () => (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">
+            Send inspection <span className="font-medium">{inspection?.code}</span> back to the Unit Head for corrections?
+          </p>
+          <p className="text-xs text-gray-500">
+            The inspection will reopen at the unit stage and the previous assignee will be notified.
+          </p>
+        </div>
+      )
+    },
+    return_to_section: {
+      icon: <RotateCcw className="w-5 h-5 text-sky-600" />,
+      headerColor: 'sky',
+      title: 'Return to Section Chief',
+      confirmColor: 'sky',
+      confirmText: 'Return',
+      message: () => (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-700">
+            Send inspection <span className="font-medium">{inspection?.code}</span> back to the Section Chief for further review?
+          </p>
+          <p className="text-xs text-gray-500">
+            The section stage will become active again and the Section Chief will receive your remarks.
+          </p>
+        </div>
+      )
     },
     forward_to_legal: {
       icon: <Scale className="w-5 h-5 text-orange-600" />,
@@ -691,6 +730,33 @@ const getActionNotificationOverrides = (action, inspection, context = {}) => {
         successMessage: `${baseLabel} returned to the ${destination}.`
       };
     }
+    case 'return_to_monitoring':
+      return {
+        successTitle: 'Inspection Returned',
+        successMessage: `${baseLabel} returned to the Monitoring Personnel.`,
+      };
+    case 'return_to_unit': {
+      const status = inspection.current_status || '';
+      const destination =
+        status === 'UNIT_COMPLETED_COMPLIANT' || status === 'UNIT_COMPLETED_NON_COMPLIANT'
+          ? 'Unit Head'
+          : 'Monitoring Personnel';
+      return {
+        successTitle: 'Inspection Returned',
+        successMessage: `${baseLabel} returned to the ${destination}.`,
+      };
+    }
+    case 'return_to_section': {
+      const status = inspection.current_status || '';
+      const destination =
+        status === 'SECTION_COMPLETED_COMPLIANT' || status === 'SECTION_COMPLETED_NON_COMPLIANT'
+          ? 'Section Chief'
+          : 'previous stage';
+      return {
+        successTitle: 'Inspection Returned',
+        successMessage: `${baseLabel} returned to the ${destination}.`,
+      };
+    }
     case 'forward_to_legal':
       return {
         successTitle: 'Forwarded to Legal',
@@ -720,6 +786,7 @@ const getActionNotificationOverrides = (action, inspection, context = {}) => {
 
 export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Division Chief' }) {
   const notifications = useNotifications();
+  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(null);
 
   // 🎯 Search highlighting
@@ -875,8 +942,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     }
   }, [currentUser, fetchAllInspections, refreshData]);
 
-  // All filtering and sorting is now done server-side
-  // Use inspections directly from API
+  // All filtering and sorting is handled server-side
   const filteredInspections = inspections;
 
   // Get unique laws from current inspections
@@ -901,9 +967,36 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     inspection: null, 
     action: null 
   });
+  const [actionRemarks, setActionRemarks] = useState('');
+  const [remarksError, setRemarksError] = useState(null);
+
+  const actionRequiresRemarks = useCallback(
+    (action) =>
+      ['return_to_previous', 'return_to_monitoring', 'return_to_unit', 'return_to_section'].includes(
+        action || ''
+      ),
+    []
+  );
+
+  const openActionDialog = useCallback(
+    (config) => {
+      const normalizedAction = normalizeActionKey(config.action);
+      if (actionRequiresRemarks(normalizedAction)) {
+        setActionRemarks('');
+        setRemarksError(null);
+      }
+      setActionConfirmation({
+        open: true,
+        ...config,
+        action: normalizedAction,
+      });
+    },
+    [actionRequiresRemarks]
+  );
 
   // Helper function to determine if actions should be shown
   const shouldShowActions = useCallback((userLevel, activeTab) => {
+    if (activeTab === 'inspection_complete') return false;
     // Division Chief actions handled via dedicated buttons
     if (userLevel === 'Division Chief') {
       return activeTab === 'review';
@@ -919,7 +1012,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
 
   // Handle action clicks with standardized confirmation
-  const handleActionClick = useCallback((rawAction, inspectionId) => {
+  const handleActionClick = useCallback(async (actionKey, inspectionId) => {
     const inspection = inspections.find(i => i.id === inspectionId);
     if (!inspection) {
       console.error('Inspection not found:', inspectionId);
@@ -927,8 +1020,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     }
     
     setIsBulkForward(false);
-
-    const action = normalizeActionKey(rawAction);
+    
+    const action = normalizeActionKey(actionKey);
 
     if (action === 'forward') {
       // Check if this requires monitoring personnel selection
@@ -943,10 +1036,9 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
           action: 'forward',
           forwardData: { target: 'unit', remarks: 'Forwarded to next level' }
         });
-        setActionConfirmation({ 
-          open: true, 
-          inspection, 
-          action 
+        openActionDialog({
+          inspection,
+          action,
         });
       } else if (userLevel === 'Section Chief' || userLevel === 'Unit Head') {
         // Individual sections and Unit Head - show monitoring modal first
@@ -971,51 +1063,46 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         action: 'return_to_previous',
         returnTarget: defaultReturnTarget
       });
-      setActionConfirmation({
-        open: true,
+      openActionDialog({
         inspection,
-        action: 'return_to_previous'
+        action: 'return_to_previous',
       });
       return;
     }
 
     // Actions that redirect after confirmation
     if (action === 'continue' || action === 'send_noo') {
-      setActionConfirmation({
-        open: true,
+      openActionDialog({
         inspection,
-        action
+        action,
       });
-      return;
-    }
-
+        return;
+      }
+      
     // Review action routed through confirmation to ensure access validation
     if (action === 'review') {
-      setActionConfirmation({
-        open: true,
+      openActionDialog({
         inspection,
-        action
+        action,
       });
       return;
     }
-
+    
     // Normalize send_to_legal to forward_to_legal for confirmation
     if (action === 'forward_to_legal') {
-      setActionConfirmation({
-        open: true,
+      openActionDialog({
         inspection,
-        action: 'forward_to_legal'
+        action: 'forward_to_legal',
       });
       return;
     }
-
+    
     // Finalization actions (inspect, start, close, complete, etc.)
-    setActionConfirmation({
-      open: true,
+    openActionDialog({
       inspection,
-      action
+      action,
     });
-  }, [inspections, currentUser, userLevel]);
+  }, [inspections, currentUser, userLevel, setIsBulkForward, openActionDialog, setPendingForwardAction, setShowMonitoringModal]);
 
 
   // Execute confirmed action
@@ -1027,7 +1114,21 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
     if (!inspection && action !== 'forward') return;
 
-    const closeDialog = () => setActionConfirmation({ open: false, inspection: null, action: null });
+    const closeDialog = () => {
+      setActionConfirmation({ open: false, inspection: null, action: null });
+      setActionRemarks('');
+      setRemarksError(null);
+    };
+
+    const requiresRemarks = actionRequiresRemarks(action);
+    const trimmedRemarks = actionRemarks.trim();
+    if (requiresRemarks && !trimmedRemarks) {
+      setRemarksError('Remarks are required.');
+      return;
+    }
+    if (requiresRemarks) {
+      setRemarksError(null);
+    }
 
     if (action === 'continue') {
       closeDialog();
@@ -1063,7 +1164,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         window.location.href = `/inspections/${inspection.id}/form`;
         return;
       }
-
+      
       if (action === 'review') {
         const overrides = getActionNotificationOverrides(action, inspection, {});
         await handleAction(action, inspection.id, {}, overrides);
@@ -1103,7 +1204,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         let forwardData = {
           remarks: 'Forwarded to next level'
         };
-
+        
         if (pendingForwardAction?.forwardData?.assigned_monitoring_id) {
           forwardData = { ...pendingForwardAction.forwardData };
           const overrides = getActionNotificationOverrides(action, inspection, {
@@ -1118,10 +1219,10 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
           await fetchAllInspections({ force: true });
           return;
         }
-
+        
         if (userLevel === 'Section Chief') {
           const isCombinedSection = currentUser?.section === 'PD-1586,RA-8749,RA-9275';
-
+          
           if (isCombinedSection) {
             const combinedForwardData = { ...forwardData, target: 'unit' };
             const overrides = getActionNotificationOverrides(action, inspection, {
@@ -1143,9 +1244,9 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         setSelectedInspections((prev) => prev.filter((id) => id !== inspection.id));
         return;
       }
-
+      
       if (action === 'return_to_previous') {
-        const payload = { remarks: 'Returned to previous stage' };
+        const payload = { remarks: trimmedRemarks };
 
         if (pendingForwardAction?.returnTarget) {
           payload.target = pendingForwardAction.returnTarget;
@@ -1162,6 +1263,17 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         return;
       }
 
+      if (['return_to_monitoring', 'return_to_unit', 'return_to_section'].includes(action)) {
+        const overrides = getActionNotificationOverrides(action, inspection, { userLevel });
+        await handleAction(action, inspection.id, { remarks: trimmedRemarks }, overrides);
+        if (pendingForwardAction) {
+          setPendingForwardAction(null);
+        }
+        closeDialog();
+        await fetchAllInspections({ force: true });
+        return;
+      }
+
       const overrides = getActionNotificationOverrides(action, inspection, { userLevel });
       await handleAction(action, inspection.id, {}, overrides);
       closeDialog();
@@ -1174,17 +1286,30 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       }
     }
   }, [
-    actionConfirmation, 
-    handleAction, 
-    userLevel, 
+    actionConfirmation,
+    actionRemarks,
+    actionRequiresRemarks,
+    handleAction,
+    userLevel,
     inspections,
-    notifications, 
-    currentUser, 
-    isBulkForward, 
-    pendingForwardAction, 
-    fetchAllInspections, 
-    setSelectedInspections
+    notifications,
+    currentUser,
+    isBulkForward,
+    pendingForwardAction,
+    fetchAllInspections,
+    setSelectedInspections,
+    setPendingForwardAction,
   ]);
+
+  const handleActionDialogCancel = useCallback(() => {
+    setActionConfirmation({ open: false, inspection: null, action: null });
+    setActionRemarks('');
+    setRemarksError(null);
+    if (isBulkForward) {
+      setPendingForwardAction(null);
+      setIsBulkForward(false);
+    }
+  }, [isBulkForward, setPendingForwardAction, setIsBulkForward]);
 
   // Handle monitoring personnel selection
   const handleMonitoringPersonnelSelect = useCallback((monitoringId, selectedPerson) => {
@@ -1213,12 +1338,11 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     });
     
     // Show confirmation dialog
-    setActionConfirmation({
-      open: true,
+    openActionDialog({
       inspection: inspectionForConfirmation,
-      action: 'forward'
+      action: 'forward',
     });
-  }, [pendingForwardAction]);
+  }, [pendingForwardAction, openActionDialog]);
 
   // Handle monitoring modal close
   const handleMonitoringModalClose = useCallback(() => {
@@ -1391,17 +1515,16 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     const isCombinedSection = currentUser?.section === 'PD-1586,RA-8749,RA-9275';
 
     if (userLevel === 'Section Chief' && isCombinedSection) {
-      setPendingForwardAction({
+    setPendingForwardAction({
         inspection: selectedItems[0],
         inspections: selectedItems,
         inspectionIds,
         action: 'forward',
         forwardData: { target: 'unit', remarks: 'Forwarded to next level' }
       });
-      setActionConfirmation({
-        open: true,
+      openActionDialog({
         inspection: selectedItems[0],
-        action: 'forward'
+        action: 'forward',
       });
       return;
     }
@@ -1414,7 +1537,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
       forwardData: { target: 'monitoring' }
     });
     setShowMonitoringModal(true);
-  }, [selectedInspections, inspections, currentUser, userLevel, setPendingForwardAction, setShowMonitoringModal, setActionConfirmation]);
+  }, [selectedInspections, inspections, currentUser, userLevel, setPendingForwardAction, setShowMonitoringModal, openActionDialog]);
 
   // Toggle filter checkboxes
   const toggleLaw = (law) =>
@@ -1751,6 +1874,26 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   }, [filtersOpen, lawFilter, showOnlyMyAssignments, availableLaws, userLevel, activeFilterCount, toggleLaw]);
 
   // Removed handleRowClick to prevent navigation on row click
+
+  const renderPreviewButton = useCallback((inspectionId, tab) => (
+    <button
+      onClick={() => navigate(`/inspections/${inspectionId}/review?mode=preview${tab ? `&tab=${tab}` : ''}`)}
+      className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
+    >
+      <Eye size={14} />
+      Preview
+    </button>
+  ), [navigate]);
+
+  const renderDivisionChiefReviewButton = useCallback((inspectionId) => (
+    <button
+      onClick={() => handleActionClick('review', inspectionId)}
+      className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
+    >
+      <Eye size={14} />
+      Review
+    </button>
+  ), [handleActionClick]);
 
   return (
     <div className="p-4 bg-white h-[calc(100vh-160px)]">
@@ -2135,20 +2278,20 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                     {!(currentUser?.userlevel === 'Admin' && activeTab === 'all_inspections') &&
                      !(currentUser?.userlevel === 'Division Chief' && activeTab === 'all_inspections') && (
                       <td className="px-3 py-2 text-center border-b border-gray-300" onClick={(e) => e.stopPropagation()}>
+                        {activeTab === 'inspection_complete' ? (
+                          renderPreviewButton(inspection.id, activeTab)
+                        ) : (
                         <div className="flex items-center justify-center gap-1">
-                          {currentUser?.userlevel === 'Division Chief' && activeTab === 'reviewed' && (
-                            <button
-                              onClick={() => handleActionClick('review', inspection.id)}
-                              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
-                            >
-                              <Eye size={14} />
-                              Review
-                            </button>
+                            {currentUser?.userlevel === 'Division Chief' && activeTab === 'reviewed' && (
+                              renderDivisionChiefReviewButton(inspection.id)
                           )}
                           {shouldShowActions(userLevel, activeTab) ? (
                             <InspectionActions 
                               inspection={inspection}
                               availableActions={(inspection.available_actions || []).filter(action => {
+                                if (action.startsWith('return_to_')) {
+                                  return false;
+                                }
                                 if (activeTab === 'review' && userLevel === 'Division Chief') {
                                   return action === 'review';
                                 }
@@ -2173,7 +2316,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                             />
                           ) : userLevel === 'Legal Unit' && activeTab === 'noo_sent' && inspection.current_status !== 'CLOSED_NON_COMPLIANT' ? (
                             <button
-                              onClick={() => window.location.href = `/inspections/${inspection.id}/review`}
+                                onClick={() => navigate(`/inspections/${inspection.id}/review`)}
                               className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
                             >
                               <XCircle size={14} />
@@ -2183,13 +2326,13 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                             <div className="text-sm text-gray-500">
                               No actions available
                             </div>
-                          ) : userLevel === 'Division Chief' && activeTab === 'reviewed' ? null : userLevel === 'Division Chief' ? (
+                            ) : userLevel === 'Division Chief' && activeTab === 'review' ? null : userLevel === 'Division Chief' ? (
                             <div className="text-sm text-gray-500">
                               No actions available
                             </div>
                           ) : (
                             <button
-                              onClick={() => window.location.href = `/inspections/${inspection.id}/view`}
+                                onClick={() => navigate(`/inspections/${inspection.id}/view`)}
                               className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
                             >
                               <Eye size={14} />
@@ -2197,6 +2340,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                             </button>
                           )}
                         </div>
+                    )}
                       </td>
                     )}
                 </tr>
@@ -2251,6 +2395,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
           userLevel,
           pendingForwardAction
         );
+        const requireRemarks = actionRequiresRemarks(actionConfirmation.action);
         
         return (
           <ConfirmationDialog
@@ -2264,15 +2409,35 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             confirmColor={dialogContent.confirmColor}
             size="md"
             loading={actionLoading}
-            onCancel={() => {
-              setActionConfirmation({ open: false, inspection: null, action: null });
-              if (isBulkForward) {
-                setPendingForwardAction(null);
-                setIsBulkForward(false);
-              }
-            }}
+            onCancel={handleActionDialogCancel}
             onConfirm={executeAction}
-          />
+          >
+            {requireRemarks && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Remarks <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                    remarksError ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  rows={4}
+                  value={actionRemarks}
+                  onChange={(event) => {
+                    setActionRemarks(event.target.value);
+                    if (remarksError) {
+                      setRemarksError(null);
+                    }
+                  }}
+                  placeholder="Provide detailed remarks for the return action"
+                />
+                <p className="text-xs text-gray-500">
+                  Remarks are shared with the new assignee and included in the audit trail.
+                </p>
+                {remarksError && <p className="text-xs text-red-600">{remarksError}</p>}
+              </div>
+            )}
+          </ConfirmationDialog>
         );
       })()}
 

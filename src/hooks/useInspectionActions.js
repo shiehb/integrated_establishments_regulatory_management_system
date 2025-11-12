@@ -9,6 +9,9 @@ import {
   reviewInspection,
   forwardToLegal,
   returnInspection,
+  returnToMonitoring,
+  returnToUnit,
+  returnToSection,
   sendToDivision,
   sendNOV,
   sendNOO,
@@ -24,7 +27,17 @@ export const useInspectionActions = (refreshInspections) => {
     
     try {
       // Show loading notification for long operations
-      const longOperations = ['complete', 'forward', 'return_to_previous', 'send_nov', 'send_noo', 'close'];
+      const longOperations = [
+        'complete',
+        'forward',
+        'return_to_previous',
+        'return_to_monitoring',
+        'return_to_unit',
+        'return_to_section',
+        'send_nov',
+        'send_noo',
+        'close',
+      ];
       if (longOperations.includes(action)) {
         notifications.info(
           'Processing your request...', 
@@ -74,6 +87,21 @@ export const useInspectionActions = (refreshInspections) => {
           result = await returnInspection(inspectionId, data);
           successMessage = 'Inspection returned successfully!';
           successTitle = 'Inspection Returned';
+          break;
+        case 'return_to_monitoring':
+          result = await returnToMonitoring(inspectionId, data);
+          successMessage = 'Inspection returned to monitoring successfully!';
+          successTitle = 'Returned to Monitoring';
+          break;
+        case 'return_to_unit':
+          result = await returnToUnit(inspectionId, data);
+          successMessage = 'Inspection returned to unit successfully!';
+          successTitle = 'Returned to Unit';
+          break;
+        case 'return_to_section':
+          result = await returnToSection(inspectionId, data);
+          successMessage = 'Inspection returned to section successfully!';
+          successTitle = 'Returned to Section';
           break;
         case 'forward_to_legal':
           result = await forwardToLegal(inspectionId, data);
