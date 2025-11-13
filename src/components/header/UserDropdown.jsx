@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Key, LogOut, ChevronDown } from "lucide-react";
 import ConfirmationDialog from "../common/ConfirmationDialog";
-import { useAuth } from "../../contexts/AuthContext";
+import useAuth from "../../hooks/useAuth";
 import { API_BASE_URL } from "../../config/api";
 
 export default function UserDropdown({ userLevel = "public", userName = "Guest" }) {

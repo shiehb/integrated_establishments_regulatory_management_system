@@ -424,6 +424,11 @@ class NoticeOfViolation(models.Model):
     compliance_instructions = models.TextField(blank=True,
         help_text='Required compliance actions for establishment')
     remarks = models.TextField(blank=True, help_text='Additional remarks for NOV')
+    recipient_email = models.EmailField(blank=True, help_text='Email address used when sending NOV')
+    recipient_name = models.CharField(max_length=255, blank=True, help_text='Recipient name for NOV email')
+    contact_person = models.CharField(max_length=255, blank=True, help_text='Contact person included in NOV')
+    email_subject = models.CharField(max_length=255, blank=True, help_text='Subject used for NOV email')
+    email_body = models.TextField(blank=True, help_text='Body content sent for NOV email')
     
     # Tracking
     sent_by = models.ForeignKey(
@@ -470,6 +475,11 @@ class NoticeOfOrder(models.Model):
     payment_instructions = models.TextField(blank=True,
         help_text='Instructions for paying penalties')
     remarks = models.TextField(blank=True, help_text='Additional remarks for NOO')
+    recipient_email = models.EmailField(blank=True, help_text='Email address used when sending NOO')
+    recipient_name = models.CharField(max_length=255, blank=True, help_text='Recipient name for NOO email')
+    contact_person = models.CharField(max_length=255, blank=True, help_text='Contact person included in NOO')
+    email_subject = models.CharField(max_length=255, blank=True, help_text='Subject used for NOO email')
+    email_body = models.TextField(blank=True, help_text='Body content sent for NOO email')
     
     # Tracking
     sent_by = models.ForeignKey(
@@ -626,6 +636,31 @@ class BillingRecord(models.Model):
     recommendations = models.TextField(blank=True, 
         help_text='Additional recommendations or instructions')
     
+    PAYMENT_STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('PAID', 'Paid'),
+    ]
+    payment_status = models.CharField(
+        max_length=20,
+        choices=PAYMENT_STATUS_CHOICES,
+        default='PENDING',
+        help_text='Current payment status'
+    )
+    payment_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text='Date when payment was confirmed'
+    )
+    payment_reference = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text='Official receipt or reference number for the payment'
+    )
+    payment_notes = models.TextField(
+        blank=True,
+        help_text='Internal notes when tagging this billing as paid'
+    )
+    
     # Tracking
     issued_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -638,6 +673,19 @@ class BillingRecord(models.Model):
         help_text='When billing was created and sent')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    payment_confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='billings_confirmed_paid',
+        help_text='User who confirmed the payment'
+    )
+    payment_confirmed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Timestamp when payment was confirmed'
+    )
     
     class Meta:
         ordering = ['-created_at']

@@ -2317,7 +2317,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                           ) : userLevel === 'Legal Unit' && activeTab === 'noo_sent' && inspection.current_status !== 'CLOSED_NON_COMPLIANT' ? (
                             <button
                                 onClick={() => navigate(`/inspections/${inspection.id}/review`)}
-                              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
+                              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
                             >
                               <XCircle size={14} />
                               Mark as Non-Compliance

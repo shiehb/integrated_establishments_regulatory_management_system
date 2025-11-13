@@ -23,6 +23,7 @@ from .utils import (
     send_inspection_forward_notification,
     create_forward_notification,
     create_return_notification,
+    send_notice_email,
 )
 
 User = get_user_model()
@@ -2745,6 +2746,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 'compliance_instructions': data['compliance_instructions'],
                 'compliance_deadline': data['compliance_deadline'],
                 'remarks': data.get('remarks', ''),
+                'recipient_email': data['recipient_email'],
+                'recipient_name': data.get('recipient_name', ''),
+                'contact_person': data.get('contact_person', ''),
+                'email_subject': data.get('email_subject', ''),
+                'email_body': data.get('email_body', ''),
                 'sent_by': user
             }
         )
@@ -2756,6 +2762,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
             nov.compliance_instructions = data['compliance_instructions']
             nov.compliance_deadline = data['compliance_deadline']
             nov.remarks = data.get('remarks', '')
+            nov.recipient_email = data['recipient_email']
+            nov.recipient_name = data.get('recipient_name', '')
+            nov.contact_person = data.get('contact_person', '')
+            nov.email_subject = data.get('email_subject', '')
+            nov.email_body = data.get('email_body', '')
             nov.sent_by = user
             nov.save()
         
@@ -2766,7 +2777,22 @@ class InspectionViewSet(viewsets.ModelViewSet):
         # Transition
         prev_status = inspection.current_status
         inspection.current_status = 'NOV_SENT'
-        inspection.save()
+        
+        # Send email to recipient
+        try:
+            subject = data.get('email_subject') or f"Notice of Violation – {inspection.code}"
+            body = data.get('email_body') or data['violations']
+            send_notice_email(subject, body, data['recipient_email'])
+        except Exception as e:
+            logger.error(f"Failed to send NOV email for inspection {inspection.code}: {str(e)}")
+            inspection.current_status = prev_status
+            inspection.save(update_fields=['current_status'])
+            return Response(
+                {'error': 'NOV saved but failed to send email. Please retry.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        inspection.save(update_fields=['current_status'])
         
         # Log history
         InspectionHistory.objects.create(
@@ -2813,6 +2839,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 'payment_deadline': data['payment_deadline'],
                 'payment_instructions': data.get('payment_instructions', ''),
                 'remarks': data.get('remarks', ''),
+                'recipient_email': data['recipient_email'],
+                'recipient_name': data.get('recipient_name', ''),
+                'contact_person': data.get('contact_person', ''),
+                'email_subject': data.get('email_subject', ''),
+                'email_body': data.get('email_body', ''),
                 'sent_by': user
             }
         )
@@ -2825,12 +2856,37 @@ class InspectionViewSet(viewsets.ModelViewSet):
             noo.payment_deadline = data['payment_deadline']
             noo.payment_instructions = data.get('payment_instructions', '')
             noo.remarks = data.get('remarks', '')
+            noo.recipient_email = data['recipient_email']
+            noo.recipient_name = data.get('recipient_name', '')
+            noo.contact_person = data.get('contact_person', '')
+            noo.email_subject = data.get('email_subject', '')
+            noo.email_body = data.get('email_body', '')
             noo.sent_by = user
             noo.save()
         
-        # Create billing record
+        # Transition
+        prev_status = inspection.current_status
+        inspection.current_status = 'NOO_SENT'
+        
+        # Send email to recipient
+        try:
+            subject = data.get('email_subject') or f"Notice of Order – {inspection.code}"
+            body = data.get('email_body') or data['violation_breakdown']
+            send_notice_email(subject, body, data['recipient_email'])
+        except Exception as e:
+            logger.error(f"Failed to send NOO email for inspection {inspection.code}: {str(e)}")
+            inspection.current_status = prev_status
+            inspection.save(update_fields=['current_status'])
+            return Response(
+                {'error': 'NOO saved but failed to send email. Please retry.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Create billing record after successful email
         establishment = inspection.establishments.first()
         if not establishment:
+            inspection.current_status = prev_status
+            inspection.save(update_fields=['current_status'])
             return Response(
                 {'error': 'No establishment associated with this inspection'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -2850,10 +2906,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
             issued_by=user
         )
         
-        # Transition
-        prev_status = inspection.current_status
-        inspection.current_status = 'NOO_SENT'
-        inspection.save()
+        inspection.save(update_fields=['current_status'])
         
         # Log history
         InspectionHistory.objects.create(
@@ -4205,6 +4258,33 @@ class BillingViewSet(viewsets.ModelViewSet):
             })
         
         return Response(stats)
+    
+    @action(detail=True, methods=['post'], url_path='mark-paid')
+    def mark_paid(self, request, pk=None):
+        """Tag a billing record as paid"""
+        billing = self.get_object()
+        
+        payload = {
+            'payment_status': 'PAID',
+            'payment_date': request.data.get('payment_date'),
+            'payment_reference': request.data.get('payment_reference', ''),
+            'payment_notes': request.data.get('payment_notes', '')
+        }
+        
+        serializer = self.get_serializer(billing, data=payload, partial=True)
+        serializer.is_valid(raise_exception=True)
+        
+        validated = serializer.validated_data
+        payment_date = validated.get('payment_date') or timezone.now().date()
+        billing.payment_status = 'PAID'
+        billing.payment_date = payment_date
+        billing.payment_reference = validated.get('payment_reference', '')
+        billing.payment_notes = validated.get('payment_notes', '')
+        billing.payment_confirmed_by = request.user
+        billing.payment_confirmed_at = timezone.now()
+        billing.save()
+        
+        return Response(self.get_serializer(billing).data, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['get'])
     def print_receipt(self, request, pk=None):

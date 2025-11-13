@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
@@ -18,7 +18,7 @@ import "leaflet.fullscreen/Control.FullScreen.css";
 import L from "leaflet";
 import { getEstablishments, getMyEstablishments } from "../services/api";
 import { useNotifications } from "../components/NotificationManager";
-import { useAuth } from "../contexts/AuthContext";
+import useAuth from "../hooks/useAuth";
 import { getIconByNatureOfBusiness } from '../constants/markerIcons';
 import { createCustomMarkerIcon } from '../components/map/CustomMarkerIcon';
 import { ILOCOS_REGION_BOUNDARY } from "../data/ilocosRegionBoundary";
@@ -119,14 +119,7 @@ export default function MapPage() {
     localStorage.setItem('map_pagination_pageSize', pageSize.toString());
   }, [pageSize]);
 
-  // Fetch all establishments from API
-  useEffect(() => {
-    if (user) {
-      fetchAllEstablishments();
-    }
-  }, [user]);
-
-  const fetchAllEstablishments = async () => {
+  const fetchAllEstablishments = useCallback(async () => {
     setLoading(true);
     try {
       // Determine which API to call based on user role
@@ -159,7 +152,14 @@ export default function MapPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [notifications, user]);
+
+  // Fetch all establishments from API
+  useEffect(() => {
+    if (user) {
+      fetchAllEstablishments();
+    }
+  }, [user, fetchAllEstablishments]);
 
 
   // ✅ Sorting handler
@@ -266,7 +266,6 @@ export default function MapPage() {
     setCurrentPage((prev) => Math.min(totalPages, prev + 1));
   };
 
-  const activeFilterCount = 0; // No filters as per plan
   const hasActiveFilters = searchQuery || sortConfig.key;
 
   // Calculate display range

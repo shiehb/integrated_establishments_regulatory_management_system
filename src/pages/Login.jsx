@@ -2,7 +2,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import Layout from "../components/Layout";
 import { useState, useRef, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { useAuth } from "../contexts/AuthContext";
+import useAuth from "../hooks/useAuth";
 import { useNotifications } from "../components/NotificationManager";
 
 export default function Login() {

@@ -4,7 +4,7 @@ import Sidebar from "./Sidebar";
 import InternalHeader from "./InternalHeader";
 import Footer from "./Footer";
 import HelpModal from "./header/HelpModal";
-import { useAuth } from "../contexts/AuthContext";
+import useAuth from "../hooks/useAuth";
 
 // Configuration constants
 const SIDEBAR_STATE_KEY = "sidebarOpen";

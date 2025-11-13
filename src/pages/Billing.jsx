@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
-import { getBillingRecords } from "../services/api";
+import { getBillingRecords, markBillingAsPaid } from "../services/api";
 import { 
   FileText, 
   Calendar, 
@@ -72,13 +72,27 @@ export default function Billing() {
     { key: 'billing_code', label: 'Billing Code' },
     { key: 'establishment_name', label: 'Establishment' },
     { key: 'amount', label: 'Amount' },
-    { key: 'due_date', label: 'Due Date' },
     { key: 'sent_date', label: 'Sent Date' },
   ];
 
   // Modal state
   const [selectedBilling, setSelectedBilling] = useState(null);
   const [showBillingModal, setShowBillingModal] = useState(false);
+  const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
+  const [billingToMarkPaid, setBillingToMarkPaid] = useState(null);
+  const [markPaidLoading, setMarkPaidLoading] = useState(false);
+  const [markPaidForm, setMarkPaidForm] = useState({
+    paymentDate: "",
+    paymentReference: "",
+    paymentNotes: ""
+  });
+  const [feedbackMessage, setFeedbackMessage] = useState(null);
+
+  useEffect(() => {
+    if (!feedbackMessage) return;
+    const timeout = setTimeout(() => setFeedbackMessage(null), 5000);
+    return () => clearTimeout(timeout);
+  }, [feedbackMessage]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -155,34 +169,92 @@ export default function Billing() {
 
   // Get payment status
   const getPaymentStatus = (record) => {
-    if (record.payment_status) {
-      return record.payment_status.toLowerCase();
-    }
-    // Calculate status based on due date if payment_status not available
-    if (!record.due_date) return 'pending';
-    const dueDate = new Date(record.due_date);
-    const today = new Date();
-    if (today > dueDate) {
-      return 'overdue';
-    }
-    return 'pending';
+    const status = record.payment_status?.toLowerCase() === 'paid' ? 'paid' : 'pending';
+    const isOverdue =
+      status === 'pending' &&
+      record.due_date &&
+      new Date(record.due_date) < new Date();
+
+    return { status, isOverdue };
+  };
+
+  const getStatusLabel = ({ status, isOverdue }) => {
+    if (status === 'paid') return 'Paid';
+    if (isOverdue) return 'Overdue';
+    return 'Pending';
   };
 
   // Get status badge styling
-  const getStatusBadge = (status) => {
-    const badges = {
-      paid: { bg: 'bg-green-100', text: 'text-green-800', label: 'Paid' },
-      pending: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending' },
-      overdue: { bg: 'bg-red-100', text: 'text-red-800', label: 'Overdue' },
-      unpaid: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Unpaid' }
-    };
-    return badges[status] || badges.pending;
+  const getStatusBadge = ({ status, isOverdue }) => {
+    if (status === 'paid') {
+      return { bg: 'bg-green-100', text: 'text-green-800', label: 'Paid' };
+    }
+
+    if (isOverdue) {
+      return { bg: 'bg-red-100', text: 'text-red-800', label: 'Overdue' };
+    }
+
+    return { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending' };
   };
 
   // Handle view details
   const handleViewDetails = (record) => {
     setSelectedBilling(record);
     setShowBillingModal(true);
+  };
+
+  const openMarkPaidModal = (record) => {
+    setBillingToMarkPaid(record);
+    setMarkPaidForm({
+      paymentDate: record.payment_date || new Date().toISOString().split('T')[0],
+      paymentReference: record.payment_reference || "",
+      paymentNotes: record.payment_notes || ""
+    });
+    setShowMarkPaidModal(true);
+  };
+
+  const closeMarkPaidModal = () => {
+    setShowMarkPaidModal(false);
+    setBillingToMarkPaid(null);
+    setMarkPaidForm({
+      paymentDate: "",
+      paymentReference: "",
+      paymentNotes: ""
+    });
+  };
+
+  const handleMarkPaidSubmit = async (event) => {
+    event.preventDefault();
+    if (!billingToMarkPaid) return;
+
+    try {
+      setMarkPaidLoading(true);
+      const payload = {
+        payment_date: markPaidForm.paymentDate || undefined,
+        payment_reference: markPaidForm.paymentReference || undefined,
+        payment_notes: markPaidForm.paymentNotes || undefined,
+      };
+
+      const updatedRecord = await markBillingAsPaid(billingToMarkPaid.id, payload);
+
+      setBillingRecords((prev) =>
+        prev.map((record) => (record.id === updatedRecord.id ? updatedRecord : record))
+      );
+      if (selectedBilling?.id === updatedRecord.id) {
+        setSelectedBilling(updatedRecord);
+      }
+
+      setFeedbackMessage({ type: "success", text: "Billing tagged as paid successfully." });
+      closeMarkPaidModal();
+    } catch (error) {
+      console.error("Error marking billing as paid:", error);
+      setFeedbackMessage({
+        type: "error",
+        text: error.message || "Failed to update billing status. Please try again.",
+      });
+    } finally {
+      setMarkPaidLoading(false);
+    }
   };
 
   // Close modal
@@ -267,45 +339,53 @@ export default function Billing() {
                 title: "Billing Records Export Report",
                 fileName: "billing_records_export",
                 columns: showAllLaws 
-                  ? ["Billing Code", "Establishment", "Law", "Due Date", "Sent Date"]
-                  : ["Billing Code", "Establishment", "Due Date", "Sent Date"],
-                rows: filteredBillingRecords.map(record => showAllLaws
-                  ? [
+                  ? ["Billing Code", "Establishment", "Law", "Issued Date", "Payment Status"]
+                  : ["Billing Code", "Establishment", "Issued Date", "Payment Status"],
+                rows: filteredBillingRecords.map(record => {
+                  const statusInfo = getPaymentStatus(record);
+                  const statusLabel = getStatusLabel(statusInfo);
+                  if (showAllLaws) {
+                    return [
                       record.billing_code,
                       record.establishment_name,
                       record.related_law,
-                      formatDate(record.due_date),
-                      formatDate(record.sent_date)
-                    ]
-                  : [
-                      record.billing_code,
-                      record.establishment_name,
-                      formatDate(record.due_date),
-                      formatDate(record.sent_date)
-                    ]
-                )
+                      formatDate(record.sent_date),
+                      statusLabel
+                    ];
+                  }
+                  return [
+                    record.billing_code,
+                    record.establishment_name,
+                    formatDate(record.sent_date),
+                    statusLabel
+                  ];
+                })
               }}
               printConfig={{
                 title: "Billing Records Print Report",
                 fileName: "billing_records_print",
                 columns: showAllLaws 
-                  ? ["Billing Code", "Establishment", "Law", "Due Date", "Sent Date"]
-                  : ["Billing Code", "Establishment", "Due Date", "Sent Date"],
-                rows: filteredBillingRecords.map(record => showAllLaws
-                  ? [
+                  ? ["Billing Code", "Establishment", "Law", "Issued Date", "Payment Status"]
+                  : ["Billing Code", "Establishment", "Issued Date", "Payment Status"],
+                rows: filteredBillingRecords.map(record => {
+                  const statusInfo = getPaymentStatus(record);
+                  const statusLabel = getStatusLabel(statusInfo);
+                  if (showAllLaws) {
+                    return [
                       record.billing_code,
                       record.establishment_name,
                       record.related_law,
-                      formatDate(record.due_date),
-                      formatDate(record.sent_date)
-                    ]
-                  : [
-                      record.billing_code,
-                      record.establishment_name,
-                      formatDate(record.due_date),
-                      formatDate(record.sent_date)
-                    ]
-                ),
+                      formatDate(record.sent_date),
+                      statusLabel
+                    ];
+                  }
+                  return [
+                    record.billing_code,
+                    record.establishment_name,
+                    formatDate(record.sent_date),
+                    statusLabel
+                  ];
+                }),
                 selectedCount: filteredBillingRecords.length
               }}
               onRefresh={() => {
@@ -386,12 +466,21 @@ export default function Billing() {
               )}
             </div>
           </div>
+        {feedbackMessage && (
+          <div
+            className={`mb-3 rounded border px-3 py-2 text-sm ${
+              feedbackMessage.type === "success"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                : "bg-red-50 border-red-200 text-red-700"
+            }`}
+          >
+            {feedbackMessage.text}
+          </div>
+        )}
 
-
-
-          {/* Billing Records Table */}
+        {/* Billing Records Table */}
           <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto h-[calc(100vh-280px)]">
+            <div className="overflow-x-auto h-[calc(100vh-350px)]">
               <table className="w-full">
                 <thead>
                   <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
@@ -422,17 +511,6 @@ export default function Billing() {
                     )}
                     <th className="px-3 py-2 border-b border-gray-300">
                       <button
-                        onClick={() => handleSort('due_date')}
-                        className="flex items-center gap-1 hover:text-gray-200"
-                      >
-                        Due Date
-                        {sortConfig.key === 'due_date' && (
-                          sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
-                        )}
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 border-b border-gray-300">
-                      <button
                         onClick={() => handleSort('sent_date')}
                         className="flex items-center gap-1 hover:text-gray-200"
                       >
@@ -442,13 +520,16 @@ export default function Billing() {
                         )}
                       </button>
                     </th>
+                    <th className="px-3 py-2 border-b border-gray-300">
+                      Payment Status
+                    </th>
                     <th className="px-3 py-2 border-b border-gray-300 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={showAllLaws ? "7" : "6"} className="px-2 py-12 text-center text-gray-500 border-b border-gray-300">
+                      <td colSpan={showAllLaws ? "6" : "5"} className="px-2 py-12 text-center text-gray-500 border-b border-gray-300">
                         <div className="flex items-center justify-center gap-2 text-gray-600">
                           <Loader2 size={20} className="animate-spin" />
                           <span className="text-sm">Loading billing records...</span>
@@ -457,7 +538,7 @@ export default function Billing() {
                     </tr>
                   ) : filteredBillingRecords.length === 0 ? (
                     <tr>
-                      <td colSpan={showAllLaws ? "7" : "6"} className="px-2 py-12 text-center text-gray-500 border-b border-gray-300">
+                      <td colSpan={showAllLaws ? "6" : "5"} className="px-2 py-12 text-center text-gray-500 border-b border-gray-300">
                         <FileText size={48} className="mx-auto text-gray-300 mb-3" />
                         <p className="text-gray-500 font-medium">No billing records found</p>
                         <p className="text-sm text-gray-400 mt-1">Billing records will appear here when penalties are issued</p>
@@ -492,22 +573,37 @@ export default function Billing() {
                             </div>
                           </td>
                         )}
+                      <td className="px-3 py-2 border-b border-gray-300 text-sm text-gray-500">
+                        {formatDate(record.sent_date)}
+                      </td>
+                      <td className="px-3 py-2 border-b border-gray-300">
+                        {(() => {
+                          const paymentInfo = getPaymentStatus(record);
+                          const badge = getStatusBadge(paymentInfo);
+                          return (
+                            <span className={`inline-flex items-center justify-center px-2 py-1 text-xs font-semibold rounded-full ${badge.bg} ${badge.text}`}>
+                              {badge.label}
+                            </span>
+                          );
+                        })()}
+                      </td>
                         <td className="px-3 py-2 border-b border-gray-300">
-                          <div className="flex items-center text-sm text-gray-900">
-                            <Calendar className="w-4 h-4 mr-1 text-gray-400" />
-                            {formatDate(record.due_date)}
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => handleViewDetails(record)}
+                              className="px-3 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
+                            >
+                              View Details
+                            </button>
+                            {(record.payment_status || '').toUpperCase() !== 'PAID' && (
+                              <button
+                                onClick={() => openMarkPaidModal(record)}
+                                className="px-3 py-1 text-xs font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700 transition-colors"
+                              >
+                                Mark as Paid
+                              </button>
+                            )}
                           </div>
-                        </td>
-                        <td className="px-3 py-2 border-b border-gray-300 text-sm text-gray-500">
-                          {formatDate(record.sent_date)}
-                        </td>
-                        <td className="px-3 py-2 border-b border-gray-300 text-center">
-                          <button
-                            onClick={() => handleViewDetails(record)}
-                            className="px-3 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
-                          >
-                            View Details
-                          </button>
                         </td>
                       </tr>
                     ))
@@ -517,7 +613,7 @@ export default function Billing() {
             </div>
 
             {/* Pagination */}
-            {totalCount > pageSize && (
+            {totalCount > 0 && (
               <div className="p-4 border-t border-gray-200">
                 <PaginationControls
                   currentPage={currentPage}
@@ -571,12 +667,22 @@ export default function Billing() {
                   <p className="text-sm text-gray-500">Billing Code</p>
                 </div>
                 {(() => {
-                  const status = getPaymentStatus(selectedBilling);
-                  const badge = getStatusBadge(status);
+                  const paymentInfo = getPaymentStatus(selectedBilling);
+                  const badge = getStatusBadge(paymentInfo);
                   return (
-                    <span className={`px-4 py-2 rounded-full text-sm font-semibold ${badge.bg} ${badge.text}`}>
-                      {badge.label}
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`px-4 py-2 rounded-full text-sm font-semibold ${badge.bg} ${badge.text}`}>
+                        {badge.label}
+                      </span>
+                      {paymentInfo.status === 'pending' && paymentInfo.isOverdue && (
+                        <span className="text-xs text-red-600">Overdue since {formatDate(selectedBilling.due_date)}</span>
+                      )}
+                      {paymentInfo.status === 'paid' && selectedBilling.payment_date && (
+                        <span className="text-xs text-gray-500">
+                          Paid on {formatDate(selectedBilling.payment_date)}
+                        </span>
+                      )}
+                    </div>
                   );
                 })()}
               </div>
@@ -642,7 +748,171 @@ export default function Billing() {
                   </div>
                 </div>
               </div>
+
+              {(selectedBilling.payment_status?.toUpperCase() === 'PAID' ||
+                selectedBilling.payment_reference ||
+                selectedBilling.payment_notes) && (
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-emerald-600" />
+                    Payment Details
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {selectedBilling.payment_date && (
+                      <div>
+                        <p className="text-xs text-gray-600 font-medium">Payment Date</p>
+                        <p className="text-sm text-gray-900 flex items-center gap-1">
+                          <Calendar className="w-4 h-4 text-gray-400" />
+                          {formatDate(selectedBilling.payment_date)}
+                        </p>
+                      </div>
+                    )}
+                    {selectedBilling.payment_reference && (
+                      <div>
+                        <p className="text-xs text-gray-600 font-medium">Reference / OR No.</p>
+                        <p className="text-sm text-gray-900 font-semibold">
+                          {selectedBilling.payment_reference}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  {selectedBilling.payment_notes && (
+                    <div>
+                      <p className="text-xs text-gray-600 font-medium">Notes</p>
+                      <p className="text-sm text-gray-900 whitespace-pre-wrap">
+                        {selectedBilling.payment_notes}
+                      </p>
+                    </div>
+                  )}
+                  {selectedBilling.payment_confirmed_by_name && (
+                    <div className="text-xs text-gray-500">
+                      Confirmed by {selectedBilling.payment_confirmed_by_name} on{" "}
+                      {selectedBilling.payment_confirmed_at
+                        ? new Date(selectedBilling.payment_confirmed_at).toLocaleString('en-PH', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit'
+                          })
+                        : 'N/A'}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {(selectedBilling.payment_status || '').toUpperCase() !== 'PAID' && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => openMarkPaidModal(selectedBilling)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700 transition-colors"
+                  >
+                    Mark as Paid
+                  </button>
+                </div>
+              )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mark as Paid Modal */}
+      {showMarkPaidModal && billingToMarkPaid && (
+        <div
+          className="fixed inset-0 backdrop-blur-sm bg-black/20 flex items-center justify-center z-50 p-4"
+          onClick={closeMarkPaidModal}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-emerald-600 text-white px-4 py-3 rounded-t-lg flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                <h3 className="text-lg font-semibold">Mark Billing as Paid</h3>
+              </div>
+              <button
+                onClick={closeMarkPaidModal}
+                className="text-white/80 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleMarkPaidSubmit} className="p-5 space-y-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {billingToMarkPaid.billing_code}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {billingToMarkPaid.establishment_name}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Payment Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={markPaidForm.paymentDate}
+                    onChange={(e) =>
+                      setMarkPaidForm((prev) => ({ ...prev, paymentDate: e.target.value }))
+                    }
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500"
+                    max={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Reference / OR Number
+                  </label>
+                  <input
+                    type="text"
+                    value={markPaidForm.paymentReference}
+                    onChange={(e) =>
+                      setMarkPaidForm((prev) => ({ ...prev, paymentReference: e.target.value }))
+                    }
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500"
+                    placeholder="Enter reference number (optional)"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Notes
+                </label>
+                <textarea
+                  value={markPaidForm.paymentNotes}
+                  onChange={(e) =>
+                    setMarkPaidForm((prev) => ({ ...prev, paymentNotes: e.target.value }))
+                  }
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500 min-h-[100px]"
+                  placeholder="Add any internal notes about this payment (optional)"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeMarkPaidModal}
+                  className="px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                  disabled={markPaidLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                  disabled={markPaidLoading}
+                >
+                  {markPaidLoading ? "Saving..." : "Confirm Paid"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

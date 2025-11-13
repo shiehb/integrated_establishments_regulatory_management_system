@@ -469,6 +469,16 @@ class InspectionActionSerializer(serializers.Serializer):
 
 class NOVSerializer(serializers.Serializer):
     """Serializer for sending Notice of Violation"""
+    recipient_email = serializers.EmailField(required=True,
+        help_text='Email address of NOV recipient')
+    recipient_name = serializers.CharField(required=False, allow_blank=True,
+        help_text='Recipient name to personalize NOV email')
+    contact_person = serializers.CharField(required=False, allow_blank=True,
+        help_text='Contact person included in email')
+    email_subject = serializers.CharField(required=False, allow_blank=True,
+        help_text='Subject line for NOV email')
+    email_body = serializers.CharField(required=False, allow_blank=True,
+        help_text='Body content for NOV email')
     violations = serializers.CharField(required=True, 
         help_text='Detailed list of violations found')
     compliance_instructions = serializers.CharField(required=True,
@@ -481,6 +491,16 @@ class NOVSerializer(serializers.Serializer):
 
 class NOOSerializer(serializers.Serializer):
     """Serializer for sending Notice of Order with billing"""
+    recipient_email = serializers.EmailField(required=True,
+        help_text='Email address of NOO recipient')
+    recipient_name = serializers.CharField(required=False, allow_blank=True,
+        help_text='Recipient name to personalize NOO email')
+    contact_person = serializers.CharField(required=False, allow_blank=True,
+        help_text='Contact person included in email')
+    email_subject = serializers.CharField(required=False, allow_blank=True,
+        help_text='Subject line for NOO email')
+    email_body = serializers.CharField(required=False, allow_blank=True,
+        help_text='Body content for NOO email')
     violation_breakdown = serializers.CharField(required=True,
         help_text='Detailed breakdown of violations')
     penalty_fees = serializers.DecimalField(max_digits=10, decimal_places=2, 
@@ -502,6 +522,7 @@ class BillingRecordSerializer(serializers.ModelSerializer):
     """Serializer for Billing Records"""
     inspection_code = serializers.CharField(source='inspection.code', read_only=True)
     issued_by_name = serializers.SerializerMethodField()
+    payment_confirmed_by_name = serializers.SerializerMethodField()
     
     class Meta:
         model = BillingRecord
@@ -511,12 +532,24 @@ class BillingRecordSerializer(serializers.ModelSerializer):
             'related_law', 'billing_type',
             'description', 'amount', 'due_date', 'recommendations',
             'issued_by', 'issued_by_name', 'sent_date',
+            'payment_status', 'payment_date', 'payment_reference',
+            'payment_notes', 'payment_confirmed_by', 'payment_confirmed_by_name',
+            'payment_confirmed_at',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'billing_code', 'sent_date', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'billing_code', 'sent_date',
+            'payment_confirmed_by', 'payment_confirmed_by_name', 'payment_confirmed_at',
+            'created_at', 'updated_at'
+        ]
     
     def get_issued_by_name(self, obj):
         if obj.issued_by:
             return f"{obj.issued_by.first_name} {obj.issued_by.last_name}".strip() or obj.issued_by.email
+        return None
+    
+    def get_payment_confirmed_by_name(self, obj):
+        if obj.payment_confirmed_by:
+            return f"{obj.payment_confirmed_by.first_name} {obj.payment_confirmed_by.last_name}".strip() or obj.payment_confirmed_by.email
         return None
     

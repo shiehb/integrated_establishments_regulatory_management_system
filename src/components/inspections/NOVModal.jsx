@@ -2,6 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { X, Mail, Calendar, FileText, AlertTriangle, CheckCircle, ArrowLeft } from 'lucide-react';
 import LayoutForm from '../LayoutForm';
 
+// Layout presets guide:
+// - Two Column Grid: Inspection & recipient details span the top row; violations fill bottom-left; remaining sections stack bottom-right.
+// - Stacked Sections: Single scroll column with email preview positioned beneath (mobile-first).
+// - Preview Focused: Form narrows to 60% width, dedicating more space to the email preview pane.
+
 const NOVModal = ({ open, onClose, onConfirm, inspection, loading }) => {
   const [formData, setFormData] = useState({
     recipientEmail: '',
@@ -128,13 +133,6 @@ const NOVModal = ({ open, onClose, onConfirm, inspection, loading }) => {
     return date.toISOString().split('T')[0];
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onConfirm(formData);
-  };
-
-  if (!open) return null;
-
   const formatInspectionDate = () => {
     const dateStr = inspection?.form?.checklist?.general?.inspection_date_time;
     if (!dateStr) return '[date of inspection]';
@@ -154,9 +152,8 @@ const NOVModal = ({ open, onClose, onConfirm, inspection, loading }) => {
     });
   };
 
-  const emailTemplate = `Subject: Notice of Violation – ${inspection?.code || '[Reference No.]'}
-
-Dear ${formData.recipientName || '[Name of Owner/Manager]'},
+  const emailSubject = `Notice of Violation – ${inspection?.code || '[Reference No.]'}`;
+  const emailBody = `Dear ${formData.recipientName || '[Name of Owner/Manager]'},
 
 Good day.
 
@@ -184,6 +181,18 @@ Environmental Management Bureau – Region 1
 Department of Environment and Natural Resources (DENR)
 
 ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
+  const emailPreview = `Subject: ${emailSubject}\n\n${emailBody}`;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onConfirm({
+      ...formData,
+      emailSubject,
+      emailBody
+    });
+  };
+
+  if (!open) return null;
 
   // Header Component
   const novHeader = (
@@ -235,155 +244,176 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
       <LayoutForm 
         headerHeight="small" 
         inspectionHeader={novHeader}
-        rightSidebar={
-          <div className="mb-3">
-            <div className="flex items-center mb-2 pb-1 border-b border-gray-200">
-              <Mail className="w-4 h-4 text-blue-600 mr-1" />
-              <h3 className="text-sm font-semibold text-gray-900">Email Preview</h3>
-            </div>
-            <div className="bg-gray-50 border border-gray-300 p-2 max-h-[calc(100vh-200px)] overflow-y-auto">
-              <div className="bg-white border border-gray-200 p-2">
-                <pre className="text-xs text-gray-800 whitespace-pre-wrap font-sans leading-relaxed">{emailTemplate}</pre>
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-gray-600 bg-blue-50 p-1 rounded border border-blue-200">
-              📧 This is how the email will appear to the establishment. Review carefully before sending.
-            </p>
-          </div>
-        }
+        fullWidth
       >
-        <div className="px-6 py-4">
-          <form id="nov-form" onSubmit={handleSubmit}>
-            {/* Inspection Details Section */}
-            <section className="mb-4">
-            <div className="flex items-center mb-2 pb-1 border-b border-gray-200">
-              <FileText className="w-4 h-4 text-blue-600 mr-1" />
-              <h2 className="text-sm font-semibold text-gray-900">Inspection Details</h2>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <span className="text-xs font-medium text-gray-600">Inspection Code:</span>
-                <p className="text-sm font-bold text-gray-900 mt-1">{inspection?.code}</p>
+        <div className=" md:py-10 px-0 h-full">
+          <div className="flex flex-col md:flex-row gap-6 h-full max-h-[calc(100vh-220px)] overflow-auto px-4 md:px-6">
+            <form id="nov-form" onSubmit={handleSubmit} className="flex-1 h-full overflow-y-auto pr-2">
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-col space-y-6">
+                  <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-sky-600" />
+                      <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
+                        Inspection Details
+                      </h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Inspection Code</span>
+                        <p className="text-sm font-bold text-gray-900 mt-1">{inspection?.code || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Inspection Date</span>
+                        <p className="text-sm font-bold text-gray-900 mt-1">{formatInspectionDate()}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Establishment</span>
+                        <p className="text-sm font-bold text-gray-900 mt-1">{inspection?.establishments_detail?.[0]?.name || '—'}</p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-5 h-5 text-blue-600" />
+                      <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
+                        Recipient Information
+                      </h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">
+                          Recipient Email <span className="text-red-600">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          value={formData.recipientEmail}
+                          onChange={(e) => setFormData({ ...formData, recipientEmail: e.target.value })}
+                          className="mt-1 w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-700 px-3 py-2"
+                          placeholder="email@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">
+                          Contact Person <span className="text-red-600">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.contactPerson}
+                          onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
+                          className="mt-1 w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-700 px-3 py-2"
+                          placeholder="Contact person name"
+                        />
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col space-y-6">
+                    <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-red-600" />
+                        <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
+                          Violations Found
+                        </h2>
+                      </div>
+                      <textarea
+                        required
+                        value={formData.violations}
+                        onChange={(e) => setFormData({ ...formData, violations: e.target.value })}
+                        className="min-h-[140px] w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 shadow-inner p-3 leading-relaxed text-sm text-gray-800 resize-y"
+                        placeholder="• Violation 1&#10;• Violation 2&#10;• Violation 3"
+                      />
+                      <p className="text-sm text-gray-500 italic">
+                        Tip: List each violation on a new line starting with • for better formatting.
+                      </p>
+                    </section>
+                  </div>
+
+                  <div className="flex flex-col space-y-6">
+                    <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-5 h-5 text-emerald-600" />
+                        <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
+                          Compliance Instructions
+                        </h2>
+                      </div>
+                      <textarea
+                        required
+                        value={formData.complianceInstructions}
+                        onChange={(e) => setFormData({ ...formData, complianceInstructions: e.target.value })}
+                        className="min-h-[120px] w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 shadow-inner p-3 leading-relaxed text-sm text-gray-800 resize-y"
+                        placeholder="Required actions for compliance..."
+                      />
+                    </section>
+
+                    <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-orange-500" />
+                        <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
+                          Compliance Deadline
+                        </h2>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">
+                          Deadline <span className="text-red-600">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={formData.complianceDeadline}
+                          onChange={(e) => setFormData({ ...formData, complianceDeadline: e.target.value })}
+                          min={new Date().toISOString().split('T')[0]}
+                          className="mt-1 w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-700 px-3 py-2"
+                        />
+                        <p className="text-sm text-gray-500 italic mt-1">
+                          Default deadline is 30 days from today. Establishment must comply by this date.
+                        </p>
+                      </div>
+                    </section>
+
+                    <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-gray-500" />
+                        <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
+                          Additional Remarks <span className="text-sm font-normal text-gray-500">(Optional)</span>
+                        </h2>
+                      </div>
+                      <textarea
+                        value={formData.remarks}
+                        onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                        className="min-h-[120px] w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 shadow-inner p-3 leading-relaxed text-sm text-gray-800 resize-y"
+                        placeholder="Any additional notes or special instructions..."
+                      />
+                    </section>
+                  </div>
+                </div>
               </div>
-              <div>
-                <span className="text-xs font-medium text-gray-600">Establishment:</span>
-                <p className="text-sm font-bold text-gray-900 mt-1">{inspection?.establishments_detail?.[0]?.name}</p>
+            </form>
+
+            <aside className="w-full md:w-[40%] h-full">
+              <div className="bg-white shadow-sm rounded-lg border border-gray-200 md:border-l md:border-gray-200 md:pl-6 h-full flex flex-col overflow-hidden max-h-[calc(100vh-220px)]">
+                <div className="flex items-center gap-2 border-b border-gray-200 pb-2 mb-4">
+                  <Mail className="w-5 h-5 text-sky-600" />
+                  <h3 className="text-lg font-semibold text-gray-800">Email Preview</h3>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <div className="max-w-[600px] mx-auto">
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg shadow-inner p-4">
+                      <pre className="leading-relaxed text-sm text-gray-800 whitespace-pre-wrap font-sans">{emailPreview}</pre>
+                    </div>
+                    <p className="text-sm text-gray-500 italic mt-3">
+                      Review the generated email carefully before sending to ensure accuracy.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <span className="text-xs font-medium text-gray-600">Inspection Date:</span>
-                <p className="text-sm font-bold text-gray-900 mt-1">{formatInspectionDate()}</p>
-              </div>
-              <div>
-                <span className="text-xs font-medium text-gray-600">Status:</span>
-                <p className="text-sm font-bold text-orange-600 mt-1">Legal Review</p>
-              </div>
-            </div>
-          </section>
-
-            {/* Recipient Information Section */}
-            <section className="mb-4">
-            <div className="flex items-center mb-2 pb-1 border-b border-gray-200">
-              <Mail className="w-4 h-4 text-blue-600 mr-1" />
-              <h2 className="text-sm font-semibold text-gray-900">Recipient Information</h2>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Recipient Email <span className="text-red-600">*</span>
-              </label>
-              <input
-                type="email"
-                required
-                value={formData.recipientEmail}
-                onChange={(e) => setFormData({ ...formData, recipientEmail: e.target.value })}
-                className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="email@example.com"
-              />
-            </div>
-            <div className="mt-2">
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Contact Person <span className="text-red-600">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.contactPerson}
-                onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Contact person name"
-              />
-            </div>
-          </section>
-
-            {/* Violations Section */}
-            <section className="mb-4">
-            <div className="flex items-center mb-2 pb-1 border-b border-gray-200">
-              <AlertTriangle className="w-4 h-4 text-red-600 mr-1" />
-              <h2 className="text-sm font-semibold text-gray-900">Violations Found</h2>
-            </div>
-            <textarea
-              required
-              value={formData.violations}
-              onChange={(e) => setFormData({ ...formData, violations: e.target.value })}
-              rows={4}
-              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none"
-              placeholder="• Violation 1&#10;• Violation 2&#10;• Violation 3"
-            />
-            <p className="mt-1 text-xs text-gray-600 bg-yellow-50 p-1 rounded border border-yellow-200">
-              💡 List each violation on a new line, starting with • for better formatting
-            </p>
-          </section>
-
-            {/* Compliance Instructions Section */}
-            <section className="mb-4">
-            <div className="flex items-center mb-2 pb-1 border-b border-gray-200">
-              <CheckCircle className="w-4 h-4 text-green-600 mr-1" />
-              <h2 className="text-sm font-semibold text-gray-900">Compliance Instructions</h2>
-            </div>
-            <textarea
-              required
-              value={formData.complianceInstructions}
-              onChange={(e) => setFormData({ ...formData, complianceInstructions: e.target.value })}
-              rows={3}
-              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none"
-              placeholder="Required actions for compliance..."
-            />
-          </section>
-
-            {/* Compliance Deadline Section */}
-            <section className="mb-4">
-            <div className="flex items-center mb-2 pb-1 border-b border-gray-200">
-              <Calendar className="w-4 h-4 text-orange-600 mr-1" />
-              <h2 className="text-sm font-semibold text-gray-900">Compliance Deadline</h2>
-            </div>
-            <input
-              type="date"
-              required
-              value={formData.complianceDeadline}
-              onChange={(e) => setFormData({ ...formData, complianceDeadline: e.target.value })}
-              min={new Date().toISOString().split('T')[0]}
-              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-            />
-            <p className="mt-1 text-xs text-gray-600 bg-blue-50 p-1 rounded border border-blue-200">
-              ⏰ Default: 30 days from today. Establishment must comply by this date.
-            </p>
-          </section>
-
-            {/* Additional Remarks Section */}
-            <section className="mb-4">
-            <div className="flex items-center mb-2 pb-1 border-b border-gray-200">
-              <FileText className="w-4 h-4 text-gray-600 mr-1" />
-              <h2 className="text-sm font-semibold text-gray-900">Additional Remarks</h2>
-              <span className="ml-1 text-xs text-gray-500">(Optional)</span>
-            </div>
-            <textarea
-              value={formData.remarks}
-              onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-              rows={2}
-              className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none"
-              placeholder="Any additional notes or special instructions..."
-            />
-            </section>
-          </form>
+            </aside>
+          </div>
         </div>
       </LayoutForm>
     </div>

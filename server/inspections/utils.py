@@ -2,12 +2,33 @@
 Utility functions for inspections app
 """
 import logging
-from django.core.mail import send_mail, EmailMessage
+from django.core.mail import send_mail, EmailMessage, EmailMultiAlternatives
 from django.conf import settings
 from django.template.loader import render_to_string
-from django.utils.html import strip_tags
+from django.utils.html import strip_tags, linebreaks
 
 logger = logging.getLogger(__name__)
+
+
+def send_notice_email(subject, body, recipient_email):
+    """
+    Send NOV/NOO notices to establishments.
+    """
+    try:
+        html_body = linebreaks(body)
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[recipient_email],
+        )
+        email.attach_alternative(html_body, "text/html")
+        email.send(fail_silently=False)
+        logger.info(f"Notice email sent to {recipient_email} with subject '{subject}'")
+        return True
+    except Exception as exc:
+        logger.error(f"Failed to send notice email to {recipient_email}: {str(exc)}")
+        raise
 
 
 def send_inspection_assignment_notification(user, inspection):

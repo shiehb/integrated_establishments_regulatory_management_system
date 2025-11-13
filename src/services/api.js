@@ -1137,3 +1137,21 @@ export const printBillingReceipt = async (id) => {
     throw enhancedError;
   }
 };
+
+/**
+ * Mark a billing record as paid
+ */
+export const markBillingAsPaid = async (id, payload = {}) => {
+  try {
+    const response = await api.post(`billing/${id}/mark-paid/`, payload);
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to update payment status. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import useAuth from '../hooks/useAuth';
 import { useNotifications } from '../components/NotificationManager';
 import api from '../services/api';
 import { sendNOV, sendNOO } from '../services/api';
@@ -575,6 +575,11 @@ const InspectionReviewPage = () => {
     try {
       setLoading(true);
       await sendNOV(id, {
+        recipient_email: novData.recipientEmail,
+        recipient_name: novData.recipientName,
+        contact_person: novData.contactPerson,
+        email_subject: novData.emailSubject,
+        email_body: novData.emailBody,
         violations: novData.violations,
         compliance_instructions: novData.complianceInstructions,
         compliance_deadline: new Date(novData.complianceDeadline).toISOString(),
@@ -598,12 +603,17 @@ const InspectionReviewPage = () => {
     try {
       setLoading(true);
       await sendNOO(id, {
+        recipient_email: nooData.recipientEmail,
+        recipient_name: nooData.recipientName,
+        contact_person: nooData.contactPerson,
+        email_subject: nooData.emailSubject,
+        email_body: nooData.emailBody,
         violation_breakdown: nooData.violationBreakdown,
         penalty_fees: nooData.penaltyFees,
         payment_deadline: new Date(nooData.paymentDeadline).toISOString().split('T')[0],
         payment_instructions: nooData.paymentInstructions,
         remarks: nooData.remarks || 'Notice of Order sent',
-        billing_items: nooData.billingItems
+        billing_items: nooData.billingItems || []
       });
       
       notifications.success('Notice of Order sent successfully!');
@@ -934,7 +944,7 @@ const InspectionReviewPage = () => {
                   <>
                     <button
                       onClick={() => handleActionClick('mark_non_compliant')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
+                      className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
                       disabled={loading}
                     >
                       <XCircle className="w-4 h-4 mr-1" />

@@ -1,7 +1,13 @@
 import Header from "./Header";
 import Footer from "./Footer";
 
-export default function LayoutForm({ children, inspectionHeader, rightSidebar, headerHeight = 'default' }) {
+export default function LayoutForm({
+  children,
+  inspectionHeader,
+  rightSidebar,
+  headerHeight = 'default',
+  fullWidth = false
+}) {
   // Calculate paddingTop based on header type
   const getPaddingTop = () => {
     if (!inspectionHeader) return '3rem'; // Just main header (96px)
@@ -42,7 +48,13 @@ export default function LayoutForm({ children, inspectionHeader, rightSidebar, h
         <div className="flex w-full">
           {/* Main content area */}
           <div className="flex-1 overflow-y-auto scroll-smooth" style={{ scrollSnapType: 'y proximity', scrollBehavior: 'smooth' }}>
-            <div className="flex justify-center w-full max-w-7xl mx-auto px-1 pt-1 pb-2">
+          <div
+            className={
+              fullWidth
+                ? 'w-full px-0 pt-1 pb-2'
+                : 'flex justify-center w-full max-w-7xl mx-auto px-1 pt-1 pb-2'
+            }
+          >
               <div className="w-full">
                 {children}
               </div>
