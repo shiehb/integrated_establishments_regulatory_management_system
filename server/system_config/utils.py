@@ -1,5 +1,7 @@
 from django.conf import settings
 from django.core.cache import cache
+from django.db import connection
+from django.db.utils import OperationalError, ProgrammingError
 from .models import SystemConfiguration
 
 def construct_from_email(default_from_email, email_host_user, from_name=None):
@@ -32,6 +34,13 @@ def construct_from_email(default_from_email, email_host_user, from_name=None):
 def update_django_settings():
     """Update Django settings with database configuration"""
     try:
+        # Skip if the system configuration table doesn't exist yet (e.g., before initial migrate)
+        try:
+            if 'system_config_systemconfiguration' not in connection.introspection.table_names():
+                return False
+        except (OperationalError, ProgrammingError):
+            return False
+
         config = SystemConfiguration.get_active_config()
         
         # Update email settings
@@ -55,8 +64,7 @@ def update_django_settings():
         cache.clear()
         
         return True
-    except Exception as e:
-        print(f"Error updating Django settings: {e}")
+    except Exception:
         return False
 
 def get_configuration_summary():
