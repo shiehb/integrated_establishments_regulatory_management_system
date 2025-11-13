@@ -8,6 +8,16 @@ def log_establishment_save(sender, instance, created, **kwargs):
     user = getattr(instance, "_action_user", None)  # set in views before saving
 
     if created:
-        log_activity(user, "create", f"Created establishment: {instance.name}")
+        log_activity(
+            user,
+            "create",
+            module="ESTABLISHMENTS",
+            description=f"Created establishment: {instance.name}",
+        )
     else:
-        log_activity(user, "update", f"Updated establishment: {instance.name}")
+        log_activity(
+            user,
+            "update",
+            module="ESTABLISHMENTS",
+            description=f"Updated establishment: {instance.name}",
+        )

@@ -896,19 +896,11 @@ const InspectionReviewPage = () => {
                   <>
                     <button
                       onClick={() => handleActionClick('send_nov')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
+                      className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
                       disabled={loading}
                     >
                       <Mail className="w-4 h-4 mr-1" />
                       Send NOV
-                    </button>
-                    <button
-                      onClick={() => handleActionClick('return_to_division')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-gray-500 rounded hover:bg-gray-600 transition-colors"
-                      disabled={loading}
-                    >
-                      <CornerDownLeft className="w-4 h-4 mr-1" />
-                      Return
                     </button>
                   </>
                 )}
@@ -927,19 +919,11 @@ const InspectionReviewPage = () => {
                     </button>
                     <button
                       onClick={() => handleActionClick('send_noo')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-orange-600 rounded hover:bg-orange-700 transition-colors"
+                      className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
                       disabled={loading}
                     >
                       <FileText className="w-4 h-4 mr-1" />
                       Send NOO
-                    </button>
-                    <button
-                      onClick={() => handleActionClick('return_to_division')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-yellow-600 rounded hover:bg-yellow-700 transition-colors"
-                      disabled={loading}
-                    >
-                      <CornerDownLeft className="w-4 h-4 mr-1" />
-                      Return to Division Chief
                     </button>
                   </>
                 )}
@@ -955,14 +939,6 @@ const InspectionReviewPage = () => {
                     >
                       <XCircle className="w-4 h-4 mr-1" />
                       Mark as Non-Compliant
-                    </button>
-                    <button
-                      onClick={() => handleActionClick('return_to_division')}
-                      className="flex items-center px-3 py-1 text-sm text-white bg-yellow-600 rounded hover:bg-yellow-700 transition-colors"
-                      disabled={loading}
-                    >
-                      <CornerDownLeft className="w-4 h-4 mr-1" />
-                      Return to Division Chief
                     </button>
                   </>
                 )}

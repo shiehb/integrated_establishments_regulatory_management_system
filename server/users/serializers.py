@@ -211,6 +211,15 @@ class UserSerializer(serializers.ModelSerializer):
             'must_change_password',  # Required for forced password change on first login
             'is_first_login',  # Track if user has logged in before
         )
+        read_only_fields = (
+            'is_active',
+            'must_change_password',
+            'is_first_login',
+            'date_joined',
+            'last_login',
+            'updated_at',
+            'avatar_url',
+        )
     
     def get_avatar_url(self, obj):
         """Return full URL for avatar if available"""

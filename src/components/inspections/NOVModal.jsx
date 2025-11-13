@@ -210,7 +210,7 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
               type="submit"
               form="nov-form"
               disabled={loading}
-              className="px-3 py-1 text-sm font-semibold text-white bg-red-600 rounded hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              className="px-3 py-1 text-sm font-semibold text-white bg-green-600 rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
               {loading ? (
                 <>

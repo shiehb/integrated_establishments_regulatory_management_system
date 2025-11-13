@@ -9,6 +9,7 @@ from django.core.cache import cache
 from .models import SystemConfiguration
 from .serializers import SystemConfigurationSerializer, SystemConfigurationUpdateSerializer
 from .utils import construct_from_email, update_django_settings
+from audit.constants import AUDIT_ACTIONS, AUDIT_MODULES
 from audit.utils import log_activity
 
 @api_view(['GET'])
@@ -43,9 +44,11 @@ def update_system_configuration(request):
             # Log the configuration update
             log_activity(
                 request.user,
-                "update",
-                "System configuration updated",
-                request=request
+                AUDIT_ACTIONS["UPDATE"],
+                module="SYSTEM_CONFIG",
+                description="System configuration updated",
+                metadata={"updated_fields": list(serializer.validated_data.keys())},
+                request=request,
             )
             
             updated_config = serializer.save()

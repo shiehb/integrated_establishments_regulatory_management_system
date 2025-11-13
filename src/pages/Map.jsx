@@ -8,6 +8,7 @@ import {
   Marker,
   Popup,
   Polygon,
+  GeoJSON,
   useMap,
   LayersControl,
 } from "react-leaflet";
@@ -20,6 +21,7 @@ import { useNotifications } from "../components/NotificationManager";
 import { useAuth } from "../contexts/AuthContext";
 import { getIconByNatureOfBusiness } from '../constants/markerIcons';
 import { createCustomMarkerIcon } from '../components/map/CustomMarkerIcon';
+import { ILOCOS_REGION_BOUNDARY } from "../data/ilocosRegionBoundary";
 import {
   ChevronUp,
   ChevronDown,
@@ -44,20 +46,6 @@ L.Icon.Default.mergeOptions({
   shadowUrl: iconShadow,
 });
 
-const blueIcon = new L.Icon({
-  iconUrl: icon,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  shadowUrl: iconShadow,
-});
-
-const greenIcon = new L.Icon({
-  iconUrl: icon, // Using blue icon for now, can be customized later
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  shadowUrl: iconShadow,
-  className: "green-marker", // Add CSS class to style as green
-});
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -351,6 +339,14 @@ export default function MapPage() {
                       maxZoom={22}
                     />
                   </LayersControl.BaseLayer>
+
+                  {/* Ilocos Region Boundary */}
+                  <LayersControl.Overlay checked name="Region I Boundary">
+                    <GeoJSON
+                      data={ILOCOS_REGION_BOUNDARY.data}
+                      style={() => ILOCOS_REGION_BOUNDARY.style}
+                    />
+                  </LayersControl.Overlay>
                 </LayersControl>
 
                 <MapFocus establishment={focusedEstablishment} />

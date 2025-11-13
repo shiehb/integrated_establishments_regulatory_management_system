@@ -199,7 +199,7 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
               type="submit"
               form="noo-form"
               disabled={loading || !formData.penaltyFees}
-              className="px-3 py-1 text-sm font-semibold text-white bg-orange-600 rounded hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              className="px-3 py-1 text-sm font-semibold text-white bg-green-600 rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
               {loading ? (
                 <>

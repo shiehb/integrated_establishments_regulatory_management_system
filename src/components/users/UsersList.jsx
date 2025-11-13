@@ -659,25 +659,26 @@ export default function UsersList({ onAdd, onEdit, refreshTrigger }) {
              </tr>
            ) : users.length === 0 ? (
              <tr>
-               <td
-                 colSpan="6"
-                 className="px-2 py-4 text-center text-gray-500 border-b border-gray-300"
-               >
-                 {hasActiveFilters ? (
-                   <div>
-                     No users found matching your criteria.
-                     <br />
-                     <button
-                       onClick={clearAllFilters}
-                       className="mt-2 underline text-sky-600 hover:text-sky-700"
-                     >
-                       Clear all filters
-                     </button>
-                   </div>
-                 ) : (
-                   "No users found."
-                 )}
-               </td>
+              <td
+                colSpan="6"
+                className="px-2 py-4 text-center h-[calc(100vh-295px)] text-gray-500 border-b border-gray-300"
+              >
+                <div className="flex flex-col items-center justify-center h-full gap-2">
+                  {hasActiveFilters ? (
+                    <>
+                      <span>No users found matching your criteria.</span>
+                      <button
+                        onClick={clearAllFilters}
+                        className="underline text-sky-600 hover:text-sky-700"
+                      >
+                        Clear all filters
+                      </button>
+                    </>
+                  ) : (
+                    <span>No users found.</span>
+                  )}
+                </div>
+              </td>
              </tr>
           ) : (
             users.map((u) => (
