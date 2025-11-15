@@ -637,13 +637,13 @@ class BillingRecord(models.Model):
         help_text='Additional recommendations or instructions')
     
     PAYMENT_STATUS_CHOICES = [
-        ('PENDING', 'Pending'),
+        ('UNPAID', 'Unpaid'),
         ('PAID', 'Paid'),
     ]
     payment_status = models.CharField(
         max_length=20,
         choices=PAYMENT_STATUS_CHOICES,
-        default='PENDING',
+        default='UNPAID',
         help_text='Current payment status'
     )
     payment_date = models.DateField(

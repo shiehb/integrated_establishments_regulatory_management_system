@@ -16,6 +16,7 @@ AUDIT_MODULES = {
     "LAWS": "Law Management",
     "FILES": "File Storage",
     "SYSTEM": "System Operations",
+    "BILLING": "Billing & Payments",
 }
 
 # Canonical action labels to keep analytics consistent.

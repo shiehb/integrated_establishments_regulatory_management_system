@@ -83,6 +83,11 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
 }
 
+# Authentication lockout policy (overridable via env or system config)
+LOGIN_MAX_FAILED_ATTEMPTS = int(os.getenv("LOGIN_MAX_FAILED_ATTEMPTS", 10))
+LOGIN_LOCKOUT_DURATION_MINUTES = int(os.getenv("LOGIN_LOCKOUT_DURATION_MINUTES", 3))
+LOGIN_FINAL_ATTEMPTS_WARNING = int(os.getenv("LOGIN_FINAL_ATTEMPTS_WARNING", 3))
+
 # Password generation function
 def generate_secure_password(length=8):
     """Generate a secure random password"""
@@ -289,6 +294,10 @@ CELERY_BEAT_SCHEDULE = {
     'cleanup-old-backups': {
         'task': 'system.tasks.cleanup_old_backups',
         'schedule': 86400.0,  # Run daily at midnight
+    },
+    'send-nov-compliance-reminders': {
+        'task': 'inspections.tasks.send_nov_compliance_reminders',
+        'schedule': 86400.0,  # Run daily (every 24 hours)
     },
 }
 

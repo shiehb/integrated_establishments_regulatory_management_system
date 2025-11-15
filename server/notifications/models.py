@@ -9,6 +9,7 @@ class Notification(models.Model):
         ('password_reset', 'Password Reset Request'),
         ('new_inspection', 'New Inspection Assignment'),
         ('COMPLIANCE_EXPIRED', 'Compliance Deadline Expired'),
+        ('COMPLIANCE_REMINDER', 'Compliance Deadline Reminder'),
         ('NOV_SENT', 'Notice of Violation Sent'),
         ('NOO_SENT', 'Notice of Order Sent'),
         ('INSPECTION_COMPLETED', 'Inspection Completed'),

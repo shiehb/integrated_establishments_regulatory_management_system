@@ -1155,3 +1155,19 @@ export const markBillingAsPaid = async (id, payload = {}) => {
     throw enhancedError;
   }
 };
+
+export const markBillingAsUnpaid = async (id, payload = {}) => {
+  try {
+    const response = await api.post(`billing/${id}/mark-unpaid/`, payload);
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to revert payment status. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+

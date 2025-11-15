@@ -11,6 +11,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 
 from audit.constants import AUDIT_ACTIONS, AUDIT_MODULES
+from audit.models import ActivityLog
+from audit.serializers import ActivityLogSerializer
 from audit.utils import log_activity
 
 from .models import Inspection, InspectionForm, InspectionDocument, InspectionHistory, NoticeOfViolation, NoticeOfOrder, BillingRecord
@@ -4159,6 +4161,15 @@ class BillingViewSet(viewsets.ModelViewSet):
     queryset = BillingRecord.objects.all().order_by('-created_at')
     serializer_class = BillingRecordSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    @staticmethod
+    def _serialize_payment_state(billing):
+        return {
+            "payment_status": billing.payment_status,
+            "payment_date": billing.payment_date.isoformat() if billing.payment_date else None,
+            "payment_reference": billing.payment_reference or "",
+            "payment_notes": billing.payment_notes or "",
+        }
     
     def get_queryset(self):
         """Filter billing records based on user level and permissions"""
@@ -4263,6 +4274,7 @@ class BillingViewSet(viewsets.ModelViewSet):
     def mark_paid(self, request, pk=None):
         """Tag a billing record as paid"""
         billing = self.get_object()
+        before_state = self._serialize_payment_state(billing)
         
         payload = {
             'payment_status': 'PAID',
@@ -4283,8 +4295,87 @@ class BillingViewSet(viewsets.ModelViewSet):
         billing.payment_confirmed_by = request.user
         billing.payment_confirmed_at = timezone.now()
         billing.save()
+
+        after_state = self._serialize_payment_state(billing)
+
+        log_activity(
+            request.user,
+            AUDIT_ACTIONS["UPDATE"],
+            module="BILLING",
+            description=f"Marked billing {billing.billing_code} as paid",
+            metadata={
+                "entity_id": billing.id,
+                "entity_name": billing.billing_code,
+                "entity_type": "billing",
+                "status": "success",
+            },
+            before=before_state,
+            after=after_state,
+            request=request,
+        )
         
         return Response(self.get_serializer(billing).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='mark-unpaid')
+    def mark_unpaid(self, request, pk=None):
+        """Revert a billing record back to unpaid status"""
+        billing = self.get_object()
+        before_state = self._serialize_payment_state(billing)
+        payment_notes = request.data.get('payment_notes', '').strip()
+
+        if not payment_notes:
+            return Response(
+                {"detail": "A remark is required when reverting to unpaid."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = self.get_serializer(
+            billing,
+            data={'payment_notes': payment_notes},
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+
+        billing.payment_status = 'UNPAID'
+        billing.payment_date = None
+        billing.payment_reference = ''
+        billing.payment_notes = serializer.validated_data.get('payment_notes', '')
+        billing.payment_confirmed_by = None
+        billing.payment_confirmed_at = None
+        billing.save()
+
+        after_state = self._serialize_payment_state(billing)
+
+        log_activity(
+            request.user,
+            AUDIT_ACTIONS["UPDATE"],
+            module="BILLING",
+            description=f"Reverted billing {billing.billing_code} to unpaid",
+            metadata={
+                "entity_id": billing.id,
+                "entity_name": billing.billing_code,
+                "entity_type": "billing",
+                "status": "success",
+            },
+            before=before_state,
+            after=after_state,
+            request=request,
+        )
+
+        return Response(self.get_serializer(billing).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='audit-logs')
+    def audit_logs(self, request, pk=None):
+        """Return audit history for a billing record"""
+        billing = self.get_object()
+        module_label = AUDIT_MODULES.get("BILLING", "Billing & Payments")
+        logs = ActivityLog.objects.filter(
+            Q(metadata__entity_id=billing.id) | Q(metadata__entity_id=str(billing.id)),
+            metadata__entity_type='billing',
+            module=module_label
+        ).order_by('-created_at')[:50]
+        serializer = ActivityLogSerializer(logs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['get'])
     def print_receipt(self, request, pk=None):

@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from django.utils import timezone
+from django.conf import settings
 from users.utils.email_utils import send_security_alert
 
 User = get_user_model()
@@ -48,6 +48,10 @@ class Command(BaseCommand):
         
         self.stdout.write(f"📊 Current failed attempts: {test_user.failed_login_attempts}")
         self.stdout.write(f"🔒 Account locked: {test_user.is_account_locked}")
+
+        max_failed_attempts = test_user.max_failed_login_attempts if hasattr(test_user, "max_failed_login_attempts") else getattr(settings, "LOGIN_MAX_FAILED_ATTEMPTS", 10)
+        lockout_duration = test_user.lockout_duration_minutes if hasattr(test_user, "lockout_duration_minutes") else getattr(settings, "LOGIN_LOCKOUT_DURATION_MINUTES", 3)
+        warning_threshold = getattr(settings, "LOGIN_FINAL_ATTEMPTS_WARNING", 3)
         
         # Test Security Alert Emails
         self.stdout.write("\n📧 Testing Security Alert Emails...")
@@ -74,7 +78,7 @@ class Command(BaseCommand):
                 ip_address='192.168.1.100',
                 user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 location='San Fernando City, La Union',
-                lockout_duration=15
+                lockout_duration=lockout_duration
             )
             self._report_result('Account Lockout Alert', success)
             
@@ -105,7 +109,7 @@ class Command(BaseCommand):
             test_user.account_locked_until = None
             test_user.save()
             
-            for attempt in range(1, 7):
+            for attempt in range(1, max_failed_attempts + 2):
                 self.stdout.write(f"Attempt {attempt}: Simulating failed login...")
                 test_user.increment_failed_login()
                 
@@ -134,9 +138,9 @@ class Command(BaseCommand):
         # Security Configuration Summary
         self.stdout.write("\n⚙️ Security Configuration:")
         self.stdout.write("-" * 30)
-        self.stdout.write("🔢 Max failed attempts: 5")
-        self.stdout.write("⏰ Lockout duration: 15 minutes")
-        self.stdout.write("📧 Alert threshold: 3 attempts")
+        self.stdout.write(f"🔢 Max failed attempts: {max_failed_attempts}")
+        self.stdout.write(f"⏰ Lockout duration: {lockout_duration} minutes")
+        self.stdout.write(f"📧 Alert threshold: {warning_threshold} attempts")
         self.stdout.write("🔄 Auto-unlock: Yes")
         
         self.stdout.write("\n✅ Security Alert System Test Complete!")

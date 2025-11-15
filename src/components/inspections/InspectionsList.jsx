@@ -2289,9 +2289,6 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                             <InspectionActions 
                               inspection={inspection}
                               availableActions={(inspection.available_actions || []).filter(action => {
-                                if (action.startsWith('return_to_')) {
-                                  return false;
-                                }
                                 if (activeTab === 'review' && userLevel === 'Division Chief') {
                                   return action === 'review';
                                 }

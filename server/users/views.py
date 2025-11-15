@@ -1,3 +1,5 @@
+import math
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, generics
@@ -65,6 +67,7 @@ class LoginView(APIView):
             # Check if account is locked
             if user.is_account_currently_locked():
                 remaining_time = self._get_remaining_lockout_time(user)
+                lockout_duration = user.lockout_duration_minutes
                 log_activity(
                     user,
                     AUDIT_ACTIONS["LOGIN"],
@@ -75,25 +78,70 @@ class LoginView(APIView):
                         "status": "failed",
                         "reason": "account_locked",
                         "remaining_minutes": remaining_time,
+                        "lockout_duration_minutes": lockout_duration,
+                        "unlock_at": user.account_locked_until.isoformat() if user.account_locked_until else None,
                     },
                     request=request,
                 )
                 return Response({
                     'error': f'Account locked. Try again in {remaining_time} minutes.',
                     'error_code': 'ACCOUNT_LOCKED',
-                    'details': {'remaining_minutes': remaining_time}
+                    'details': {
+                        'remaining_minutes': remaining_time,
+                        'unlock_at': user.account_locked_until.isoformat() if user.account_locked_until else None,
+                        'lockout_duration_minutes': lockout_duration,
+                    }
                 }, status=status.HTTP_423_LOCKED)
             
             # Authenticate user
             user = authenticate(request, email=email, password=password)
             
             if user is None:
-                # Wrong password - increment failed attempts
+                # Wrong password - gather updated attempt data (signal already incremented)
+                db_user = None
+                details = None
                 try:
                     db_user = User.objects.get(email=email)
-                    db_user.increment_failed_login()
+
+                    if db_user.is_account_locked:
+                        remaining_time = self._get_remaining_lockout_time(db_user)
+                        lockout_duration = db_user.lockout_duration_minutes
+                        log_activity(
+                            db_user,
+                            AUDIT_ACTIONS["LOGIN"],
+                            module=AUDIT_MODULES["AUTH"],
+                            description=f"Login blocked for locked account {email}",
+                            metadata={
+                                "email": email,
+                                "status": "failed",
+                                "reason": "account_locked",
+                                "remaining_minutes": remaining_time,
+                                "lockout_duration_minutes": lockout_duration,
+                                "unlock_at": db_user.account_locked_until.isoformat() if db_user.account_locked_until else None,
+                            },
+                            request=request,
+                        )
+                        return Response({
+                            'error': f'Account locked. Try again in {remaining_time} minutes.',
+                            'error_code': 'ACCOUNT_LOCKED',
+                            'details': {
+                                'remaining_minutes': remaining_time,
+                                'unlock_at': db_user.account_locked_until.isoformat() if db_user.account_locked_until else None,
+                                'lockout_duration_minutes': lockout_duration,
+                            }
+                        }, status=status.HTTP_423_LOCKED)
+
+                    remaining_attempts = max(db_user.max_failed_login_attempts - db_user.failed_login_attempts, 0)
+                    warning_window = getattr(settings, 'LOGIN_FINAL_ATTEMPTS_WARNING', 3)
+                    details = {
+                        'failed_attempts': db_user.failed_login_attempts,
+                        'remaining_attempts': remaining_attempts,
+                        'max_attempts': db_user.max_failed_login_attempts,
+                        'is_last_attempt_window': remaining_attempts <= warning_window,
+                        'lockout_duration_minutes': db_user.lockout_duration_minutes,
+                    }
                 except User.DoesNotExist:
-                    pass
+                    details = None
                 
                 log_activity(
                     None,
@@ -104,13 +152,21 @@ class LoginView(APIView):
                         "email": email,
                         "status": "failed",
                         "reason": "invalid_credentials",
+                        "failed_attempts": details.get('failed_attempts') if details else None,
+                        "remaining_attempts": details.get('remaining_attempts') if details else None,
+                        "lockout_duration_minutes": details.get('lockout_duration_minutes') if details else None,
                     },
                     request=request,
                 )
-                return Response({
+                response_payload = {
                     'error': 'Invalid email or password.',
                     'error_code': 'INVALID_CREDENTIALS'
-                }, status=status.HTTP_401_UNAUTHORIZED)
+                }
+                if details and db_user:
+                    if db_user.account_locked_until:
+                        details['unlock_at'] = db_user.account_locked_until.isoformat()
+                    response_payload['details'] = details
+                return Response(response_payload, status=status.HTTP_401_UNAUTHORIZED)
             
             # Check if user is active
             if not user.is_active:
@@ -211,7 +267,7 @@ class LoginView(APIView):
             return 0
         
         delta = user.account_locked_until - now
-        return int(delta.total_seconds() / 60)
+        return max(1, math.ceil(delta.total_seconds() / 60))
 
 
 # ---------------------------

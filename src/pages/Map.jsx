@@ -88,6 +88,12 @@ export default function MapPage() {
   const [loading, setLoading] = useState(true);
   const [focusedEstablishment, setFocusedEstablishment] = useState(null);
   const notifications = useNotifications();
+  const notificationsRef = useRef(notifications);
+
+  // Update ref when notifications change (to always have latest functions)
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
 
   // 🔍 Search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -142,7 +148,7 @@ export default function MapPage() {
       }
     } catch (err) {
       console.error("Error fetching establishments:", err);
-      notifications.error(
+      notificationsRef.current.error(
         "Error fetching establishments",
         {
           title: "Fetch Error",
@@ -152,7 +158,7 @@ export default function MapPage() {
     } finally {
       setLoading(false);
     }
-  }, [notifications, user]);
+  }, [user]); // Only depend on 'user', 'notifications' accessed via ref
 
   // Fetch all establishments from API
   useEffect(() => {

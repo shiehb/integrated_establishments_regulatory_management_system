@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
-import { getBillingRecords, markBillingAsPaid } from "../services/api";
+import { getBillingRecords, markBillingAsPaid, markBillingAsUnpaid } from "../services/api";
 import { 
   FileText, 
   Calendar, 
@@ -11,11 +11,13 @@ import {
   Loader2,
   Building,
   Eye,
-  X
+  X,
+  Clock
 } from "lucide-react";
 import PaginationControls from "../components/PaginationControls";
 import { useLocalStoragePagination } from "../hooks/useLocalStoragePagination";
 import TableToolbar from "../components/common/TableToolbar";
+import ConfirmationDialog from "../components/common/ConfirmationDialog";
 
 // Debounce hook
 const useDebounce = (value, delay) => {
@@ -36,11 +38,11 @@ const useDebounce = (value, delay) => {
 
 // Law options for tabs
 const lawOptions = [
+  { value: "PD-1586", label: "PD 1586", fullLabel: "Environmental Impact Assessment" },
   { value: "RA-8749", label: "RA 8749", fullLabel: "Clean Air Act" },
-  { value: "RA-9003", label: "RA 9003", fullLabel: "Ecological Solid Waste Management" },
   { value: "RA-9275", label: "RA 9275", fullLabel: "Clean Water Act" },
   { value: "RA-6969", label: "RA 6969", fullLabel: "Toxic Chemicals & Hazardous Wastes" },
-  { value: "PD-1586", label: "PD 1586", fullLabel: "Environmental Impact Assessment" }
+  { value: "RA-9003", label: "RA 9003", fullLabel: "Ecological Solid Waste Management" },
 ];
 
 export default function Billing() {
@@ -79,12 +81,22 @@ export default function Billing() {
   const [selectedBilling, setSelectedBilling] = useState(null);
   const [showBillingModal, setShowBillingModal] = useState(false);
   const [showMarkPaidModal, setShowMarkPaidModal] = useState(false);
+  const [showMarkUnpaidModal, setShowMarkUnpaidModal] = useState(false);
   const [billingToMarkPaid, setBillingToMarkPaid] = useState(null);
+  const [billingToMarkUnpaid, setBillingToMarkUnpaid] = useState(null);
   const [markPaidLoading, setMarkPaidLoading] = useState(false);
+  const [markUnpaidLoading, setMarkUnpaidLoading] = useState(false);
   const [markPaidForm, setMarkPaidForm] = useState({
     paymentDate: "",
     paymentReference: "",
     paymentNotes: ""
+  });
+  const [markUnpaidForm, setMarkUnpaidForm] = useState({
+    paymentNotes: ""
+  });
+  const [markPaidConfirmation, setMarkPaidConfirmation] = useState({
+    open: false,
+    record: null,
   });
   const [feedbackMessage, setFeedbackMessage] = useState(null);
 
@@ -145,6 +157,7 @@ export default function Billing() {
     fetchTabCounts();
   }, [fetchTabCounts]);
 
+
   const formatCurrency = (amount) => {
     return `₱${parseFloat(amount || 0).toLocaleString('en-PH', {
       minimumFractionDigits: 2,
@@ -161,6 +174,17 @@ export default function Billing() {
     });
   };
 
+  const formatDateTime = (dateTimeString) => {
+    if (!dateTimeString) return 'N/A';
+    return new Date(dateTimeString).toLocaleString('en-PH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  };
+
   // Get law display name
   const getLawDisplayName = (lawValue) => {
     const law = lawOptions.find(l => l.value === lawValue);
@@ -169,9 +193,9 @@ export default function Billing() {
 
   // Get payment status
   const getPaymentStatus = (record) => {
-    const status = record.payment_status?.toLowerCase() === 'paid' ? 'paid' : 'pending';
+    const status = record.payment_status?.toLowerCase() === 'paid' ? 'paid' : 'unpaid';
     const isOverdue =
-      status === 'pending' &&
+      status === 'unpaid' &&
       record.due_date &&
       new Date(record.due_date) < new Date();
 
@@ -181,7 +205,7 @@ export default function Billing() {
   const getStatusLabel = ({ status, isOverdue }) => {
     if (status === 'paid') return 'Paid';
     if (isOverdue) return 'Overdue';
-    return 'Pending';
+    return 'Unpaid';
   };
 
   // Get status badge styling
@@ -194,7 +218,14 @@ export default function Billing() {
       return { bg: 'bg-red-100', text: 'text-red-800', label: 'Overdue' };
     }
 
-    return { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending' };
+    return { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Unpaid' };
+  };
+
+  const getLastUpdatedBy = (billing) => {
+    if (!billing) return 'System';
+    if (billing.payment_confirmed_by_name) return billing.payment_confirmed_by_name;
+    if (billing.issued_by_name) return billing.issued_by_name;
+    return 'System';
   };
 
   // Handle view details
@@ -213,6 +244,47 @@ export default function Billing() {
     setShowMarkPaidModal(true);
   };
 
+  const requestMarkPaidConfirmation = (record) => {
+    if (!record) return;
+    setMarkPaidConfirmation({ open: true, record });
+  };
+
+  const handleConfirmMarkPaid = () => {
+    if (!markPaidConfirmation.record) {
+      setMarkPaidConfirmation({ open: false, record: null });
+      return;
+    }
+    openMarkPaidModal(markPaidConfirmation.record);
+    setMarkPaidConfirmation({ open: false, record: null });
+  };
+
+  const handleCancelMarkPaid = () => {
+    setMarkPaidConfirmation({ open: false, record: null });
+  };
+
+  const addMistakenPaymentRemark = () => {
+    const timestamp = new Date().toLocaleString('en-PH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+    const template = `Mistaken payment recorded on ${timestamp}. Details: `;
+
+    setMarkPaidForm((prev) => {
+      const existing = prev.paymentNotes || "";
+      if (existing.includes(template)) {
+        return prev;
+      }
+      const separator = existing.trim() ? "\n" : "";
+      return {
+        ...prev,
+        paymentNotes: `${existing}${separator}${template}`
+      };
+    });
+  };
+
   const closeMarkPaidModal = () => {
     setShowMarkPaidModal(false);
     setBillingToMarkPaid(null);
@@ -221,6 +293,30 @@ export default function Billing() {
       paymentReference: "",
       paymentNotes: ""
     });
+  };
+
+  const openMarkUnpaidModal = (record) => {
+    const timestamp = new Date().toLocaleString('en-PH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+    const defaultNote = `Marked as unpaid on ${timestamp}. Reason: `;
+    setBillingToMarkUnpaid(record);
+    setMarkUnpaidForm({
+      paymentNotes: record?.payment_notes?.includes('Marked as unpaid')
+        ? record.payment_notes
+        : `${defaultNote}`
+    });
+    setShowMarkUnpaidModal(true);
+  };
+
+  const closeMarkUnpaidModal = () => {
+    setShowMarkUnpaidModal(false);
+    setBillingToMarkUnpaid(null);
+    setMarkUnpaidForm({ paymentNotes: "" });
   };
 
   const handleMarkPaidSubmit = async (event) => {
@@ -254,6 +350,45 @@ export default function Billing() {
       });
     } finally {
       setMarkPaidLoading(false);
+    }
+  };
+
+  const handleMarkUnpaidSubmit = async (event) => {
+    event.preventDefault();
+    if (!billingToMarkUnpaid) return;
+
+    if (!markUnpaidForm.paymentNotes.trim()) {
+      setFeedbackMessage({
+        type: "error",
+        text: "Please provide a remark explaining why the billing is being marked as unpaid."
+      });
+      return;
+    }
+
+    try {
+      setMarkUnpaidLoading(true);
+      const payload = {
+        payment_notes: markUnpaidForm.paymentNotes
+      };
+      const updatedRecord = await markBillingAsUnpaid(billingToMarkUnpaid.id, payload);
+
+      setBillingRecords((prev) =>
+        prev.map((record) => (record.id === updatedRecord.id ? updatedRecord : record))
+      );
+      if (selectedBilling?.id === updatedRecord.id) {
+        setSelectedBilling(updatedRecord);
+      }
+
+      setFeedbackMessage({ type: "success", text: "Billing reverted to unpaid status." });
+      closeMarkUnpaidModal();
+    } catch (error) {
+      console.error("Error marking billing as unpaid:", error);
+      setFeedbackMessage({
+        type: "error",
+        text: error.message || "Failed to revert billing status. Please try again.",
+      });
+    } finally {
+      setMarkUnpaidLoading(false);
     }
   };
 
@@ -320,81 +455,82 @@ export default function Billing() {
       <LayoutWithSidebar>
         <div className="p-4 bg-white h-[calc(100vh-160px)]">
           {/* Top controls */}
-          <div className="mb-3">
-            <h1 className="text-2xl font-bold text-sky-600 mb-3">Billing Records</h1>
-            
-            <TableToolbar
-              searchValue={searchQuery}
-              onSearchChange={setSearchQuery}
-              onSearchClear={() => setSearchQuery('')}
-              searchPlaceholder="Search billing records..."
-              sortConfig={sortConfig}
-              sortFields={sortFields}
-              onSort={handleSort}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              onDateFromChange={setDateFrom}
-              onDateToChange={setDateTo}
-              exportConfig={{
-                title: "Billing Records Export Report",
-                fileName: "billing_records_export",
-                columns: showAllLaws 
-                  ? ["Billing Code", "Establishment", "Law", "Issued Date", "Payment Status"]
-                  : ["Billing Code", "Establishment", "Issued Date", "Payment Status"],
-                rows: filteredBillingRecords.map(record => {
-                  const statusInfo = getPaymentStatus(record);
-                  const statusLabel = getStatusLabel(statusInfo);
-                  if (showAllLaws) {
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h1 className="text-2xl font-bold text-sky-600">Billing Records</h1>
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <TableToolbar
+                searchValue={searchQuery}
+                onSearchChange={setSearchQuery}
+                onSearchClear={() => setSearchQuery('')}
+                searchPlaceholder="Search billing records..."
+                sortConfig={sortConfig}
+                sortFields={sortFields}
+                onSort={handleSort}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                onDateFromChange={setDateFrom}
+                onDateToChange={setDateTo}
+                exportConfig={{
+                  title: "Billing Records Export Report",
+                  fileName: "billing_records_export",
+                  columns: showAllLaws 
+                    ? ["Billing Code", "Establishment", "Law", "Issued Date", "Payment Status"]
+                    : ["Billing Code", "Establishment", "Issued Date", "Payment Status"],
+                  rows: filteredBillingRecords.map(record => {
+                    const statusInfo = getPaymentStatus(record);
+                    const statusLabel = getStatusLabel(statusInfo);
+                    if (showAllLaws) {
+                      return [
+                        record.billing_code,
+                        record.establishment_name,
+                        record.related_law,
+                        formatDate(record.sent_date),
+                        statusLabel
+                      ];
+                    }
                     return [
                       record.billing_code,
                       record.establishment_name,
-                      record.related_law,
                       formatDate(record.sent_date),
                       statusLabel
                     ];
-                  }
-                  return [
-                    record.billing_code,
-                    record.establishment_name,
-                    formatDate(record.sent_date),
-                    statusLabel
-                  ];
-                })
-              }}
-              printConfig={{
-                title: "Billing Records Print Report",
-                fileName: "billing_records_print",
-                columns: showAllLaws 
-                  ? ["Billing Code", "Establishment", "Law", "Issued Date", "Payment Status"]
-                  : ["Billing Code", "Establishment", "Issued Date", "Payment Status"],
-                rows: filteredBillingRecords.map(record => {
-                  const statusInfo = getPaymentStatus(record);
-                  const statusLabel = getStatusLabel(statusInfo);
-                  if (showAllLaws) {
+                  })
+                }}
+                printConfig={{
+                  title: "Billing Records Print Report",
+                  fileName: "billing_records_print",
+                  columns: showAllLaws 
+                    ? ["Billing Code", "Establishment", "Law", "Issued Date", "Payment Status"]
+                    : ["Billing Code", "Establishment", "Issued Date", "Payment Status"],
+                  rows: filteredBillingRecords.map(record => {
+                    const statusInfo = getPaymentStatus(record);
+                    const statusLabel = getStatusLabel(statusInfo);
+                    if (showAllLaws) {
+                      return [
+                        record.billing_code,
+                        record.establishment_name,
+                        record.related_law,
+                        formatDate(record.sent_date),
+                        statusLabel
+                      ];
+                    }
                     return [
                       record.billing_code,
                       record.establishment_name,
-                      record.related_law,
                       formatDate(record.sent_date),
                       statusLabel
                     ];
-                  }
-                  return [
-                    record.billing_code,
-                    record.establishment_name,
-                    formatDate(record.sent_date),
-                    statusLabel
-                  ];
-                }),
-                selectedCount: filteredBillingRecords.length
-              }}
-              onRefresh={() => {
-                setDateFrom('');
-                setDateTo('');
-                fetchData();
-              }}
-              isRefreshing={loading}
-            />
+                  }),
+                  selectedCount: filteredBillingRecords.length
+                }}
+                onRefresh={() => {
+                  setDateFrom('');
+                  setDateTo('');
+                  fetchData();
+                }}
+                isRefreshing={loading}
+              />
+            </div>
           </div>
 
           {/* Law Tabs */}
@@ -444,28 +580,6 @@ export default function Billing() {
           </div>
 
           {/* Search results info */}
-          <div className="flex items-center justify-between mb-2 text-sm text-gray-600">
-            <div>
-              {!showAllLaws && selectedLaw ? (
-                <span>
-                  Showing billing records for <span className="font-medium text-sky-600">{lawOptions.find(l => l.value === selectedLaw)?.label}</span>
-                  {debouncedSearchQuery && ` (filtered by search)`}
-                </span>
-              ) : (
-                `Showing all billing records`
-              )}
-            </div>
-            <div className="flex gap-2">
-              {!showAllLaws && selectedLaw && (
-                <button
-                  onClick={() => setShowAllLaws(true)}
-                  className="underline text-sky-600 hover:text-sky-700"
-                >
-                  Show All Laws
-                </button>
-              )}
-            </div>
-          </div>
         {feedbackMessage && (
           <div
             className={`mb-3 rounded border px-3 py-2 text-sm ${
@@ -480,7 +594,7 @@ export default function Billing() {
 
         {/* Billing Records Table */}
           <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto h-[calc(100vh-350px)]">
+            <div className="overflow-x-auto h-[calc(100vh-312px)]">
               <table className="w-full">
                 <thead>
                   <tr className="text-xs text-left text-white bg-gradient-to-r from-sky-600 to-sky-700 sticky top-0 z-10">
@@ -597,7 +711,7 @@ export default function Billing() {
                             </button>
                             {(record.payment_status || '').toUpperCase() !== 'PAID' && (
                               <button
-                                onClick={() => openMarkPaidModal(record)}
+                                onClick={() => requestMarkPaidConfirmation(record)}
                                 className="px-3 py-1 text-xs font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700 transition-colors"
                               >
                                 Mark as Paid
@@ -611,10 +725,11 @@ export default function Billing() {
                 </tbody>
               </table>
             </div>
-
-            {/* Pagination */}
-            {totalCount > 0 && (
-              <div className="p-4 border-t border-gray-200">
+            
+          </div>
+          {/* Pagination */}
+          {totalCount > 0 && (
+              <div className="mt-2">
                 <PaginationControls
                   currentPage={currentPage}
                   totalPages={Math.ceil(totalCount / pageSize)}
@@ -627,7 +742,6 @@ export default function Billing() {
                 />
               </div>
             )}
-          </div>
         </div>
       </LayoutWithSidebar>
       <Footer />
@@ -635,74 +749,102 @@ export default function Billing() {
       {/* Billing Details Modal */}
       {showBillingModal && selectedBilling && (
         <div 
-          className="fixed inset-0 backdrop-blur-sm bg-white/20 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
           onClick={closeModal}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white border border-gray-300 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-sky-600 to-sky-700 text-white p-4 rounded-t-lg flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText className="w-6 h-6" />
-                <h2 className="text-xl font-bold">Billing Details</h2>
-              </div>
+            <div className="sticky top-0 bg-white border-b border-gray-300 p-2 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Billing Details</h2>
               <button
                 onClick={closeModal}
-                className="text-white hover:bg-sky-800 rounded-full p-1 transition-colors"
+                className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-2 py-1 rounded"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 space-y-6">
-              {/* Status Badge */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {selectedBilling.billing_code}
-                  </h3>
-                  <p className="text-sm text-gray-500">Billing Code</p>
-                </div>
-                {(() => {
-                  const paymentInfo = getPaymentStatus(selectedBilling);
-                  const badge = getStatusBadge(paymentInfo);
-                  return (
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`px-4 py-2 rounded-full text-sm font-semibold ${badge.bg} ${badge.text}`}>
-                        {badge.label}
-                      </span>
-                      {paymentInfo.status === 'pending' && paymentInfo.isOverdue && (
-                        <span className="text-xs text-red-600">Overdue since {formatDate(selectedBilling.due_date)}</span>
-                      )}
-                      {paymentInfo.status === 'paid' && selectedBilling.payment_date && (
-                        <span className="text-xs text-gray-500">
-                          Paid on {formatDate(selectedBilling.payment_date)}
+            <div className="p-4 space-y-2">
+              {/* Header Section */}
+              <div className="border-b border-gray-300 ">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">
+                      {selectedBilling.billing_code}
+                    </h3>
+                    <p className="text-xs text-gray-600 mt-1">Billing Code</p>
+                  </div>
+                  {(() => {
+                    const paymentInfo = getPaymentStatus(selectedBilling);
+                    const badge = getStatusBadge(paymentInfo);
+                    return (
+                      <div className="text-right">
+                        <span className={`px-3 py-1 text-xs font-medium border ${badge.bg} ${badge.text} border-gray-400`}>
+                          {badge.label}
                         </span>
-                      )}
-                    </div>
-                  );
-                })()}
+                        {paymentInfo.status === 'unpaid' && paymentInfo.isOverdue && (
+                          <p className="text-xs text-gray-600 mt-1">Overdue since {formatDate(selectedBilling.due_date)}</p>
+                        )}
+                        {paymentInfo.status === 'paid' && selectedBilling.payment_date && (
+                          <p className="text-xs text-gray-600 mt-1">Paid on {formatDate(selectedBilling.payment_date)}</p>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Billing Information */}
+              <div className="border-b border-gray-300 pb-4">
+                <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Billing Information</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium mb-1">Amount Due</p>
+                    <p className="text-base text-gray-900 font-semibold">
+                      {formatCurrency(selectedBilling.amount)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium mb-1">Related Law</p>
+                    <p className="text-sm text-gray-900">
+                      {selectedBilling.related_law}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      {getLawDisplayName(selectedBilling.related_law)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium mb-1">Issued Date</p>
+                    <p className="text-sm text-gray-900">
+                      {formatDate(selectedBilling.sent_date)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium mb-1">Due Date</p>
+                    <p className="text-sm text-gray-900">
+                      {formatDate(selectedBilling.due_date)}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               {/* Establishment Information */}
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <Building className="w-5 h-5 text-sky-600" />
-                  Establishment Information
-                </h4>
+              <div className="border-b border-gray-300 pb-4">
+                <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Establishment Information</h4>
                 <div className="grid grid-cols-1 gap-3">
                   <div>
-                    <p className="text-xs text-gray-600 font-medium">Establishment Name</p>
-                    <p className="text-sm text-gray-900 font-semibold">
+                    <p className="text-xs text-gray-600 font-medium mb-1">Establishment Name</p>
+                    <p className="text-sm text-gray-900">
                       {selectedBilling.establishment_name}
                     </p>
                   </div>
                   {selectedBilling.contact_person && (
                     <div>
-                      <p className="text-xs text-gray-600 font-medium">Contact Person</p>
+                      <p className="text-xs text-gray-600 font-medium mb-1">Contact Person</p>
                       <p className="text-sm text-gray-900">
                         {selectedBilling.contact_person}
                       </p>
@@ -711,81 +853,39 @@ export default function Billing() {
                 </div>
               </div>
 
-              {/* Billing Information */}
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-sky-600" />
-                  Billing Information
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Related Law</p>
-                    <p className="text-sm text-gray-900 font-semibold">
-                      {selectedBilling.related_law}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {getLawDisplayName(selectedBilling.related_law)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Amount Due</p>
-                    <p className="text-xl text-green-600 font-bold">
-                      {formatCurrency(selectedBilling.amount)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Due Date</p>
-                    <p className="text-sm text-gray-900 flex items-center gap-1">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      {formatDate(selectedBilling.due_date)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">Issued Date</p>
-                    <p className="text-sm text-gray-900">
-                      {formatDate(selectedBilling.sent_date)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               {(selectedBilling.payment_status?.toUpperCase() === 'PAID' ||
                 selectedBilling.payment_reference ||
                 selectedBilling.payment_notes) && (
-                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                  <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-emerald-600" />
-                    Payment Details
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="border-b border-gray-300 pb-4">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3 uppercase tracking-wide">Payment Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {selectedBilling.payment_date && (
                       <div>
-                        <p className="text-xs text-gray-600 font-medium">Payment Date</p>
-                        <p className="text-sm text-gray-900 flex items-center gap-1">
-                          <Calendar className="w-4 h-4 text-gray-400" />
+                        <p className="text-xs text-gray-600 font-medium mb-1">Payment Date</p>
+                        <p className="text-sm text-gray-900">
                           {formatDate(selectedBilling.payment_date)}
                         </p>
                       </div>
                     )}
                     {selectedBilling.payment_reference && (
                       <div>
-                        <p className="text-xs text-gray-600 font-medium">Reference / OR No.</p>
-                        <p className="text-sm text-gray-900 font-semibold">
+                        <p className="text-xs text-gray-600 font-medium mb-1">Reference / OR No.</p>
+                        <p className="text-sm text-gray-900">
                           {selectedBilling.payment_reference}
                         </p>
                       </div>
                     )}
                   </div>
                   {selectedBilling.payment_notes && (
-                    <div>
-                      <p className="text-xs text-gray-600 font-medium">Notes</p>
-                      <p className="text-sm text-gray-900 whitespace-pre-wrap">
+                    <div className="mt-4">
+                      <p className="text-xs text-gray-600 font-medium mb-1">Notes</p>
+                      <p className="text-sm text-gray-900 whitespace-pre-wrap border border-gray-300 p-3 bg-gray-50">
                         {selectedBilling.payment_notes}
                       </p>
                     </div>
                   )}
                   {selectedBilling.payment_confirmed_by_name && (
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-gray-600 mt-3 pt-3 border-t border-gray-200">
                       Confirmed by {selectedBilling.payment_confirmed_by_name} on{" "}
                       {selectedBilling.payment_confirmed_at
                         ? new Date(selectedBilling.payment_confirmed_at).toLocaleString('en-PH', {
@@ -801,16 +901,30 @@ export default function Billing() {
                 </div>
               )}
 
-              {(selectedBilling.payment_status || '').toUpperCase() !== 'PAID' && (
-                <div className="flex justify-end">
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-2">
+                {(selectedBilling.payment_status || '').toUpperCase() !== 'PAID' && (
                   <button
-                    onClick={() => openMarkPaidModal(selectedBilling)}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700 transition-colors"
+                    onClick={() => requestMarkPaidConfirmation(selectedBilling)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 rounded"
                   >
                     Mark as Paid
                   </button>
-                </div>
-              )}
+                )}
+                {(selectedBilling.payment_status || '').toUpperCase() === 'PAID' && (
+                  <button
+                    onClick={() => openMarkUnpaidModal(selectedBilling)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 rounded"
+                  >
+                    Mark as Unpaid
+                  </button>
+                )}
+              </div>
+
+              {/* Last Updated Info */}
+              <div className="text-xs text-gray-500 pt-2 border-t border-gray-200">
+                <p>Last updated: {formatDateTime(selectedBilling.updated_at)} by {getLastUpdatedBy(selectedBilling)}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -819,40 +933,37 @@ export default function Billing() {
       {/* Mark as Paid Modal */}
       {showMarkPaidModal && billingToMarkPaid && (
         <div
-          className="fixed inset-0 backdrop-blur-sm bg-black/20 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
           onClick={closeMarkPaidModal}
         >
           <div
-            className="bg-white rounded-lg shadow-xl max-w-md w-full"
+            className="bg-white border border-gray-300 max-w-md w-full"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-emerald-600 text-white px-4 py-3 rounded-t-lg flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                <h3 className="text-lg font-semibold">Mark Billing as Paid</h3>
-              </div>
+            <div className="bg-white border-b border-gray-300 px-6 py-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900">Mark Billing as Paid</h3>
               <button
                 onClick={closeMarkPaidModal}
-                className="text-white/80 hover:text-white transition-colors"
+                className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-2 py-1 rounded"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleMarkPaidSubmit} className="p-5 space-y-4">
-              <div>
+            <form onSubmit={handleMarkPaidSubmit} className="p-6 space-y-4">
+              <div className="border-b border-gray-300 pb-3">
                 <p className="text-sm font-semibold text-gray-900">
                   {billingToMarkPaid.billing_code}
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-600 mt-1">
                   {billingToMarkPaid.establishment_name}
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Payment Date <span className="text-red-500">*</span>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Payment Date <span className="text-red-600">*</span>
                   </label>
                   <input
                     type="date"
@@ -861,12 +972,12 @@ export default function Billing() {
                     onChange={(e) =>
                       setMarkPaidForm((prev) => ({ ...prev, paymentDate: e.target.value }))
                     }
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500"
+                    className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
                     max={new Date().toISOString().split('T')[0]}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     Reference / OR Number
                   </label>
                   <input
@@ -875,38 +986,40 @@ export default function Billing() {
                     onChange={(e) =>
                       setMarkPaidForm((prev) => ({ ...prev, paymentReference: e.target.value }))
                     }
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500"
+                    className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
                     placeholder="Enter reference number (optional)"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Notes
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-gray-700">
+                    Notes / Remarks
+                  </label>
+                </div>
                 <textarea
                   value={markPaidForm.paymentNotes}
                   onChange={(e) =>
                     setMarkPaidForm((prev) => ({ ...prev, paymentNotes: e.target.value }))
                   }
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:ring-emerald-500 min-h-[100px]"
-                  placeholder="Add any internal notes about this payment (optional)"
+                  className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-gray-500 min-h-[100px]"
+                  placeholder="Enter payment details or notes"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-300">
                 <button
                   type="button"
                   onClick={closeMarkPaidModal}
-                  className="px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded"
                   disabled={markPaidLoading}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded hover:bg-emerald-700 transition-colors disabled:opacity-60"
+                  className="px-4 py-2 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 rounded"
                   disabled={markPaidLoading}
                 >
                   {markPaidLoading ? "Saving..." : "Confirm Paid"}
@@ -916,6 +1029,112 @@ export default function Billing() {
           </div>
         </div>
       )}
+
+      {/* Mark as Unpaid Modal */}
+      {showMarkUnpaidModal && billingToMarkUnpaid && (
+        <div
+          className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
+          onClick={closeMarkUnpaidModal}
+        >
+          <div
+            className="bg-white border border-gray-300 max-w-md w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-white border-b border-gray-300 px-6 py-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900">Revert to Unpaid</h3>
+              <button
+                onClick={closeMarkUnpaidModal}
+                className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 px-2 py-1 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleMarkUnpaidSubmit} className="p-6 space-y-4">
+              <div className="border-b border-gray-300 pb-3">
+                <p className="text-sm font-semibold text-gray-900">
+                  {billingToMarkUnpaid.billing_code}
+                </p>
+                <p className="text-xs text-gray-600 mt-1">
+                  {billingToMarkUnpaid.establishment_name}
+                </p>
+                <p className="text-xs text-gray-600 mt-2">
+                  This will change the payment status back to unpaid and clear payment dates and references.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Remark <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                  required
+                  value={markUnpaidForm.paymentNotes}
+                  onChange={(e) =>
+                    setMarkUnpaidForm((prev) => ({ ...prev, paymentNotes: e.target.value }))
+                  }
+                  className="w-full border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-gray-500 min-h-[100px]"
+                  placeholder="Explain why this billing is being reverted to unpaid."
+                />
+                <p className="mt-1 text-xs text-gray-600">
+                  Notes are visible in Billing Details to provide audit history.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-300">
+                <button
+                  type="button"
+                  onClick={closeMarkUnpaidModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded"
+                  disabled={markUnpaidLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-sm font-medium text-white bg-sky-600 hover:bg-sky-700 rounded"
+                  disabled={markUnpaidLoading}
+                >
+                  {markUnpaidLoading ? "Saving..." : "Confirm Unpaid"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      <ConfirmationDialog
+        open={markPaidConfirmation.open}
+        title="Confirm Mark as Paid"
+        message={() => (
+          <div className="text-sm text-gray-700 space-y-1">
+            <p>
+              Billing Code:{" "}
+              <span className="font-semibold text-gray-900">
+                {markPaidConfirmation.record?.billing_code}
+              </span>
+            </p>
+            <p>
+              Establishment:{" "}
+              <span className="font-semibold text-gray-900">
+                {markPaidConfirmation.record?.establishment_name}
+              </span>
+            </p>
+            <p>
+              Amount:{" "}
+              <span className="font-semibold text-gray-900">
+                {formatCurrency(markPaidConfirmation.record?.amount)}
+              </span>
+            </p>
+            <p className="text-red-600 font-medium pt-2">
+              Proceed only if you have verified that official payment was received.
+            </p>
+          </div>
+        )}
+        confirmText="Yes, mark as paid"
+        confirmColor="green"
+        onCancel={handleCancelMarkPaid}
+        onConfirm={handleConfirmMarkPaid}
+      />
     </>
   );
 }

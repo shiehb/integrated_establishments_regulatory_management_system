@@ -2,6 +2,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.utils import timezone
+from django.conf import settings
 from system_config.models import SystemConfiguration  # Import from system_config
 
 class UserManager(BaseUserManager):
@@ -98,18 +99,28 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.updated_at = timezone.now()
         super().save(*args, **kwargs)
     
+    DEFAULT_MAX_FAILED_LOGIN_ATTEMPTS = 10
+    DEFAULT_LOCKOUT_DURATION_MINUTES = 3
+
     def increment_failed_login(self):
         """Increment failed login attempts and handle account locking"""
         from django.utils import timezone
         from datetime import timedelta
         
-        self.failed_login_attempts += 1
-        self.last_failed_login = timezone.now()
+        now = timezone.now()
         
-        # Lock account after 5 failed attempts
-        if self.failed_login_attempts >= 5:
+        # If the previous failed attempt is stale, restart the counter
+        if self.last_failed_login and now - self.last_failed_login > timedelta(minutes=self.lockout_duration_minutes):
+            self.failed_login_attempts = 1
+        else:
+            self.failed_login_attempts += 1
+        
+        self.last_failed_login = now
+        
+        # Lock account after configured number of failed attempts
+        if self.failed_login_attempts >= self.max_failed_login_attempts:
             self.is_account_locked = True
-            self.account_locked_until = timezone.now() + timedelta(minutes=15)  # Lock for 15 minutes
+            self.account_locked_until = now + timedelta(minutes=self.lockout_duration_minutes)
             
         self.save(update_fields=['failed_login_attempts', 'last_failed_login', 'is_account_locked', 'account_locked_until'])
         
@@ -119,7 +130,15 @@ class User(AbstractBaseUser, PermissionsMixin):
         
         # Send account lockout alert
         if self.is_account_locked:
-            self.send_security_alert('account_lockout', lockout_duration=15)
+            self.send_security_alert('account_lockout', lockout_duration=self.lockout_duration_minutes)
+
+    @property
+    def max_failed_login_attempts(self):
+        return getattr(settings, 'LOGIN_MAX_FAILED_ATTEMPTS', self.DEFAULT_MAX_FAILED_LOGIN_ATTEMPTS)
+
+    @property
+    def lockout_duration_minutes(self):
+        return getattr(settings, 'LOGIN_LOCKOUT_DURATION_MINUTES', self.DEFAULT_LOCKOUT_DURATION_MINUTES)
     
     def reset_failed_logins(self):
         """Reset failed login attempts on successful login"""
@@ -138,9 +157,10 @@ class User(AbstractBaseUser, PermissionsMixin):
             
         if self.account_locked_until and timezone.now() > self.account_locked_until:
             # Auto-unlock expired account
+            self.failed_login_attempts = 0
             self.is_account_locked = False
             self.account_locked_until = None
-            self.save(update_fields=['is_account_locked', 'account_locked_until'])
+            self.save(update_fields=['failed_login_attempts', 'is_account_locked', 'account_locked_until'])
             return False
             
         return True
