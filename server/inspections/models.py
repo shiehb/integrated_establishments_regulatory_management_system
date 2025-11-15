@@ -106,17 +106,25 @@ class Inspection(models.Model):
                 "RA-9003": "WASTE",
             }
             prefix = prefix_map.get(self.law, "INS")
-            year = timezone.now().year
+            now = timezone.now()
+            year = now.year
+            month = str(now.month).zfill(2)
+            day = str(now.day).zfill(2)
             
-            # Get the count for this law+year
-            base_qs = Inspection.objects.filter(law=self.law, created_at__year=year).exclude(pk=self.pk)
+            # Get the count for this law+date (same day) for better uniqueness
+            base_qs = Inspection.objects.filter(
+                law=self.law, 
+                created_at__year=year,
+                created_at__month=now.month,
+                created_at__day=now.day
+            ).exclude(pk=self.pk)
             seq = base_qs.count() + 1
-            candidate = f"{prefix}-{year}-{str(seq).zfill(4)}"
+            candidate = f"{prefix}-{year}-{month}-{day}-{str(seq).zfill(4)}"
             
             # Ensure uniqueness
             while Inspection.objects.filter(code=candidate).exclude(pk=self.pk).exists():
                 seq += 1
-                candidate = f"{prefix}-{year}-{str(seq).zfill(4)}"
+                candidate = f"{prefix}-{year}-{month}-{day}-{str(seq).zfill(4)}"
             
             self.code = candidate
         

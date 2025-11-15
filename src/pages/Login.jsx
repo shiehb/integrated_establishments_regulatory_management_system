@@ -22,6 +22,7 @@ export default function Login() {
   const passwordInputRef = useRef(null);
   const notifications = useNotifications();
   const { login } = useAuth();
+  const shownMessageRef = useRef(null); // Track which message we've already shown
 
   // Check server health
   const checkServerHealth = useCallback(async () => {
@@ -92,18 +93,22 @@ export default function Login() {
 
   // Show message from state (e.g., after password change)
   useEffect(() => {
-    if (location.state?.message) {
+    const message = location.state?.message;
+    // Only show if we have a message and haven't shown this exact message yet
+    if (message && shownMessageRef.current !== message) {
       notifications.success(
-        location.state.message,
+        message,
         {
           title: "Success",
           duration: 5000
         }
       );
+      // Mark this message as shown
+      shownMessageRef.current = message;
       // Clear the state to prevent showing the message again
       window.history.replaceState({}, document.title, location.pathname);
     }
-  }, [location.state, location.pathname, notifications]);
+  }, [location.state?.message, location.pathname]); // Removed 'notifications' - it's stable from the hook
 
   const handleChange = (e) => {
     setFormData({

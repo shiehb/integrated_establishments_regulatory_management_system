@@ -47,6 +47,8 @@ const DatabaseBackup = () => {
   const [restoreConfirm, setRestoreConfirm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [backupToDelete, setBackupToDelete] = useState(null);
+  const [backupConfirm, setBackupConfirm] = useState(false);
+  const [backupPath, setBackupPath] = useState("");
 
   const [backups, setBackups] = useState([]);
   const [loadingBackups, setLoadingBackups] = useState(true);
@@ -196,13 +198,9 @@ const DatabaseBackup = () => {
         return;
       }
       
-      // Create backup with selected path
-      setProcessing(true);
-      setProcessingAction("backup");
-      
-      const response = await createBackup(selectedPath);
-      showMessage(response.message || "Backup created successfully!");
-      loadBackups();
+      // Store the selected path and show confirmation dialog
+      setBackupPath(selectedPath);
+      setBackupConfirm(true);
     } catch (error) {
       if (error.name !== 'AbortError') {
         console.error("Backup error:", error);
@@ -210,9 +208,29 @@ const DatabaseBackup = () => {
           error.response?.data?.error || error.message || "Failed to create backup";
         showMessage(errorMessage, "error");
       }
+    }
+  };
+
+  const handleConfirmBackup = async () => {
+    if (!backupPath) return;
+
+    try {
+      setProcessing(true);
+      setProcessingAction("backup");
+      
+      const response = await createBackup(backupPath);
+      showMessage(response.message || "Backup created successfully!");
+      loadBackups();
+    } catch (error) {
+      console.error("Backup error:", error);
+      const errorMessage =
+        error.response?.data?.error || error.message || "Failed to create backup";
+      showMessage(errorMessage, "error");
     } finally {
       setProcessing(false);
       setProcessingAction("");
+      setBackupConfirm(false);
+      setBackupPath("");
     }
   };
 
@@ -859,6 +877,30 @@ const DatabaseBackup = () => {
             confirmText="Yes, Restore Now"
             cancelText="Cancel"
             confirmColor="red"
+            size="md"
+          />
+
+          <ConfirmationDialog
+            open={backupConfirm}
+            title="Confirm Backup Creation"
+            message={
+              <div>
+                <p className="mb-2">You are about to create a database backup.</p>
+                <p className="mb-2 text-sm text-gray-600">
+                  <strong>Backup location:</strong> {backupPath}
+                </p>
+                <p className="text-sm">This may take a few moments. Do you want to continue?</p>
+              </div>
+            }
+            loading={processing && processingAction === "backup"}
+            onCancel={() => {
+              setBackupConfirm(false);
+              setBackupPath("");
+            }}
+            onConfirm={handleConfirmBackup}
+            confirmText="Create Backup"
+            cancelText="Cancel"
+            confirmColor="sky"
             size="md"
           />
 

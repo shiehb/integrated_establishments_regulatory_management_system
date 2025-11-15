@@ -85,6 +85,40 @@ class InspectionViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         inspection = serializer.save()
         
+        # Audit trail for inspection creation
+        establishment_ids = request.data.get('establishments', [])
+        establishment_names = [est.name for est in inspection.establishments.all()]
+        
+        audit_inspection_event(
+            request.user,
+            inspection,
+            AUDIT_ACTIONS["CREATE"],
+            f"{request.user.email} created inspection {inspection.code}",
+            request,
+            metadata={
+                "action": "inspection_creation",
+                "law": inspection.law,
+                "establishment_ids": establishment_ids,
+                "establishment_names": establishment_names,
+                "establishment_count": len(establishment_ids),
+                "scheduled_at": request.data.get('scheduled_at'),
+                "initial_status": inspection.current_status,
+                "district": inspection.district,
+            },
+        )
+        
+        # Create initial history entry if not already created by serializer
+        if not InspectionHistory.objects.filter(inspection=inspection, previous_status__isnull=True).exists():
+            InspectionHistory.objects.create(
+                inspection=inspection,
+                previous_status=None,
+                new_status=inspection.current_status,
+                changed_by=request.user,
+                law=inspection.law,
+                section=getattr(request.user, 'section', None),
+                remarks=f'Inspection {inspection.code} created with {len(establishment_ids)} establishment(s)'
+            )
+        
         # Return the created inspection using the main serializer
         response_serializer = InspectionSerializer(inspection, context={'request': request})
         headers = self.get_success_headers(response_serializer.data)
