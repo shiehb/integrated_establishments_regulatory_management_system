@@ -618,12 +618,53 @@ def toggle_user_active(request, pk):
         user = User.objects.get(pk=pk)
         new_active_status = not user.is_active
         
-        # Validate user level constraints when activating
+        # When activating, check for existing active users and deactivate them automatically
         if new_active_status:
-            validation_error = validate_user_level_constraints_for_activation(user)
-            if validation_error:
-                return Response({'detail': validation_error}, status=status.HTTP_400_BAD_REQUEST)
+            existing_active_user = get_existing_active_user_for_role(user)
+            if existing_active_user:
+                # Deactivate the existing active user
+                existing_active_user.is_active = False
+                existing_active_user.updated_at = timezone.now()
+                existing_active_user.save()
+                
+                # Log the automatic deactivation
+                log_activity(
+                    request.user,
+                    AUDIT_ACTIONS["UPDATE"],
+                    module=AUDIT_MODULES["USERS"],
+                    description=f"{request.user.email} automatically deactivated user {existing_active_user.email} to activate {user.email}",
+                    metadata={
+                        "entity_name": existing_active_user.email,
+                        "entity_id": existing_active_user.id,
+                        "status": "success",
+                        "before": {"is_active": True},
+                        "after": {"is_active": False},
+                        "reason": f"Auto-deactivated to allow activation of {user.email} ({user.userlevel})",
+                    },
+                    request=request,
+                )
+                
+                # Send deactivation email to the previously active user
+                try:
+                    ip_address = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', 'Unknown'))
+                    if ',' in ip_address:
+                        ip_address = ip_address.split(',')[0].strip()
+                    
+                    user_agent = request.META.get('HTTP_USER_AGENT', '')
+                    
+                    send_account_deactivated_email(
+                        user=existing_active_user,
+                        deactivated_by=request.user,
+                        ip_address=ip_address,
+                        user_agent=user_agent
+                    )
+                except Exception as e:
+                    # Log the error but don't fail the request
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Failed to send deactivation email to {existing_active_user.email}: {str(e)}")
         
+        # Activate/deactivate the target user
         user.is_active = new_active_status
         user.updated_at = timezone.now()
         user.save()
@@ -680,8 +721,10 @@ def toggle_user_active(request, pk):
     except User.DoesNotExist:
         return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-def validate_user_level_constraints_for_activation(user):
-    """Validate user level constraints when activating a user"""
+def get_existing_active_user_for_role(user):
+    """Get existing active user for roles that only allow one active user at a time.
+    Returns the existing active user object if found, None otherwise.
+    """
     from django.db.models import Q
     
     # Division Chief: Only one active
@@ -691,7 +734,7 @@ def validate_user_level_constraints_for_activation(user):
             is_active=True
         ).exclude(id=user.id).first()
         if existing_active:
-            return f"Only one active Division Chief is allowed. Currently active: {existing_active.email}"
+            return existing_active
     
     # Section Chief: Only one active per law (section)
     elif user.userlevel == "Section Chief":
@@ -702,7 +745,7 @@ def validate_user_level_constraints_for_activation(user):
                 is_active=True
             ).exclude(id=user.id).first()
             if existing_active:
-                return f"Only one active Section Chief is allowed per law. Currently active for {user.section}: {existing_active.email}"
+                return existing_active
     
     # Unit Head: Only one active per law (section)
     elif user.userlevel == "Unit Head":
@@ -713,11 +756,11 @@ def validate_user_level_constraints_for_activation(user):
                 is_active=True
             ).exclude(id=user.id).first()
             if existing_active:
-                return f"Only one active Unit Head is allowed per law. Currently active for {user.section}: {existing_active.email}"
+                return existing_active
     
     # Legal Unit and Monitoring Personnel: Multiple allowed (no validation needed)
     
-    return None  # No validation error
+    return None  # No existing active user found
 
 
 # ---------------------------

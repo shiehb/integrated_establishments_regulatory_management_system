@@ -52,6 +52,125 @@ const getImageUrl = (url) => {
   return url;
 };
 
+/**
+ * Generate a new topic ID in format "topic-XXX"
+ * @param {Array} existingTopics - Array of existing topics
+ * @returns {string} - New topic ID
+ */
+const generateTopicId = (existingTopics) => {
+  // Get all existing topic IDs (filter out null/undefined)
+  const existingIds = existingTopics
+    .map(t => t.id)
+    .filter(id => id != null && typeof id === 'string' && id.startsWith('topic-'))
+    .map(id => {
+      // Extract numeric part from "topic-XXX"
+      const match = id.match(/topic-(\d+)/);
+      return match ? parseInt(match[1], 10) : 0;
+    });
+  
+  // Find the highest number and increment, start from 100 if no existing topics
+  const maxNum = existingIds.length > 0 ? Math.max(...existingIds) : 99;
+  return `topic-${maxNum + 1}`;
+};
+
+/**
+ * Clean and fix topic IDs - generates IDs for topics with null/undefined IDs and fixes duplicates
+ * @param {Array} topics - Array of topics to clean
+ * @returns {Array} - Topics with valid, unique IDs
+ */
+const cleanTopicIds = (topics) => {
+  if (!Array.isArray(topics)) return [];
+  
+  // First pass: fix null/invalid IDs
+  let cleanedTopics = topics.map((topic) => {
+    // If topic has null, undefined, or invalid ID, generate a new one
+    if (!topic.id || topic.id === null || (typeof topic.id === 'string' && !topic.id.startsWith('topic-'))) {
+      // Generate ID based on existing valid topics
+      const validTopics = topics.filter(t => t.id && typeof t.id === 'string' && t.id.startsWith('topic-'));
+      const newId = generateTopicId(validTopics);
+      return { ...topic, id: newId };
+    }
+    return topic;
+  });
+  
+  // Second pass: fix duplicate IDs
+  const seenIds = new Set();
+  const idCounts = new Map();
+  
+  // Count occurrences of each ID
+  cleanedTopics.forEach(topic => {
+    if (topic.id) {
+      idCounts.set(topic.id, (idCounts.get(topic.id) || 0) + 1);
+    }
+  });
+  
+  // Fix duplicates - keep first occurrence, regenerate IDs for duplicates
+  cleanedTopics = cleanedTopics.map((topic) => {
+    if (!topic.id) return topic;
+    
+    // If this ID appears more than once and we've seen it before, generate a new unique ID
+    if (idCounts.get(topic.id) > 1 && seenIds.has(topic.id)) {
+      // Get all existing valid IDs to generate a new unique one
+      const allValidIds = Array.from(seenIds).filter(id => typeof id === 'string' && id.startsWith('topic-'));
+      const existingTopics = cleanedTopics.filter(t => t.id && allValidIds.includes(t.id));
+      const newId = generateTopicId(existingTopics);
+      idCounts.set(topic.id, idCounts.get(topic.id) - 1); // Decrement count for old ID
+      idCounts.set(newId, 1); // Add new ID
+      seenIds.add(newId);
+      return { ...topic, id: newId };
+    }
+    
+    seenIds.add(topic.id);
+    return topic;
+  });
+  
+  return cleanedTopics;
+};
+
+/**
+ * Create a shallow copy of an object (more efficient than deep clone for simple objects)
+ * @param {Object} obj - Object to copy
+ * @returns {Object} - Shallow copy
+ */
+const shallowCopy = (obj) => {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return [...obj];
+  return { ...obj };
+};
+
+/**
+ * Check if an image value is a File object (pending upload) or URL string (already uploaded)
+ * @param {File|string} image - Image value to check
+ * @returns {boolean} - True if File object, false if URL string
+ */
+const isFileObject = (image) => {
+  return image instanceof File;
+};
+
+/**
+ * Get preview URL for an image (File object or URL string)
+ * @param {File|string} image - Image value (File object or URL string)
+ * @param {Map} filePreviewCache - Map to cache File -> object URL mappings
+ * @returns {string} - Preview URL
+ */
+const getImagePreviewUrl = (image, filePreviewCache) => {
+  if (!image) return '';
+  if (isFileObject(image)) {
+    // Check if we already have a cached preview URL for this File
+    if (filePreviewCache && filePreviewCache.has(image)) {
+      return filePreviewCache.get(image);
+    }
+    // Create new object URL and cache it
+    const objectUrl = URL.createObjectURL(image);
+    if (filePreviewCache) {
+      filePreviewCache.set(image, objectUrl);
+    }
+    return objectUrl;
+  }
+  // For URL strings, use existing helper
+  return getImageUrl(image);
+};
+
 export default function HelpEditor() {
   const [topics, setTopics] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -60,7 +179,6 @@ export default function HelpEditor() {
   const [activeTab, setActiveTab] = useState("topics");
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
-  const [uploadingImages, setUploadingImages] = useState({});
   const [selectedTopicId, setSelectedTopicId] = useState(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -68,6 +186,9 @@ export default function HelpEditor() {
   const [lightboxImages, setLightboxImages] = useState([]);
   const notifications = useNotifications();
   const searchTimeoutRef = useRef(null);
+  
+  // Cache File objects to their preview URLs (for cleanup)
+  const filePreviewCacheRef = useRef(new Map());
 
   // Topic inline editing state
   const [isEditingTopic, setIsEditingTopic] = useState(false);
@@ -85,7 +206,7 @@ export default function HelpEditor() {
   // Confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState({
     open: false,
-    type: null, // 'deleteTopic', 'deleteCategory', 'import', 'export'
+    type: null, // 'deleteTopic', 'deleteCategory', 'import', 'export', 'cancelTopic', 'cancelCategory', 'saveTopic', 'saveCategory'
     title: "",
     message: "",
     onConfirm: null,
@@ -99,7 +220,43 @@ export default function HelpEditor() {
         getHelpTopics(),
         getHelpCategories(),
       ]);
-      setTopics(topicsData || []);
+      
+      // Clean up topics with null/invalid IDs and fix duplicates
+      const cleanedTopics = cleanTopicIds(topicsData || []);
+      
+      // Filter out empty/untitled topics (topics with no title or only whitespace)
+      const validTopics = cleanedTopics.filter(topic => 
+        topic.title && topic.title.trim().length > 0
+      );
+      
+      // Validate and fix category references
+      const validCategoryKeys = new Set((categoriesData || []).map(c => c.key));
+      const fixedTopics = validTopics.map(topic => {
+        // If category doesn't exist, set to empty string (will be validated on save)
+        if (topic.category && !validCategoryKeys.has(topic.category)) {
+          return { ...topic, category: "" };
+        }
+        return topic;
+      });
+      
+      // Check if data was cleaned (duplicates fixed or untitled topics removed)
+      const wasCleaned = 
+        cleanedTopics.length !== (topicsData || []).length ||
+        validTopics.length !== cleanedTopics.length ||
+        JSON.stringify(fixedTopics) !== JSON.stringify(topicsData || []);
+      
+      // If data was cleaned, save it back to the server
+      if (wasCleaned) {
+        try {
+          await saveHelpTopics(fixedTopics);
+          notifications.success("Help data cleaned: duplicate IDs fixed and untitled topics removed.");
+        } catch (saveError) {
+          console.error("Error saving cleaned data:", saveError);
+          notifications.warning("Data was cleaned but couldn't be saved. Please save manually.");
+        }
+      }
+      
+      setTopics(fixedTopics);
       setCategories(categoriesData || []);
     } catch (err) {
       console.error("Error loading help data:", err);
@@ -116,6 +273,21 @@ export default function HelpEditor() {
     loadData();
   }, [loadData]);
 
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      // Revoke all object URLs when component unmounts
+      filePreviewCacheRef.current.forEach(url => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          console.warn('Error revoking object URL:', e);
+        }
+      });
+      filePreviewCacheRef.current.clear();
+    };
+  }, []);
+
   // Clear edit state when switching tabs
   useEffect(() => {
     if (activeTab !== "categories") {
@@ -125,6 +297,16 @@ export default function HelpEditor() {
       setCategoryInlineErrors({});
     }
     if (activeTab !== "topics") {
+      // Cleanup object URLs when switching away from topics tab
+      filePreviewCacheRef.current.forEach(url => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          console.warn('Error revoking object URL:', e);
+        }
+      });
+      filePreviewCacheRef.current.clear();
+      
       setIsEditingTopic(false);
       setEditingTopicData(null);
       setIsNewTopic(false);
@@ -392,25 +574,31 @@ export default function HelpEditor() {
 
   // Topic management
   const addTopic = () => {
+    // Generate proper topic ID
+    const newId = generateTopicId(topics);
+    
+    // Get default category (first available or empty string)
+    const defaultCategory = categories.length > 0 ? categories[0].key : "";
+    
     const newTopic = {
-      id: topics.length > 0 
-        ? Math.max(...topics.map((t) => t.id || 0), 0) + 1 
-        : 1,
+      id: newId,
       title: "",
       description: "",
-      category: categories.length > 0 ? categories[0].key : "general",
+      category: defaultCategory,
       tags: [],
       access: [],
       steps: [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+    
     // Add to topics list first
     const updatedTopics = [...topics, newTopic];
     setTopics(updatedTopics);
     // Select it and enter edit mode
     setSelectedTopicId(newTopic.id);
-    setEditingTopicData(JSON.parse(JSON.stringify(newTopic)));
+    // Use shallow copy for better performance (topic structure is simple)
+    setEditingTopicData(shallowCopy(newTopic));
     setIsNewTopic(true);
     setIsEditingTopic(true);
     setTopicInlineErrors({});
@@ -419,7 +607,13 @@ export default function HelpEditor() {
   // Open edit for existing topic
   const openEditTopic = (topic) => {
     setSelectedTopicId(topic.id);
+    // Use structured clone for nested objects (steps array contains objects)
+    // structuredClone is available in modern browsers, fallback to JSON method
+    if (typeof structuredClone !== 'undefined') {
+      setEditingTopicData(structuredClone(topic));
+    } else {
     setEditingTopicData(JSON.parse(JSON.stringify(topic)));
+    }
     setIsNewTopic(false);
     setIsEditingTopic(true);
     setTopicInlineErrors({});
@@ -436,7 +630,10 @@ export default function HelpEditor() {
       errors.title = `Title must be less than ${MAX_TITLE_LENGTH} characters`;
     }
     
-    if (topicData.category && !categories.find(c => c.key === topicData.category)) {
+    // Category is required and must be valid
+    if (!topicData.category || !topicData.category.trim()) {
+      errors.category = "Please select a category";
+    } else if (!categories.find(c => c.key === topicData.category)) {
       errors.category = "Please select a valid category";
     }
 
@@ -462,16 +659,89 @@ export default function HelpEditor() {
       return;
     }
 
+    // Count pending image uploads (File objects)
+    const pendingImages = editingTopicData?.steps
+      ?.filter(step => isFileObject(step.image))
+      .length || 0;
+    
+    // Show confirmation dialog before saving
+    setConfirmDialog({
+      open: true,
+      type: 'saveTopic',
+      title: isNewTopic ? "Create Topic?" : "Save Changes?",
+      message: (
+        <div>
+          <p>
+            {isNewTopic 
+              ? "Are you sure you want to create this new topic?"
+              : "Are you sure you want to save changes to this topic?"
+            }
+          </p>
+          <p className="mt-2 text-sm text-gray-600">
+            Topic: <span className="font-semibold">"{editingTopicData.title || 'Untitled'}"</span>
+          </p>
+          {pendingImages > 0 && (
+            <p className="mt-2 text-sm text-sky-600">
+              📤 {pendingImages} image{pendingImages !== 1 ? 's' : ''} will be uploaded.
+            </p>
+          )}
+        </div>
+      ),
+      onConfirm: async () => {
     try {
       setSaving(true);
       
-      // Prepare the topic data with updated timestamp
+          // Step 1: Upload all File objects first
+          const stepsWithFiles = (editingTopicData.steps || []).map((step, index) => ({
+            step,
+            index,
+            isFile: isFileObject(step.image)
+          })).filter(item => item.isFile);
+          
+          if (stepsWithFiles.length > 0) {
+            notifications.info(`Uploading ${stepsWithFiles.length} image${stepsWithFiles.length !== 1 ? 's' : ''}...`);
+            
+            // Upload all images in parallel
+            const uploadResults = await Promise.all(
+              stepsWithFiles.map(async ({ step, index }) => {
+                try {
+                  const result = await uploadHelpImage(step.image);
+                  return { index, url: result.url, file: step.image };
+                } catch (error) {
+                  console.error(`Failed to upload image for step ${index + 1}:`, error);
+                  throw new Error(`Failed to upload image for step ${index + 1}: ${error.message}`);
+                }
+              })
+            );
+            
+            // Step 2: Replace File objects with uploaded URLs
+            const updatedSteps = [...(editingTopicData.steps || [])];
+            uploadResults.forEach(({ index, url, file }) => {
+              updatedSteps[index] = { ...updatedSteps[index], image: url };
+              
+              // Clean up object URL after successful upload
+              const previewUrl = filePreviewCacheRef.current.get(file);
+              if (previewUrl) {
+                try {
+                  URL.revokeObjectURL(previewUrl);
+                } catch (e) {
+                  console.warn('Error revoking object URL:', e);
+                }
+                filePreviewCacheRef.current.delete(file);
+              }
+            });
+            
+            // Update editingTopicData with uploaded URLs
+            editingTopicData.steps = updatedSteps;
+          }
+          
+          // Step 3: Prepare the topic data with updated timestamp
       const topicToSave = {
         ...editingTopicData,
         updated_at: new Date().toISOString()
       };
       
-      // Save the updated topics list
+          // Step 4: Save the updated topics list
       let updatedTopicsList;
       if (isNewTopic) {
         // Add new topic to the list
@@ -490,49 +760,120 @@ export default function HelpEditor() {
         saveHelpCategories(categories),
       ]);
       
-      // Update local state immediately
-      setTopics(updatedTopicsList);
+          // Reload data from server to get renamed image URLs (server auto-renames images)
+          // This ensures we have the correct URLs after server-side renaming
+          await loadData();
       
-      // Update selection to the saved topic
+          // Update selection to the saved topic (after reload to ensure topic exists)
       setSelectedTopicId(topicToSave.id);
       
-      // Keep in edit mode (like categories) so user can continue editing
-      setEditingTopicData(JSON.parse(JSON.stringify(topicToSave)));
-      setIsNewTopic(false); // Mark as no longer new
+          // Exit edit mode and go to Topic Viewer
+          setIsEditingTopic(false);
+          setEditingTopicData(null);
+          setIsNewTopic(false);
+          setTopicInlineErrors({});
       setHasUnsavedChanges(false);
       
+          setConfirmDialog({ ...confirmDialog, open: false });
       notifications.success(isNewTopic ? "Topic created successfully!" : "Topic updated successfully!");
-      
-      // Reload data from server in background to ensure consistency
-      loadData().catch(err => {
-        console.error("Error reloading data:", err);
-      });
     } catch (error) {
       notifications.error(error.message || "Failed to save topic.");
     } finally {
       setSaving(false);
     }
+      },
+      data: null,
+    });
   };
 
   // Handle topic inline cancel
   const handleCancelTopicInline = () => {
-    // Warn if there are unsaved changes
+    // Helper to clean up File objects and their object URLs
+    const cleanupFileObjects = () => {
+      if (!editingTopicData || !editingTopicData.steps) return;
+      
+      // Find all File objects in steps
+      const fileObjects = editingTopicData.steps
+        .map(step => step.image)
+        .filter(img => isFileObject(img));
+      
+      // Revoke object URLs for all File objects
+      fileObjects.forEach(file => {
+        const previewUrl = filePreviewCacheRef.current.get(file);
+        if (previewUrl) {
+          try {
+            URL.revokeObjectURL(previewUrl);
+          } catch (e) {
+            console.warn('Error revoking object URL:', e);
+          }
+          filePreviewCacheRef.current.delete(file);
+        }
+      });
+    };
+    
+    // Count pending image uploads (File objects)
+    const pendingImages = editingTopicData?.steps
+      ?.filter(step => isFileObject(step.image))
+      .length || 0;
+    
+    // If it's a new topic, always remove it (even if empty)
+    if (isNewTopic && selectedTopicId) {
+      // Clean up File objects
+      cleanupFileObjects();
+      
+      const updatedTopics = topics.filter(t => t.id !== selectedTopicId);
+      setTopics(updatedTopics);
+      setSelectedTopicId(null);
+      setIsEditingTopic(false);
+      setEditingTopicData(null);
+      setIsNewTopic(false);
+      setTopicInlineErrors({});
+      setHasUnsavedChanges(false);
+      return;
+    }
+    
+    // For existing topics, check for unsaved changes
     if (hasUnsavedChanges && editingTopicData) {
       const hasChanges = editingTopicData.title || editingTopicData.description || 
                         (editingTopicData.steps && editingTopicData.steps.length > 0);
       if (hasChanges) {
-        if (!window.confirm("You have unsaved changes. Are you sure you want to cancel?")) {
-          return;
-        }
+        // Use ConfirmationDialog instead of window.confirm
+        setConfirmDialog({
+          open: true,
+          type: 'cancelTopic',
+          title: "Discard Changes?",
+          message: (
+            <div>
+              <p>You have unsaved changes to this topic.</p>
+              <p className="mt-2 text-sm text-amber-600">
+                Are you sure you want to cancel? All unsaved changes will be lost.
+              </p>
+              {pendingImages > 0 && (
+                <p className="mt-2 text-sm text-amber-600">
+                  ⚠️ {pendingImages} selected image{pendingImages !== 1 ? 's' : ''} will be discarded (not uploaded).
+                </p>
+              )}
+            </div>
+          ),
+          onConfirm: () => {
+            // Clean up File objects
+            cleanupFileObjects();
+            
+            setIsEditingTopic(false);
+            setEditingTopicData(null);
+            setIsNewTopic(false);
+            setTopicInlineErrors({});
+            setHasUnsavedChanges(false);
+            setConfirmDialog({ ...confirmDialog, open: false });
+          },
+          data: null,
+        });
+        return;
       }
     }
     
-    // If it was a new topic, remove it
-    if (isNewTopic && selectedTopicId) {
-      const updatedTopics = topics.filter(t => t.id !== selectedTopicId);
-      setTopics(updatedTopics);
-      setSelectedTopicId(null);
-    }
+    // No changes, just cleanup and exit
+    cleanupFileObjects();
     setIsEditingTopic(false);
     setEditingTopicData(null);
     setIsNewTopic(false);
@@ -680,6 +1021,38 @@ export default function HelpEditor() {
       return;
     }
 
+    // Show confirmation dialog before saving
+    const isNewCategory = !editingCategoryOriginalKey;
+    const oldKey = editingCategoryOriginalKey;
+    const newKey = editingCategoryData.key;
+    const keyChanged = oldKey && oldKey !== newKey;
+    // Calculate topic count directly (function defined before memoization, but performance impact is minimal)
+    const topicCount = oldKey ? topics.filter(t => t.category === oldKey).length : 0;
+
+    setConfirmDialog({
+      open: true,
+      type: 'saveCategory',
+      title: isNewCategory ? "Create Category?" : "Save Changes?",
+      message: (
+        <div>
+          <p>
+            {isNewCategory 
+              ? "Are you sure you want to create this new category?"
+              : "Are you sure you want to save changes to this category?"
+            }
+          </p>
+          <p className="mt-2 text-sm text-gray-600">
+            Category: <span className="font-semibold">"{editingCategoryData.name || 'Unnamed'}"</span>
+          </p>
+          {keyChanged && topicCount > 0 && (
+            <p className="mt-2 text-sm text-amber-600">
+              ⚠️ This category key is changing from "{oldKey}" to "{newKey}". 
+              {topicCount} topic{topicCount !== 1 ? 's' : ''} will be updated.
+            </p>
+          )}
+        </div>
+      ),
+      onConfirm: async () => {
     try {
       setSaving(true);
 
@@ -734,37 +1107,71 @@ export default function HelpEditor() {
       // Update selection to the saved category
       setSelectedCategoryKey(editingCategoryData.key);
 
+          // Exit edit mode and go to Category Viewer
       setIsEditingCategory(false);
       setEditingCategoryData(null);
       setEditingCategoryOriginalKey(null);
       setCategoryInlineErrors({});
       setHasUnsavedChanges(false);
+          
+          setConfirmDialog({ ...confirmDialog, open: false });
       notifications.success("Category saved successfully!");
     } catch (error) {
       notifications.error(error.message || "Failed to save category.");
     } finally {
       setSaving(false);
     }
+      },
+      data: null,
+    });
   };
 
   // Handle category inline cancel
   const handleCancelCategoryInline = () => {
-    // Warn if there are unsaved changes
-    if (hasUnsavedChanges && editingCategoryData) {
-      const hasChanges = editingCategoryData.name || editingCategoryData.key;
-      if (hasChanges) {
-        if (!window.confirm("You have unsaved changes. Are you sure you want to cancel?")) {
-          return;
-        }
-      }
-    }
-    
-    // If it was a new category, remove it
+    // If it's a new category, always remove it
     if (!editingCategoryOriginalKey && selectedCategoryKey) {
       const updatedCategories = categories.filter(cat => cat.key !== selectedCategoryKey);
       setCategories(updatedCategories);
       setSelectedCategoryKey(null);
+      setIsEditingCategory(false);
+      setEditingCategoryData(null);
+      setEditingCategoryOriginalKey(null);
+      setCategoryInlineErrors({});
+      setHasUnsavedChanges(false);
+      return;
     }
+    
+    // For existing categories, check for unsaved changes
+    if (hasUnsavedChanges && editingCategoryData) {
+      const hasChanges = editingCategoryData.name || editingCategoryData.key;
+      if (hasChanges) {
+        // Use ConfirmationDialog instead of window.confirm
+        setConfirmDialog({
+          open: true,
+          type: 'cancelCategory',
+          title: "Discard Changes?",
+          message: (
+            <div>
+              <p>You have unsaved changes to this category.</p>
+              <p className="mt-2 text-sm text-amber-600">
+                Are you sure you want to cancel? All unsaved changes will be lost.
+              </p>
+            </div>
+          ),
+          onConfirm: () => {
+            setIsEditingCategory(false);
+            setEditingCategoryData(null);
+            setEditingCategoryOriginalKey(null);
+            setCategoryInlineErrors({});
+            setHasUnsavedChanges(false);
+            setConfirmDialog({ ...confirmDialog, open: false });
+          },
+          data: null,
+        });
+          return;
+      }
+    }
+    
     setIsEditingCategory(false);
     setEditingCategoryData(null);
     setEditingCategoryOriginalKey(null);
@@ -775,6 +1182,7 @@ export default function HelpEditor() {
 
   const deleteCategory = (key) => {
     const category = categories.find((c) => c.key === key);
+    // Calculate topic count directly (function defined before memoization, but performance impact is minimal)
     const topicCount = topics.filter(t => t.category === key).length;
     
     setConfirmDialog({
@@ -855,6 +1263,45 @@ export default function HelpEditor() {
         topic.tags?.some(tag => tag.toLowerCase().includes(query))
     );
   }, [topics, debouncedSearchQuery]);
+
+  // Memoize category name lookup map for performance
+  const categoryNameMap = useMemo(() => {
+    const map = new Map();
+    categories.forEach(cat => {
+      map.set(cat.key, cat.name);
+    });
+    return map;
+  }, [categories]);
+
+  // Memoize topic counts per category for performance
+  const topicCountsByCategory = useMemo(() => {
+    const counts = new Map();
+    topics.forEach(topic => {
+      if (topic.category) {
+        counts.set(topic.category, (counts.get(topic.category) || 0) + 1);
+      }
+    });
+    return counts;
+  }, [topics]);
+
+  // Memoize filtered categories for performance
+  const filteredCategories = useMemo(() => {
+    if (!debouncedSearchQuery.trim()) {
+      return categories;
+    }
+    const query = debouncedSearchQuery.toLowerCase();
+    return categories.filter(
+      (category) =>
+        category.name?.toLowerCase().includes(query) ||
+        category.key?.toLowerCase().includes(query)
+    );
+  }, [categories, debouncedSearchQuery]);
+
+  // Memoize selected topic lookup for performance
+  const selectedTopic = useMemo(() => {
+    if (!selectedTopicId) return null;
+    return topics.find(t => t.id === selectedTopicId) || null;
+  }, [topics, selectedTopicId]);
 
   if (loading) {
     return (
@@ -1017,7 +1464,7 @@ export default function HelpEditor() {
                             </p>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-md">
-                                {categories.find(c => c.key === topic.category)?.name || topic.category || "Uncategorized"}
+                                {categoryNameMap.get(topic.category) || topic.category || "Uncategorized"}
                               </span>
                               {topic.steps?.length > 0 && (
                                 <span className="inline-flex items-center text-xs text-gray-500">
@@ -1302,14 +1749,19 @@ export default function HelpEditor() {
                                                 // Collect all images from all steps
                                                 const allImages = (editingTopicData.steps || [])
                                                   .filter(s => s.image)
-                                                  .map((s, idx) => ({
-                                                    url: getImageUrl(s.image),
+                                                  .map((s, idx) => {
+                                                    const previewUrl = getImagePreviewUrl(s.image, filePreviewCacheRef.current);
+                                                    return {
+                                                      url: previewUrl,
                                                     caption: s.title || `Step ${idx + 1}`,
-                                                    name: s.image.split('/').pop() || 'image'
-                                                  }));
+                                                      name: isFileObject(s.image) ? s.image.name : (s.image.split('/').pop() || 'image')
+                                                    };
+                                                  });
                                                 const currentImageIndex = allImages.findIndex((img) => {
                                                   const stepWithImage = (editingTopicData.steps || []).find((s, i) => s.image && i === stepIndex);
-                                                  return stepWithImage && getImageUrl(stepWithImage.image) === img.url;
+                                                  if (!stepWithImage) return false;
+                                                  const currentPreviewUrl = getImagePreviewUrl(stepWithImage.image, filePreviewCacheRef.current);
+                                                  return currentPreviewUrl === img.url;
                                                 });
                                                 setLightboxImages(allImages);
                                                 setLightboxImageIndex(currentImageIndex >= 0 ? currentImageIndex : 0);
@@ -1317,7 +1769,7 @@ export default function HelpEditor() {
                                               }}
                                             >
                                               <img
-                                                src={getImageUrl(step.image)}
+                                                src={getImagePreviewUrl(step.image, filePreviewCacheRef.current)}
                                                 alt={step.title || "Step image"}
                                                 className="w-full h-40 object-cover transition-transform group-hover:scale-105"
                                                 onError={(e) => {
@@ -1326,23 +1778,33 @@ export default function HelpEditor() {
                                                   // Show error placeholder
                                                   const errorDiv = document.createElement('div');
                                                   errorDiv.className = 'w-full h-40 bg-red-50 border border-red-200 rounded-lg flex flex-col items-center justify-center text-red-600 text-sm p-4';
+                                                  const imageName = isFileObject(step.image) ? step.image.name : step.image;
                                                   errorDiv.innerHTML = `
                                                     <svg class="w-8 h-8 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                                     </svg>
                                                     <p class="font-medium">Failed to load image</p>
-                                                    <p class="text-xs mt-1 text-center">${step.image}</p>
+                                                    <p class="text-xs mt-1 text-center">${imageName}</p>
                                                   `;
                                                   img.parentNode.appendChild(errorDiv);
                                                 }}
                                               />
+                                              {/* Show indicator if image is pending upload */}
+                                              {isFileObject(step.image) && (
+                                                <div className="absolute top-2 left-2 px-2 py-1 bg-amber-500 text-white text-xs font-medium rounded shadow-sm">
+                                                  Pending Upload
+                                                </div>
+                                              )}
                                               <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <label className="cursor-pointer bg-white hover:bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-medium text-gray-700 shadow-sm">
+                                                <label 
+                                                  className="cursor-pointer bg-white hover:bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-medium text-gray-700 shadow-sm"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                >
                                                   <input
                                                     type="file"
                                                     accept="image/*"
                                                     className="hidden"
-                                                    onChange={async (e) => {
+                                                    onChange={(e) => {
                                                       const file = e.target.files[0];
                                                       if (file) {
                                                         if (file.size > MAX_IMAGE_SIZE) {
@@ -1353,23 +1815,20 @@ export default function HelpEditor() {
                                                           notifications.error(`Please select a valid image file (${ALLOWED_IMAGE_TYPES.map(t => t.split('/')[1].toUpperCase()).join(', ')})`);
                                                           return;
                                                         }
-                                                        try {
-                                                          const stepId = `${editingTopicData.id || 'new'}-${stepIndex}`;
-                                                          setUploadingImages(prev => ({ ...prev, [stepId]: true }));
-                                                          const result = await uploadHelpImage(file);
-                                                          // Ensure we have the latest editingTopicData
+                                                        
+                                                        // Store File object instead of uploading immediately
+                                                        // Create preview URL and cache it
+                                                        const previewUrl = URL.createObjectURL(file);
+                                                        filePreviewCacheRef.current.set(file, previewUrl);
+                                                        
+                                                        // Update step with File object
                                                           setEditingTopicData(prev => {
                                                             const updatedSteps = [...(prev?.steps || [])];
-                                                            updatedSteps[stepIndex] = { ...updatedSteps[stepIndex], image: result.url };
+                                                          updatedSteps[stepIndex] = { ...updatedSteps[stepIndex], image: file };
                                                             return { ...prev, steps: updatedSteps };
                                                           });
-                                                          notifications.success("Image uploaded successfully");
-                                                        } catch (error) {
-                                                          notifications.error(error.message || "Failed to upload image");
-                                                        } finally {
-                                                          const stepId = `${editingTopicData.id || 'new'}-${stepIndex}`;
-                                                          setUploadingImages(prev => ({ ...prev, [stepId]: false }));
-                                                        }
+                                                        
+                                                        notifications.success("Image selected. It will be uploaded when you save the topic.");
                                                       }
                                                       e.target.value = "";
                                                     }}
@@ -1378,7 +1837,22 @@ export default function HelpEditor() {
                                                 </label>
                                                 <button
                                                   type="button"
-                                                  onClick={() => {
+                                                  onClick={(e) => {
+                                                    e.stopPropagation(); // Prevent opening lightbox
+                                                    
+                                                    // Clean up object URL if it's a File object
+                                                    if (isFileObject(step.image)) {
+                                                      const previewUrl = filePreviewCacheRef.current.get(step.image);
+                                                      if (previewUrl) {
+                                                        try {
+                                                          URL.revokeObjectURL(previewUrl);
+                                                        } catch (e) {
+                                                          console.warn('Error revoking object URL:', e);
+                                                        }
+                                                        filePreviewCacheRef.current.delete(step.image);
+                                                      }
+                                                    }
+                                                    
                                                     const newSteps = [...(editingTopicData.steps || [])];
                                                     newSteps[stepIndex] = { ...newSteps[stepIndex], image: "" };
                                                     updateEditingTopicData({ steps: newSteps });
@@ -1391,29 +1865,18 @@ export default function HelpEditor() {
                                             </div>
                                           ) : (
                                             <label className="block cursor-pointer">
-                                              <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-all ${
-                                                uploadingImages[`${editingTopicData.id || 'new'}-${stepIndex}`]
-                                                  ? "border-sky-500 bg-sky-50"
-                                                  : "border-gray-300 bg-white hover:border-sky-400 hover:bg-sky-50"
-                                              }`}>
-                                                {uploadingImages[`${editingTopicData.id || 'new'}-${stepIndex}`] ? (
-                                                  <div className="flex flex-col items-center gap-2">
-                                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600"></div>
-                                                    <p className="text-sm text-gray-600 font-medium">Uploading...</p>
-                                                  </div>
-                                                ) : (
-                                                  <>
+                                              <div className="border-2 border-dashed rounded-lg p-6 text-center transition-all border-gray-300 bg-white hover:border-sky-400 hover:bg-sky-50">
                                                     <ImageIcon className="w-10 h-10 text-gray-400 mx-auto mb-2" />
-                                                    <p className="text-sm text-gray-600 font-medium">Upload Image</p>
+                                                <p className="text-sm text-gray-600 font-medium">Select Image</p>
                                                     <p className="text-xs text-gray-400 mt-1">Click to browse</p>
                                                     <p className="text-xs text-gray-400 mt-0.5">Max size: 5MB</p>
-                                                  </>
-                                                )}
+                                                <p className="text-xs text-amber-600 mt-1 font-medium">Will upload on save</p>
+                                              </div>
                                                 <input
                                                   type="file"
                                                   accept="image/*"
                                                   className="hidden"
-                                                  onChange={async (e) => {
+                                                onChange={(e) => {
                                                     const file = e.target.files[0];
                                                     if (file) {
                                                       if (file.size > 5 * 1024 * 1024) {
@@ -1424,28 +1887,24 @@ export default function HelpEditor() {
                                                         notifications.error("Please select an image file");
                                                         return;
                                                       }
-                                                      try {
-                                                        const stepId = `${editingTopicData.id || 'new'}-${stepIndex}`;
-                                                        setUploadingImages(prev => ({ ...prev, [stepId]: true }));
-                                                        const result = await uploadHelpImage(file);
-                                                        // Ensure we have the latest editingTopicData
+                                                    
+                                                    // Store File object instead of uploading immediately
+                                                    // Create preview URL and cache it
+                                                    const previewUrl = URL.createObjectURL(file);
+                                                    filePreviewCacheRef.current.set(file, previewUrl);
+                                                    
+                                                    // Update step with File object
                                                         setEditingTopicData(prev => {
                                                           const updatedSteps = [...(prev?.steps || [])];
-                                                          updatedSteps[stepIndex] = { ...updatedSteps[stepIndex], image: result.url };
+                                                      updatedSteps[stepIndex] = { ...updatedSteps[stepIndex], image: file };
                                                           return { ...prev, steps: updatedSteps };
                                                         });
-                                                        notifications.success("Image uploaded successfully");
-                                                      } catch (error) {
-                                                        notifications.error(error.message || "Failed to upload image");
-                                                      } finally {
-                                                        const stepId = `${editingTopicData.id || 'new'}-${stepIndex}`;
-                                                        setUploadingImages(prev => ({ ...prev, [stepId]: false }));
-                                                      }
+                                                    
+                                                    notifications.success("Image selected. It will be uploaded when you save the topic.");
                                                     }
                                                     e.target.value = "";
                                                   }}
                                                 />
-                                              </div>
                                             </label>
                                           )}
                                         </div>
@@ -1453,6 +1912,19 @@ export default function HelpEditor() {
                                       <button
                                         type="button"
                                         onClick={() => {
+                                          // Clean up object URL if step has a File object
+                                          if (step.image && isFileObject(step.image)) {
+                                            const previewUrl = filePreviewCacheRef.current.get(step.image);
+                                            if (previewUrl) {
+                                              try {
+                                                URL.revokeObjectURL(previewUrl);
+                                              } catch (e) {
+                                                console.warn('Error revoking object URL:', e);
+                                              }
+                                              filePreviewCacheRef.current.delete(step.image);
+                                            }
+                                          }
+                                          
                                           const newSteps = (editingTopicData.steps || []).filter((_, i) => i !== stepIndex);
                                           updateEditingTopicData({ steps: newSteps });
                                         }}
@@ -1490,8 +1962,8 @@ export default function HelpEditor() {
                     );
                   }
                   
-                  // View Mode - find topic from list
-                  const topic = topics.find(t => t.id === selectedTopicId);
+                  // View Mode - use memoized selected topic
+                  const topic = selectedTopic;
                   if (!topic) {
                     return null;
                   }
@@ -1509,7 +1981,7 @@ export default function HelpEditor() {
                                 </h2>
                                 <div className="flex items-center gap-2 mt-2">
                                   <span className="inline-flex items-center px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-md">
-                                    {categories.find(c => c.key === topic.category)?.name || topic.category || "Uncategorized"}
+                                    {categoryNameMap.get(topic.category) || topic.category || "Uncategorized"}
                                   </span>
                                   {topic.steps?.length > 0 && (
                                     <span className="inline-flex items-center text-xs text-gray-600">
@@ -1578,7 +2050,7 @@ export default function HelpEditor() {
                               <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">Category</label>
                                 <div className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm bg-gray-50 text-gray-700">
-                                  {categories.find(c => c.key === topic.category)?.name || topic.category || "Uncategorized"}
+                                  {categoryNameMap.get(topic.category) || topic.category || "Uncategorized"}
                                 </div>
                               </div>
                               <div>
@@ -1753,20 +2225,7 @@ export default function HelpEditor() {
 
               {/* Categories List */}
               <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 350px)' }}>
-                {(() => {
-                  const filteredCategories = (() => {
-                    if (!debouncedSearchQuery.trim()) {
-                      return categories;
-                    }
-                    const query = debouncedSearchQuery.toLowerCase();
-                    return categories.filter(
-                      (category) =>
-                        category.name?.toLowerCase().includes(query) ||
-                        category.key?.toLowerCase().includes(query)
-                    );
-                  })();
-
-                  return filteredCategories.length === 0 ? (
+                {filteredCategories.length === 0 ? (
                     <div className="p-12 text-center text-gray-500">
                       <Tag className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                       <p className="text-sm">
@@ -1784,7 +2243,7 @@ export default function HelpEditor() {
                   ) : (
                     <div className="divide-y divide-gray-200">
                       {filteredCategories.map((category) => {
-                        const topicCount = topics.filter(t => t.category === category.key).length;
+                        const topicCount = topicCountsByCategory.get(category.key) || 0;
                         const isSelected = selectedCategoryKey === category.key;
                         return (
                           <div
@@ -1853,8 +2312,7 @@ export default function HelpEditor() {
                         );
                       })}
                     </div>
-                  );
-                })()}
+                  )}
               </div>
             </div>
 
@@ -2097,17 +2555,37 @@ export default function HelpEditor() {
         }}
         confirmText="Confirm"
         cancelText="Cancel"
-        confirmColor="sky"
+        confirmColor={
+          confirmDialog.type === 'deleteTopic' || confirmDialog.type === 'deleteCategory' 
+            ? 'red' 
+            : confirmDialog.type === 'cancelTopic' || confirmDialog.type === 'cancelCategory'
+            ? 'amber'
+            : confirmDialog.type === 'saveTopic' || confirmDialog.type === 'saveCategory'
+            ? 'green'
+            : 'sky'
+        }
         icon={
           confirmDialog.type === 'import' ? (
             <AlertCircle className="w-6 h-6 text-sky-600" />
           ) : confirmDialog.type === 'export' ? (
             <Download className="w-6 h-6 text-sky-600" />
+          ) : confirmDialog.type === 'cancelTopic' || confirmDialog.type === 'cancelCategory' ? (
+            <AlertCircle className="w-6 h-6 text-amber-600" />
+          ) : confirmDialog.type === 'saveTopic' || confirmDialog.type === 'saveCategory' ? (
+            <CheckCircle className="w-6 h-6 text-green-600" />
           ) : (
-            <Trash2 className="w-6 h-6 text-sky-600" />
+            <Trash2 className="w-6 h-6 text-red-600" />
           )
         }
-        headerColor="sky"
+        headerColor={
+          confirmDialog.type === 'deleteTopic' || confirmDialog.type === 'deleteCategory'
+            ? 'red'
+            : confirmDialog.type === 'cancelTopic' || confirmDialog.type === 'cancelCategory'
+            ? 'amber'
+            : confirmDialog.type === 'saveTopic' || confirmDialog.type === 'saveCategory'
+            ? 'green'
+            : 'sky'
+        }
       />
 
       {/* Image Lightbox */}
