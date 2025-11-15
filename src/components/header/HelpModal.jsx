@@ -6,6 +6,25 @@ import { helpTopics as defaultHelpTopics } from "../../data/helpData";
 import { filterTopicsByUserLevel, normalizeUserLevel } from "../../utils/helpUtils";
 import { getHelpTopics } from "../../services/helpApi";
 import { getProfile } from "../../services/api";
+import { API_BASE_URL } from "../../config/api";
+import ImageLightbox from "../inspection-form/ImageLightbox";
+
+// Helper function to convert relative media URLs to absolute URLs
+const getImageUrl = (url) => {
+  if (!url) return '';
+  // If already an absolute URL (starts with http:// or https://), return as is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  // If it's a relative URL starting with /media/, construct full URL
+  if (url.startsWith('/media/')) {
+    // Extract base URL from API_BASE_URL (remove /api/ if present)
+    const baseUrl = API_BASE_URL.replace(/\/api\/?$/, '').replace(/\/$/, '');
+    return `${baseUrl}${url}`;
+  }
+  // Return as is for other cases
+  return url;
+};
 
 const RECENT_TOPICS_KEY = "recentHelpTopics";
 const MAX_RECENT_TOPICS = 5;
@@ -27,6 +46,9 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [helpTopics, setHelpTopics] = useState(defaultHelpTopics);
   const [profile, setProfile] = useState(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImageIndex, setLightboxImageIndex] = useState(0);
+  const [lightboxImages, setLightboxImages] = useState([]);
   const modalRef = useRef(null);
   const closeButtonRef = useRef(null);
   const previousFocusRef = useRef(null);
@@ -452,14 +474,34 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
                                   {step.description}
                                 </p>
                                 {step.image && (
-                                  <img
-                                    src={step.image}
+                                  <div 
+                                    className="rounded-lg border border-gray-200 overflow-hidden cursor-pointer group"
+                                    onClick={() => {
+                                      // Collect all images from all steps
+                                      const allImages = (selectedTopic.steps || [])
+                                        .filter(s => s.image)
+                                        .map((s, idx) => ({
+                                          url: getImageUrl(s.image),
+                                          caption: s.title || `Step ${idx + 1}`,
+                                          name: s.image.split('/').pop() || 'image'
+                                        }));
+                                      const currentImageIndex = allImages.findIndex((img) => {
+                                        return getImageUrl(step.image) === img.url;
+                                      });
+                                      setLightboxImages(allImages);
+                                      setLightboxImageIndex(currentImageIndex >= 0 ? currentImageIndex : 0);
+                                      setLightboxOpen(true);
+                                    }}
+                                  >
+                                    <img
+                                      src={getImageUrl(step.image)}
                                     alt={step.title}
-                                    className="rounded-lg border border-gray-200 w-full max-w-2xl shadow-sm"
+                                      className="w-full max-w-2xl shadow-sm transition-transform group-hover:scale-105"
                                     onError={(e) => {
                                       e.target.style.display = 'none';
                                     }}
                                   />
+                                  </div>
                                 )}
                               </div>
                             ))}
@@ -474,6 +516,16 @@ export default function HelpModal({ userLevel = "public", isOpen = false, onClos
 
           </div>
         </div>
+      )}
+
+      {/* Image Lightbox */}
+      {lightboxOpen && lightboxImages.length > 0 && (
+        <ImageLightbox
+          images={lightboxImages}
+          currentIndex={lightboxImageIndex}
+          onClose={() => setLightboxOpen(false)}
+          onNavigate={setLightboxImageIndex}
+        />
       )}
     </>
   );

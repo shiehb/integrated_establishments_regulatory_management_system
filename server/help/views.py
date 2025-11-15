@@ -116,10 +116,23 @@ def save_categories(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsSystemAdmin])
 def export_backup(request):
-    """Export help data as JSON (admin only)."""
+    """Export help data as ZIP archive with images (admin only)."""
     try:
-        data = export_help_data()
-        return Response(data, status=status.HTTP_200_OK)
+        # Check if client wants JSON only (for backward compatibility)
+        format_type = request.GET.get('format', 'zip')
+        
+        if format_type == 'json':
+            # Return JSON only (backward compatibility)
+            data = export_help_data(include_images=False)
+            return Response(data, status=status.HTTP_200_OK)
+        else:
+            # Return ZIP with images
+            zip_bytes, zip_filename = export_help_data(include_images=True)
+            
+            from django.http import HttpResponse
+            response = HttpResponse(zip_bytes, content_type='application/zip')
+            response['Content-Disposition'] = f'attachment; filename="{zip_filename}"'
+            return response
     except Exception as e:
         return Response(
             {'error': str(e)},
@@ -130,21 +143,65 @@ def export_backup(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsSystemAdmin])
 def restore_backup(request):
-    """Import help data from JSON (admin only)."""
+    """Import help data from JSON or ZIP archive (admin only)."""
     try:
-        data = request.data
+        import tempfile
         
-        if not isinstance(data, dict):
+        # Check if ZIP file was uploaded
+        if 'file' in request.FILES:
+            zip_file = request.FILES['file']
+            
+            # Validate file type
+            if not zip_file.name.endswith('.zip'):
+                return Response(
+                    {'error': 'Invalid file type. Please upload a ZIP file.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Save uploaded file temporarily
+            temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+            for chunk in zip_file.chunks():
+                temp_zip.write(chunk)
+            temp_zip.close()
+            
+            try:
+                # Import from ZIP
+                result = import_help_data(None, zip_file_path=temp_zip.name)
+                return Response(
+                    {
+                        'success': True,
+                        'message': 'Help data restored successfully',
+                        'topics_imported': result['topics_imported'],
+                        'categories_imported': result['categories_imported'],
+                        'images_imported': result['images_imported']
+                    },
+                    status=status.HTTP_200_OK
+                )
+            finally:
+                # Clean up temporary file
+                if os.path.exists(temp_zip.name):
+                    os.remove(temp_zip.name)
+        else:
+            # Import from JSON (backward compatibility)
+            data = request.data
+            
+            if not isinstance(data, dict):
+                return Response(
+                    {'error': 'Import data must be a dictionary or ZIP file'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            result = import_help_data(data)
             return Response(
-                {'error': 'Import data must be a dictionary'},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    'success': True,
+                    'message': 'Help data restored successfully',
+                    'topics_imported': result['topics_imported'],
+                    'categories_imported': result['categories_imported'],
+                    'images_imported': result['images_imported']
+                },
+                status=status.HTTP_200_OK
             )
-        
-        import_help_data(data)
-        return Response(
-            {'success': True, 'message': 'Help data restored successfully'},
-            status=status.HTTP_200_OK
-        )
     except ValueError as e:
         return Response(
             {'error': str(e)},

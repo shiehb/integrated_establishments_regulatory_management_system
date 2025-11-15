@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import LayoutWithSidebar from "../components/LayoutWithSidebar";
@@ -89,6 +89,8 @@ export default function MapPage() {
   const [focusedEstablishment, setFocusedEstablishment] = useState(null);
   const notifications = useNotifications();
   const notificationsRef = useRef(notifications);
+  const fetchingRef = useRef(false);
+  const hasFetchedRef = useRef(false);
 
   // Update ref when notifications change (to always have latest functions)
   useEffect(() => {
@@ -125,47 +127,76 @@ export default function MapPage() {
     localStorage.setItem('map_pagination_pageSize', pageSize.toString());
   }, [pageSize]);
 
-  const fetchAllEstablishments = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Determine which API to call based on user role
-      const isHighLevelUser = user?.userlevel && ['Admin', 'Division Chief', 'Legal Unit'].includes(user.userlevel);
-      
-      let data;
-      if (isHighLevelUser) {
-        // High-level users see all establishments
-        data = await getEstablishments({ page: 1, page_size: 10000 });
-      } else {
-        // Lower-level users see only their assigned establishments
-        data = await getMyEstablishments({ page: 1, page_size: 10000 });
-      }
-
-      // Handle both paginated and non-paginated responses
-      if (data.results) {
-        setAllEstablishments(data.results);
-      } else {
-        setAllEstablishments(data);
-      }
-    } catch (err) {
-      console.error("Error fetching establishments:", err);
-      notificationsRef.current.error(
-        "Error fetching establishments",
-        {
-          title: "Fetch Error",
-          duration: 8000
-        }
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [user]); // Only depend on 'user', 'notifications' accessed via ref
-
-  // Fetch all establishments from API
+  // Fetch all establishments from API - only once when user is available
   useEffect(() => {
-    if (user) {
-      fetchAllEstablishments();
+    // Don't fetch if no user or already fetching
+    if (!user || fetchingRef.current) {
+      // Clear establishments if user logged out
+      if (!user) {
+        setAllEstablishments([]);
+        hasFetchedRef.current = false;
+      }
+      return;
     }
-  }, [user, fetchAllEstablishments]);
+
+    // Only fetch if we haven't fetched yet for this user
+    const userId = user.id;
+    if (hasFetchedRef.current === userId) {
+      return;
+    }
+
+    // Mark as fetching and track which user we're fetching for
+    fetchingRef.current = true;
+    hasFetchedRef.current = userId;
+    setLoading(true);
+
+    const fetchData = async () => {
+      try {
+        // Determine which API to call based on user role
+        const isHighLevelUser = user?.userlevel && ['Admin', 'Division Chief', 'Legal Unit'].includes(user.userlevel);
+        
+        let data;
+        if (isHighLevelUser) {
+          // High-level users see all establishments
+          data = await getEstablishments({ page: 1, page_size: 10000 });
+        } else {
+          // Lower-level users see only their assigned establishments
+          data = await getMyEstablishments({ page: 1, page_size: 10000 });
+        }
+
+        // Only update if we're still fetching for the same user
+        if (hasFetchedRef.current === userId) {
+          // Handle both paginated and non-paginated responses
+          if (data.results) {
+            setAllEstablishments(data.results);
+          } else {
+            setAllEstablishments(data);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching establishments:", err);
+        notificationsRef.current.error(
+          "Error fetching establishments",
+          {
+            title: "Fetch Error",
+            duration: 8000
+          }
+        );
+        // Reset hasFetchedRef on error so we can retry
+        if (hasFetchedRef.current === userId) {
+          hasFetchedRef.current = false;
+        }
+      } finally {
+        // Only reset fetching flag if we're still fetching for the same user
+        if (fetchingRef.current && hasFetchedRef.current === userId) {
+          fetchingRef.current = false;
+        }
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]); // Only depend on 'user'
 
 
   // ✅ Sorting handler

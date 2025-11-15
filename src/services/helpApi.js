@@ -66,12 +66,14 @@ export const saveHelpCategories = async (categories) => {
 };
 
 /**
- * Export help data as JSON (admin only)
+ * Export help data as ZIP archive with images (admin only)
  */
 export const exportHelpData = async () => {
   try {
-    const response = await api.get('/help/backup/');
-    return response.data;
+    const response = await api.get('/help/backup/', {
+      responseType: 'blob', // Important: receive binary data
+    });
+    return response.data; // Returns Blob
   } catch (error) {
     console.error('Error exporting help data:', error);
     const enhancedError = new Error(
@@ -85,11 +87,28 @@ export const exportHelpData = async () => {
 };
 
 /**
- * Import/restore help data from JSON (admin only)
+ * Import/restore help data from ZIP archive or JSON (admin only)
+ * @param {File|Object} fileOrData - ZIP file (File object) or JSON data (Object)
  */
-export const importHelpData = async (data) => {
+export const importHelpData = async (fileOrData) => {
   try {
-    const response = await api.post('/help/restore/', data);
+    let response;
+    
+    // If it's a File object (ZIP), send as FormData
+    if (fileOrData instanceof File) {
+      const formData = new FormData();
+      formData.append('file', fileOrData);
+      
+      response = await api.post('/help/restore/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+    } else {
+      // JSON data (backward compatibility)
+      response = await api.post('/help/restore/', fileOrData);
+    }
+    
     return response.data;
   } catch (error) {
     console.error('Error importing help data:', error);
