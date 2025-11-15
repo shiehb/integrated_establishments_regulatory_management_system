@@ -2289,6 +2289,10 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                             <InspectionActions 
                               inspection={inspection}
                               availableActions={(inspection.available_actions || []).filter(action => {
+                                // Remove return_to_monitoring for Section Chief in review tab
+                                if (userLevel === 'Section Chief' && activeTab === 'review' && action === 'return_to_monitoring') {
+                                  return false;
+                                }
                                 if (activeTab === 'review' && userLevel === 'Division Chief') {
                                   return action === 'review';
                                 }
