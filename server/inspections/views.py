@@ -2057,6 +2057,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'SECTION_REVIEWED',
             'SECTION_COMPLETED_COMPLIANT',
             'SECTION_COMPLETED_NON_COMPLIANT',
+            'DIVISION_REVIEWED',  # Division Chief can return from review status
         ]
         if inspection.current_status not in valid_statuses:
             return Response(
@@ -2086,19 +2087,71 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'original_stage_status': inspection.current_status,
         }
 
-        if inspection.current_status == 'SECTION_REVIEWED':
-            unit_entry = self._last_history_entry(inspection, unit_completed_statuses)
-            if unit_entry:
-                target_status = unit_entry.new_status
+        # Handle DIVISION_REVIEWED status - return to Section Chief who forwarded it
+        if inspection.current_status == 'DIVISION_REVIEWED':
+            # Find the last Section Chief who reviewed/forwarded this inspection
+            section_reviewed_entry = self._last_history_entry(
+                inspection, 
+                ['SECTION_REVIEWED', 'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT']
+            )
+            
+            assignee = None
+            if section_reviewed_entry:
+                # Try to get assignee from history entry
+                if section_reviewed_entry.assigned_to and section_reviewed_entry.assigned_to.userlevel == 'Section Chief':
+                    assignee = section_reviewed_entry.assigned_to
+                elif section_reviewed_entry.changed_by and section_reviewed_entry.changed_by.userlevel == 'Section Chief':
+                    # Use changed_by as fallback (Section Chief who reviewed it)
+                    assignee = section_reviewed_entry.changed_by
+            
+            # If no Section Chief found from history, use default Section Chief assignment
+            if not assignee:
                 assignee = self._get_stage_assignee(
                     inspection,
-                    unit_stage_statuses,
+                    section_stage_statuses,
+                    'SECTION_IN_PROGRESS',
+                    expected_userlevel='Section Chief',
+                )
+            
+            target_status = 'SECTION_IN_PROGRESS'
+            metadata['restored_stage_status'] = target_status
+            return self._execute_return_transition(
+                inspection=inspection,
+                user=user,
+                target_status=target_status,
+                assignee=assignee,
+                remarks=remarks,
+                request=request,
+                return_label='Returned to Section Chief',
+                extra_metadata=metadata,
+            )
+
+        # Handle SECTION_REVIEWED - return to UNIT_REVIEWED or UNIT_COMPLETED_* if unit exists, otherwise MONITORING_COMPLETED_*
+        if inspection.current_status == 'SECTION_REVIEWED':
+            # Check for unit stage (UNIT_REVIEWED or UNIT_COMPLETED_*)
+            unit_reviewed_entry = self._last_history_entry(inspection, ['UNIT_REVIEWED'])
+            unit_completed_entry = self._last_history_entry(inspection, unit_completed_statuses)
+            
+            if unit_reviewed_entry or unit_completed_entry:
+                # Unit stage exists - return to unit
+                if unit_reviewed_entry:
+                    target_status = 'UNIT_REVIEWED'
+                    # Include UNIT_REVIEWED in stage statuses when looking for assignee
+                    unit_stage_statuses_with_reviewed = unit_stage_statuses + ['UNIT_REVIEWED']
+                else:
+                    target_status = unit_completed_entry.new_status
+                    unit_stage_statuses_with_reviewed = unit_stage_statuses
+                
+                assignee = self._get_stage_assignee(
+                    inspection,
+                    unit_stage_statuses_with_reviewed,
                     'UNIT_IN_PROGRESS',
                     expected_userlevel='Unit Head',
                 )
                 metadata['restored_stage_status'] = target_status
                 return_label = 'Returned to Unit Head'
             else:
+                # No unit stage - return to monitoring
                 monitoring_entry = self._last_history_entry(inspection, monitoring_completed_statuses)
                 if not monitoring_entry:
                     return Response(
@@ -2126,6 +2179,27 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 extra_metadata=metadata,
             )
 
+        # Handle SECTION_COMPLETED_* - return to SECTION_IN_PROGRESS
+        if inspection.current_status in ['SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT']:
+            assignee = self._get_stage_assignee(
+                inspection,
+                section_stage_statuses,
+                'SECTION_IN_PROGRESS',
+                expected_userlevel='Section Chief',
+            )
+            metadata['restored_stage_status'] = 'SECTION_IN_PROGRESS'
+            return self._execute_return_transition(
+                inspection=inspection,
+                user=user,
+                target_status='SECTION_IN_PROGRESS',
+                assignee=assignee,
+                remarks=remarks,
+                request=request,
+                return_label='Returned to Section Chief',
+                extra_metadata=metadata,
+            )
+
+        # Fallback (should not reach here for valid statuses)
         assignee = self._get_stage_assignee(
             inspection,
             section_stage_statuses,
