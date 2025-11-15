@@ -6,6 +6,8 @@ from django.contrib.auth import get_user_model
 from .models import Establishment
 from .serializers import EstablishmentSerializer
 from django.db.models import Q
+from audit.constants import AUDIT_ACTIONS, AUDIT_MODULES
+from audit.utils import log_activity
 
 try:
     from shapely.geometry import Polygon as ShapelyPolygon, MultiPolygon as ShapelyMultiPolygon
@@ -74,9 +76,32 @@ class EstablishmentViewSet(viewsets.ModelViewSet):
             serializer.is_valid(raise_exception=True)
             establishment = serializer.save()
 
-            # Attach the acting user for activity log
+            # Attach the acting user for activity log (for signal-based logging)
             establishment._action_user = request.user
             establishment.save()
+
+            # Enhanced audit trail for establishment creation
+            log_activity(
+                request.user,
+                AUDIT_ACTIONS["CREATE"],
+                module=AUDIT_MODULES["ESTABLISHMENTS"],
+                description=f"{request.user.email} created establishment: {establishment.name}",
+                metadata={
+                    "entity_id": establishment.id,
+                    "entity_name": establishment.name,
+                    "entity_type": "establishment",
+                    "status": "success",
+                    "nature_of_business": establishment.nature_of_business,
+                    "province": establishment.province,
+                    "city": establishment.city,
+                    "barangay": establishment.barangay,
+                    "year_established": establishment.year_established,
+                    "is_active": establishment.is_active,
+                    "has_polygon": bool(establishment.polygon),
+                    "has_marker_icon": bool(establishment.marker_icon),
+                },
+                request=request,
+            )
 
             # Send notifications to specific user roles
             self.send_establishment_creation_notification(establishment, request.user)

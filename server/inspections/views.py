@@ -1521,6 +1521,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.save()
         
         # Log history
+        remarks = data.get('remarks', 'Completed inspection')
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
@@ -1529,7 +1530,24 @@ class InspectionViewSet(viewsets.ModelViewSet):
             assigned_to=inspection.assigned_to,
             law=inspection.law,
             section=user.section,
-            remarks=data.get('remarks', 'Completed inspection')
+            remarks=remarks
+        )
+        
+        # Audit trail for completion
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"{user.email} completed inspection {inspection.code} as {compliance_decision}",
+            request,
+            metadata={
+                "action": "complete",
+                "previous_status": prev_status,
+                "new_status": next_status,
+                "compliance_decision": compliance_decision,
+                "violations_found": violations_found_str,
+                "remarks": remarks,
+            },
         )
         
         # Send notifications based on completion status
@@ -2366,6 +2384,23 @@ class InspectionViewSet(viewsets.ModelViewSet):
             remarks=remarks
         )
         
+        # Audit trail for forward action
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["ASSIGN"],
+            f"{user.email} forwarded inspection {inspection.code} from {prev_status} to {next_status}",
+            request,
+            metadata={
+                "action": "forward",
+                "previous_status": prev_status,
+                "new_status": next_status,
+                "assigned_to": getattr(next_assignee, "email", None) if next_assignee else None,
+                "assigned_userlevel": next_assignee.userlevel if next_assignee else None,
+                "remarks": remarks,
+            },
+        )
+        
         serializer = self.get_serializer(inspection)
         return Response(serializer.data)
     
@@ -2507,12 +2542,29 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.save()
         
         # Log history
+        remarks = request.data.get('remarks', 'Unit Head reviewed and forwarded to Section Chief')
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
             new_status='UNIT_REVIEWED',
             changed_by=user,
-            remarks=request.data.get('remarks', 'Unit Head reviewed and forwarded to Section Chief')
+            remarks=remarks
+        )
+        
+        # Audit trail for review and forward unit
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["APPROVE"],
+            f"{user.email} reviewed and forwarded inspection {inspection.code} to Section Chief",
+            request,
+            metadata={
+                "action": "review_and_forward_unit",
+                "previous_status": prev_status,
+                "new_status": "UNIT_REVIEWED",
+                "assigned_to": getattr(next_assignee, "email", None) if next_assignee else None,
+                "remarks": remarks,
+            },
         )
         
         # Send notifications to Section Chief
@@ -2624,12 +2676,29 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.save()
         
         # Log history
+        remarks = request.data.get('remarks', 'Section Chief reviewed and forwarded to Division Chief')
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
             new_status='SECTION_REVIEWED',
             changed_by=user,
-            remarks=request.data.get('remarks', 'Section Chief reviewed and forwarded to Division Chief')
+            remarks=remarks
+        )
+        
+        # Audit trail for review and forward section
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["APPROVE"],
+            f"{user.email} reviewed and forwarded inspection {inspection.code} to Division Chief",
+            request,
+            metadata={
+                "action": "review_and_forward_section",
+                "previous_status": prev_status,
+                "new_status": "SECTION_REVIEWED",
+                "assigned_to": getattr(next_assignee, "email", None) if next_assignee else None,
+                "remarks": remarks,
+            },
         )
         
         # Send notifications to Division Chief
@@ -2690,12 +2759,28 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.save()
         
         # Log history
+        remarks = data.get('remarks', 'Division Chief reviewed and marked as DIVISION_REVIEWED')
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
             new_status='DIVISION_REVIEWED',
             changed_by=user,
-            remarks=data.get('remarks', 'Division Chief reviewed and marked as DIVISION_REVIEWED')
+            remarks=remarks
+        )
+        
+        # Audit trail for review division
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["APPROVE"],
+            f"{user.email} reviewed inspection {inspection.code} and marked as DIVISION_REVIEWED",
+            request,
+            metadata={
+                "action": "review_division",
+                "previous_status": prev_status,
+                "new_status": "DIVISION_REVIEWED",
+                "remarks": remarks,
+            },
         )
         
         # Return updated inspection
@@ -2739,12 +2824,29 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.save()
         
         # Log history
+        remarks = request.data.get('remarks', 'Forwarded case to Legal Unit')
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
             new_status='LEGAL_REVIEW',
             changed_by=user,
-            remarks=request.data.get('remarks', 'Forwarded case to Legal Unit')
+            remarks=remarks
+        )
+        
+        # Audit trail for forward to legal
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["ASSIGN"],
+            f"{user.email} forwarded inspection {inspection.code} to Legal Unit",
+            request,
+            metadata={
+                "action": "forward_to_legal",
+                "previous_status": prev_status,
+                "new_status": "LEGAL_REVIEW",
+                "assigned_to": getattr(legal_user, "email", None) if legal_user else None,
+                "remarks": remarks,
+            },
         )
         
         serializer = self.get_serializer(inspection)
@@ -2831,12 +2933,30 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.save(update_fields=['current_status'])
         
         # Log history
+        remarks = data.get('remarks', 'Notice of Violation sent')
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
             new_status='NOV_SENT',
             changed_by=user,
-            remarks=data.get('remarks', 'Notice of Violation sent')
+            remarks=remarks
+        )
+        
+        # Audit trail for send NOV
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"{user.email} sent Notice of Violation for inspection {inspection.code}",
+            request,
+            metadata={
+                "action": "send_nov",
+                "previous_status": prev_status,
+                "new_status": "NOV_SENT",
+                "recipient_email": data['recipient_email'],
+                "compliance_deadline": str(data['compliance_deadline']) if data.get('compliance_deadline') else None,
+                "remarks": remarks,
+            },
         )
         
         serializer = self.get_serializer(inspection)
@@ -2945,12 +3065,32 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.save(update_fields=['current_status'])
         
         # Log history
+        remarks = f"Notice of Order sent. Penalties: ₱{data['penalty_fees']}"
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
             new_status='NOO_SENT',
             changed_by=user,
-            remarks=f"Notice of Order sent. Penalties: ₱{data['penalty_fees']}"
+            remarks=remarks
+        )
+        
+        # Audit trail for send NOO
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"{user.email} sent Notice of Order for inspection {inspection.code}",
+            request,
+            metadata={
+                "action": "send_noo",
+                "previous_status": prev_status,
+                "new_status": "NOO_SENT",
+                "recipient_email": data['recipient_email'],
+                "payment_deadline": str(data['payment_deadline']) if data.get('payment_deadline') else None,
+                "billing_code": billing.billing_code if billing else None,
+                "penalty_fees": str(data['penalty_fees']),
+                "remarks": remarks,
+            },
         )
         
         serializer = self.get_serializer(inspection)
@@ -2980,12 +3120,29 @@ class InspectionViewSet(viewsets.ModelViewSet):
             inspection.assigned_to = next_assignee
             inspection.save()
             
+            remarks = request.data.get('remarks', 'Closed by Section Chief')
             InspectionHistory.objects.create(
                 inspection=inspection,
                 previous_status=prev_status,
                 new_status='DIVISION_REVIEWED',
                 changed_by=user,
-                remarks=request.data.get('remarks', 'Closed by Section Chief')
+                remarks=remarks
+            )
+            
+            # Audit trail for close (Section Chief)
+            audit_inspection_event(
+                user,
+                inspection,
+                AUDIT_ACTIONS["UPDATE"],
+                f"{user.email} closed inspection {inspection.code} and forwarded to Division Chief",
+                request,
+                metadata={
+                    "action": "close_section_chief",
+                    "previous_status": prev_status,
+                    "new_status": "DIVISION_REVIEWED",
+                    "assigned_to": getattr(next_assignee, "email", None) if next_assignee else None,
+                    "remarks": remarks,
+                },
             )
             
         elif user.userlevel == 'Division Chief' and inspection.current_status in ['DIVISION_REVIEWED', 'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT']:
@@ -2997,12 +3154,29 @@ class InspectionViewSet(viewsets.ModelViewSet):
             inspection.assigned_to = None
             inspection.save()
             
+            remarks = request.data.get('remarks', 'Closed by Division Chief')
             InspectionHistory.objects.create(
                 inspection=inspection,
                 previous_status=prev_status,
                 new_status=final_status,
                 changed_by=user,
-                remarks=request.data.get('remarks', 'Closed by Division Chief')
+                remarks=remarks
+            )
+            
+            # Audit trail for close (Division Chief)
+            audit_inspection_event(
+                user,
+                inspection,
+                AUDIT_ACTIONS["UPDATE"],
+                f"{user.email} closed inspection {inspection.code} as {final_status}",
+                request,
+                metadata={
+                    "action": "close_division_chief",
+                    "previous_status": prev_status,
+                    "new_status": final_status,
+                    "assigned_to": None,
+                    "remarks": remarks,
+                },
             )
             
         elif user.userlevel == 'Legal Unit' and inspection.current_status in ['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT']:
@@ -3014,12 +3188,29 @@ class InspectionViewSet(viewsets.ModelViewSet):
             inspection.assigned_to = None
             inspection.save()
             
+            remarks = request.data.get('remarks', 'Legal review completed')
             InspectionHistory.objects.create(
                 inspection=inspection,
                 previous_status=prev_status,
                 new_status=final_status,
                 changed_by=user,
-                remarks=request.data.get('remarks', 'Legal review completed')
+                remarks=remarks
+            )
+            
+            # Audit trail for close (Legal Unit)
+            audit_inspection_event(
+                user,
+                inspection,
+                AUDIT_ACTIONS["UPDATE"],
+                f"{user.email} closed inspection {inspection.code} as {final_status}",
+                request,
+                metadata={
+                    "action": "close_legal_unit",
+                    "previous_status": prev_status,
+                    "new_status": final_status,
+                    "assigned_to": None,
+                    "remarks": remarks,
+                },
             )
         else:
             return Response(
@@ -3065,12 +3256,32 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.save()
         
         # Log history
+        remarks = request.data.get('remarks', 'Returned to Division Chief by Legal Unit')
         InspectionHistory.objects.create(
             inspection=inspection,
             previous_status=prev_status,
             new_status='DIVISION_REVIEWED',
             changed_by=user,
-            remarks=request.data.get('remarks', 'Returned to Division Chief by Legal Unit')
+            assigned_to=next_assignee,
+            law=inspection.law,
+            section=user.section,
+            remarks=remarks
+        )
+        
+        # Audit trail for return to division
+        audit_inspection_event(
+            user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"{user.email} returned inspection {inspection.code} to Division Chief",
+            request,
+            metadata={
+                "action": "return_to_division",
+                "previous_status": prev_status,
+                "new_status": "DIVISION_REVIEWED",
+                "assigned_to": getattr(next_assignee, "email", None) if next_assignee else None,
+                "remarks": remarks,
+            },
         )
         
         serializer = self.get_serializer(inspection)
