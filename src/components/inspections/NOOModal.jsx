@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, FileText, DollarSign, Calendar, AlertTriangle, Plus, Trash2, ArrowLeft, Mail } from 'lucide-react';
 import LayoutForm from '../LayoutForm';
+import ConfirmationDialog from '../common/ConfirmationDialog';
 
 // Layout presets guide:
 // - Two Column Grid: Inspection/recipient sections span top row; violation breakdown fills bottom-left; penalties and remarks stack bottom-right.
 // - Stacked Scroll: Single-column form with email preview beneath for narrow viewports.
 // - Wide Preview: Wider preview area for proofing while form constrains to 60% width.
 
-const NOOModal = ({ open, onClose, onConfirm, inspection, loading }) => {
+const NOOModal = ({ open, onClose, onSubmit, onConfirm, inspection, loading }) => {
+  // Support both onSubmit and onConfirm for backward compatibility
+  const handleSubmitProp = onSubmit || onConfirm;
   const [formData, setFormData] = useState({
     recipientEmail: '',
     recipientName: '',
@@ -19,6 +22,8 @@ const NOOModal = ({ open, onClose, onConfirm, inspection, loading }) => {
     remarks: '',
     complianceStatus: null
   });
+
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const formatLegacyViolations = useCallback((rawViolations) => {
     if (!rawViolations) return '';
@@ -145,8 +150,6 @@ const NOOModal = ({ open, onClose, onConfirm, inspection, loading }) => {
     });
   };
 
-  if (!open) return null;
-
   const emailSubject = `Notice of Order – ${inspection?.code || '[Reference No.]'}`;
   const emailBody = `Dear ${formData.recipientName || '[Name of Owner/Manager]'},
 
@@ -181,13 +184,99 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onConfirm({
-      ...formData,
-      penaltyFees: formData.penaltyFees || 0,
-      emailSubject,
-      emailBody
-    });
+    // Show confirmation dialog instead of directly calling onConfirm
+    setShowConfirm(true);
   };
+
+  const handleConfirmSend = async () => {
+    // Validate required fields
+    if (!formData.recipientEmail || !formData.recipientEmail.trim()) {
+      alert('Recipient email is required');
+      return;
+    }
+    if (!formData.violationBreakdown || !formData.violationBreakdown.trim()) {
+      alert('Violation breakdown is required');
+      return;
+    }
+    if (!formData.penaltyFees || Number(formData.penaltyFees) <= 0) {
+      alert('Penalty fees must be greater than 0');
+      return;
+    }
+    if (!formData.paymentDeadline) {
+      alert('Payment deadline is required');
+      return;
+    }
+    if (!formData.paymentInstructions || !formData.paymentInstructions.trim()) {
+      alert('Payment instructions are required');
+      return;
+    }
+
+    // Don't close dialog yet - keep it open to show loading state
+    try {
+      console.log('Sending NOO with data:', formData);
+      
+      // If onConfirm is used (InspectionReviewPage), send camelCase data
+      // If onSubmit is used (Inspections page), send snake_case data
+      let submitData;
+      if (onConfirm && !onSubmit) {
+        // Backward compatibility: send camelCase for handleNOOConfirm
+        submitData = {
+          recipientEmail: formData.recipientEmail.trim(),
+          recipientName: formData.recipientName || '',
+          contactPerson: formData.contactPerson || '',
+          violationBreakdown: formData.violationBreakdown.trim(),
+          penaltyFees: Number(formData.penaltyFees) || 0,
+          paymentDeadline: formData.paymentDeadline,
+          paymentInstructions: formData.paymentInstructions.trim(),
+          remarks: formData.remarks || '',
+          emailSubject: emailSubject,
+          emailBody: emailBody
+        };
+      } else {
+        // New format: send snake_case for handleNOOSubmit
+        submitData = {
+          recipient_email: formData.recipientEmail.trim(),
+          recipient_name: formData.recipientName || '',
+          contact_person: formData.contactPerson || '',
+          violation_breakdown: formData.violationBreakdown.trim(),
+          penalty_fees: Number(formData.penaltyFees) || 0,
+          payment_deadline: formData.paymentDeadline,
+          payment_instructions: formData.paymentInstructions.trim(),
+          remarks: formData.remarks || '',
+          email_subject: emailSubject,
+          email_body: emailBody
+        };
+      }
+      
+      console.log('Submitting NOO data:', submitData);
+      if (!handleSubmitProp) {
+        throw new Error('onSubmit or onConfirm handler is required');
+      }
+      await handleSubmitProp(submitData);
+      console.log('NOO submitted successfully');
+      
+      // Close dialog only on success
+      setShowConfirm(false);
+    } catch (error) {
+      // Log error for debugging
+      console.error('Error in handleConfirmSend:', error);
+      // Re-throw error so parent component can handle it and show notification
+      throw error;
+    }
+  };
+
+  const handleCancelConfirm = () => {
+    setShowConfirm(false);
+  };
+
+  // Close confirmation dialog when modal closes
+  useEffect(() => {
+    if (!open) {
+      setShowConfirm(false);
+    }
+  }, [open]);
+
+  if (!open) return null;
 
   // Header Component
   const nooHeader = (
@@ -236,6 +325,7 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
   );
 
   return (
+    <>
     <div className="fixed inset-0 z-[9999]">
       <LayoutForm 
         headerHeight="small" 
@@ -443,6 +533,61 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
         </div>
       </LayoutForm>
     </div>
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showConfirm}
+        title="Confirm Send Notice of Order"
+        icon={<FileText className="w-5 h-5 text-red-600" />}
+        headerColor="sky"
+        message={
+          <div className="space-y-4">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="w-4 h-4 text-gray-600" />
+                <span className="font-medium text-gray-800">NOO Details</span>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-700">Recipient:</span>
+                  <span className="text-gray-900">{formData.recipientEmail}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-700">Payment Deadline:</span>
+                  <span className="text-gray-900">
+                    {formData.paymentDeadline 
+                      ? new Date(formData.paymentDeadline).toLocaleDateString()
+                      : 'Not set'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-700">Penalty Fees:</span>
+                  <span className="text-gray-900">
+                    ₱{Number(formData.penaltyFees || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-4 h-4 text-red-600" />
+                <span className="font-medium text-red-800">Important</span>
+              </div>
+              <p className="text-sm text-red-700">
+                This will send the Notice of Order with billing information to the establishment via email. The inspection status will be updated to "NOO Sent". Are you sure you want to proceed?
+              </p>
+            </div>
+          </div>
+        }
+        confirmText="Send NOO"
+        cancelText="Cancel"
+        confirmColor="sky"
+        size="md"
+        loading={loading}
+        onCancel={handleCancelConfirm}
+        onConfirm={handleConfirmSend}
+      />
+    </>
   );
 };
 

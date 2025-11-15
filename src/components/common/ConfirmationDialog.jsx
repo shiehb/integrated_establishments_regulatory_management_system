@@ -58,7 +58,7 @@ export default function ConfirmationDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
       <div
         className={`w-full ${sizeClasses[size]} bg-white rounded-lg shadow-xl mx-4 overflow-hidden`}
       >
@@ -101,7 +101,17 @@ export default function ConfirmationDialog({
               {cancelText}
             </button>
             <button
-              onClick={onConfirm}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (onConfirm) {
+                  try {
+                    await onConfirm();
+                  } catch (error) {
+                    // Error is handled by the calling component
+                    console.error('ConfirmationDialog onConfirm error:', error);
+                  }
+                }
+              }}
               className={`px-6 py-2.5 text-white rounded-lg transition-colors flex items-center justify-center min-w-[100px] font-medium ${colorClasses[confirmColor]} disabled:opacity-50`}
               disabled={loading}
             >

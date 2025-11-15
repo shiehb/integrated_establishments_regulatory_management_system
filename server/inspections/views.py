@@ -2991,16 +2991,26 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.current_status = 'NOV_SENT'
         
         # Send email to recipient
+        recipient_email = data.get('recipient_email', '').strip()
+        if not recipient_email:
+            return Response(
+                {'error': 'Recipient email is required to send NOV.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         try:
             subject = data.get('email_subject') or f"Notice of Violation – {inspection.code}"
             body = data.get('email_body') or data['violations']
-            send_notice_email(subject, body, data['recipient_email'])
+            
+            logger.info(f"Attempting to send NOV email to {recipient_email} for inspection {inspection.code}")
+            send_notice_email(subject, body, recipient_email)
+            logger.info(f"Successfully sent NOV email to {recipient_email} for inspection {inspection.code}")
         except Exception as e:
-            logger.error(f"Failed to send NOV email for inspection {inspection.code}: {str(e)}")
+            logger.error(f"Failed to send NOV email for inspection {inspection.code} to {recipient_email}: {str(e)}", exc_info=True)
             inspection.current_status = prev_status
             inspection.save(update_fields=['current_status'])
             return Response(
-                {'error': 'NOV saved but failed to send email. Please retry.'},
+                {'error': f'NOV saved but failed to send email: {str(e)}. Please check email configuration and recipient address.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
@@ -3099,16 +3109,26 @@ class InspectionViewSet(viewsets.ModelViewSet):
         inspection.current_status = 'NOO_SENT'
         
         # Send email to recipient
+        recipient_email = data.get('recipient_email', '').strip()
+        if not recipient_email:
+            return Response(
+                {'error': 'Recipient email is required to send NOO.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         try:
             subject = data.get('email_subject') or f"Notice of Order – {inspection.code}"
             body = data.get('email_body') or data['violation_breakdown']
-            send_notice_email(subject, body, data['recipient_email'])
+            
+            logger.info(f"Attempting to send NOO email to {recipient_email} for inspection {inspection.code}")
+            send_notice_email(subject, body, recipient_email)
+            logger.info(f"Successfully sent NOO email to {recipient_email} for inspection {inspection.code}")
         except Exception as e:
-            logger.error(f"Failed to send NOO email for inspection {inspection.code}: {str(e)}")
+            logger.error(f"Failed to send NOO email for inspection {inspection.code} to {recipient_email}: {str(e)}", exc_info=True)
             inspection.current_status = prev_status
             inspection.save(update_fields=['current_status'])
             return Response(
-                {'error': 'NOO saved but failed to send email. Please retry.'},
+                {'error': f'NOO saved but failed to send email: {str(e)}. Please check email configuration and recipient address.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
@@ -3122,19 +3142,60 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        billing = BillingRecord.objects.create(
-            inspection=inspection,
-            establishment=establishment,
-            establishment_name=establishment.name,
-            contact_person=getattr(establishment, 'contact_person', ''),
-            related_law=inspection.law,
-            billing_type='PENALTY',
-            description=data['violation_breakdown'],
-            amount=data['penalty_fees'],
-            due_date=data['payment_deadline'],
-            recommendations=data.get('remarks', ''),
-            issued_by=user
-        )
+        # Validate that inspection has a law (required for billing record)
+        if not inspection.law:
+            inspection.current_status = prev_status
+            inspection.save(update_fields=['current_status'])
+            logger.error(f"Cannot create billing record for inspection {inspection.code}: inspection.law is None")
+            return Response(
+                {'error': 'Inspection must have a law associated before sending NOO. Please ensure the inspection has a law assigned.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Use get_or_create to handle existing billing records
+            # Since BillingRecord has OneToOneField with Inspection, there can only be one per inspection
+            billing, created = BillingRecord.objects.get_or_create(
+                inspection=inspection,
+                defaults={
+                    'establishment': establishment,
+                    'establishment_name': establishment.name,
+                    'contact_person': getattr(establishment, 'contact_person', ''),
+                    'related_law': inspection.law,
+                    'billing_type': 'PENALTY',
+                    'description': data['violation_breakdown'],
+                    'amount': data['penalty_fees'],
+                    'due_date': data['payment_deadline'],
+                    'recommendations': data.get('remarks', ''),
+                    'issued_by': user
+                }
+            )
+            
+            # If billing record already exists, update it with new data
+            if not created:
+                billing.establishment = establishment
+                billing.establishment_name = establishment.name
+                billing.contact_person = getattr(establishment, 'contact_person', '')
+                billing.related_law = inspection.law
+                billing.billing_type = 'PENALTY'
+                billing.description = data['violation_breakdown']
+                billing.amount = data['penalty_fees']
+                billing.due_date = data['payment_deadline']
+                billing.recommendations = data.get('remarks', '')
+                billing.issued_by = user
+                billing.save()
+                logger.info(f"Updated existing billing record for inspection {inspection.code}")
+            else:
+                logger.info(f"Created new billing record for inspection {inspection.code}")
+                
+        except Exception as e:
+            logger.error(f"Failed to create/update billing record for inspection {inspection.code}: {str(e)}", exc_info=True)
+            inspection.current_status = prev_status
+            inspection.save(update_fields=['current_status'])
+            return Response(
+                {'error': f'Failed to create/update billing record: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
         inspection.save(update_fields=['current_status'])
         

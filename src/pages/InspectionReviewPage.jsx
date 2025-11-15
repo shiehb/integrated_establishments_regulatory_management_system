@@ -602,6 +602,34 @@ const InspectionReviewPage = () => {
   const handleNOOConfirm = async (nooData) => {
     try {
       setLoading(true);
+      
+      // Validate and format payment_deadline
+      let paymentDeadline = null;
+      if (nooData.paymentDeadline) {
+        try {
+          // If it's already a date string (YYYY-MM-DD), use it directly
+          if (typeof nooData.paymentDeadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(nooData.paymentDeadline)) {
+            paymentDeadline = nooData.paymentDeadline;
+          } else {
+            // Otherwise, try to parse it
+            const date = new Date(nooData.paymentDeadline);
+            if (isNaN(date.getTime())) {
+              throw new Error('Invalid payment deadline date');
+            }
+            paymentDeadline = date.toISOString().split('T')[0];
+          }
+        } catch (error) {
+          notifications.error(`Invalid payment deadline: ${error.message}`);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      console.log('Sending NOO with data:', {
+        ...nooData,
+        payment_deadline: paymentDeadline
+      });
+      
       await sendNOO(id, {
         recipient_email: nooData.recipientEmail,
         recipient_name: nooData.recipientName,
@@ -610,7 +638,7 @@ const InspectionReviewPage = () => {
         email_body: nooData.emailBody,
         violation_breakdown: nooData.violationBreakdown,
         penalty_fees: nooData.penaltyFees,
-        payment_deadline: new Date(nooData.paymentDeadline).toISOString().split('T')[0],
+        payment_deadline: paymentDeadline,
         payment_instructions: nooData.paymentInstructions,
         remarks: nooData.remarks || 'Notice of Order sent',
         billing_items: nooData.billingItems || []
@@ -621,9 +649,16 @@ const InspectionReviewPage = () => {
       navigate('/inspections?tab=noo_sent');
     } catch (error) {
       console.error('Error sending NOO:', error);
-      notifications.error(
-        error.response?.data?.error || error.response?.data?.message || 'Failed to send NOO'
-      );
+      console.error('Error details:', error.response?.data);
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.detail || 
+                          error.response?.data?.message || 
+                          error.message || 
+                          'Failed to send Notice of Order. Please check the server logs for details.';
+      notifications.error(errorMessage, {
+        title: 'NOO Send Failed',
+        duration: 6000
+      });
     } finally {
       setLoading(false);
     }

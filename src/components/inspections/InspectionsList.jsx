@@ -2327,7 +2327,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                             <div className="text-sm text-gray-500">
                               No actions available
                             </div>
-                            ) : userLevel === 'Division Chief' && activeTab === 'review' ? null : userLevel === 'Division Chief' ? (
+                            ) : userLevel === 'Division Chief' && (activeTab === 'review' || activeTab === 'reviewed') ? null : userLevel === 'Division Chief' ? (
                             <div className="text-sm text-gray-500">
                               No actions available
                             </div>

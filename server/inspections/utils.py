@@ -15,6 +15,21 @@ def send_notice_email(subject, body, recipient_email):
     Send NOV/NOO notices to establishments.
     """
     try:
+        # Validate recipient email
+        if not recipient_email or not recipient_email.strip():
+            raise ValueError("Recipient email is required and cannot be empty")
+        
+        recipient_email = recipient_email.strip()
+        
+        # Check email backend configuration
+        from django.core.mail import get_connection
+        connection = get_connection()
+        backend_name = connection.__class__.__name__
+        
+        if 'console' in backend_name.lower():
+            logger.warning(f"Email backend is set to console - email will not actually be sent to {recipient_email}")
+            logger.warning("Please configure EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in settings or environment variables")
+        
         html_body = linebreaks(body)
         email = EmailMultiAlternatives(
             subject=subject,
@@ -23,11 +38,13 @@ def send_notice_email(subject, body, recipient_email):
             to=[recipient_email],
         )
         email.attach_alternative(html_body, "text/html")
+        
+        logger.info(f"Sending email to {recipient_email} with subject '{subject}' using backend {backend_name}")
         email.send(fail_silently=False)
-        logger.info(f"Notice email sent to {recipient_email} with subject '{subject}'")
+        logger.info(f"Notice email sent successfully to {recipient_email} with subject '{subject}'")
         return True
     except Exception as exc:
-        logger.error(f"Failed to send notice email to {recipient_email}: {str(exc)}")
+        logger.error(f"Failed to send notice email to {recipient_email}: {str(exc)}", exc_info=True)
         raise
 
 

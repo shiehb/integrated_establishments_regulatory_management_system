@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Mail, Calendar, FileText, AlertTriangle, CheckCircle, ArrowLeft } from 'lucide-react';
 import LayoutForm from '../LayoutForm';
+import ConfirmationDialog from '../common/ConfirmationDialog';
 
 // Layout presets guide:
 // - Two Column Grid: Inspection & recipient details span the top row; violations fill bottom-left; remaining sections stack bottom-right.
 // - Stacked Sections: Single scroll column with email preview positioned beneath (mobile-first).
 // - Preview Focused: Form narrows to 60% width, dedicating more space to the email preview pane.
 
-const NOVModal = ({ open, onClose, onConfirm, inspection, loading }) => {
+const NOVModal = ({ open, onClose, onSubmit, onConfirm, inspection, loading }) => {
+  // Support both onSubmit and onConfirm for backward compatibility
+  const handleSubmitProp = onSubmit || onConfirm;
   const [formData, setFormData] = useState({
     recipientEmail: '',
     recipientName: '',
@@ -18,6 +21,8 @@ const NOVModal = ({ open, onClose, onConfirm, inspection, loading }) => {
     remarks: '',
     complianceStatus: null
   });
+
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const formatLegacyViolations = useCallback((rawViolations) => {
     if (!rawViolations) return '';
@@ -185,14 +190,96 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onConfirm({
-      ...formData,
-      emailSubject,
-      emailBody
-    });
+    // Show confirmation dialog instead of directly calling onConfirm
+    setShowConfirm(true);
   };
 
-  if (!open) return null;
+  const handleConfirmSend = async () => {
+    // Validate required fields
+    if (!formData.recipientEmail || !formData.recipientEmail.trim()) {
+      alert('Recipient email is required');
+      return;
+    }
+    if (!formData.violations || !formData.violations.trim()) {
+      alert('Violations are required');
+      return;
+    }
+    if (!formData.complianceInstructions || !formData.complianceInstructions.trim()) {
+      alert('Compliance instructions are required');
+      return;
+    }
+    if (!formData.complianceDeadline) {
+      alert('Compliance deadline is required');
+      return;
+    }
+
+    // Don't close dialog yet - keep it open to show loading state
+    try {
+      console.log('Sending NOV with data:', formData);
+      
+      // Format compliance_deadline as ISO datetime string (backend expects DateTimeField)
+      const complianceDeadline = formData.complianceDeadline 
+        ? new Date(formData.complianceDeadline + 'T23:59:59').toISOString()
+        : null;
+      
+      // If onConfirm is used (InspectionReviewPage), send camelCase data
+      // If onSubmit is used (Inspections page), send snake_case data
+      let submitData;
+      if (onConfirm && !onSubmit) {
+        // Backward compatibility: send camelCase for handleNOVConfirm
+        submitData = {
+          recipientEmail: formData.recipientEmail.trim(),
+          recipientName: formData.recipientName || '',
+          contactPerson: formData.contactPerson || '',
+          violations: formData.violations.trim(),
+          complianceInstructions: formData.complianceInstructions.trim(),
+          complianceDeadline: complianceDeadline,
+          remarks: formData.remarks || '',
+          emailSubject: emailSubject,
+          emailBody: emailBody
+        };
+      } else {
+        // New format: send snake_case for handleNOVSubmit
+        submitData = {
+          recipient_email: formData.recipientEmail.trim(),
+          recipient_name: formData.recipientName || '',
+          contact_person: formData.contactPerson || '',
+          violations: formData.violations.trim(),
+          compliance_instructions: formData.complianceInstructions.trim(),
+          compliance_deadline: complianceDeadline,
+          remarks: formData.remarks || '',
+          email_subject: emailSubject,
+          email_body: emailBody
+        };
+      }
+      
+      console.log('Submitting NOV data:', submitData);
+      if (!handleSubmitProp) {
+        throw new Error('onSubmit or onConfirm handler is required');
+      }
+      await handleSubmitProp(submitData);
+      console.log('NOV submitted successfully');
+      
+      // Close dialog only on success
+      setShowConfirm(false);
+    } catch (error) {
+      // Log error for debugging
+      console.error('Error in handleConfirmSend:', error);
+      // Re-throw error so parent component can handle it and show notification
+      throw error;
+    }
+  };
+
+  const handleCancelConfirm = () => {
+    setShowConfirm(false);
+  };
+
+  // Close confirmation dialog when modal closes
+  useEffect(() => {
+    if (!open) {
+      setShowConfirm(false);
+    }
+  }, [open]);
 
   // Header Component
   const novHeader = (
@@ -239,7 +326,10 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
     </div>
   );
 
+  if (!open) return null;
+
   return (
+    <>
     <div className="fixed inset-0 z-[9999]">
       <LayoutForm 
         headerHeight="small" 
@@ -417,6 +507,55 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
         </div>
       </LayoutForm>
     </div>
+
+      {/* Confirmation Dialog */}
+      <ConfirmationDialog
+        open={showConfirm}
+        title="Confirm Send Notice of Violation"
+        icon={<Mail className="w-5 h-5 text-orange-600" />}
+        headerColor="sky"
+        message={
+          <div className="space-y-4">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="w-4 h-4 text-gray-600" />
+                <span className="font-medium text-gray-800">NOV Details</span>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-700">Recipient:</span>
+                  <span className="text-gray-900">{formData.recipientEmail}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-gray-700">Compliance Deadline:</span>
+                  <span className="text-gray-900">
+                    {formData.complianceDeadline 
+                      ? new Date(formData.complianceDeadline).toLocaleDateString()
+                      : 'Not set'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-4 h-4 text-orange-600" />
+                <span className="font-medium text-orange-800">Important</span>
+              </div>
+              <p className="text-sm text-orange-700">
+                This will send the Notice of Violation to the establishment via email. The inspection status will be updated to "NOV Sent". Are you sure you want to proceed?
+              </p>
+            </div>
+          </div>
+        }
+        confirmText="Send NOV"
+        cancelText="Cancel"
+        confirmColor="sky"
+        size="md"
+        loading={loading}
+        onCancel={handleCancelConfirm}
+        onConfirm={handleConfirmSend}
+      />
+    </>
   );
 };
 

@@ -43,6 +43,8 @@ export default function Inspections() {
   const [loading, setLoading] = useState(true);
   const [establishments, setEstablishments] = useState([]);
   const [establishmentsLoading, setEstablishmentsLoading] = useState(false);
+  const [novLoading, setNovLoading] = useState(false);
+  const [nooLoading, setNooLoading] = useState(false);
 
   const refreshInspections = () => {
     setRefreshTrigger((prev) => prev + 1);
@@ -179,6 +181,7 @@ export default function Inspections() {
   // Handle NOV modal
   const handleNOVSubmit = async (formData) => {
     if (!novModal.inspection) return;
+    setNovLoading(true);
     try {
       await sendNOV(novModal.inspection.id, formData);
       setNovModal({ open: false, inspection: null });
@@ -187,12 +190,15 @@ export default function Inspections() {
     } catch (error) {
       console.error('Error sending NOV:', error);
       notifications.error(`Error sending NOV: ${error.message}`);
+    } finally {
+      setNovLoading(false);
     }
   };
 
   // Handle NOO modal
   const handleNOOSubmit = async (formData) => {
     if (!nooModal.inspection) return;
+    setNooLoading(true);
     try {
       await sendNOO(nooModal.inspection.id, formData);
       setNooModal({ open: false, inspection: null });
@@ -201,6 +207,8 @@ export default function Inspections() {
     } catch (error) {
       console.error('Error sending NOO:', error);
       notifications.error(`Error sending NOO: ${error.message}`);
+    } finally {
+      setNooLoading(false);
     }
   };
 
@@ -527,6 +535,7 @@ export default function Inspections() {
             inspection={novModal.inspection}
             onClose={() => setNovModal({ open: false, inspection: null })}
             onSubmit={handleNOVSubmit}
+            loading={novLoading}
           />
 
           {/* NOO Modal */}
@@ -535,6 +544,7 @@ export default function Inspections() {
             inspection={nooModal.inspection}
             onClose={() => setNooModal({ open: false, inspection: null })}
             onSubmit={handleNOOSubmit}
+            loading={nooLoading}
           />
 
                 </div>
