@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notice of Order - {{ inspection_code }}</title>
+  <style>
+    body { 
+      font-family: 'Times New Roman', 'Times', 'Georgia', serif; 
+      line-height: 1.6; 
+      color: #000000; 
+      margin: 0; 
+      padding: 0; 
+      background-color: #f5f5f5; 
+      font-size: 12pt;
+    }
+    .email-wrapper { 
+      max-width: 8.5in; 
+      margin: 0 auto; 
+      background-color: #ffffff; 
+      padding: 0.75in;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .letterhead {
+      border-bottom: 3px solid #7f1d1d;
+      padding-bottom: 15px;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .letterhead h1 {
+      margin: 0;
+      font-size: 18pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #7f1d1d;
+      font-family: 'Times New Roman', 'Times', serif;
+    }
+    .letterhead .agency {
+      margin: 8px 0 4px 0;
+      font-size: 13pt;
+      font-weight: bold;
+      color: #000000;
+    }
+    .letterhead .bureau {
+      margin: 4px 0;
+      font-size: 12pt;
+      color: #000000;
+    }
+    .letterhead .address {
+      margin: 8px 0 0 0;
+      font-size: 10pt;
+      color: #333333;
+    }
+    .document-meta {
+      margin: 25px 0;
+      font-size: 10pt;
+      text-align: right;
+      border-bottom: 1px solid #cccccc;
+      padding-bottom: 10px;
+    }
+    .document-meta table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .document-meta td {
+      padding: 4px 0;
+      text-align: right;
+    }
+    .document-meta td:first-child {
+      text-align: left;
+      font-weight: bold;
+      width: 45%;
+    }
+    .date-line {
+      margin: 30px 0 25px 0;
+      font-size: 12pt;
+    }
+    .recipient-block {
+      margin: 25px 0 30px 0;
+      font-size: 12pt;
+      line-height: 1.8;
+    }
+    .subject-line {
+      margin: 30px 0 25px 0;
+      font-size: 12pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      border-bottom: 2px solid #7f1d1d;
+      padding-bottom: 8px;
+    }
+    .subject-line::before {
+      content: "SUBJECT: ";
+    }
+    .body-content {
+      font-size: 12pt;
+      text-align: justify;
+      line-height: 1.8;
+      margin: 25px 0;
+    }
+    .body-content p {
+      margin: 15px 0;
+      text-indent: 0.5in;
+    }
+    .body-content p.first-paragraph {
+      text-indent: 0;
+    }
+    .violations-section {
+      margin: 30px 0;
+      padding: 20px;
+      border: 2px solid #7f1d1d;
+      background-color: #f9f9f9;
+    }
+    .violations-section h3 {
+      margin: 0 0 15px 0;
+      font-size: 12pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      text-align: center;
+      border-bottom: 1px solid #7f1d1d;
+      padding-bottom: 8px;
+      color: #000000;
+    }
+    .violations-content {
+      font-size: 11pt;
+      white-space: pre-wrap;
+      line-height: 1.7;
+      margin: 10px 0;
+      color: #000000;
+    }
+    .penalty-section {
+      margin: 30px 0;
+      padding: 25px;
+      border: 3px solid #7f1d1d;
+      background-color: #ffffff;
+      text-align: center;
+    }
+    .penalty-section h3 {
+      margin: 0 0 20px 0;
+      font-size: 12pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      border-bottom: 2px solid #7f1d1d;
+      padding-bottom: 10px;
+      color: #000000;
+    }
+    .penalty-amount {
+      font-size: 20pt;
+      font-weight: bold;
+      margin: 20px 0;
+      color: #7f1d1d;
+    }
+    .payment-section {
+      margin: 30px 0;
+      padding: 20px;
+      border: 2px solid #7f1d1d;
+      background-color: #f9f9f9;
+    }
+    .payment-section h3 {
+      margin: 0 0 15px 0;
+      font-size: 12pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      text-align: center;
+      border-bottom: 1px solid #7f1d1d;
+      padding-bottom: 8px;
+      color: #000000;
+    }
+    .payment-content {
+      font-size: 11pt;
+      white-space: pre-wrap;
+      line-height: 1.7;
+      margin: 10px 0;
+      color: #000000;
+    }
+    .deadline-notice {
+      margin: 30px 0;
+      padding: 20px;
+      border: 3px solid #7f1d1d;
+      background-color: #ffffff;
+      text-align: center;
+    }
+    .deadline-notice strong {
+      display: block;
+      font-size: 12pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      color: #000000;
+    }
+    .deadline-date {
+      font-size: 16pt;
+      font-weight: bold;
+      margin: 12px 0;
+      color: #7f1d1d;
+    }
+    .important-notice {
+      margin: 30px 0;
+      padding: 18px;
+      border: 2px solid #7f1d1d;
+      background-color: #ffffff;
+      font-size: 11pt;
+      text-align: justify;
+    }
+    .important-notice strong {
+      text-transform: uppercase;
+      color: #000000;
+    }
+    .billing-code {
+      margin: 25px 0;
+      padding: 15px;
+      border: 2px solid #7f1d1d;
+      background-color: #f9f9f9;
+      text-align: center;
+      font-size: 11pt;
+      font-weight: bold;
+      color: #000000;
+    }
+    .signature-block {
+      margin: 60px 0 40px 0;
+    }
+    .signature-line {
+      margin-top: 80px;
+      border-top: 1px solid #000000;
+      width: 350px;
+      margin-bottom: 8px;
+    }
+    .signature-name {
+      font-weight: bold;
+      font-size: 12pt;
+      margin-top: 5px;
+      color: #000000;
+    }
+    .signature-title {
+      font-size: 11pt;
+      margin-top: 3px;
+      color: #333333;
+    }
+    .reference-footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #cccccc;
+      font-size: 9pt;
+      color: #666666;
+      text-align: center;
+    }
+    .footer-info {
+      margin-top: 25px;
+      font-size: 9pt;
+      color: #666666;
+      text-align: center;
+      border-top: 1px solid #cccccc;
+      padding-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="email-wrapper">
+    <!-- Official Letterhead -->
+    <div class="letterhead">
+      <h1>REPUBLIC OF THE PHILIPPINES</h1>
+      <div class="agency">DEPARTMENT OF ENVIRONMENT AND NATURAL RESOURCES</div>
+      <div class="bureau">ENVIRONMENTAL MANAGEMENT BUREAU</div>
+      <div class="bureau">REGION 1</div>
+      <div class="address">San Fernando City, La Union, Philippines</div>
+    </div>
+
+    <!-- Document Metadata -->
+    <div class="document-meta">
+      <table>
+        <tr>
+          <td><strong>Reference No.:</strong></td>
+          <td>NOO-{{ inspection_code }}</td>
+        </tr>
+        <tr>
+          <td><strong>Inspection Code:</strong></td>
+          <td>{{ inspection_code }}</td>
+        </tr>
+        {% if billing_code %}
+        <tr>
+          <td><strong>Billing Code:</strong></td>
+          <td>{{ billing_code }}</td>
+        </tr>
+        {% endif %}
+        {% if inspection_date and inspection_date != 'N/A' %}
+        <tr>
+          <td><strong>Date of Inspection:</strong></td>
+          <td>{{ inspection_date }}</td>
+        </tr>
+        {% endif %}
+      </table>
+    </div>
+
+    <!-- Date -->
+    <div class="date-line">
+      <strong>{{ noo_sent_date|default:"[Date]" }}</strong>
+    </div>
+
+    <!-- Recipient Block -->
+    <div class="recipient-block">
+      <strong>{{ recipient_name|default:"Sir/Madam" }}</strong><br/>
+      {% if contact_person %}{{ contact_person }}<br/>{% endif %}
+      {{ establishment_name }}<br/>
+      {% if recipient_email %}{{ recipient_email }}{% endif %}
+    </div>
+
+    <!-- Subject Line -->
+    <div class="subject-line">
+      Notice of Order - Payment of Penalty Fees
+    </div>
+
+    <!-- Body Content -->
+    <div class="body-content">
+      <p class="first-paragraph">
+        <strong>Good day.</strong>
+      </p>
+
+      <p>
+        This is to formally notify you that after the Notice of Violation (NOV) sent on <strong>{{ nov_date|default:"[NOV Date]" }}</strong>, 
+        your establishment has failed to comply with the required corrective measures within the specified deadline.
+      </p>
+
+      <!-- Violations Section -->
+      <div class="violations-section">
+        <h3>Violation Breakdown</h3>
+        <div class="violations-content">{{ violation_breakdown|linebreaks|default:"No specific violations listed." }}</div>
+      </div>
+
+      <!-- Penalty Assessment -->
+      <div class="penalty-section">
+        <h3>Penalty Assessment</h3>
+        <div class="penalty-amount">₱{{ penalty_fees|default:"0.00" }}</div>
+        <p style="font-size: 11pt; margin: 15px 0 0 0; color: #000000;">
+          Total Penalty Amount Due
+        </p>
+      </div>
+
+      <!-- Payment Instructions -->
+      <div class="payment-section">
+        <h3>Payment Instructions</h3>
+        <div class="payment-content">{{ payment_instructions|linebreaks|default:"Please contact our office for payment instructions." }}</div>
+      </div>
+
+      <!-- Billing Code -->
+      {% if billing_code %}
+      <div class="billing-code">
+        <strong>BILLING CODE: {{ billing_code }}</strong>
+      </div>
+      {% endif %}
+
+      <!-- Deadline Notice -->
+      <div class="deadline-notice">
+        <strong>Payment Deadline</strong>
+        <div class="deadline-date">{{ payment_deadline|date:"F j, Y" }}</div>
+        <p style="font-size: 11pt; margin: 12px 0 0 0; color: #000000;">
+          You are hereby ordered to settle the penalty amount on or before the specified deadline.
+        </p>
+      </div>
+
+      <!-- Important Notice -->
+      <div class="important-notice">
+        <p style="margin: 0;">
+          <strong>IMPORTANT:</strong> Failure to pay the penalty within the specified period may result in further legal action 
+          and additional penalties as provided under relevant environmental laws and regulations.
+        </p>
+      </div>
+
+      <p>
+        Should you have any questions regarding this Notice of Order, you may contact our office during working hours.
+      </p>
+
+      <p>
+        Thank you for your immediate attention to this matter.
+      </p>
+    </div>
+
+    <!-- Signature Block -->
+    <div class="signature-block">
+      <p style="margin: 0 0 8px 0; font-size: 12pt;">Sincerely,</p>
+      <div class="signature-line"></div>
+      <div class="signature-name">ENVIRONMENTAL MANAGEMENT BUREAU</div>
+      <div class="signature-name">REGION 1</div>
+      <div class="signature-title">Department of Environment and Natural Resources</div>
+    </div>
+
+    <!-- Reference Footer -->
+    <div class="reference-footer">
+      <p style="margin: 8px 0;">
+        <strong>Integrated Establishments Regulatory Management System (IERMS)</strong><br/>
+        This is an official document generated by the IERMS. For inquiries, contact: support@ierms.denr.gov.ph
+      </p>
+    </div>
+
+    <!-- Footer Information -->
+    <div class="footer-info">
+      <p style="margin: 8px 0;">
+        <strong>CONFIDENTIALITY NOTICE:</strong> This document is confidential and intended solely for the addressee. 
+        Unauthorized disclosure or distribution is strictly prohibited.
+      </p>
+      <p style="margin: 8px 0;">
+        © {% now "Y" %} DENR Region 1 - IERMS. All rights reserved.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

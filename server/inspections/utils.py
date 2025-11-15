@@ -10,9 +10,16 @@ from django.utils.html import strip_tags, linebreaks
 logger = logging.getLogger(__name__)
 
 
-def send_notice_email(subject, body, recipient_email):
+def send_notice_email(subject, body, recipient_email, notice_type='NOV', context=None):
     """
-    Send NOV/NOO notices to establishments.
+    Send NOV/NOO notices to establishments using professional government-style templates.
+    
+    Args:
+        subject: Email subject line
+        body: Plain text body (used as fallback)
+        recipient_email: Recipient email address
+        notice_type: 'NOV' or 'NOO'
+        context: Dictionary with template context variables
     """
     try:
         # Validate recipient email
@@ -30,16 +37,59 @@ def send_notice_email(subject, body, recipient_email):
             logger.warning(f"Email backend is set to console - email will not actually be sent to {recipient_email}")
             logger.warning("Please configure EMAIL_HOST_USER and EMAIL_HOST_PASSWORD in settings or environment variables")
         
-        html_body = linebreaks(body)
+        # Prepare context for template
+        template_context = context or {}
+        
+        # Add default values if not provided
+        from django.utils import timezone
+        from django.contrib.humanize.templatetags.humanize import intcomma
+        from decimal import Decimal
+        
+        template_context.setdefault('site_url', getattr(settings, 'FRONTEND_URL', 'http://localhost:3000'))
+        template_context.setdefault('current_year', timezone.now().year)
+        
+        # Format penalty fees with comma separators if it's a number
+        if 'penalty_fees' in template_context:
+            try:
+                penalty = template_context['penalty_fees']
+                if isinstance(penalty, (int, float, Decimal)):
+                    template_context['penalty_fees'] = f"{float(penalty):,.2f}"
+            except Exception:
+                pass
+        
+        # Select template based on notice type
+        if notice_type.upper() == 'NOO':
+            template_name = 'emails/notice_of_order.html'
+        elif notice_type.upper() == 'NOV_REMINDER':
+            template_name = 'emails/nov_compliance_reminder.html'
+        else:
+            template_name = 'emails/notice_of_violation.html'
+        
+        # Render HTML template
+        try:
+            html_body = render_to_string(template_name, template_context)
+        except Exception as template_error:
+            logger.warning(f"Failed to render email template, using plain text fallback: {str(template_error)}")
+            # Fallback to plain text with linebreaks
+            html_body = linebreaks(body)
+        
+        # Create plain text version from HTML
+        plain_text = strip_tags(html_body)
+        # Clean up plain text formatting
+        import re
+        plain_text = re.sub(r'\n\s*\n', '\n\n', plain_text)
+        plain_text = plain_text.strip()
+        
+        # Create email
         email = EmailMultiAlternatives(
             subject=subject,
-            body=body,
+            body=plain_text,
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[recipient_email],
         )
         email.attach_alternative(html_body, "text/html")
         
-        logger.info(f"Sending email to {recipient_email} with subject '{subject}' using backend {backend_name}")
+        logger.info(f"Sending {notice_type} email to {recipient_email} with subject '{subject}' using backend {backend_name}")
         email.send(fail_silently=False)
         logger.info(f"Notice email sent successfully to {recipient_email} with subject '{subject}'")
         return True

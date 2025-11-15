@@ -547,9 +547,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
             # Show only inspections with NOV sent
             return queryset.filter(current_status='NOV_SENT')
         elif tab == 'noo_sent':
-            # Show NOO sent and closed non-compliant (per tabStatusMapping)
+            # Show only NOO sent inspections
             return queryset.filter(
-                current_status__in=['NOO_SENT', 'CLOSED_NON_COMPLIANT']
+                current_status='NOO_SENT'
             )
         elif tab == 'compliant':
             # Show only COMPLIANT inspections
@@ -3002,8 +3002,40 @@ class InspectionViewSet(viewsets.ModelViewSet):
             subject = data.get('email_subject') or f"Notice of Violation – {inspection.code}"
             body = data.get('email_body') or data['violations']
             
+            # Get establishment information
+            establishment = inspection.establishments.first()
+            establishment_name = establishment.name if establishment else 'N/A'
+            
+            # Get inspection date from form if available
+            inspection_date = 'N/A'
+            if hasattr(inspection, 'form') and inspection.form:
+                try:
+                    if hasattr(inspection.form, 'checklist') and inspection.form.checklist:
+                        if isinstance(inspection.form.checklist, dict):
+                            general = inspection.form.checklist.get('general', {})
+                            if general and general.get('inspection_date_time'):
+                                from django.utils.dateparse import parse_datetime
+                                date_obj = parse_datetime(general.get('inspection_date_time'))
+                                if date_obj:
+                                    inspection_date = date_obj.strftime('%B %d, %Y')
+                except Exception:
+                    pass
+            
+            # Prepare template context
+            email_context = {
+                'inspection_code': inspection.code,
+                'inspection_date': inspection_date,
+                'establishment_name': establishment_name,
+                'recipient_name': data.get('recipient_name', ''),
+                'contact_person': data.get('contact_person', ''),
+                'violations': data['violations'],
+                'compliance_instructions': data['compliance_instructions'],
+                'compliance_deadline': data['compliance_deadline'],
+                'remarks': data.get('remarks', ''),
+            }
+            
             logger.info(f"Attempting to send NOV email to {recipient_email} for inspection {inspection.code}")
-            send_notice_email(subject, body, recipient_email)
+            send_notice_email(subject, body, recipient_email, notice_type='NOV', context=email_context)
             logger.info(f"Successfully sent NOV email to {recipient_email} for inspection {inspection.code}")
         except Exception as e:
             logger.error(f"Failed to send NOV email for inspection {inspection.code} to {recipient_email}: {str(e)}", exc_info=True)
@@ -3106,37 +3138,10 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Transition
         prev_status = inspection.current_status
-        inspection.current_status = 'NOO_SENT'
         
-        # Send email to recipient
-        recipient_email = data.get('recipient_email', '').strip()
-        if not recipient_email:
-            return Response(
-                {'error': 'Recipient email is required to send NOO.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        try:
-            subject = data.get('email_subject') or f"Notice of Order – {inspection.code}"
-            body = data.get('email_body') or data['violation_breakdown']
-            
-            logger.info(f"Attempting to send NOO email to {recipient_email} for inspection {inspection.code}")
-            send_notice_email(subject, body, recipient_email)
-            logger.info(f"Successfully sent NOO email to {recipient_email} for inspection {inspection.code}")
-        except Exception as e:
-            logger.error(f"Failed to send NOO email for inspection {inspection.code} to {recipient_email}: {str(e)}", exc_info=True)
-            inspection.current_status = prev_status
-            inspection.save(update_fields=['current_status'])
-            return Response(
-                {'error': f'NOO saved but failed to send email: {str(e)}. Please check email configuration and recipient address.'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-        
-        # Create billing record after successful email
+        # Get establishment information
         establishment = inspection.establishments.first()
         if not establishment:
-            inspection.current_status = prev_status
-            inspection.save(update_fields=['current_status'])
             return Response(
                 {'error': 'No establishment associated with this inspection'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -3144,14 +3149,13 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         # Validate that inspection has a law (required for billing record)
         if not inspection.law:
-            inspection.current_status = prev_status
-            inspection.save(update_fields=['current_status'])
             logger.error(f"Cannot create billing record for inspection {inspection.code}: inspection.law is None")
             return Response(
                 {'error': 'Inspection must have a law associated before sending NOO. Please ensure the inspection has a law assigned.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Create billing record first (so billing_code is available for email)
         try:
             # Use get_or_create to handle existing billing records
             # Since BillingRecord has OneToOneField with Inspection, there can only be one per inspection
@@ -3190,10 +3194,75 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 
         except Exception as e:
             logger.error(f"Failed to create/update billing record for inspection {inspection.code}: {str(e)}", exc_info=True)
+            return Response(
+                {'error': f'Failed to create/update billing record: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Update inspection status
+        inspection.current_status = 'NOO_SENT'
+        
+        # Send email to recipient
+        recipient_email = data.get('recipient_email', '').strip()
+        if not recipient_email:
             inspection.current_status = prev_status
             inspection.save(update_fields=['current_status'])
             return Response(
-                {'error': f'Failed to create/update billing record: {str(e)}'},
+                {'error': 'Recipient email is required to send NOO.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            subject = data.get('email_subject') or f"Notice of Order – {inspection.code}"
+            body = data.get('email_body') or data['violation_breakdown']
+            
+            establishment_name = establishment.name if establishment else 'N/A'
+            
+            # Get inspection date from form if available
+            inspection_date = 'N/A'
+            nov_date = None
+            if hasattr(inspection, 'form') and inspection.form:
+                try:
+                    if hasattr(inspection.form, 'checklist') and inspection.form.checklist:
+                        if isinstance(inspection.form.checklist, dict):
+                            general = inspection.form.checklist.get('general', {})
+                            if general and general.get('inspection_date_time'):
+                                from django.utils.dateparse import parse_datetime
+                                date_obj = parse_datetime(general.get('inspection_date_time'))
+                                if date_obj:
+                                    inspection_date = date_obj.strftime('%B %d, %Y')
+                    # Try to get NOV sent date
+                    if hasattr(inspection.form, 'nov') and inspection.form.nov:
+                        if inspection.form.nov.sent_date:
+                            nov_date = inspection.form.nov.sent_date.strftime('%B %d, %Y')
+                except Exception:
+                    pass
+            
+            # Prepare template context with billing code
+            email_context = {
+                'inspection_code': inspection.code,
+                'inspection_date': inspection_date,
+                'nov_date': nov_date,
+                'establishment_name': establishment_name,
+                'recipient_name': data.get('recipient_name', ''),
+                'contact_person': data.get('contact_person', ''),
+                'violation_breakdown': data['violation_breakdown'],
+                'penalty_fees': data['penalty_fees'],
+                'payment_deadline': data['payment_deadline'],
+                'payment_instructions': data.get('payment_instructions', ''),
+                'remarks': data.get('remarks', ''),
+                'billing_code': billing.billing_code if billing else None,
+            }
+            
+            logger.info(f"Attempting to send NOO email to {recipient_email} for inspection {inspection.code}")
+            send_notice_email(subject, body, recipient_email, notice_type='NOO', context=email_context)
+            logger.info(f"Successfully sent NOO email to {recipient_email} for inspection {inspection.code}")
+        except Exception as e:
+            logger.error(f"Failed to send NOO email for inspection {inspection.code} to {recipient_email}: {str(e)}", exc_info=True)
+            inspection.current_status = prev_status
+            inspection.save(update_fields=['current_status'])
+            return Response(
+                {'error': f'NOO saved but failed to send email: {str(e)}. Please check email configuration and recipient address.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         

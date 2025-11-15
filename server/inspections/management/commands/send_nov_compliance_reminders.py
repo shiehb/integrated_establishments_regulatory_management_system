@@ -63,7 +63,7 @@ class Command(BaseCommand):
             # Calculate hours until deadline for logging
             hours_until_deadline = (nov.compliance_deadline - now).total_seconds() / 3600
             
-            # Generate reminder email
+            # Generate reminder email (plain text fallback)
             subject = f"Reminder: Compliance Deadline Tomorrow - {inspection.code}"
             body = self._generate_reminder_email_body(
                 inspection, 
@@ -81,7 +81,52 @@ class Command(BaseCommand):
             
             if not dry_run:
                 try:
-                    send_notice_email(subject, body, nov.recipient_email)
+                    # Get inspection date from form if available
+                    inspection_date = 'N/A'
+                    if hasattr(inspection, 'form') and inspection.form:
+                        try:
+                            if hasattr(inspection.form, 'checklist') and inspection.form.checklist:
+                                if isinstance(inspection.form.checklist, dict):
+                                    general = inspection.form.checklist.get('general', {})
+                                    if general and general.get('inspection_date_time'):
+                                        from django.utils.dateparse import parse_datetime
+                                        date_obj = parse_datetime(general.get('inspection_date_time'))
+                                        if date_obj:
+                                            inspection_date = date_obj.strftime('%B %d, %Y')
+                        except Exception:
+                            pass
+                    
+                    # Format deadline date and time
+                    deadline_date = nov.compliance_deadline.strftime('%B %d, %Y') if nov.compliance_deadline else 'N/A'
+                    deadline_time = nov.compliance_deadline.strftime('%I:%M %p') if nov.compliance_deadline else None
+                    
+                    # Get NOV sent date
+                    nov_sent_date = nov.sent_date.strftime('%B %d, %Y') if nov.sent_date else None
+                    
+                    # Prepare template context for professional HTML email
+                    email_context = {
+                        'inspection_code': inspection.code,
+                        'inspection_date': inspection_date,
+                        'establishment_name': establishment_name,
+                        'recipient_name': nov.recipient_name or nov.contact_person or 'Sir/Madam',
+                        'contact_person': nov.contact_person or '',
+                        'violations': nov.violations or '',
+                        'compliance_instructions': nov.compliance_instructions or '',
+                        'compliance_deadline': nov.compliance_deadline,
+                        'deadline_date': deadline_date,
+                        'deadline_time': deadline_time,
+                        'nov_sent_date': nov_sent_date,
+                        'is_reminder': True,
+                    }
+                    
+                    # Send email using professional HTML template
+                    send_notice_email(
+                        subject, 
+                        body,  # Plain text fallback
+                        nov.recipient_email,
+                        notice_type='NOV_REMINDER',
+                        context=email_context
+                    )
                     reminder_count += 1
                     self.stdout.write(
                         self.style.SUCCESS(
@@ -95,7 +140,7 @@ class Command(BaseCommand):
                             f'  ✗ Failed to send reminder to {nov.recipient_email}: {str(e)}'
                         )
                     )
-                    logger.error(f"Failed to send NOV compliance reminder for {inspection.code}: {str(e)}")
+                    logger.error(f"Failed to send NOV compliance reminder for {inspection.code}: {str(e)}", exc_info=True)
             else:
                 reminder_count += 1
                 self.stdout.write(
