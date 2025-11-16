@@ -6,7 +6,7 @@ import logging
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q, Exists, OuterRef
+from django.db.models import Q, Exists, OuterRef, Prefetch
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
@@ -361,43 +361,48 @@ class InspectionViewSet(viewsets.ModelViewSet):
         elif tab == 'returned_inspection':
             # Returned items that are back to Section and not yet started
             from inspections.models import InspectionHistory
+            # Only show returns directed to Section level
             returned_subquery = InspectionHistory.objects.filter(
                 inspection=OuterRef('pk'),
-                remarks__icontains='Returned'
+                remarks__icontains='Returned',
+                new_status='SECTION_ASSIGNED'
             )
             return queryset.filter(
                 law_filter,
                 Exists(returned_subquery),
                 current_status='SECTION_ASSIGNED'
-            ).prefetch_related('history')
+            ).prefetch_related(
+                Prefetch('history',
+                    queryset=InspectionHistory.objects.select_related('changed_by', 'assigned_to').order_by('-created_at')
+                )
+            )
         elif tab == 'returned_reports':
-            # Show returned reports that have completed monitoring
+            # Show returned reports that were returned back to Section for rework
             from inspections.models import InspectionHistory
             
             # Use Exists subquery to check for history entries with "Returned" in remarks
+            # Only show returns directed to Section level (IN_PROGRESS for active rework, REVIEWED for review stage returns)
             returned_subquery = InspectionHistory.objects.filter(
                 inspection=OuterRef('pk'),
-                remarks__icontains='Returned'
+                remarks__icontains='Returned',
+                new_status__in=['SECTION_IN_PROGRESS', 'SECTION_REVIEWED']
             )
             
             # Filter and prefetch history for serializer
+            # Only show items currently in IN_PROGRESS (rework) or REVIEWED (review stage)
+            # Also include lower-stage completed statuses (UNIT_COMPLETED, MONITORING_COMPLETED)
             return queryset.filter(
                 law_filter,
-                Exists(returned_subquery),
-                current_status__in=[
-                    'MONITORING_COMPLETED_COMPLIANT',
-                    'MONITORING_COMPLETED_NON_COMPLIANT',
-                    'UNIT_COMPLETED_COMPLIANT',
-                    'UNIT_COMPLETED_NON_COMPLIANT',
-                    'UNIT_REVIEWED',
-                    'SECTION_COMPLETED_COMPLIANT',
-                    'SECTION_COMPLETED_NON_COMPLIANT',
-                    'SECTION_REVIEWED',
-                    'DIVISION_REVIEWED',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
-            ).prefetch_related('history')  # Prefetch to avoid N+1 queries in serializer
+                current_status__in=['SECTION_IN_PROGRESS', 'SECTION_REVIEWED',
+                    'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT',
+                    'MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT']
+            ).filter(
+                Exists(returned_subquery)
+            ).prefetch_related(
+                Prefetch('history',
+                    queryset=InspectionHistory.objects.select_related('changed_by', 'assigned_to').order_by('-created_at')
+                )
+            )
         else:
             # Default: show all inspections for this section
             return queryset.filter(law_filter)
@@ -484,43 +489,46 @@ class InspectionViewSet(viewsets.ModelViewSet):
         elif tab == 'returned_inspection':
             # Returned items that are back to Unit and not yet started
             from inspections.models import InspectionHistory
+            # Only show returns directed to Unit level
             returned_subquery = InspectionHistory.objects.filter(
                 inspection=OuterRef('pk'),
-                remarks__icontains='Returned'
+                remarks__icontains='Returned',
+                new_status='UNIT_ASSIGNED'
             )
             return queryset.filter(
                 law_filter,
                 Exists(returned_subquery),
                 current_status='UNIT_ASSIGNED'
-            ).prefetch_related('history')
+            ).prefetch_related(
+                Prefetch('history',
+                    queryset=InspectionHistory.objects.select_related('changed_by', 'assigned_to').order_by('-created_at')
+                )
+            )
         elif tab == 'returned_reports':
-            # Show returned reports that have completed monitoring
+            # Show returned reports that were returned back to Unit for rework
             from inspections.models import InspectionHistory
             
             # Use Exists subquery to check for history entries with "Returned" in remarks
+            # Only show returns directed to Unit level (IN_PROGRESS for active rework, REVIEWED for review stage returns)
             returned_subquery = InspectionHistory.objects.filter(
                 inspection=OuterRef('pk'),
-                remarks__icontains='Returned'
+                remarks__icontains='Returned',
+                new_status__in=['UNIT_IN_PROGRESS', 'UNIT_REVIEWED']
             )
             
             # Filter and prefetch history for serializer
+            # Only show items currently in IN_PROGRESS (rework) or REVIEWED (review stage)
             return queryset.filter(
                 law_filter,
-                Exists(returned_subquery),
-                current_status__in=[
-                    'MONITORING_COMPLETED_COMPLIANT',
-                    'MONITORING_COMPLETED_NON_COMPLIANT',
-                    'UNIT_COMPLETED_COMPLIANT',
-                    'UNIT_COMPLETED_NON_COMPLIANT',
-                    'UNIT_REVIEWED',
-                    'SECTION_COMPLETED_COMPLIANT',
-                    'SECTION_COMPLETED_NON_COMPLIANT',
-                    'SECTION_REVIEWED',
-                    'DIVISION_REVIEWED',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
-            ).prefetch_related('history')  # Prefetch to avoid N+1 queries in serializer
+                current_status__in=['UNIT_IN_PROGRESS', 'UNIT_REVIEWED','MONITORING_COMPLETED_COMPLIANT',
+                    'MONITORING_COMPLETED_NON_COMPLIANT']
+            ).filter(
+                Exists(returned_subquery)
+            ).prefetch_related(
+                Prefetch('history',
+                    queryset=InspectionHistory.objects.select_related('changed_by', 'assigned_to').order_by('-created_at')
+                )
+            )
         else:
             # Default: show all inspections for this section
             return queryset.filter(law_filter)
@@ -574,29 +582,29 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         # No 'returned_inspection' tab for Monitoring Personnel by design
         elif tab == 'returned_reports':
-            # Show returned reports that have completed monitoring
+            # Show returned reports that have completed monitoring and were returned back to monitoring for rework
             from inspections.models import InspectionHistory
             
             # Use Exists subquery to check for history entries with "Returned" in remarks
+            # Only show returns directed to Monitoring level AND currently in IN_PROGRESS (active rework)
             returned_subquery = InspectionHistory.objects.filter(
                 inspection=OuterRef('pk'),
-                remarks__icontains='Returned'
+                remarks__icontains='Returned',
+                new_status='MONITORING_IN_PROGRESS'
             )
             
             # Filter and prefetch history for serializer
+            # Only show items that are currently in IN_PROGRESS (being reworked) AND assigned to this user
             return queryset.filter(
-                Q(form__inspected_by=user) | Q(assigned_to=user),
-                Exists(returned_subquery),
-                current_status__in=[
-                    'MONITORING_COMPLETED_COMPLIANT',
-                    'MONITORING_COMPLETED_NON_COMPLIANT',
-                    'UNIT_REVIEWED',
-                    'SECTION_REVIEWED',
-                    'DIVISION_REVIEWED',
-                    'CLOSED_COMPLIANT',
-                    'CLOSED_NON_COMPLIANT'
-                ]
-            ).prefetch_related('history')  # Prefetch to avoid N+1 queries in serializer
+                assigned_to=user,
+                current_status='MONITORING_IN_PROGRESS'
+            ).filter(
+                Exists(returned_subquery)
+            ).prefetch_related(
+                Prefetch('history',
+                    queryset=InspectionHistory.objects.select_related('changed_by', 'assigned_to').order_by('-created_at')
+                )
+            )
         else:
             # Default: show all assigned inspections
             return queryset.filter(
