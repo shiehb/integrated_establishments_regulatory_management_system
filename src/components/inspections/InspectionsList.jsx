@@ -195,6 +195,8 @@ const getTabColspan = (activeTab, userLevel = null) => {
     'in_progress': 8,
     'compliant': 6,     // Same as completed tab
     'non_compliant': 6, // Same as completed tab
+    'returned_pending': 6, // 1 checkbox + 4 core + Status + Actions
+    'returned_reports': 6, // 1 checkbox + 4 core + Status + Actions
     'default': 6
   };
   return tabColspans[activeTab] || tabColspans['default'];
@@ -216,7 +218,9 @@ const getEmptyStateMessage = (activeTab, userLevel) => {
       forwarded: 'No inspections forwarded to other personnel.',
       inspection_complete: 'No inspections completed yet.',
       review: 'All caught up! No inspections pending your review.',
-      under_review: 'All caught up! No inspections pending your review.'
+      under_review: 'All caught up! No inspections pending your review.',
+      returned_pending: 'No returned inspections waiting to start in Section.',
+      returned_reports: 'No returned reports found that have completed monitoring.'
     },
     'Unit Head': {
       unit_assigned: 'No new assignments from Section Chief.',
@@ -224,13 +228,17 @@ const getEmptyStateMessage = (activeTab, userLevel) => {
       forwarded: 'No inspections forwarded to Monitoring Personnel.',
       inspection_complete: 'No inspections completed yet.',
       review: 'All caught up! No inspections pending your review.',
-      under_review: 'All caught up! No inspections pending your review.'
+      under_review: 'All caught up! No inspections pending your review.',
+      returned_pending: 'No returned inspections waiting to start in Unit.',
+      returned_reports: 'No returned reports found that have completed monitoring.'
     },
     'Monitoring Personnel': {
       assigned: 'No new assignments waiting to start.',
       in_progress: 'No inspections currently in progress.',
       inspection_complete: 'No completed inspections to display.',
-      under_review: 'All caught up! Nothing pending review.'
+      under_review: 'All caught up! Nothing pending review.',
+      returned_pending: 'No returned inspections waiting to start in Monitoring.',
+      returned_reports: 'No returned reports found that have completed monitoring.'
     },
     'Legal Unit': {
       legal_review: 'No cases assigned for legal review.',
@@ -968,6 +976,64 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     action: null 
   });
   const [actionRemarks, setActionRemarks] = useState('');
+
+  // Modal state for Return Remarks
+  const [remarksModal, setRemarksModal] = useState({
+    open: false,
+    inspection: null,
+    latest: null,
+    all: []
+  });
+
+  const extractReturnEntries = useCallback((inspection) => {
+    const entries = (inspection?.history || [])
+      .filter(h => h?.remarks && h.remarks.includes('Returned'))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    const latest = entries[0] || null;
+    const extractClean = (remarks) => {
+      if (!remarks) return '';
+      return remarks.includes(':') ? remarks.split(':')[1].trim() : remarks;
+    };
+
+    return {
+      latestText: extractClean(latest?.remarks || inspection?.return_remarks || ''),
+      entries: entries.map(e => ({
+        id: e.id,
+        created_at: e.created_at,
+        previous_status: e.previous_status,
+        new_status: e.new_status,
+        assigned_to_name: e.assigned_to_name,
+        changed_by_name: e.changed_by_name,
+        remarks: extractClean(e.remarks)
+      }))
+    };
+  }, []);
+
+  const openRemarksModal = useCallback((inspection) => {
+    const { latestText, entries } = extractReturnEntries(inspection);
+    setRemarksModal({
+      open: true,
+      inspection,
+      latest: latestText || 'No remarks',
+      all: entries
+    });
+  }, [extractReturnEntries]);
+
+  const closeRemarksModal = useCallback(() => {
+    setRemarksModal({ open: false, inspection: null, latest: null, all: [] });
+  }, []);
+
+  // Copy latest remarks to clipboard
+  const copyLatestRemarks = useCallback(() => {
+    if (remarksModal.latest) {
+      try {
+        navigator.clipboard.writeText(remarksModal.latest);
+      } catch {
+        // ignore clipboard errors silently
+      }
+    }
+  }, [remarksModal.latest]);
   const [remarksError, setRemarksError] = useState(null);
 
   const actionRequiresRemarks = useCallback(
@@ -1598,6 +1664,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     if (activeTab === 'compliant') return ["Code", "Establishments", "Law", "Status"];
     if (activeTab === 'non_compliant') return ["Code", "Establishments", "Law", "Status"];
     if (activeTab === 'reviewed') return ["Code", "Establishments", "Law", "Reviewed On", "Status"];
+    if (activeTab === 'returned_pending') return ["Code", "Establishments", "Law", "Return Remarks", "Status"];
+    if (activeTab === 'returned_reports') return ["Code", "Establishments", "Law", "Return Remarks", "Status"];
     return ["Code", "Establishments", "Law", "Status"];
   }, [activeTab, userLevel]);
 
@@ -1749,6 +1817,54 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
             : 'No establishments',
           inspection.law,
           reviewedDate ? new Date(reviewedDate).toLocaleDateString() : 'N/A',
+          inspection.simplified_status || inspection.current_status
+        ];
+      } else if (activeTab === 'returned_pending') {
+        // Extract return remarks same way as in table display
+        let returnRemarks = null;
+        if (inspection.return_remarks) {
+          returnRemarks = inspection.return_remarks;
+        } else if (inspection.history && Array.isArray(inspection.history)) {
+          const returnEntry = inspection.history
+            .filter(h => h.remarks && h.remarks.includes('Returned'))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+          if (returnEntry) {
+            const remarks = returnEntry.remarks;
+            returnRemarks = remarks.includes(':') ? remarks.split(':')[1].trim() : remarks;
+          }
+        }
+        
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          returnRemarks || 'N/A',
+          inspection.simplified_status || inspection.current_status
+        ];
+      } else if (activeTab === 'returned_reports') {
+        // Extract return remarks same way as in table display
+        let returnRemarks = null;
+        if (inspection.return_remarks) {
+          returnRemarks = inspection.return_remarks;
+        } else if (inspection.history && Array.isArray(inspection.history)) {
+          const returnEntry = inspection.history
+            .filter(h => h.remarks && h.remarks.includes('Returned'))
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+          if (returnEntry) {
+            const remarks = returnEntry.remarks;
+            returnRemarks = remarks.includes(':') ? remarks.split(':')[1].trim() : remarks;
+          }
+        }
+        
+        return [
+          inspection.code,
+          inspection.establishments_detail && inspection.establishments_detail.length > 0 
+            ? inspection.establishments_detail.map(est => est.name).join(', ')
+            : 'No establishments',
+          inspection.law,
+          returnRemarks || 'N/A',
           inspection.simplified_status || inspection.current_status
         ];
       }
@@ -2122,6 +2238,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                 // Forwarded tab data
                 const forwardedAge = activeTab === 'forwarded' ? getAssignmentAge(inspection.updated_at) : null;
                 
+                // Returned tabs: remarks are shown via modal button in Actions
+                
                 // Compliance / Completed tab data
                 
                 return (
@@ -2282,10 +2400,17 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                           renderPreviewButton(inspection.id, activeTab)
                         ) : (
                         <div className="flex items-center justify-center gap-1">
-                            {currentUser?.userlevel === 'Division Chief' && activeTab === 'reviewed' && (
+                            {(['returned_pending','returned_reports'].includes(activeTab)) ? (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openRemarksModal(inspection); }}
+                                title={(extractReturnEntries(inspection).latestText || 'No remarks')}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded hover:bg-sky-100"
+                              >
+                                View Return
+                              </button>
+                            ) : currentUser?.userlevel === 'Division Chief' && activeTab === 'reviewed' ? (
                               renderDivisionChiefReviewButton(inspection.id)
-                          )}
-                          {shouldShowActions(userLevel, activeTab) ? (
+                          ) : shouldShowActions(userLevel, activeTab) ? (
                             <InspectionActions 
                               inspection={inspection}
                               availableActions={(inspection.available_actions || []).filter(action => {
@@ -2450,6 +2575,65 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
         onSelect={handleMonitoringPersonnelSelect}
         loading={actionLoading}
       />
+
+      {/* Return Remarks Modal */}
+      {remarksModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-2xl bg-white rounded shadow-lg">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div className="flex flex-col">
+                <h3 className="text-sm font-semibold text-gray-800">
+                  Return Remarks — {remarksModal.inspection?.code}
+                </h3>
+                {remarksModal.all?.length > 0 && (
+                  <div className="text-[11px] text-gray-500">
+                    Returned by {remarksModal.all[0]?.changed_by_name || '—'} on {new Date(remarksModal.all[0]?.created_at).toLocaleString()}
+                    {(remarksModal.all[0]?.previous_status && remarksModal.all[0]?.new_status) && (
+                      <span className="ml-1">
+                        • {remarksModal.all[0]?.previous_status} → {remarksModal.all[0]?.new_status}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={copyLatestRemarks}
+                  className="px-2 py-1 text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded hover:bg-sky-100"
+                >
+                  Copy
+                </button>
+                <button
+                  onClick={closeRemarksModal}
+                  className="px-2 py-1 text-xs text-gray-600 hover:text-gray-800"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-4">
+              <div>
+                <div className="text-xs font-medium text-gray-600 mb-1">Latest Remarks</div>
+                <div className="text-sm text-gray-800 whitespace-pre-wrap">
+                  {remarksModal.latest || 'No remarks'}
+                </div>
+              </div>
+
+              {/* Return history removed per request */}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t">
+              <button
+                onClick={closeRemarksModal}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

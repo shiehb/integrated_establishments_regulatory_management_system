@@ -183,6 +183,9 @@ class InspectionSerializer(serializers.ModelSerializer):
     simplified_status = serializers.SerializerMethodField()
     can_user_act = serializers.SerializerMethodField()
     available_actions = serializers.SerializerMethodField()
+    
+    # Return information
+    return_remarks = serializers.SerializerMethodField()
 
     class Meta:
         model = Inspection
@@ -194,7 +197,8 @@ class InspectionSerializer(serializers.ModelSerializer):
             'current_status', 'simplified_status',
             'created_at', 'updated_at',
             'form', 'history',
-            'can_user_act', 'available_actions'
+            'can_user_act', 'available_actions',
+            'return_remarks'
         ]
         read_only_fields = ['id', 'code', 'created_at', 'updated_at']
     
@@ -343,6 +347,58 @@ class InspectionSerializer(serializers.ModelSerializer):
                     filtered_actions.append(action)
             
             return filtered_actions
+    
+    def get_return_remarks(self, obj):
+        """Get the most recent return remarks - only called when needed"""
+        # Only process if history is already loaded (avoids extra query)
+        # Check if history has been prefetched or is already loaded
+        if hasattr(obj, 'history'):
+            # Try to get the most recent return entry
+            # Use .all() if it's a queryset, otherwise treat as list
+            try:
+                if hasattr(obj.history, 'all'):
+                    # It's a queryset - filter and get first
+                    latest_return = obj.history.filter(
+                        remarks__icontains='Returned'
+                    ).order_by('-created_at').first()
+                elif isinstance(obj.history, list):
+                    # It's already a list - filter in Python
+                    return_entries = [h for h in obj.history if h.remarks and 'Returned' in h.remarks]
+                    if return_entries:
+                        # Sort by created_at descending and get first
+                        # Handle both dict and object formats
+                        def get_created_at(entry):
+                            if isinstance(entry, dict):
+                                return entry.get('created_at', '')
+                            elif hasattr(entry, 'created_at'):
+                                return entry.created_at
+                            return ''
+                        return_entries_sorted = sorted(return_entries, key=get_created_at, reverse=True)
+                        latest_return = return_entries_sorted[0] if return_entries_sorted else None
+                    else:
+                        latest_return = None
+                else:
+                    return None
+                
+                if latest_return:
+                    # Handle both dict and object formats
+                    if isinstance(latest_return, dict):
+                        remarks = latest_return.get('remarks', '')
+                    elif hasattr(latest_return, 'remarks'):
+                        remarks = latest_return.remarks
+                    else:
+                        remarks = ''
+                    
+                    if remarks:
+                        # Extract remarks after "Returned to X:" prefix if present
+                        if ':' in remarks:
+                            parts = remarks.split(':', 1)
+                            return parts[1].strip() if len(parts) > 1 else remarks
+                        return remarks
+            except (AttributeError, KeyError, TypeError):
+                # Handle any errors gracefully
+                return None
+        return None
 
 
 class InspectionCreateSerializer(serializers.Serializer):

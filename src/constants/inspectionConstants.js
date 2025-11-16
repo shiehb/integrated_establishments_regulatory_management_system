@@ -51,9 +51,9 @@ export const statusDisplayMap = {
 export const roleTabs = {
   'Admin': ['all_inspections', 'compliant', 'non_compliant'], // Admin sees all inspections in read-only mode
   'Division Chief': ['all_inspections', 'review', 'reviewed', 'compliant', 'non_compliant'],
-  'Section Chief': ['section_assigned', 'section_in_progress', 'forwarded', 'inspection_complete', 'review', 'under_review', 'compliant', 'non_compliant'],
-  'Unit Head': ['unit_assigned', 'unit_in_progress', 'forwarded', 'inspection_complete', 'review', 'under_review', 'compliant', 'non_compliant'],
-  'Monitoring Personnel': ['assigned', 'in_progress', 'inspection_complete', 'under_review', 'compliant', 'non_compliant'],
+  'Section Chief': ['section_assigned', 'section_in_progress', 'forwarded', 'inspection_complete', 'review', 'under_review', 'returned_pending', 'returned_reports', 'compliant', 'non_compliant'],
+  'Unit Head': ['unit_assigned', 'unit_in_progress', 'forwarded', 'inspection_complete', 'review', 'under_review', 'returned_pending', 'returned_reports', 'compliant', 'non_compliant'],
+  'Monitoring Personnel': ['assigned', 'in_progress', 'inspection_complete', 'under_review', 'returned_pending', 'returned_reports', 'compliant', 'non_compliant'],
   'Legal Unit': ['legal_review', 'nov_sent', 'noo_sent', 'compliant', 'non_compliant']
 };
 
@@ -89,6 +89,10 @@ export const tabDisplayNames = {
   legal_review: 'Legal Review',
   nov_sent: 'NOV Sent',
   noo_sent: 'NOO Sent',
+  
+  // Returned Reports
+  returned_pending: 'Returned (Pending)',
+  returned_reports: 'Returned Reports',
 };
 
 // Action button configurations with Lucide icons - 5 Button Strategy
@@ -300,7 +304,9 @@ export const tabStatusMapping = {
     under_review: ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED'],
     legal_action: ['LEGAL_REVIEW', 'NOV_SENT', 'NOO_SENT'],
     compliant: ['CLOSED_COMPLIANT'],
-    non_compliant: ['CLOSED_NON_COMPLIANT']
+    non_compliant: ['CLOSED_NON_COMPLIANT'],
+    returned_pending: ['SECTION_ASSIGNED'],
+    returned_reports: ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT', 'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT', 'UNIT_REVIEWED', 'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT', 'SECTION_REVIEWED', 'DIVISION_REVIEWED', 'CLOSED_COMPLIANT', 'CLOSED_NON_COMPLIANT']
   },
   'Unit Head': {
     unit_assigned: ['UNIT_ASSIGNED'],
@@ -315,7 +321,9 @@ export const tabStatusMapping = {
     ],
     under_review: ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED'],
     compliant: ['CLOSED_COMPLIANT'],
-    non_compliant: ['CLOSED_NON_COMPLIANT']
+    non_compliant: ['CLOSED_NON_COMPLIANT'],
+    returned_pending: ['UNIT_ASSIGNED'],
+    returned_reports: ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT', 'UNIT_COMPLETED_COMPLIANT', 'UNIT_COMPLETED_NON_COMPLIANT', 'UNIT_REVIEWED', 'SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT', 'SECTION_REVIEWED', 'DIVISION_REVIEWED', 'CLOSED_COMPLIANT', 'CLOSED_NON_COMPLIANT']
   },
   'Monitoring Personnel': {
     assigned: ['MONITORING_ASSIGNED'],
@@ -325,7 +333,9 @@ export const tabStatusMapping = {
     ],
     under_review: ['UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED'],
     compliant: ['CLOSED_COMPLIANT'],
-    non_compliant: ['CLOSED_NON_COMPLIANT']
+    non_compliant: ['CLOSED_NON_COMPLIANT'],
+    returned_pending: ['MONITORING_ASSIGNED'],
+    returned_reports: ['MONITORING_COMPLETED_COMPLIANT', 'MONITORING_COMPLETED_NON_COMPLIANT', 'UNIT_REVIEWED', 'SECTION_REVIEWED', 'DIVISION_REVIEWED', 'CLOSED_COMPLIANT', 'CLOSED_NON_COMPLIANT']
   },
   'Legal Unit': {
     legal_review: ['LEGAL_REVIEW'],

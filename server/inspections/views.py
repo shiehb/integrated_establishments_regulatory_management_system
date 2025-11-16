@@ -6,7 +6,7 @@ import logging
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef, Subquery
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
@@ -365,6 +365,50 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
                 current_status='CLOSED_NON_COMPLIANT'
             )
+        elif tab == 'returned_pending':
+            # Returned items that are back to Section and not yet started (latest return targets Section)
+            from inspections.models import InspectionHistory
+            last_return_to = Subquery(
+                InspectionHistory.objects.filter(
+                    inspection=OuterRef('pk'),
+                    remarks__icontains='Returned'
+                ).order_by('-created_at').values('new_status')[:1]
+            )
+            return queryset.annotate(
+                last_return_to=last_return_to
+            ).filter(
+                law_filter,
+                current_status='SECTION_ASSIGNED',
+                last_return_to__in=['SECTION_ASSIGNED', 'SECTION_IN_PROGRESS']
+            ).prefetch_related('history')
+        elif tab == 'returned_reports':
+            # Returned reports where latest return targets Section, and status is at/after monitoring completion
+            from inspections.models import InspectionHistory
+            last_return_to = Subquery(
+                InspectionHistory.objects.filter(
+                    inspection=OuterRef('pk'),
+                    remarks__icontains='Returned'
+                ).order_by('-created_at').values('new_status')[:1]
+            )
+            return queryset.annotate(
+                last_return_to=last_return_to
+            ).filter(
+                law_filter,
+                last_return_to__in=['SECTION_ASSIGNED', 'SECTION_IN_PROGRESS', 'SECTION_REVIEWED'],
+                current_status__in=[
+                    'MONITORING_COMPLETED_COMPLIANT',
+                    'MONITORING_COMPLETED_NON_COMPLIANT',
+                    'UNIT_COMPLETED_COMPLIANT',
+                    'UNIT_COMPLETED_NON_COMPLIANT',
+                    'UNIT_REVIEWED',
+                    'SECTION_COMPLETED_COMPLIANT',
+                    'SECTION_COMPLETED_NON_COMPLIANT',
+                    'SECTION_REVIEWED',
+                    'DIVISION_REVIEWED',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
+            ).prefetch_related('history')
         else:
             # Default: show all inspections for this section
             return queryset.filter(law_filter)
@@ -448,6 +492,50 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
                 current_status='CLOSED_NON_COMPLIANT'
             )
+        elif tab == 'returned_pending':
+            # Returned items that are back to Unit and not yet started (latest return targets Unit)
+            from inspections.models import InspectionHistory
+            last_return_to = Subquery(
+                InspectionHistory.objects.filter(
+                    inspection=OuterRef('pk'),
+                    remarks__icontains='Returned'
+                ).order_by('-created_at').values('new_status')[:1]
+            )
+            return queryset.annotate(
+                last_return_to=last_return_to
+            ).filter(
+                law_filter,
+                current_status='UNIT_ASSIGNED',
+                last_return_to__in=['UNIT_ASSIGNED', 'UNIT_IN_PROGRESS']
+            ).prefetch_related('history')
+        elif tab == 'returned_reports':
+            # Returned reports where latest return targets Unit, and status is at/after monitoring completion
+            from inspections.models import InspectionHistory
+            last_return_to = Subquery(
+                InspectionHistory.objects.filter(
+                    inspection=OuterRef('pk'),
+                    remarks__icontains='Returned'
+                ).order_by('-created_at').values('new_status')[:1]
+            )
+            return queryset.annotate(
+                last_return_to=last_return_to
+            ).filter(
+                law_filter,
+                last_return_to__in=['UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_REVIEWED'],
+                current_status__in=[
+                    'MONITORING_COMPLETED_COMPLIANT',
+                    'MONITORING_COMPLETED_NON_COMPLIANT',
+                    'UNIT_COMPLETED_COMPLIANT',
+                    'UNIT_COMPLETED_NON_COMPLIANT',
+                    'UNIT_REVIEWED',
+                    'SECTION_COMPLETED_COMPLIANT',
+                    'SECTION_COMPLETED_NON_COMPLIANT',
+                    'SECTION_REVIEWED',
+                    'DIVISION_REVIEWED',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
+            ).prefetch_related('history')
         else:
             # Default: show all inspections for this section
             return queryset.filter(law_filter)
@@ -499,6 +587,46 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
                 current_status='CLOSED_NON_COMPLIANT'
             )
+        elif tab == 'returned_pending':
+            # Returned items that are back to Monitoring and not yet started (latest return targets Monitoring)
+            from inspections.models import InspectionHistory
+            last_return_to = Subquery(
+                InspectionHistory.objects.filter(
+                    inspection=OuterRef('pk'),
+                    remarks__icontains='Returned'
+                ).order_by('-created_at').values('new_status')[:1]
+            )
+            return queryset.annotate(
+                last_return_to=last_return_to
+            ).filter(
+                Q(form__inspected_by=user) | Q(assigned_to=user),
+                current_status='MONITORING_ASSIGNED',
+                last_return_to__in=['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS']
+            ).prefetch_related('history')
+        elif tab == 'returned_reports':
+            # Returned reports where latest return targets Monitoring, and status is at/after monitoring completion
+            from inspections.models import InspectionHistory
+            last_return_to = Subquery(
+                InspectionHistory.objects.filter(
+                    inspection=OuterRef('pk'),
+                    remarks__icontains='Returned'
+                ).order_by('-created_at').values('new_status')[:1]
+            )
+            return queryset.annotate(
+                last_return_to=last_return_to
+            ).filter(
+                Q(form__inspected_by=user) | Q(assigned_to=user),
+                last_return_to__in=['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS'],
+                current_status__in=[
+                    'MONITORING_COMPLETED_COMPLIANT',
+                    'MONITORING_COMPLETED_NON_COMPLIANT',
+                    'UNIT_REVIEWED',
+                    'SECTION_REVIEWED',
+                    'DIVISION_REVIEWED',
+                    'CLOSED_COMPLIANT',
+                    'CLOSED_NON_COMPLIANT'
+                ]
+            ).prefetch_related('history')
         else:
             # Default: show all assigned inspections
             return queryset.filter(
