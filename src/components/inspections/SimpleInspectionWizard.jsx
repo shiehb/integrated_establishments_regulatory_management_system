@@ -66,6 +66,10 @@ export default function SimpleInspectionWizard({
   const [filteredEstablishments, setFilteredEstablishments] = useState(establishments);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Table enhancements: sorting and pagination for Preview table
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   
   // Debounced search query
   const debouncedSearchQuery = useDebounce(formData.establishment_search, 500);
@@ -175,13 +179,80 @@ export default function SimpleInspectionWizard({
   );
   const selectedLaw = laws.find(law => law.code === formData.law_code);
 
+  // Helpers: sorting, pagination, and CSV export for Preview table
+  const sortedSelectedEstablishments = React.useMemo(() => {
+    const data = [...selectedEstablishments];
+    if (!sortConfig?.key) return data;
+    const { key, direction } = sortConfig;
+    data.sort((a, b) => {
+      const aVal = (a?.[key] ?? '').toString().toLowerCase();
+      const bVal = (b?.[key] ?? '').toString().toLowerCase();
+      if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return data;
+  }, [selectedEstablishments, sortConfig]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedSelectedEstablishments.length / pageSize));
+  const pagedSelectedEstablishments = React.useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return sortedSelectedEstablishments.slice(start, start + pageSize);
+  }, [sortedSelectedEstablishments, currentPage, pageSize]);
+
+  useEffect(() => {
+    // Reset to first page when selection changes or page size updates
+    setCurrentPage(1);
+  }, [selectedEstablishments.length, pageSize]);
+
+  const requestSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        const nextDirection = prev.direction === 'asc' ? 'desc' : prev.direction === 'desc' ? 'asc' : 'asc';
+        return { key, direction: nextDirection };
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  const getAriaSort = (key) => {
+    if (sortConfig.key !== key) return 'none';
+    return sortConfig.direction === 'asc' ? 'ascending' : 'descending';
+  };
+
+  const exportSelectedToCSV = () => {
+    if (selectedEstablishments.length === 0) {
+      notifications.info('No establishments selected to export.', { title: 'Export CSV' });
+      return;
+    }
+    const headers = ['#','Name','Address','Coordinates','Nature of Business','Year Established'];
+    const rows = selectedEstablishments.map((est, idx) => [
+      idx + 1,
+      `"${(est.name ?? '').replace(/"/g, '""')}"`,
+      `"${(est.address ?? '').replace(/"/g, '""')}"`,
+      `"${(est.coordinates ?? '').replace(/"/g, '""')}"`,
+      `"${(est.nature_of_business ?? '').replace(/"/g, '""')}"`,
+      est.year_established ?? ''
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'selected_establishments.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <>
       <Header />
       <LayoutWithSidebar userLevel="admin">
-        <div className="bg-white rounded-lg shadow-sm w-full">
+        <div className="bg-white rounded shadow-sm w-full">
          {/* Progress Steps */}
-         <div className="px-6 py-4 border-b border-gray-200">
+         <div className="px-2 py-2 border-b border-gray-200">
            <div className="flex items-center w-full">
              {steps.map((step, index) => {
                const Icon = step.icon;
@@ -191,7 +262,7 @@ export default function SimpleInspectionWizard({
                return (
                  <React.Fragment key={step.id}>
                    <div className="flex flex-col items-center">
-                     <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 transition-colors ${
+                     <div className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors ${
                        isActive 
                          ? 'border-sky-500 bg-sky-500 text-white' 
                          : isCompleted 
@@ -223,11 +294,11 @@ export default function SimpleInspectionWizard({
          </div>
 
          {/* Header with Navigation Buttons */}
-         <div className="flex items-center justify-between p-6 border-b border-gray-200">
+         <div className="flex items-center justify-between p-2 border-b border-gray-200">
            <button
              onClick={handlePrevious}
              disabled={currentStep === 1}
-             className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+             className="flex items-center px-2 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
            >
              <ChevronLeft className="h-4 w-4 mr-1" />
              Previous
@@ -250,7 +321,7 @@ export default function SimpleInspectionWizard({
            <div className="flex items-center space-x-3">
              <button
                onClick={onClose}
-               className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+               className="px-2 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
              >
                Cancel
              </button>
@@ -258,7 +329,7 @@ export default function SimpleInspectionWizard({
              {currentStep === steps.length ? (
                <button
                  onClick={handleSubmit}
-                 className="flex items-center px-4 py-2 text-sm font-medium text-white bg-sky-600 border border-transparent rounded-md hover:bg-sky-700"
+                 className="flex items-center px-2 py-1 text-sm font-medium text-white bg-sky-600 border border-transparent rounded-md hover:bg-sky-700"
                >
                  <Save className="h-4 w-4 mr-1" />
                  Create Inspection
@@ -266,7 +337,7 @@ export default function SimpleInspectionWizard({
              ) : (
                <button
                  onClick={handleNext}
-                 className="flex items-center px-4 py-2 text-sm font-medium text-white bg-sky-600 border border-transparent rounded-md hover:bg-sky-700"
+                 className="flex items-center px-2 py-1 text-sm font-medium text-white bg-sky-600 border border-transparent rounded-md hover:bg-sky-700"
                >
                  Next
                  <ChevronRight className="h-4 w-4 ml-1" />
@@ -276,16 +347,16 @@ export default function SimpleInspectionWizard({
          </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-2">
           {/* Step 1: Law Selection */}
           {currentStep === 1 && (
-            <div className="space-y-6">
+            <div className="space-y-2">
               <div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
                   {laws.map((law) => (
                     <div
                       key={law.code}
-                      className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+                    className={`p-2 border-2 rounded cursor-pointer transition-colors ${
                         formData.law_code === law.code
                           ? 'border-sky-500 bg-sky-50'
                           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
@@ -326,7 +397,7 @@ export default function SimpleInspectionWizard({
 
           {/* Step 2: Establishment Selection */}
           {currentStep === 2 && (
-            <div className="space-y-6">
+            <div className="space-y-2">
               <div>
                  {/* Search and Actions */}
                  <div className="mb-4 space-y-3">
@@ -501,15 +572,15 @@ export default function SimpleInspectionWizard({
 
           {/* Step 3: Preview & Confirmation */}
           {currentStep === 3 && (
-            <div className="space-y-6">
+            <div className="space-y-2">
               <div>
                 {/* Main Layout: Cards on Left, Establishment Details on Right */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
                   {/* Left Side: Summary Cards */}
-                  <div className="lg:col-span-1 space-y-6">
+                  <div className="lg:col-span-1 space-y-2">
                     {/* Selected Law Card */}
-                    <div className="bg-green-50 rounded-lg p-6 border border-green-200">
-                      <div className="flex items-center mb-4">
+                    <div className="bg-green-50 rounded p-2 border border-green-200">
+                      <div className="flex items-center">
                         <FileText className="h-8 w-8 text-green-600 mr-3" />
                         <h4 className="text-lg font-semibold text-gray-900">Selected Law/Section</h4>
                          </div>
@@ -520,8 +591,8 @@ export default function SimpleInspectionWizard({
                      </div>
 
                     {/* Establishments Count Card */}
-                    <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
-                      <div className="flex items-center mb-4">
+                    <div className="bg-blue-50 rounded p-2 border border-blue-200">
+                      <div className="flex items-center">
                         <Building className="h-8 w-8 text-blue-600 mr-3" />
                         <h4 className="text-lg font-semibold text-gray-900">Selected Establishments</h4>
                          </div>
@@ -530,35 +601,77 @@ export default function SimpleInspectionWizard({
                         <p className="text-sm text-gray-600">establishments selected for inspection</p>
                      </div>
                    </div>
+                   {/* Actions: Export, page size */}
+                   <div className="flex items-center justify-between mb-3">
+                     <div className="flex items-center gap-2">
+                       <button
+                         onClick={exportSelectedToCSV}
+                         className="px-3 py-1.5 text-sm font-medium text-white bg-sky-600 border border-transparent rounded-md hover:bg-sky-700"
+                       >
+                         Export CSV
+                       </button>
+                     </div>
+                     <div className="flex items-center gap-2 text-sm">
+                       <span className="text-gray-700">Rows per page:</span>
+                       <select
+                         value={pageSize}
+                         onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
+                         className="px-2 py-1 border border-gray-300 rounded-md"
+                       >
+                         <option value={10}>10</option>
+                         <option value={25}>25</option>
+                         <option value={50}>50</option>
+                         <option value={100}>100</option>
+                       </select>
+                     </div>
+                   </div>
                  </div>
+                 
                
                  {/* Right Side: Establishment Details - TABLE VIEW */}
                {selectedEstablishments.length > 0 && (
-                 <div className="lg:col-span-2 bg-blue-50 rounded-lg p-6">
-                   <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                     <Building className="h-5 w-5 mr-2 text-blue-600" />
-                     Establishment Details
-                   </h4>
+                 <div className="lg:col-span-2 bg-blue-50 rounded">
 
-                   <div className="bg-white rounded-lg border border-blue-200 overflow-hidden">
-                     <div className="overflow-x-auto">
+                   
+
+                   <div className="bg-white rounded border border-blue-200 overflow-hidden">
+                     <div className="overflow-x-auto min-h-[calc(100vh-340px)] max-h-[calc(100vh-340px)] overflow-y-auto">
                        <table className="min-w-full">
-                         <thead>
+                         <thead className="sticky top-0 z-10">
                            <tr className="text-xs uppercase tracking-wide text-white bg-gradient-to-r from-sky-600 to-sky-700">
                              <th className="px-3 py-2 text-left w-10">#</th>
-                             <th className="px-3 py-2 text-left">Name</th>
-                             <th className="px-3 py-2 text-left">Address</th>
-                             <th className="px-3 py-2 text-left">Coordinates</th>
-                             <th className="px-3 py-2 text-left">Nature of Business</th>
-                             <th className="px-3 py-2 text-center">Year Established</th>
+                             <th
+                               className="px-3 py-2 text-left cursor-pointer select-none"
+                               onClick={() => requestSort('name')}
+                               aria-sort={getAriaSort('name')}
+                               scope="col"
+                             >
+                               Name
+                             </th>
+                             <th
+                               className="px-3 py-2 text-left cursor-pointer select-none"
+                               onClick={() => requestSort('address')}
+                               aria-sort={getAriaSort('address')}
+                               scope="col"
+                             >
+                               Address
+                             </th>
+                             <th
+                               className="px-3 py-2 text-left cursor-pointer select-none"
+                               onClick={() => requestSort('nature_of_business')}
+                               aria-sort={getAriaSort('nature_of_business')}
+                               scope="col"
+                             >
+                               Nature of Business
+                             </th>
                            </tr>
                          </thead>
                          <tbody className="divide-y divide-gray-200">
-                           {selectedEstablishments.map((establishment, index) => (
+                           {pagedSelectedEstablishments.map((establishment, index) => (
                              <tr key={establishment.id} className="text-sm hover:bg-gray-50">
                                <td className="px-3 py-2 align-top">
                                  <span className="inline-flex w-6 h-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
-                                   {index + 1}
+                                   {(currentPage - 1) * pageSize + index + 1}
                                  </span>
                                </td>
                                <td className="px-3 py-2 align-top">
@@ -574,20 +687,56 @@ export default function SimpleInspectionWizard({
                                  </div>
                                </td>
                                <td className="px-3 py-2 align-top text-gray-700">
-                                 {establishment.coordinates}
-                               </td>
-                               <td className="px-3 py-2 align-top text-gray-700">
                                  {establishment.nature_of_business}
-                               </td>
-                               <td className="px-3 py-2 align-top text-center">
-                                 <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                   {establishment.year_established}
-                                 </span>
                                </td>
                              </tr>
                            ))}
                          </tbody>
                        </table>
+                     </div>
+                     {/* Pagination */}
+                     <div className="flex items-center justify-between px-3 py-2 border-t border-gray-200 text-sm">
+                       <div className="text-gray-700">
+                         Showing {(currentPage - 1) * pageSize + 1}–
+                         {Math.min(currentPage * pageSize, sortedSelectedEstablishments.length)} of {sortedSelectedEstablishments.length}
+                       </div>
+                       <div className="flex items-center gap-2">
+                         <button
+                           onClick={() => setCurrentPage(1)}
+                           disabled={currentPage === 1}
+                           className="px-2 py-1 border border-gray-300 rounded disabled:opacity-50"
+                           aria-label="First page"
+                         >
+                           «
+                         </button>
+                         <button
+                           onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                           disabled={currentPage === 1}
+                           className="px-2 py-1 border border-gray-300 rounded disabled:opacity-50"
+                           aria-label="Previous page"
+                         >
+                           Prev
+                         </button>
+                         <span className="px-2">
+                           Page {currentPage} of {totalPages}
+                         </span>
+                         <button
+                           onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                           disabled={currentPage === totalPages}
+                           className="px-2 py-1 border border-gray-300 rounded disabled:opacity-50"
+                           aria-label="Next page"
+                         >
+                           Next
+                         </button>
+                         <button
+                           onClick={() => setCurrentPage(totalPages)}
+                           disabled={currentPage === totalPages}
+                           className="px-2 py-1 border border-gray-300 rounded disabled:opacity-50"
+                           aria-label="Last page"
+                         >
+                           »
+                         </button>
+                       </div>
                      </div>
                    </div>
                  </div>
