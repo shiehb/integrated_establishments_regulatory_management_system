@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import LayoutWithSidebar from '../components/LayoutWithSidebar';
-import { getInspection, getProfile } from '../services/api';
+import { getInspection, getProfile, getBillingRecords } from '../services/api';
 import { 
   ArrowLeft,
   Building,
@@ -16,8 +16,6 @@ import {
   XCircle,
   Eye,
   Scale,
-  AlertTriangle,
-  Mail,
   DollarSign,
   CreditCard,
   Users
@@ -26,8 +24,7 @@ import {
   getRoleBasedStatusLabel, 
   statusDisplayMap, 
   getStatusColorClass, 
-  getStatusBgColorClass,
-  canUserPerformActions 
+  getStatusBgColorClass
 } from '../constants/inspectionConstants';
 
 export default function InspectionView() {
@@ -40,6 +37,9 @@ export default function InspectionView() {
   const [activeTab, setActiveTab] = useState('details');
   const [billingData, setBillingData] = useState(null);
   const [loadingBilling, setLoadingBilling] = useState(false);
+
+  // Only Admin and Division Chief can see History
+  const canSeeHistory = userLevel === 'Admin' || userLevel === 'Division Chief';
 
   useEffect(() => {
     const fetchData = async () => {
@@ -71,19 +71,13 @@ export default function InspectionView() {
       
       try {
         setLoadingBilling(true);
-        const response = await fetch(`/api/inspections/${inspection.id}/billing/`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setBillingData(data);
-        }
+        // Use centralized API client; backend supports filtering by inspection id
+        const list = await getBillingRecords({ inspection: inspection.id });
+        const records = Array.isArray(list) ? list : (Array.isArray(list?.results) ? list.results : []);
+        setBillingData(records.length > 0 ? records[0] : null);
       } catch (error) {
         console.error('Error fetching billing data:', error);
+        setBillingData(null);
       } finally {
         setLoadingBilling(false);
       }
@@ -120,6 +114,15 @@ export default function InspectionView() {
     });
   };
 
+  const getStatusChipClasses = (status) => {
+    if (!status) {
+      return 'inline-flex px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 text-gray-700';
+    }
+    return `inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusBgColorClass(
+      status
+    )} ${getStatusColorClass(status)}`;
+  };
+
   if (loading) {
     return (
       <>
@@ -142,7 +145,7 @@ export default function InspectionView() {
       <>
         <Header />
         <LayoutWithSidebar userLevel={userLevel}>
-          <div className="flex flex-col items-center justify-center h-screen">
+          <div className="flex flex-col items-center justify-center">
             <FileText className="h-16 w-16 text-gray-300 mb-4" />
             <h2 className="text-xl font-semibold text-gray-700 mb-2">Inspection Not Found</h2>
             <p className="text-gray-500 mb-6">The inspection you're looking for doesn't exist.</p>
@@ -166,7 +169,7 @@ export default function InspectionView() {
     <>
       <Header />
       <LayoutWithSidebar userLevel={userLevel}>
-        <div className="p-3 bg-gray-50 min-h-screen">
+        <div className="p-3 bg-gray-50 ">
           {/* Back Button & Title */}
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -195,8 +198,8 @@ export default function InspectionView() {
                 {[
                   { id: 'details', label: 'Details', icon: FileText },
                   { id: 'compliance', label: 'Compliance', icon: CheckCircle },
-                  { id: 'legal', label: 'Legal Actions', icon: AlertTriangle },
-                  { id: 'billing', label: 'Billing', icon: DollarSign }
+                  { id: 'billing', label: 'Billing', icon: DollarSign },
+                  ...(canSeeHistory ? [{ id: 'history', label: 'History', icon: Clock }] : [])
                 ].map((tab) => {
                   const IconComponent = tab.icon;
                   return (
@@ -240,14 +243,6 @@ export default function InspectionView() {
                           <div>
                             <p className="text-xs text-gray-500">Law</p>
                             <p className="text-sm font-medium text-gray-900">{inspection.law || 'N/A'}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-gray-400" />
-                          <div>
-                            <p className="text-xs text-gray-500">Assigned To</p>
-                            <p className="text-sm font-medium text-gray-900">{inspection.assigned_to_name || 'Unassigned'}</p>
                           </div>
                         </div>
 
@@ -369,100 +364,6 @@ export default function InspectionView() {
                 </div>
               )}
 
-              {activeTab === 'legal' && (
-                <div className="space-y-4">
-                  <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-red-600" />
-                    Legal Actions
-                  </h4>
-                  
-                  {/* NOV Section */}
-                  {inspection.nov && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Mail className="h-4 w-4 text-red-600" />
-                        <h5 className="text-sm font-semibold text-red-900">Notice of Violation (NOV)</h5>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                        <div>
-                          <p className="text-red-700 font-medium">Sent Date</p>
-                          <p className="text-red-900">{formatDateTime(inspection.nov.sent_date)}</p>
-                        </div>
-                        <div>
-                          <p className="text-red-700 font-medium">Sent To</p>
-                          <p className="text-red-900">{inspection.nov.recipient_email}</p>
-                        </div>
-                        <div>
-                          <p className="text-red-700 font-medium">Contact Person</p>
-                          <p className="text-red-900">{inspection.nov.contact_person || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <p className="text-red-700 font-medium">Compliance Deadline</p>
-                          <p className="text-red-900">{formatDateTime(inspection.nov.compliance_deadline)}</p>
-                        </div>
-                      </div>
-                      {inspection.nov.violations && (
-                        <div className="mt-3">
-                          <p className="text-red-700 font-medium text-xs mb-1">Violations</p>
-                          <div className="bg-white border border-red-200 rounded p-2">
-                            <p className="text-xs text-gray-900 whitespace-pre-wrap">{inspection.nov.violations}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {/* NOO Section */}
-                  {inspection.noo && (
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <FileText className="h-4 w-4 text-orange-600" />
-                        <h5 className="text-sm font-semibold text-orange-900">Notice of Order (NOO)</h5>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                        <div>
-                          <p className="text-orange-700 font-medium">Sent Date</p>
-                          <p className="text-orange-900">{formatDateTime(inspection.noo.sent_date)}</p>
-                        </div>
-                        <div>
-                          <p className="text-orange-700 font-medium">Sent To</p>
-                          <p className="text-orange-900">{inspection.noo.recipient_email}</p>
-                        </div>
-                        <div>
-                          <p className="text-orange-700 font-medium">Contact Person</p>
-                          <p className="text-orange-900">{inspection.noo.contact_person || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <p className="text-orange-700 font-medium">Payment Deadline</p>
-                          <p className="text-orange-900">{formatDateTime(inspection.noo.payment_deadline)}</p>
-                        </div>
-                        <div>
-                          <p className="text-orange-700 font-medium">Total Penalty</p>
-                          <p className="text-orange-900 font-bold">
-                            ₱{Number(inspection.noo.penalty_fees || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </p>
-                        </div>
-                      </div>
-                      {inspection.noo.violation_breakdown && (
-                        <div className="mt-3">
-                          <p className="text-orange-700 font-medium text-xs mb-1">Violation Breakdown</p>
-                          <div className="bg-white border border-orange-200 rounded p-2">
-                            <p className="text-xs text-gray-900 whitespace-pre-wrap">{inspection.noo.violation_breakdown}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {!inspection.nov && !inspection.noo && (
-                    <div className="text-center py-8">
-                      <AlertTriangle className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-sm text-gray-500">No legal actions have been taken for this inspection.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {activeTab === 'billing' && (
                 <div className="space-y-4">
                   <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
@@ -497,22 +398,36 @@ export default function InspectionView() {
                           <p className="text-green-900">{formatDateTime(billingData.due_date)}</p>
                         </div>
                         <div>
-                          <p className="text-green-700 font-medium">Contact Person</p>
-                          <p className="text-green-900">{billingData.contact_person || 'N/A'}</p>
+                          <p className="text-green-700 font-medium">Payment Status</p>
+                          <p className="text-green-900">{billingData.payment_status || 'UNPAID'}</p>
                         </div>
+                        {billingData.payment_date && (
+                          <div>
+                            <p className="text-green-700 font-medium">Payment Date</p>
+                            <p className="text-green-900">{formatDateTime(billingData.payment_date)}</p>
+                          </div>
+                        )}
+                        {billingData.payment_reference && (
+                          <div>
+                            <p className="text-green-700 font-medium">Reference</p>
+                            <p className="text-green-900">{billingData.payment_reference}</p>
+                          </div>
+                        )}
                         <div>
                           <p className="text-green-700 font-medium">Related Law</p>
                           <p className="text-green-900">{billingData.related_law}</p>
                         </div>
-                      </div>
-                      {billingData.description && (
-                        <div className="mt-3">
-                          <p className="text-green-700 font-medium text-xs mb-1">Description</p>
-                          <div className="bg-white border border-green-200 rounded p-2">
-                            <p className="text-xs text-gray-900 whitespace-pre-wrap">{billingData.description}</p>
-                          </div>
+                        <div>
+                          <p className="text-green-700 font-medium">Issued By</p>
+                          <p className="text-green-900">{billingData.issued_by_name || 'N/A'}</p>
                         </div>
-                      )}
+                        {billingData.contact_person && (
+                          <div>
+                            <p className="text-green-700 font-medium">Contact Person</p>
+                            <p className="text-green-900">{billingData.contact_person}</p>
+                          </div>
+                        )}
+                      </div>
                       {billingData.recommendations && (
                         <div className="mt-3">
                           <p className="text-green-700 font-medium text-xs mb-1">Payment Instructions</p>
@@ -521,11 +436,97 @@ export default function InspectionView() {
                           </div>
                         </div>
                       )}
+                      {billingData.payment_notes && billingData.payment_status === 'UNPAID' && (
+                        <div className="mt-3">
+                          <p className="text-green-700 font-medium text-xs mb-1">Remarks</p>
+                          <div className="bg-white border border-green-200 rounded p-2">
+                            <p className="text-xs text-gray-900 whitespace-pre-wrap">{billingData.payment_notes}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center py-8">
                       <CreditCard className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                       <p className="text-sm text-gray-500">No billing information available for this inspection.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'history' && canSeeHistory && (
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-gray-900">Inspection History</h4>
+                  {!inspection.history || inspection.history.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Clock className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm text-gray-500">No history recorded for this inspection.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {[...inspection.history]
+                        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                        .map((h) => (
+                        <div key={h.id} className="p-3 bg-gray-50 rounded border border-gray-200">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-1">
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-gray-500" />
+                              <span className="text-xs text-gray-600">
+                                {formatDateTime(h.created_at)}
+                              </span>
+                            </div>
+                            {(h.law || h.section) && (
+                              <div className="text-[11px] text-gray-500 md:text-right">
+                                <span className="font-medium">{h.law || 'N/A'}</span>
+                                {h.section ? ` • ${h.section}` : ''}
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <p className="text-xs text-gray-500">From</p>
+                                <span className={getStatusChipClasses(h.previous_status)}>
+                                  {h.previous_status || '—'}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500">To</p>
+                                <span className={getStatusChipClasses(h.new_status)}>
+                                  {h.new_status || '—'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <p className="text-xs text-gray-500">Changed By</p>
+                                <p className="font-medium text-gray-900">
+                                  {h.changed_by_name || 'System'}{' '}
+                                  {h.changed_by_level ? `(${h.changed_by_level})` : ''}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500">Assigned To</p>
+                                <p className="font-medium text-gray-900">
+                                  {h.assigned_to_name
+                                    ? `${h.assigned_to_name}${
+                                        h.assigned_to_level ? ` (${h.assigned_to_level})` : ''
+                                      }`
+                                    : '—'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          {h.remarks && (
+                            <div className="mt-2">
+                              <p className="text-xs text-gray-500">Remarks</p>
+                              <div className="text-sm text-gray-900 bg-white p-2 rounded border border-gray-200 whitespace-pre-wrap">
+                                {h.remarks}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

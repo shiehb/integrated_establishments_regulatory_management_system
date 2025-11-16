@@ -1062,6 +1062,8 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
   // Helper function to determine if actions should be shown
   const shouldShowActions = useCallback((userLevel, activeTab) => {
     if (activeTab === 'inspection_complete') return false;
+    // Closed tabs are view-only
+    if (activeTab === 'compliant' || activeTab === 'non_compliant') return false;
     // Division Chief actions handled via dedicated buttons
     if (userLevel === 'Division Chief') {
       return activeTab === 'review';
@@ -2450,6 +2452,20 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                             <div className="text-sm text-gray-500">
                               No actions available
                             </div>
+                            ) : (['compliant', 'non_compliant'].includes(activeTab)) ? (
+                            ['Admin', 'Division Chief', 'Legal Unit'].includes(userLevel || currentUser?.userlevel) ? (
+                              <button
+                                  onClick={() => navigate(`/inspections/${inspection.id}/view`)}
+                                className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
+                              >
+                                <Eye size={14} />
+                                View Details
+                              </button>
+                            ) : (
+                              <div className="text-sm text-gray-500">
+                                No actions available
+                              </div>
+                            )
                             ) : userLevel === 'Division Chief' && (activeTab === 'review' || activeTab === 'reviewed') ? null : userLevel === 'Division Chief' ? (
                             <div className="text-sm text-gray-500">
                               No actions available

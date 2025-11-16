@@ -347,10 +347,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
             # Show only COMPLIANT inspections
             return queryset.filter(
                 law_filter,
-                Q(form__inspected_by=user) | 
-                Q(form__inspected_by__userlevel='Section Chief', form__inspected_by__section=user.section) |
-                Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) |
-                Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
                 form__compliance_decision='COMPLIANT',
                 current_status='CLOSED_COMPLIANT'
             )
@@ -358,10 +354,6 @@ class InspectionViewSet(viewsets.ModelViewSet):
             # Show only NON_COMPLIANT inspections
             return queryset.filter(
                 law_filter,
-                Q(form__inspected_by=user) | 
-                Q(form__inspected_by__userlevel='Section Chief', form__inspected_by__section=user.section) |
-                Q(form__inspected_by__userlevel='Unit Head', form__inspected_by__section=user.section) |
-                Q(form__inspected_by__userlevel='Monitoring Personnel', form__inspected_by__section=user.section),
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
                 current_status='CLOSED_NON_COMPLIANT'
             )
@@ -4770,6 +4762,11 @@ class BillingViewSet(viewsets.ModelViewSet):
         establishment_id = self.request.query_params.get('establishment', None)
         if establishment_id:
             queryset = queryset.filter(establishment_id=establishment_id)
+        
+        # Filter by inspection id (used by InspectionView billing panel)
+        inspection_id = self.request.query_params.get('inspection', None)
+        if inspection_id:
+            queryset = queryset.filter(inspection_id=inspection_id)
         
         search = self.request.query_params.get('search', None)
         if search:
