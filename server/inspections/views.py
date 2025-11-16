@@ -1112,6 +1112,15 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 "SECTION_ASSIGNED": "Returned to Section Chief",
             }
             remarks = status_messages.get(next_status, "Returned to previous stage")
+        else:
+            # Ensure custom remarks include "Returned" prefix for filtering
+            if not remarks.lower().startswith("returned"):
+                status_messages = {
+                    "UNIT_ASSIGNED": "Returned to Unit Head: ",
+                    "SECTION_ASSIGNED": "Returned to Section Chief: ",
+                }
+                prefix = status_messages.get(next_status, "Returned to previous stage: ")
+                remarks = prefix + remarks
 
         InspectionHistory.objects.create(
             inspection=inspection,
