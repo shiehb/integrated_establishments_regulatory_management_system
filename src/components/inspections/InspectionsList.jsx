@@ -195,7 +195,7 @@ const getTabColspan = (activeTab, userLevel = null) => {
     'in_progress': 8,
     'compliant': 6,     // Same as completed tab
     'non_compliant': 6, // Same as completed tab
-    'returned_pending': 6, // 1 checkbox + 4 core + Status + Actions
+    'returned_inspection': 6, // 1 checkbox + 4 core + Status + Actions
     'returned_reports': 6, // 1 checkbox + 4 core + Status + Actions
     'default': 6
   };
@@ -219,7 +219,7 @@ const getEmptyStateMessage = (activeTab, userLevel) => {
       inspection_complete: 'No inspections completed yet.',
       review: 'All caught up! No inspections pending your review.',
       under_review: 'All caught up! No inspections pending your review.',
-      returned_pending: 'No returned inspections waiting to start in Section.',
+      returned_inspection: 'No returned inspections waiting to start in Section.',
       returned_reports: 'No returned reports found that have completed monitoring.'
     },
     'Unit Head': {
@@ -229,7 +229,7 @@ const getEmptyStateMessage = (activeTab, userLevel) => {
       inspection_complete: 'No inspections completed yet.',
       review: 'All caught up! No inspections pending your review.',
       under_review: 'All caught up! No inspections pending your review.',
-      returned_pending: 'No returned inspections waiting to start in Unit.',
+      returned_inspection: 'No returned inspections waiting to start in Unit.',
       returned_reports: 'No returned reports found that have completed monitoring.'
     },
     'Monitoring Personnel': {
@@ -237,7 +237,6 @@ const getEmptyStateMessage = (activeTab, userLevel) => {
       in_progress: 'No inspections currently in progress.',
       inspection_complete: 'No completed inspections to display.',
       under_review: 'All caught up! Nothing pending review.',
-      returned_pending: 'No returned inspections waiting to start in Monitoring.',
       returned_reports: 'No returned reports found that have completed monitoring.'
     },
     'Legal Unit': {
@@ -1664,7 +1663,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
     if (activeTab === 'compliant') return ["Code", "Establishments", "Law", "Status"];
     if (activeTab === 'non_compliant') return ["Code", "Establishments", "Law", "Status"];
     if (activeTab === 'reviewed') return ["Code", "Establishments", "Law", "Reviewed On", "Status"];
-    if (activeTab === 'returned_pending') return ["Code", "Establishments", "Law", "Return Remarks", "Status"];
+    if (activeTab === 'returned_inspection') return ["Code", "Establishments", "Law", "Return Remarks", "Status"];
     if (activeTab === 'returned_reports') return ["Code", "Establishments", "Law", "Return Remarks", "Status"];
     return ["Code", "Establishments", "Law", "Status"];
   }, [activeTab, userLevel]);
@@ -1819,7 +1818,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
           reviewedDate ? new Date(reviewedDate).toLocaleDateString() : 'N/A',
           inspection.simplified_status || inspection.current_status
         ];
-      } else if (activeTab === 'returned_pending') {
+      } else if (activeTab === 'returned_inspection') {
         // Extract return remarks same way as in table display
         let returnRemarks = null;
         if (inspection.return_remarks) {
@@ -2400,11 +2399,10 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                           renderPreviewButton(inspection.id, activeTab)
                         ) : (
                         <div className="flex items-center justify-center gap-1">
-                            {(['returned_pending','returned_reports'].includes(activeTab)) ? (
+                            {(['returned_inspection','returned_reports'].includes(activeTab)) ? (
                               <button
                                 onClick={(e) => { e.stopPropagation(); openRemarksModal(inspection); }}
-                                title={(extractReturnEntries(inspection).latestText || 'No remarks')}
-                                className="inline-flex items-center gap-1 px-2 py-1 text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded hover:bg-sky-100"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded hover:bg-sky-100"
                               >
                                 View Return
                               </button>

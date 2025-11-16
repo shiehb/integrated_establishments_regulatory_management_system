@@ -6,7 +6,7 @@ import logging
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Q, Exists, OuterRef, Subquery
+from django.db.models import Q, Exists, OuterRef
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
@@ -365,36 +365,32 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
                 current_status='CLOSED_NON_COMPLIANT'
             )
-        elif tab == 'returned_pending':
-            # Returned items that are back to Section and not yet started (latest return targets Section)
+        elif tab == 'returned_inspection':
+            # Returned items that are back to Section and not yet started
             from inspections.models import InspectionHistory
-            last_return_to = Subquery(
-                InspectionHistory.objects.filter(
-                    inspection=OuterRef('pk'),
-                    remarks__icontains='Returned'
-                ).order_by('-created_at').values('new_status')[:1]
+            returned_subquery = InspectionHistory.objects.filter(
+                inspection=OuterRef('pk'),
+                remarks__icontains='Returned'
             )
-            return queryset.annotate(
-                last_return_to=last_return_to
-            ).filter(
+            return queryset.filter(
                 law_filter,
-                current_status='SECTION_ASSIGNED',
-                last_return_to__in=['SECTION_ASSIGNED', 'SECTION_IN_PROGRESS']
+                Exists(returned_subquery),
+                current_status='SECTION_ASSIGNED'
             ).prefetch_related('history')
         elif tab == 'returned_reports':
-            # Returned reports where latest return targets Section, and status is at/after monitoring completion
+            # Show returned reports that have completed monitoring
             from inspections.models import InspectionHistory
-            last_return_to = Subquery(
-                InspectionHistory.objects.filter(
-                    inspection=OuterRef('pk'),
-                    remarks__icontains='Returned'
-                ).order_by('-created_at').values('new_status')[:1]
+            
+            # Use Exists subquery to check for history entries with "Returned" in remarks
+            returned_subquery = InspectionHistory.objects.filter(
+                inspection=OuterRef('pk'),
+                remarks__icontains='Returned'
             )
-            return queryset.annotate(
-                last_return_to=last_return_to
-            ).filter(
+            
+            # Filter and prefetch history for serializer
+            return queryset.filter(
                 law_filter,
-                last_return_to__in=['SECTION_ASSIGNED', 'SECTION_IN_PROGRESS', 'SECTION_REVIEWED'],
+                Exists(returned_subquery),
                 current_status__in=[
                     'MONITORING_COMPLETED_COMPLIANT',
                     'MONITORING_COMPLETED_NON_COMPLIANT',
@@ -408,7 +404,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                     'CLOSED_COMPLIANT',
                     'CLOSED_NON_COMPLIANT'
                 ]
-            ).prefetch_related('history')
+            ).prefetch_related('history')  # Prefetch to avoid N+1 queries in serializer
         else:
             # Default: show all inspections for this section
             return queryset.filter(law_filter)
@@ -492,36 +488,32 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
                 current_status='CLOSED_NON_COMPLIANT'
             )
-        elif tab == 'returned_pending':
-            # Returned items that are back to Unit and not yet started (latest return targets Unit)
+        elif tab == 'returned_inspection':
+            # Returned items that are back to Unit and not yet started
             from inspections.models import InspectionHistory
-            last_return_to = Subquery(
-                InspectionHistory.objects.filter(
-                    inspection=OuterRef('pk'),
-                    remarks__icontains='Returned'
-                ).order_by('-created_at').values('new_status')[:1]
+            returned_subquery = InspectionHistory.objects.filter(
+                inspection=OuterRef('pk'),
+                remarks__icontains='Returned'
             )
-            return queryset.annotate(
-                last_return_to=last_return_to
-            ).filter(
+            return queryset.filter(
                 law_filter,
-                current_status='UNIT_ASSIGNED',
-                last_return_to__in=['UNIT_ASSIGNED', 'UNIT_IN_PROGRESS']
+                Exists(returned_subquery),
+                current_status='UNIT_ASSIGNED'
             ).prefetch_related('history')
         elif tab == 'returned_reports':
-            # Returned reports where latest return targets Unit, and status is at/after monitoring completion
+            # Show returned reports that have completed monitoring
             from inspections.models import InspectionHistory
-            last_return_to = Subquery(
-                InspectionHistory.objects.filter(
-                    inspection=OuterRef('pk'),
-                    remarks__icontains='Returned'
-                ).order_by('-created_at').values('new_status')[:1]
+            
+            # Use Exists subquery to check for history entries with "Returned" in remarks
+            returned_subquery = InspectionHistory.objects.filter(
+                inspection=OuterRef('pk'),
+                remarks__icontains='Returned'
             )
-            return queryset.annotate(
-                last_return_to=last_return_to
-            ).filter(
+            
+            # Filter and prefetch history for serializer
+            return queryset.filter(
                 law_filter,
-                last_return_to__in=['UNIT_ASSIGNED', 'UNIT_IN_PROGRESS', 'UNIT_REVIEWED'],
+                Exists(returned_subquery),
                 current_status__in=[
                     'MONITORING_COMPLETED_COMPLIANT',
                     'MONITORING_COMPLETED_NON_COMPLIANT',
@@ -535,7 +527,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                     'CLOSED_COMPLIANT',
                     'CLOSED_NON_COMPLIANT'
                 ]
-            ).prefetch_related('history')
+            ).prefetch_related('history')  # Prefetch to avoid N+1 queries in serializer
         else:
             # Default: show all inspections for this section
             return queryset.filter(law_filter)
@@ -587,36 +579,21 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 form__compliance_decision__in=['NON_COMPLIANT', 'PARTIALLY_COMPLIANT'],
                 current_status='CLOSED_NON_COMPLIANT'
             )
-        elif tab == 'returned_pending':
-            # Returned items that are back to Monitoring and not yet started (latest return targets Monitoring)
-            from inspections.models import InspectionHistory
-            last_return_to = Subquery(
-                InspectionHistory.objects.filter(
-                    inspection=OuterRef('pk'),
-                    remarks__icontains='Returned'
-                ).order_by('-created_at').values('new_status')[:1]
-            )
-            return queryset.annotate(
-                last_return_to=last_return_to
-            ).filter(
-                Q(form__inspected_by=user) | Q(assigned_to=user),
-                current_status='MONITORING_ASSIGNED',
-                last_return_to__in=['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS']
-            ).prefetch_related('history')
+        # No 'returned_inspection' tab for Monitoring Personnel by design
         elif tab == 'returned_reports':
-            # Returned reports where latest return targets Monitoring, and status is at/after monitoring completion
+            # Show returned reports that have completed monitoring
             from inspections.models import InspectionHistory
-            last_return_to = Subquery(
-                InspectionHistory.objects.filter(
-                    inspection=OuterRef('pk'),
-                    remarks__icontains='Returned'
-                ).order_by('-created_at').values('new_status')[:1]
+            
+            # Use Exists subquery to check for history entries with "Returned" in remarks
+            returned_subquery = InspectionHistory.objects.filter(
+                inspection=OuterRef('pk'),
+                remarks__icontains='Returned'
             )
-            return queryset.annotate(
-                last_return_to=last_return_to
-            ).filter(
+            
+            # Filter and prefetch history for serializer
+            return queryset.filter(
                 Q(form__inspected_by=user) | Q(assigned_to=user),
-                last_return_to__in=['MONITORING_ASSIGNED', 'MONITORING_IN_PROGRESS'],
+                Exists(returned_subquery),
                 current_status__in=[
                     'MONITORING_COMPLETED_COMPLIANT',
                     'MONITORING_COMPLETED_NON_COMPLIANT',
@@ -626,7 +603,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                     'CLOSED_COMPLIANT',
                     'CLOSED_NON_COMPLIANT'
                 ]
-            ).prefetch_related('history')
+            ).prefetch_related('history')  # Prefetch to avoid N+1 queries in serializer
         else:
             # Default: show all assigned inspections
             return queryset.filter(

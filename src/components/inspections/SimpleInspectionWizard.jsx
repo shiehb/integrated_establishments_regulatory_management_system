@@ -531,41 +531,67 @@ export default function SimpleInspectionWizard({
                      </div>
                    </div>
                  </div>
-                
-                  {/* Right Side: Establishment Details */}
-                {selectedEstablishments.length > 0 && (
-                    <div className="lg:col-span-2 bg-blue-50 rounded-lg p-6">
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <Building className="h-5 w-5 mr-2 text-blue-600" />
-                        Establishment Details
-                    </h4>
-                    
-                      <div className="space-y-4">
-                        {selectedEstablishments.map((establishment, index) => (
-                          <div key={establishment.id} className="bg-white rounded-lg p-4 border border-blue-200">
-                            <div className="flex items-start">
-                              <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                                <span className="text-sm font-semibold text-blue-600">{index + 1}</span>
-                              </div>
-                              <div className="flex-1">
-                                <h5 className="text-lg font-semibold text-gray-900 mb-2">{establishment.name}</h5>
-                                <div className="space-y-1">
-                                  <div className="flex items-center text-sm text-gray-600">
-                                    <MapPin className="h-4 w-4 mr-2 text-gray-400" />
-                                    <span>{establishment.address}</span>
-                                  </div>
-                                  <div className="flex items-center text-sm text-gray-600">
-                                    <Building className="h-4 w-4 mr-2 text-gray-400" />
-                                    <span>{establishment.nature_of_business}</span>
-                                  </div>
-                                </div>
-                              </div>
-                              </div>
-                              </div>
-                        ))}
-                  </div>
-                    </div>
-                  )}
+               
+                 {/* Right Side: Establishment Details - TABLE VIEW */}
+               {selectedEstablishments.length > 0 && (
+                 <div className="lg:col-span-2 bg-blue-50 rounded-lg p-6">
+                   <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                     <Building className="h-5 w-5 mr-2 text-blue-600" />
+                     Establishment Details
+                   </h4>
+
+                   <div className="bg-white rounded-lg border border-blue-200 overflow-hidden">
+                     <div className="overflow-x-auto">
+                       <table className="min-w-full">
+                         <thead>
+                           <tr className="text-xs uppercase tracking-wide text-white bg-gradient-to-r from-sky-600 to-sky-700">
+                             <th className="px-3 py-2 text-left w-10">#</th>
+                             <th className="px-3 py-2 text-left">Name</th>
+                             <th className="px-3 py-2 text-left">Address</th>
+                             <th className="px-3 py-2 text-left">Coordinates</th>
+                             <th className="px-3 py-2 text-left">Nature of Business</th>
+                             <th className="px-3 py-2 text-center">Year Established</th>
+                           </tr>
+                         </thead>
+                         <tbody className="divide-y divide-gray-200">
+                           {selectedEstablishments.map((establishment, index) => (
+                             <tr key={establishment.id} className="text-sm hover:bg-gray-50">
+                               <td className="px-3 py-2 align-top">
+                                 <span className="inline-flex w-6 h-6 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+                                   {index + 1}
+                                 </span>
+                               </td>
+                               <td className="px-3 py-2 align-top">
+                                 <div className="flex items-center">
+                                   <Building className="h-4 w-4 text-gray-400 mr-2" />
+                                   <span className="font-medium text-gray-900">{establishment.name}</span>
+                                 </div>
+                               </td>
+                               <td className="px-3 py-2 align-top">
+                                 <div className="flex items-center text-gray-700">
+                                   <MapPin className="h-4 w-4 text-gray-400 mr-2" />
+                                   <span>{establishment.address}</span>
+                                 </div>
+                               </td>
+                               <td className="px-3 py-2 align-top text-gray-700">
+                                 {establishment.coordinates}
+                               </td>
+                               <td className="px-3 py-2 align-top text-gray-700">
+                                 {establishment.nature_of_business}
+                               </td>
+                               <td className="px-3 py-2 align-top text-center">
+                                 <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                   {establishment.year_established}
+                                 </span>
+                               </td>
+                             </tr>
+                           ))}
+                         </tbody>
+                       </table>
+                     </div>
+                   </div>
+                 </div>
+               )}
                   </div>
               </div>
             </div>
