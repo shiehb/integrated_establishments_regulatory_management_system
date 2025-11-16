@@ -2623,14 +2623,7 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
               {/* Return history removed per request */}
             </div>
 
-            <div className="flex items-center justify-end gap-2 px-4 py-3 border-t">
-              <button
-                onClick={closeRemarksModal}
-                className="px-3 py-1.5 text-xs font-medium text-white bg-sky-600 rounded hover:bg-sky-700"
-              >
-                Done
-              </button>
-            </div>
+            {/* Footer removed: Done button no longer shown */}
           </div>
         </div>
       )}

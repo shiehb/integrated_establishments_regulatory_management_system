@@ -183,7 +183,7 @@ class InspectionSerializer(serializers.ModelSerializer):
     simplified_status = serializers.SerializerMethodField()
     can_user_act = serializers.SerializerMethodField()
     available_actions = serializers.SerializerMethodField()
-    
+
     # Return information
     return_remarks = serializers.SerializerMethodField()
 
