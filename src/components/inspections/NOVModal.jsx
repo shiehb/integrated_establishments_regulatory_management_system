@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Mail, Calendar, FileText, AlertTriangle, CheckCircle, ArrowLeft } from 'lucide-react';
+import { Mail, FileText, AlertTriangle } from 'lucide-react';
 import LayoutForm from '../LayoutForm';
 import ConfirmationDialog from '../common/ConfirmationDialog';
 
@@ -11,6 +11,7 @@ import ConfirmationDialog from '../common/ConfirmationDialog';
 const NOVModal = ({ open, onClose, onSubmit, onConfirm, inspection, loading }) => {
   // Support both onSubmit and onConfirm for backward compatibility
   const handleSubmitProp = onSubmit || onConfirm;
+  const docSection = "bg-white p-3 space-y-2 rounded-none shadow-none";
   const [formData, setFormData] = useState({
     recipientEmail: '',
     recipientName: '',
@@ -18,7 +19,6 @@ const NOVModal = ({ open, onClose, onSubmit, onConfirm, inspection, loading }) =
     violations: '',
     complianceInstructions: '',
     complianceDeadline: '',
-    remarks: '',
     complianceStatus: null
   });
 
@@ -127,7 +127,15 @@ const NOVModal = ({ open, onClose, onSubmit, onConfirm, inspection, loading }) =
         contactPerson, // Auto-populate contact person
         violations: formattedViolations || violationsFound, // Auto-populate violations field
         complianceStatus,
-        complianceDeadline: getDefaultDeadline(30) // 30 days from now
+        complianceDeadline: getDefaultDeadline(30), // 30 days from now
+        complianceInstructions: prev.complianceInstructions?.trim()
+          ? prev.complianceInstructions
+          : [
+              '1) Submit a written explanation for each noted non-compliance within 5 working days from receipt of this Notice.',
+              '2) Submit a corrective action plan with clear timelines and responsible personnel.',
+              '3) Implement the corrective measures and submit documentary proof of compliance.',
+              '4) Coordinate with EMB Region I for any clarifications before the deadline.'
+            ].join('\n')
       }));
     }
   }, [open, inspection, formatLegacyViolations]);
@@ -184,9 +192,8 @@ Thank you for your prompt cooperation.
 Sincerely,
 Environmental Management Bureau – Region 1
 Department of Environment and Natural Resources (DENR)
-
-${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
-  const emailPreview = `Subject: ${emailSubject}\n\n${emailBody}`;
+`;
+  // Preview will render directly using emailSubject and emailBody in a PDF-style pane
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -202,10 +209,6 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
     }
     if (!formData.violations || !formData.violations.trim()) {
       alert('Violations are required');
-      return;
-    }
-    if (!formData.complianceInstructions || !formData.complianceInstructions.trim()) {
-      alert('Compliance instructions are required');
       return;
     }
     if (!formData.complianceDeadline) {
@@ -234,7 +237,6 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
           violations: formData.violations.trim(),
           complianceInstructions: formData.complianceInstructions.trim(),
           complianceDeadline: complianceDeadline,
-          remarks: formData.remarks || '',
           emailSubject: emailSubject,
           emailBody: emailBody
         };
@@ -247,7 +249,6 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
           violations: formData.violations.trim(),
           compliance_instructions: formData.complianceInstructions.trim(),
           compliance_deadline: complianceDeadline,
-          remarks: formData.remarks || '',
           email_subject: emailSubject,
           email_body: emailBody
         };
@@ -283,7 +284,7 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
 
   // Header Component
   const novHeader = (
-    <div className="bg-white border-b-2 border-gray-300 shadow-sm">
+    <div className="bg-white shadow-sm border border-gray-200">
       <div className="px-4 py-1">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -336,19 +337,13 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
         inspectionHeader={novHeader}
         fullWidth
       >
-        <div className=" md:py-10 px-0 h-full">
-          <div className="flex flex-col md:flex-row gap-6 h-full max-h-[calc(100vh-220px)] overflow-auto px-4 md:px-6">
-            <form id="nov-form" onSubmit={handleSubmit} className="flex-1 h-full overflow-y-auto pr-2">
-              <div className="flex flex-col gap-6">
-                <div className="flex flex-col space-y-6">
-                  <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-sky-600" />
-                      <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
-                        Inspection Details
-                      </h2>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="pt-4 h-full">
+          <div className="flex flex-col md:flex-row h-full max-h-[calc(100vh-155px)] overflow-auto">
+            <form id="nov-form" onSubmit={handleSubmit} className="flex-1 h-full overflow-y-auto">
+              <div className="flex flex-col">
+                <div className="flex flex-col ">
+                  <section className={docSection}>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                       <div>
                         <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">Inspection Code</span>
                         <p className="text-sm font-bold text-gray-900 mt-1">{inspection?.code || '—'}</p>
@@ -364,14 +359,8 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
                     </div>
                   </section>
 
-                  <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-5 h-5 text-blue-600" />
-                      <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
-                        Recipient Information
-                      </h2>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <section className={docSection}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       <div>
                         <label className="text-sm font-medium text-gray-600">
                           Recipient Email <span className="text-red-600">*</span>
@@ -381,7 +370,7 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
                           required
                           value={formData.recipientEmail}
                           onChange={(e) => setFormData({ ...formData, recipientEmail: e.target.value })}
-                          className="mt-1 w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-700 px-3 py-2"
+                          className="mt-1 w-full rounded-none border border-gray-400 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-800 px-2 py-1.5"
                           placeholder="email@example.com"
                         />
                       </div>
@@ -394,60 +383,14 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
                           required
                           value={formData.contactPerson}
                           onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-                          className="mt-1 w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-700 px-3 py-2"
+                          className="mt-1 w-full rounded-none border border-gray-400 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-800 px-2 py-1.5"
                           placeholder="Contact person name"
                         />
                       </div>
                     </div>
                   </section>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex flex-col space-y-6">
-                    <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-red-600" />
-                        <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
-                          Violations Found
-                        </h2>
-                      </div>
-                      <textarea
-                        required
-                        value={formData.violations}
-                        onChange={(e) => setFormData({ ...formData, violations: e.target.value })}
-                        className="min-h-[140px] w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 shadow-inner p-3 leading-relaxed text-sm text-gray-800 resize-y"
-                        placeholder="• Violation 1&#10;• Violation 2&#10;• Violation 3"
-                      />
-                      <p className="text-sm text-gray-500 italic">
-                        Tip: List each violation on a new line starting with • for better formatting.
-                      </p>
-                    </section>
-                  </div>
-
-                  <div className="flex flex-col space-y-6">
-                    <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle className="w-5 h-5 text-emerald-600" />
-                        <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
-                          Compliance Instructions
-                        </h2>
-                      </div>
-                      <textarea
-                        required
-                        value={formData.complianceInstructions}
-                        onChange={(e) => setFormData({ ...formData, complianceInstructions: e.target.value })}
-                        className="min-h-[120px] w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 shadow-inner p-3 leading-relaxed text-sm text-gray-800 resize-y"
-                        placeholder="Required actions for compliance..."
-                      />
-                    </section>
-
-                    <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-5 h-5 text-orange-500" />
-                        <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
-                          Compliance Deadline
-                        </h2>
-                      </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <section className={docSection}>
                       <div>
                         <label className="text-sm font-medium text-gray-600">
                           Deadline <span className="text-red-600">*</span>
@@ -458,47 +401,56 @@ ${formData.remarks ? `\nAdditional Remarks:\n${formData.remarks}` : ''}`;
                           value={formData.complianceDeadline}
                           onChange={(e) => setFormData({ ...formData, complianceDeadline: e.target.value })}
                           min={new Date().toISOString().split('T')[0]}
-                          className="mt-1 w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-700 px-3 py-2"
+                          className="mt-1 w-full rounded-none border border-gray-400 focus:ring-emerald-500 focus:border-emerald-500 text-sm text-gray-800 px-2 py-1.5"
                         />
-                        <p className="text-sm text-gray-500 italic mt-1">
-                          Default deadline is 30 days from today. Establishment must comply by this date.
-                        </p>
                       </div>
                     </section>
-
-                    <section className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-100 space-y-4">
+                    <div className="flex flex-col ">
+                      <p className="text-sm text-gray-500 italic text-center px-4 py-6">
+                        Default deadline is 30 days from today. Establishment must comply by this date. 
+                      </p>
+                    </div>
+                    </div>
+                </div>
+                <section className={docSection}>
                       <div className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-gray-500" />
-                        <h2 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 flex-1">
-                          Additional Remarks <span className="text-sm font-normal text-gray-500">(Optional)</span>
+                        <AlertTriangle className="w-5 h-5 text-red-600" />
+                        <h2 className="text-lg font-semibold text-gray-800 pb-1 flex-1">
+                          Violations Found
                         </h2>
                       </div>
                       <textarea
-                        value={formData.remarks}
-                        onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                        className="min-h-[120px] w-full rounded-md border border-gray-300 focus:ring-emerald-500 focus:border-emerald-500 shadow-inner p-3 leading-relaxed text-sm text-gray-800 resize-y"
-                        placeholder="Any additional notes or special instructions..."
+                        required
+                        value={formData.violations}
+                        onChange={(e) => setFormData({ ...formData, violations: e.target.value })}
+                        className="min-h-[200px] max-h-[calc(100vh-470px)] w-full rounded-none border border-gray-400 focus:ring-emerald-500 focus:border-emerald-500 shadow-none p-2 leading-relaxed text-sm text-gray-900 resize-y"
+                        placeholder="• Violation 1&#10;• Violation 2&#10;• Violation 3"
                       />
                     </section>
-                  </div>
-                </div>
               </div>
             </form>
 
-            <aside className="w-full md:w-[40%] h-full">
-              <div className="bg-white shadow-sm rounded-lg border border-gray-200 md:border-l md:border-gray-200 md:pl-6 h-full flex flex-col overflow-hidden max-h-[calc(100vh-220px)]">
-                <div className="flex items-center gap-2 border-b border-gray-200 pb-2 mb-4">
-                  <Mail className="w-5 h-5 text-sky-600" />
-                  <h3 className="text-lg font-semibold text-gray-800">Email Preview</h3>
+            <aside className="w-full md:w-[50%] h-full">
+              <div className="bg-gray-100 md:border-l md:border-gray-200 h-full flex flex-col overflow-hidden max-h-[calc(100vh-155px)]">
+                <div className="px-4 pt-3 pb-2 border-b border-gray-200">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-sky-600" />
+                    <h3 className="text-lg font-semibold text-gray-800">Email Preview</h3>
+                  </div>
                 </div>
-                <div className="flex-1 overflow-y-auto">
-                  <div className="max-w-[600px] mx-auto">
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg shadow-inner p-4">
-                      <pre className="leading-relaxed text-sm text-gray-800 whitespace-pre-wrap font-sans">{emailPreview}</pre>
+                <div className="flex-1 overflow-y-auto p-4">
+                  <div
+                    className="mx-auto bg-white border border-gray-300"
+                    style={{ width: '794px', minHeight: '1123px', padding: '36px', fontFamily: 'Georgia, Cambria, Times, serif', lineHeight: '1.6' }}
+                  >
+                    <div className="text-center mb-4">
+                      <div className="text-xs text-gray-500">Subject</div>
+                      <div className="text-base font-semibold text-gray-900">{emailSubject}</div>
                     </div>
-                    <p className="text-sm text-gray-500 italic mt-3">
-                      Review the generated email carefully before sending to ensure accuracy.
-                    </p>
+                    <hr className="border-gray-300 my-4" />
+                    <div className="text-[15px] text-gray-900 whitespace-pre-wrap">
+                      {emailBody}
+                    </div>
                   </div>
                 </div>
               </div>
