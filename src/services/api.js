@@ -1171,3 +1171,38 @@ export const markBillingAsUnpaid = async (id, payload = {}) => {
   }
 };
 
+// -------------------------------------------------
+// Signature Management
+// -------------------------------------------------
+export const uploadInspectionSignature = async (id, formData) => {
+  const res = await api.post(`inspections/${id}/upload_signature/`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data;
+};
+
+export const deleteInspectionSignature = async (id, slot) => {
+  const res = await api.delete(`inspections/${id}/delete_signature/`, {
+    data: { slot }
+  });
+  return res.data;
+};
+
+// -------------------------------------------------
+// Recommendation Management
+// -------------------------------------------------
+export const addRecommendation = async (id, recommendationData) => {
+  const res = await api.post(`inspections/${id}/add_recommendation/`, recommendationData);
+  return res.data;
+};
+
+export const updateRecommendation = async (id, recId, recommendationData) => {
+  const res = await api.put(`inspections/${id}/update_recommendation/${recId}/`, recommendationData);
+  return res.data;
+};
+
+export const deleteRecommendation = async (id, recId) => {
+  const res = await api.delete(`inspections/${id}/delete_recommendation/${recId}/`);
+  return res.data;
+};
+

@@ -3,8 +3,8 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { useNotifications } from '../components/NotificationManager';
 import api from '../services/api';
-import { sendNOV, sendNOO } from '../services/api';
-import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck, Printer, Edit, X, UserCheck, Users, Building, CheckSquare, Scale, Mail, FileText, CornerDownLeft, Camera } from 'lucide-react';
+import { sendNOV, sendNOO, uploadInspectionSignature, deleteInspectionSignature } from '../services/api';
+import { CheckCircle, XCircle, AlertTriangle, ArrowLeft, Send, FileCheck, Printer, Edit, X, UserCheck, Users, Building, CheckSquare, Scale, Mail, FileText, CornerDownLeft, Camera, Upload, Trash2 } from 'lucide-react';
 import LayoutForm from '../components/LayoutForm';
 import { getButtonVisibility as getRoleStatusButtonVisibility, canUserAccessInspection } from '../utils/roleStatusMatrix';
 import ImageLightbox from '../components/inspection-form/ImageLightbox';
@@ -43,6 +43,9 @@ const InspectionReviewPage = () => {
   
   // Violations found state - automatically populated from non-compliance data
   const [violationsFound, setViolationsFound] = useState('');
+  
+  // Signature upload state
+  const [uploadingSignature, setUploadingSignature] = useState(false);
 
   // Function to automatically extract violations from non-compliant items
   const extractViolationsFromData = useCallback((formData) => {
@@ -352,6 +355,155 @@ const InspectionReviewPage = () => {
     }
     
     return formData?.compliance_status || 'PENDING';
+  };
+
+  // Get signature slot for current user based on inspector level and user level
+  const getSignatureSlotForUser = useCallback(() => {
+    if (!inspectionData || !currentUser) return null;
+    
+    // Preview mode: Always upload to 'submitted' slot if in IN_PROGRESS status
+    if (mode === 'preview') {
+      const status = inspectionData?.current_status || '';
+      if (status.endsWith('_IN_PROGRESS')) {
+        return 'submitted';
+      }
+      return null;
+    }
+    
+    // Review mode logic
+    const inspectorLevel = inspectionData.form?.inspector_info?.level || '';
+    const userLevel = currentUser?.userlevel || '';
+    const inspectedById = inspectionData.form?.inspected_by;
+    
+    // Allow original inspector to upload 'submitted' signature if missing
+    if (inspectedById === currentUser.id) {
+      return 'submitted';
+    }
+    
+    // Rest of review mode logic for other reviewers
+    // Monitoring inspected
+    if (inspectorLevel === 'Monitoring Personnel') {
+      if (userLevel === 'Unit Head') return 'review_unit';
+      if (userLevel === 'Section Chief') return 'review_section';
+      if (userLevel === 'Division Chief') return 'approve_division';
+    }
+    
+    // Unit Head inspected
+    if (inspectorLevel === 'Unit Head') {
+      if (userLevel === 'Section Chief') return 'review_section';
+      if (userLevel === 'Division Chief') return 'approve_division';
+    }
+    
+    // Section Chief inspected
+    if (inspectorLevel === 'Section Chief') {
+      if (userLevel === 'Division Chief') return 'approve_division';
+    }
+    
+    return null;
+  }, [inspectionData, currentUser, mode]);
+
+  const signatureSlot = getSignatureSlotForUser();
+
+  // Get signature configuration for display
+  const signatureConfig = useMemo(() => {
+    if (!inspectionData) return { submittedRole: 'Inspector', reviewUnit: false, reviewSection: false };
+    
+    const inspectorLevel = inspectionData.form?.inspector_info?.level || '';
+    
+    if (inspectorLevel === 'Monitoring Personnel') {
+      return {
+        submittedRole: 'Monitoring Personnel',
+        reviewUnit: true,
+        reviewSection: true,
+      };
+    }
+    if (inspectorLevel === 'Unit Head') {
+      return {
+        submittedRole: 'Unit Head',
+        reviewUnit: false,
+        reviewSection: true,
+      };
+    }
+    if (inspectorLevel === 'Section Chief') {
+      return {
+        submittedRole: 'Section Chief',
+        reviewUnit: false,
+        reviewSection: true,
+      };
+    }
+    
+    return {
+      submittedRole: inspectorLevel || 'Inspector',
+      reviewUnit: false,
+      reviewSection: false,
+    };
+  }, [inspectionData]);
+
+  // Handle signature upload
+  const handleSignatureUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !signatureSlot) return;
+
+    // Validate file size (2MB max)
+    if (file.size > 2 * 1024 * 1024) {
+      notifications.error('File size must not exceed 2MB');
+      event.target.value = '';
+      return;
+    }
+
+    // Validate file type
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      notifications.error('Only PNG and JPEG images are allowed');
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      setUploadingSignature(true);
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', file);
+      formDataUpload.append('slot', signatureSlot);
+
+      await uploadInspectionSignature(id, formDataUpload);
+
+      notifications.success('Signature uploaded successfully.');
+      // Refresh inspection data so the image shows up
+      await fetchInspectionData();
+    } catch (error) {
+      console.error('Error uploading signature:', error);
+      notifications.error(
+        error.response?.data?.detail ||
+        error.response?.data?.error ||
+        error.message ||
+        'Failed to upload signature.'
+      );
+    } finally {
+      setUploadingSignature(false);
+      // Reset input so same file can be selected again if needed
+      event.target.value = '';
+    }
+  };
+
+  // Handle signature delete
+  const handleSignatureDelete = async (slot) => {
+    if (!window.confirm('Are you sure you want to delete this signature?')) {
+      return;
+    }
+
+    try {
+      await deleteInspectionSignature(id, slot);
+      notifications.success('Signature deleted successfully.');
+      await fetchInspectionData();
+    } catch (error) {
+      console.error('Error deleting signature:', error);
+      notifications.error(
+        error.response?.data?.detail ||
+        error.response?.data?.error ||
+        error.message ||
+        'Failed to delete signature.'
+      );
+    }
   };
 
   // Function to open lightbox with images
@@ -777,12 +929,22 @@ const InspectionReviewPage = () => {
                 </button>
                 {buttonVisibility.showSaveSubmitButton && (
                   <button
-                    onClick={() => handleActionClick('save_and_submit')}
+                    onClick={() => {
+                      // Check if signature is required and missing
+                      if (mode === 'preview' && signatureSlot === 'submitted' && 
+                          !inspectionData.form?.checklist?.signatures?.submitted?.url) {
+                        notifications.error('Please upload your signature before submitting.');
+                        // Scroll to signatories section
+                        document.querySelector('#signatories-section')?.scrollIntoView({ behavior: 'smooth' });
+                        return;
+                      }
+                      handleActionClick('save_and_submit');
+                    }}
                     className="flex items-center px-3 py-1 text-sm text-white bg-sky-600 rounded hover:bg-sky-700 transition-colors"
                     disabled={loading}
                   >
                     <Send className="w-4 h-4 mr-1" />
-                    Save &amp; Submit
+                    Submit
                   </button>
                 )}
               </>
@@ -813,7 +975,16 @@ const InspectionReviewPage = () => {
                   inspectionData?.current_status === 'MONITORING_COMPLETED_NON_COMPLIANT') && (
                   <>
                   <button
-                    onClick={() => handleActionClick('approve_unit')}
+                    onClick={() => {
+                      // Check if signature is required and missing
+                      if (signatureSlot === 'review_unit' && 
+                          !inspectionData.form?.checklist?.signatures?.review_unit?.url) {
+                        notifications.error('Please upload your signature before approving.');
+                        document.querySelector('#signatories-section')?.scrollIntoView({ behavior: 'smooth' });
+                        return;
+                      }
+                      handleActionClick('approve_unit');
+                    }}
                     className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
                     disabled={loading}
                   >
@@ -838,7 +1009,16 @@ const InspectionReviewPage = () => {
                   inspectionData?.current_status === 'MONITORING_COMPLETED_NON_COMPLIANT') && (
                   <>
                   <button
-                    onClick={() => handleActionClick('approve_section')}
+                    onClick={() => {
+                      // Check if signature is required and missing
+                      if (signatureSlot === 'review_section' && 
+                          !inspectionData.form?.checklist?.signatures?.review_section?.url) {
+                        notifications.error('Please upload your signature before approving.');
+                        document.querySelector('#signatories-section')?.scrollIntoView({ behavior: 'smooth' });
+                        return;
+                      }
+                      handleActionClick('approve_section');
+                    }}
                     className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
                     disabled={loading}
                   >
@@ -870,7 +1050,16 @@ const InspectionReviewPage = () => {
                       <>
                         {/* Show "Reviewed" button to transition to DIVISION_REVIEWED */}
                         <button
-                          onClick={() => handleActionClick('review_division')}
+                          onClick={() => {
+                            // Check if signature is required and missing
+                            if (signatureSlot === 'approve_division' && 
+                                !inspectionData.form?.checklist?.signatures?.approve_division?.url) {
+                              notifications.error('Please upload your signature before reviewing.');
+                              document.querySelector('#signatories-section')?.scrollIntoView({ behavior: 'smooth' });
+                              return;
+                            }
+                            handleActionClick('review_division');
+                          }}
                           className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
                           disabled={loading}
                         >
@@ -886,7 +1075,16 @@ const InspectionReviewPage = () => {
                       <>
                         {/* Show "Reviewed" button to transition to DIVISION_REVIEWED */}
                         <button
-                          onClick={() => handleActionClick('review_division')}
+                          onClick={() => {
+                            // Check if signature is required and missing
+                            if (signatureSlot === 'approve_division' && 
+                                !inspectionData.form?.checklist?.signatures?.approve_division?.url) {
+                              notifications.error('Please upload your signature before reviewing.');
+                              document.querySelector('#signatories-section')?.scrollIntoView({ behavior: 'smooth' });
+                              return;
+                            }
+                            handleActionClick('review_division');
+                          }}
                           className="flex items-center px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
                           disabled={loading}
                         >
@@ -901,7 +1099,16 @@ const InspectionReviewPage = () => {
                       <>
                         {complianceStatus === 'COMPLIANT' ? (
                           <button
-                            onClick={() => handleActionClick('mark_compliant')}
+                            onClick={() => {
+                              // Check if signature is required and missing
+                              if (signatureSlot === 'approve_division' && 
+                                  !inspectionData.form?.checklist?.signatures?.approve_division?.url) {
+                                notifications.error('Please upload your signature before marking as compliant.');
+                                document.querySelector('#signatories-section')?.scrollIntoView({ behavior: 'smooth' });
+                                return;
+                              }
+                              handleActionClick('mark_compliant');
+                            }}
                             className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
                             disabled={loading}
                           >
@@ -910,7 +1117,16 @@ const InspectionReviewPage = () => {
                           </button>
                         ) : (
                           <button
-                            onClick={() => handleActionClick('forward_legal')}
+                            onClick={() => {
+                              // Check if signature is required and missing
+                              if (signatureSlot === 'approve_division' && 
+                                  !inspectionData.form?.checklist?.signatures?.approve_division?.url) {
+                                notifications.error('Please upload your signature before sending to legal.');
+                                document.querySelector('#signatories-section')?.scrollIntoView({ behavior: 'smooth' });
+                                return;
+                              }
+                              handleActionClick('forward_legal');
+                            }}
                             className="flex items-center px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700 transition-colors"
                             disabled={loading}
                           >
@@ -1596,6 +1812,262 @@ const InspectionReviewPage = () => {
               )}
             </section>
           )}
+
+          {/* IX. SIGNATORIES */}
+          <section className="mt-12 mb-8 page-break-before" id="signatories-section">
+            <h2 className="text-lg font-bold uppercase border-b-2 border-gray-800 pb-2 mb-8">
+              IX. SIGNATORIES
+            </h2>
+
+            <div className={`grid gap-10 text-sm mt-8 ${signatureConfig.reviewUnit ? 'grid-cols-4' : 'grid-cols-3'}`}>
+              {/* Submitted by (Inspector) */}
+              <div className="flex flex-col items-center">
+                {/* Signature image if available */}
+                {inspectionData.form?.checklist?.signatures?.submitted?.url ? (
+                  <div className="relative group">
+                    <img
+                      src={`${inspectionData.form.checklist.signatures.submitted.url}?t=${Date.now()}`}
+                      alt="Submitted by signature"
+                      className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
+                      onError={(e) => {
+                        console.error('❌ Failed to load submitted signature:', e);
+                        console.log('Image URL:', inspectionData.form.checklist.signatures.submitted.url);
+                      }}
+                    />
+                    {/* Delete button for own signature */}
+                    {signatureSlot === 'submitted' && (
+                      <button
+                        onClick={() => handleSignatureDelete('submitted')}
+                        className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
+                        title="Delete signature"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="h-20 flex flex-col items-center justify-center border border-dashed border-gray-300 rounded px-4">
+                    {signatureSlot === 'submitted' ? (
+                      <label className="cursor-pointer text-center">
+                        <Upload className="w-6 h-6 mx-auto text-sky-600 mb-1" />
+                        <span className="text-xs text-sky-600 font-medium">
+                          {uploadingSignature ? 'Uploading...' : 'Upload Signature'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg"
+                          className="hidden"
+                          onChange={handleSignatureUpload}
+                          disabled={uploadingSignature}
+                        />
+                      </label>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Pending signature</span>
+                    )}
+                  </div>
+                )}
+
+                <div className="w-full border-t-2 border-black mt-2" />
+                <p className="mt-2 font-semibold uppercase text-center">Submitted by:</p>
+                <p className="font-bold text-center">
+                  {inspectionData.form?.inspector_info?.name ||
+                    inspectionData.inspected_by_name ||
+                    '_______________________'}
+                </p>
+                <p className="text-xs text-gray-700 text-center">
+                  {signatureConfig.submittedRole}
+                </p>
+                {inspectionData.form?.checklist?.signatures?.submitted?.uploaded_at && (
+                  <p className="text-xs text-gray-500 text-center mt-1">
+                    {new Date(inspectionData.form.checklist.signatures.submitted.uploaded_at).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+
+              {/* Reviewed by – Unit Head (only when Monitoring inspected) */}
+              {signatureConfig.reviewUnit && (
+                <div className="flex flex-col items-center">
+                  {inspectionData.form?.checklist?.signatures?.review_unit?.url ? (
+                    <div className="relative group">
+                      <img
+                        src={`${inspectionData.form.checklist.signatures.review_unit.url}?t=${Date.now()}`}
+                        alt="Unit Head review signature"
+                        className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
+                        onError={(e) => {
+                          console.error('❌ Failed to load review_unit signature:', e);
+                          console.log('Image URL:', inspectionData.form.checklist.signatures.review_unit.url);
+                        }}
+                      />
+                      {signatureSlot === 'review_unit' && (
+                        <button
+                          onClick={() => handleSignatureDelete('review_unit')}
+                          className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
+                          title="Delete signature"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="h-20 flex flex-col items-center justify-center border border-dashed border-gray-300 rounded px-4">
+                      {signatureSlot === 'review_unit' ? (
+                        <label className="cursor-pointer text-center">
+                          <Upload className="w-6 h-6 mx-auto text-sky-600 mb-1" />
+                          <span className="text-xs text-sky-600 font-medium">
+                            {uploadingSignature ? 'Uploading...' : 'Upload Signature'}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg"
+                            className="hidden"
+                            onChange={handleSignatureUpload}
+                            disabled={uploadingSignature}
+                          />
+                        </label>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">Pending signature</span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="w-full border-t-2 border-black mt-2" />
+                  <p className="mt-2 font-semibold uppercase text-center">Reviewed by (Unit Head):</p>
+                  <p className="font-bold text-center">
+                    {inspectionData.form?.checklist?.signatures?.review_unit?.name ||
+                      '_______________________'}
+                  </p>
+                  <p className="text-xs text-gray-700 text-center">Unit Head</p>
+                  {inspectionData.form?.checklist?.signatures?.review_unit?.uploaded_at && (
+                    <p className="text-xs text-gray-500 text-center mt-1">
+                      {new Date(inspectionData.form.checklist.signatures.review_unit.uploaded_at).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Reviewed by – Section Chief */}
+              {signatureConfig.reviewSection && (
+                <div className="flex flex-col items-center">
+                  {inspectionData.form?.checklist?.signatures?.review_section?.url ? (
+                    <div className="relative group">
+                      <img
+                        src={`${inspectionData.form.checklist.signatures.review_section.url}?t=${Date.now()}`}
+                        alt="Section Chief review signature"
+                        className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
+                        onError={(e) => {
+                          console.error('❌ Failed to load review_section signature:', e);
+                          console.log('Image URL:', inspectionData.form.checklist.signatures.review_section.url);
+                        }}
+                      />
+                      {signatureSlot === 'review_section' && (
+                        <button
+                          onClick={() => handleSignatureDelete('review_section')}
+                          className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
+                          title="Delete signature"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="h-20 flex flex-col items-center justify-center border border-dashed border-gray-300 rounded px-4">
+                      {signatureSlot === 'review_section' ? (
+                        <label className="cursor-pointer text-center">
+                          <Upload className="w-6 h-6 mx-auto text-sky-600 mb-1" />
+                          <span className="text-xs text-sky-600 font-medium">
+                            {uploadingSignature ? 'Uploading...' : 'Upload Signature'}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg"
+                            className="hidden"
+                            onChange={handleSignatureUpload}
+                            disabled={uploadingSignature}
+                          />
+                        </label>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">Pending signature</span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="w-full border-t-2 border-black mt-2" />
+                  <p className="mt-2 font-semibold uppercase text-center">Reviewed by (Section Chief):</p>
+                  <p className="font-bold text-center">
+                    {inspectionData.form?.checklist?.signatures?.review_section?.name ||
+                      '_______________________'}
+                  </p>
+                  <p className="text-xs text-gray-700 text-center">Section Chief</p>
+                  {inspectionData.form?.checklist?.signatures?.review_section?.uploaded_at && (
+                    <p className="text-xs text-gray-500 text-center mt-1">
+                      {new Date(inspectionData.form.checklist.signatures.review_section.uploaded_at).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Approved by – Division Chief (always shown) */}
+              <div className="flex flex-col items-center">
+                {inspectionData.form?.checklist?.signatures?.approve_division?.url ? (
+                  <div className="relative group">
+                    <img
+                      src={`${inspectionData.form.checklist.signatures.approve_division.url}?t=${Date.now()}`}
+                      alt="Division Chief signature"
+                      className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
+                      onError={(e) => {
+                        console.error('❌ Failed to load approve_division signature:', e);
+                        console.log('Image URL:', inspectionData.form.checklist.signatures.approve_division.url);
+                      }}
+                    />
+                    {signatureSlot === 'approve_division' && (
+                      <button
+                        onClick={() => handleSignatureDelete('approve_division')}
+                        className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity print:hidden"
+                        title="Delete signature"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="h-20 flex flex-col items-center justify-center border border-dashed border-gray-300 rounded px-4">
+                    {signatureSlot === 'approve_division' ? (
+                      <label className="cursor-pointer text-center">
+                        <Upload className="w-6 h-6 mx-auto text-sky-600 mb-1" />
+                        <span className="text-xs text-sky-600 font-medium">
+                          {uploadingSignature ? 'Uploading...' : 'Upload Signature'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg"
+                          className="hidden"
+                          onChange={handleSignatureUpload}
+                          disabled={uploadingSignature}
+                        />
+                      </label>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Pending signature</span>
+                    )}
+                  </div>
+                )}
+
+                <div className="w-full border-t-2 border-black mt-2" />
+                <p className="mt-2 font-semibold uppercase text-center">Approved by (Division Chief):</p>
+                <p className="font-bold text-center">
+                  {inspectionData.form?.checklist?.signatures?.approve_division?.name ||
+                    '_______________________'}
+                </p>
+                <p className="text-xs text-gray-700 text-center">
+                  {inspectionData.form?.checklist?.signatures?.approve_division?.title || 'Division Chief'}
+                </p>
+                {inspectionData.form?.checklist?.signatures?.approve_division?.uploaded_at && (
+                  <p className="text-xs text-gray-500 text-center mt-1">
+                    {new Date(inspectionData.form.checklist.signatures.approve_division.uploaded_at).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
 
         </div>
 

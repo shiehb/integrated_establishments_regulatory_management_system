@@ -19,7 +19,8 @@ from .models import Inspection, InspectionForm, InspectionDocument, InspectionHi
 from .serializers import (
     InspectionSerializer, InspectionCreateSerializer, InspectionFormSerializer,
     InspectionHistorySerializer, InspectionDocumentSerializer,
-    InspectionActionSerializer, NOVSerializer, NOOSerializer, BillingRecordSerializer
+    InspectionActionSerializer, NOVSerializer, NOOSerializer, BillingRecordSerializer,
+    SignatureUploadSerializer, RecommendationSerializer
 )
 from .utils import (
     send_inspection_forward_notification,
@@ -1521,6 +1522,11 @@ class InspectionViewSet(viewsets.ModelViewSet):
             # Save form data as part of completion for all roles
             form, created = InspectionForm.objects.get_or_create(inspection=inspection)
             
+            # Preserve existing signatures if they exist
+            existing_signatures = {}
+            if form.checklist and 'signatures' in form.checklist:
+                existing_signatures = form.checklist['signatures']
+            
             # Store all form data in the checklist JSON field
             form.checklist = {
                 'general': form_data.get('general', {}),
@@ -1532,6 +1538,7 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 'lawFilter': form_data.get('lawFilter', []),
                 'findingImages': form_data.get('findingImages', {}),
                 'generalFindings': form_data.get('generalFindings', []),
+                'signatures': existing_signatures,  # Preserve existing signatures
                 'is_draft': False,
                 'completed_at': timezone.now().isoformat(),
                 'completed_by': user.id
@@ -4698,6 +4705,272 @@ class InspectionViewSet(viewsets.ModelViewSet):
             })
         
         return Response(reminders)
+
+    @action(detail=True, methods=['post'], url_path='upload_signature', permission_classes=[permissions.IsAuthenticated])
+    def upload_signature(self, request, pk=None):
+        """
+        Upload signature image for current user's review stage
+        """
+        import uuid
+        import os
+        from django.core.files.storage import default_storage
+        from django.utils import timezone
+        
+        inspection = self.get_object()
+        form = getattr(inspection, 'form', None)
+        
+        if not form:
+            return Response(
+                {'detail': 'Inspection form not found.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        serializer = SignatureUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Validate user has permission to upload to this slot
+        slot = serializer.validated_data['slot']
+        user_level = request.user.userlevel
+        inspector_level = form.inspected_by.userlevel if form.inspected_by else None
+        
+        # Role-based slot validation
+        allowed = False
+        if inspector_level == 'Monitoring Personnel':
+            if slot == 'submitted' and user_level == 'Monitoring Personnel':
+                allowed = True
+            elif slot == 'review_unit' and user_level == 'Unit Head':
+                allowed = True
+            elif slot == 'review_section' and user_level == 'Section Chief':
+                allowed = True
+            elif slot == 'approve_division' and user_level == 'Division Chief':
+                allowed = True
+        elif inspector_level == 'Unit Head':
+            if slot == 'submitted' and user_level == 'Unit Head':
+                allowed = True
+            elif slot == 'review_section' and user_level == 'Section Chief':
+                allowed = True
+            elif slot == 'approve_division' and user_level == 'Division Chief':
+                allowed = True
+        elif inspector_level == 'Section Chief':
+            if slot in ['submitted', 'review_section'] and user_level == 'Section Chief':
+                allowed = True
+            elif slot == 'approve_division' and user_level == 'Division Chief':
+                allowed = True
+        
+        if not allowed:
+            return Response(
+                {'detail': 'You do not have permission to upload signature for this slot.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Save signature
+        file = serializer.validated_data['file']
+        checklist = form.checklist or {}
+        signatures = checklist.get('signatures', {})
+        
+        # Save file to media storage
+        file_ext = os.path.splitext(file.name)[1].lower()
+        file_name = f'signatures/{inspection.code}/{slot}_{uuid.uuid4()}{file_ext}'
+        path = default_storage.save(file_name, file)
+        relative_url = default_storage.url(path)
+        
+        # Convert to absolute URL if it's relative
+        if relative_url.startswith('/'):
+            url = request.build_absolute_uri(relative_url)
+        else:
+            url = relative_url
+        
+        # Store signature metadata
+        signatures[slot] = {
+            'url': url,
+            'uploaded_by': request.user.id,
+            'uploaded_at': timezone.now().isoformat(),
+            'name': f"{request.user.first_name} {request.user.last_name}".strip() or request.user.email,
+            'title': request.user.userlevel,
+        }
+        
+        checklist['signatures'] = signatures
+        form.checklist = checklist
+        form.save(update_fields=['checklist'])
+        
+        # Audit log
+        audit_inspection_event(
+            request.user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"Signature uploaded for {slot} by {request.user.email}",
+            request,
+            metadata={'slot': slot}
+        )
+        
+        return Response({
+            'detail': 'Signature uploaded successfully.',
+            'slot': slot
+        })
+
+    @action(detail=True, methods=['delete'], url_path='delete_signature', permission_classes=[permissions.IsAuthenticated])
+    def delete_signature(self, request, pk=None):
+        """
+        Delete signature image (only own signature or admin)
+        """
+        from django.core.files.storage import default_storage
+        
+        inspection = self.get_object()
+        form = getattr(inspection, 'form', None)
+        
+        if not form:
+            return Response(
+                {'detail': 'Inspection form not found.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        slot = request.data.get('slot')
+        if not slot:
+            return Response(
+                {'detail': 'Slot parameter is required.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        checklist = form.checklist or {}
+        signatures = checklist.get('signatures', {})
+        
+        if slot not in signatures:
+            return Response(
+                {'detail': 'Signature not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Check permission (only uploader or admin can delete)
+        signature_data = signatures[slot]
+        if signature_data.get('uploaded_by') != request.user.id and request.user.userlevel != 'Admin':
+            return Response(
+                {'detail': 'You do not have permission to delete this signature.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Delete file from storage
+        url = signature_data.get('url', '')
+        if url:
+            # Extract path from URL
+            path = url.replace(default_storage.base_url, '')
+            if default_storage.exists(path):
+                default_storage.delete(path)
+        
+        # Remove from checklist
+        del signatures[slot]
+        checklist['signatures'] = signatures
+        form.checklist = checklist
+        form.save(update_fields=['checklist'])
+        
+        return Response({'detail': 'Signature deleted successfully.'})
+
+    @action(detail=True, methods=['post'], url_path='add_recommendation')
+    def add_recommendation(self, request, pk=None):
+        """Add a recommendation to inspection"""
+        import uuid
+        from django.utils import timezone
+        
+        inspection = self.get_object()
+        form = getattr(inspection, 'form', None)
+        
+        if not form:
+            return Response({'detail': 'Inspection form not found.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        serializer = RecommendationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        checklist = form.checklist or {}
+        recommendations = checklist.get('recommendations', [])
+        
+        new_rec = {
+            'id': str(uuid.uuid4()),
+            'text': serializer.validated_data['text'],
+            'priority': serializer.validated_data.get('priority', 'MEDIUM'),
+            'category': serializer.validated_data.get('category', 'COMPLIANCE'),
+            'status': serializer.validated_data.get('status', 'PENDING'),
+            'created_by': request.user.id,
+            'created_by_name': f"{request.user.first_name} {request.user.last_name}".strip() or request.user.email,
+            'created_at': timezone.now().isoformat(),
+        }
+        
+        recommendations.append(new_rec)
+        checklist['recommendations'] = recommendations
+        form.checklist = checklist
+        form.save(update_fields=['checklist'])
+        
+        # Audit log
+        audit_inspection_event(
+            request.user,
+            inspection,
+            AUDIT_ACTIONS["UPDATE"],
+            f"Recommendation added by {request.user.email}",
+            request,
+            metadata={'recommendation_id': new_rec['id']}
+        )
+        
+        return Response(new_rec, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['put'], url_path='update_recommendation/(?P<rec_id>[^/.]+)')
+    def update_recommendation(self, request, pk=None, rec_id=None):
+        """Update a recommendation"""
+        inspection = self.get_object()
+        form = getattr(inspection, 'form', None)
+        
+        if not form:
+            return Response({'detail': 'Inspection form not found.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        checklist = form.checklist or {}
+        recommendations = checklist.get('recommendations', [])
+        
+        # Find recommendation
+        rec_index = next((i for i, r in enumerate(recommendations) if r.get('id') == rec_id), None)
+        if rec_index is None:
+            return Response({'detail': 'Recommendation not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = RecommendationSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        
+        # Update recommendation
+        recommendation = recommendations[rec_index]
+        if 'text' in serializer.validated_data:
+            recommendation['text'] = serializer.validated_data['text']
+        if 'priority' in serializer.validated_data:
+            recommendation['priority'] = serializer.validated_data['priority']
+        if 'category' in serializer.validated_data:
+            recommendation['category'] = serializer.validated_data['category']
+        if 'status' in serializer.validated_data:
+            recommendation['status'] = serializer.validated_data['status']
+        
+        recommendations[rec_index] = recommendation
+        checklist['recommendations'] = recommendations
+        form.checklist = checklist
+        form.save(update_fields=['checklist'])
+        
+        return Response(recommendation)
+
+    @action(detail=True, methods=['delete'], url_path='delete_recommendation/(?P<rec_id>[^/.]+)')
+    def delete_recommendation(self, request, pk=None, rec_id=None):
+        """Delete a recommendation"""
+        inspection = self.get_object()
+        form = getattr(inspection, 'form', None)
+        
+        if not form:
+            return Response({'detail': 'Inspection form not found.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        checklist = form.checklist or {}
+        recommendations = checklist.get('recommendations', [])
+        
+        # Find and remove recommendation
+        rec_index = next((i for i, r in enumerate(recommendations) if r.get('id') == rec_id), None)
+        if rec_index is None:
+            return Response({'detail': 'Recommendation not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        recommendations.pop(rec_index)
+        checklist['recommendations'] = recommendations
+        form.checklist = checklist
+        form.save(update_fields=['checklist'])
+        
+        return Response({'detail': 'Recommendation deleted successfully.'})
 
 
 class BillingViewSet(viewsets.ModelViewSet):

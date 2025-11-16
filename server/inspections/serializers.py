@@ -114,6 +114,7 @@ class InspectionFormSerializer(serializers.ModelSerializer):
     noo = NoticeOfOrderSerializer(read_only=True)
     inspected_by_name = serializers.SerializerMethodField()
     inspector_info = serializers.SerializerMethodField()
+    checklist = serializers.SerializerMethodField()
     
     class Meta:
         model = InspectionForm
@@ -126,6 +127,24 @@ class InspectionFormSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'created_at', 'updated_at', 'inspected_by'
         ]
+    
+    def get_checklist(self, obj):
+        """Get checklist with absolute URLs for signatures"""
+        import copy
+        checklist = copy.deepcopy(obj.checklist or {})
+        
+        # Convert relative signature URLs to absolute URLs
+        if 'signatures' in checklist:
+            request = self.context.get('request')
+            if request:
+                for slot_name, sig_data in checklist['signatures'].items():
+                    if sig_data and isinstance(sig_data, dict) and 'url' in sig_data:
+                        url = sig_data['url']
+                        # Convert relative URL to absolute
+                        if url and url.startswith('/'):
+                            sig_data['url'] = request.build_absolute_uri(url)
+        
+        return checklist
     
     def get_inspected_by_name(self, obj):
         """Get the name of the user who inspected the form"""
@@ -608,4 +627,71 @@ class BillingRecordSerializer(serializers.ModelSerializer):
         if obj.payment_confirmed_by:
             return f"{obj.payment_confirmed_by.first_name} {obj.payment_confirmed_by.last_name}".strip() or obj.payment_confirmed_by.email
         return None
+
+
+class SignatureUploadSerializer(serializers.Serializer):
+    """Serializer for signature image upload"""
+    slot = serializers.ChoiceField(
+        choices=[
+            ('submitted', 'Submitted'),
+            ('review_unit', 'Review Unit'),
+            ('review_section', 'Review Section'),
+            ('approve_division', 'Approve Division'),
+        ],
+        required=True,
+        help_text='Signature slot designation'
+    )
+    file = serializers.ImageField(
+        required=True,
+        help_text='Signature image file (PNG or JPEG, max 2MB)'
+    )
+    
+    def validate_file(self, value):
+        """Validate signature image file"""
+        import os
+        
+        # Check file size (2MB max)
+        if value.size > 2 * 1024 * 1024:
+            raise serializers.ValidationError("File size must not exceed 2MB")
+        
+        # Check file extension
+        valid_extensions = ['.png', '.jpg', '.jpeg']
+        ext = os.path.splitext(value.name)[1].lower()
+        if ext not in valid_extensions:
+            raise serializers.ValidationError("Only PNG and JPEG images are allowed")
+        
+        # Check content type
+        valid_types = ['image/png', 'image/jpeg', 'image/jpg']
+        if value.content_type not in valid_types:
+            raise serializers.ValidationError("Invalid file type. Only PNG and JPEG images are allowed")
+        
+        return value
+
+
+class RecommendationSerializer(serializers.Serializer):
+    """Serializer for inspection recommendations"""
+    id = serializers.UUIDField(read_only=True)
+    text = serializers.CharField(max_length=1000, required=True)
+    priority = serializers.ChoiceField(
+        choices=['HIGH', 'MEDIUM', 'LOW'],
+        default='MEDIUM'
+    )
+    category = serializers.ChoiceField(
+        choices=['COMPLIANCE', 'ENVIRONMENTAL', 'SAFETY', 'OPERATIONAL', 'OTHER'],
+        default='COMPLIANCE'
+    )
+    status = serializers.ChoiceField(
+        choices=['PENDING', 'IMPLEMENTED', 'NOT_APPLICABLE'],
+        default='PENDING',
+        required=False
+    )
+    created_by = serializers.IntegerField(read_only=True)
+    created_by_name = serializers.CharField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    
+    def validate_text(self, value):
+        """Ensure recommendation text is not empty"""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Recommendation text cannot be empty")
+        return value.strip()
     
