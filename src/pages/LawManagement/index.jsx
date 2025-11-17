@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import LayoutWithSidebar from "../../components/LayoutWithSidebar";
@@ -6,75 +6,76 @@ import LawList from "../../components/laws/LawList";
 import AddLawModal from "../../components/laws/AddLawModal";
 import EditLawModal from "../../components/laws/EditLawModal";
 import LawDetailsModal from "../../components/laws/LawDetailsModal";
-import { LAWS } from "../../constants/inspectionform/lawsConstants";
-
-const LAW_CATEGORY_MAP = {
-  "PD-1586": "Environmental Impact Assessment",
-  "RA-6969": "Hazardous & Nuclear Waste",
-  "RA-8749": "Air Quality Management",
-  "RA-9275": "Water Quality Management",
-  "RA-9003": "Solid Waste Management",
-};
-
-const LAW_EFFECTIVE_DATE_MAP = {
-  "PD-1586": "1978-06-11",
-  "RA-6969": "1990-10-26",
-  "RA-8749": "1999-06-23",
-  "RA-9275": "2004-03-22",
-  "RA-9003": "2001-01-26",
-};
-
-const buildInitialLaws = () =>
-  LAWS.map((law, index) => ({
-    id: `mock-${index + 1}`,
-    law_title: law.fullName || law.label,
-    reference_code: law.id,
-    description: law.description || law.fullName || law.label,
-    category: LAW_CATEGORY_MAP[law.id] || "Environmental Management",
-    effective_date: LAW_EFFECTIVE_DATE_MAP[law.id] || "2000-01-01",
-    status: "Active",
-  }));
-
-const normalizeLaw = (law) => ({
-  ...law,
-  id: law.id || `mock-${Date.now()}`,
-});
+import { useNotifications } from "../../components/NotificationManager";
+import * as lawApi from "../../services/lawApi";
 
 export default function LawManagement() {
-  const [laws, setLaws] = useState(() => buildInitialLaws());
-  const [loading, setLoading] = useState(false);
+  const notifications = useNotifications();
+  const [laws, setLaws] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [addOpen, setAddOpen] = useState(false);
   const [editContext, setEditContext] = useState(null);
   const [viewLaw, setViewLaw] = useState(null);
 
-  const handleRefresh = () => {
+  // Fetch laws on mount
+  useEffect(() => {
+    fetchLaws();
+  }, []);
+
+  const fetchLaws = async () => {
     setLoading(true);
     setError("");
-    setTimeout(() => {
-      setLaws(buildInitialLaws());
+    try {
+      const data = await lawApi.getLaws();
+      setLaws(data);
+    } catch (err) {
+      console.error("Error fetching laws:", err);
+      setError(err.message || "Failed to load laws.");
+      notifications.error("Failed to load laws.", {
+        title: "Error",
+        duration: 5000,
+      });
+    } finally {
       setLoading(false);
-    }, 150);
+    }
   };
 
-  const handleStatusChange = (lawId, nextStatus) => {
-    setLaws((prev) =>
-      prev.map((law) =>
-        law.id === lawId ? { ...law, status: nextStatus } : law
-      )
-    );
+  const handleRefresh = () => {
+    fetchLaws();
+  };
+
+  const handleStatusChange = async (lawId, nextStatus) => {
+    try {
+      const updatedLaw = await lawApi.toggleLawStatus(lawId);
+      setLaws((prev) =>
+        prev.map((law) => (law.id === lawId ? updatedLaw : law))
+      );
+      notifications.success(
+        `Law ${nextStatus === "Active" ? "activated" : "deactivated"} successfully.`,
+        {
+          title: "Status Updated",
+          duration: 3000,
+        }
+      );
+    } catch (err) {
+      console.error("Error updating law status:", err);
+      notifications.error(err.message || "Failed to update law status.", {
+        title: "Update Error",
+        duration: 5000,
+      });
+      throw err;
+    }
   };
 
   const handleLawAdded = (newLaw) => {
-    setLaws((prev) => [normalizeLaw(newLaw), ...prev]);
+    setLaws((prev) => [newLaw, ...prev]);
   };
 
   const handleLawUpdated = (updatedLaw) => {
     setLaws((prev) =>
-      prev.map((law) =>
-        law.id === updatedLaw.id ? { ...law, ...updatedLaw } : law
-      )
+      prev.map((law) => (law.id === updatedLaw.id ? updatedLaw : law))
     );
   };
 

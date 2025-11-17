@@ -23,6 +23,7 @@ urlpatterns = [
     path('api/system/', include('system_config.urls')),
     path('api/reports/', include('reports.urls')),
     path('api/help/', include('help.urls')),
+    path('api/', include('laws.urls')),
 
     # 🔹 Backup & Restore endpoints
     path('api/db/', include('system.urls')),   # <---- add this line

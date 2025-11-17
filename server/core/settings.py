@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'system',
     'reports',
     'help',
+    'laws',
     'django_celery_beat',
 ]
 

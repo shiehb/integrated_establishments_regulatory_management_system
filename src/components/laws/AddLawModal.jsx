@@ -1,6 +1,7 @@
 import { useState } from "react";
 import LawForm, { lawSchema } from "../../components/LawForm";
 import { useNotifications } from "../../components/NotificationManager";
+import * as lawApi from "../../services/lawApi";
 
 const defaultValues = {
   law_title: "",
@@ -15,28 +16,32 @@ export default function AddLawModal({ onClose, onLawAdded }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const notifications = useNotifications();
 
-  const handleSubmit = (values) => {
+  const handleSubmit = async (values) => {
     const parsed = lawSchema.safeParse(values);
     if (!parsed.success) {
       return;
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const payload = {
-        ...parsed.data,
-        id: `mock-${Date.now()}`,
-      };
+    try {
+      const newLaw = await lawApi.createLaw(parsed.data);
 
-      notifications.success("Law created (mock).", {
+      notifications.success("Law created successfully.", {
         title: "Law Created",
         duration: 3000,
       });
 
-      onLawAdded?.(payload);
+      onLawAdded?.(newLaw);
       onClose?.();
+    } catch (error) {
+      console.error("Error creating law:", error);
+      notifications.error(error.message || "Failed to create law.", {
+        title: "Creation Error",
+        duration: 5000,
+      });
+    } finally {
       setIsSubmitting(false);
-    }, 250);
+    }
   };
 
   return (

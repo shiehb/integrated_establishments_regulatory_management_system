@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import LawForm, { lawSchema } from "../../components/LawForm";
 import { useNotifications } from "../../components/NotificationManager";
+import * as lawApi from "../../services/lawApi";
 
 const toFormDefaults = (law) => ({
   law_title: law?.law_title ?? "",
@@ -21,7 +22,7 @@ export default function EditLawModal({ law, onClose, onLawUpdated }) {
 
   const defaultValues = useMemo(() => toFormDefaults(law), [law]);
 
-  const handleSubmit = (values) => {
+  const handleSubmit = async (values) => {
     if (!law) return;
 
     const parsed = lawSchema.safeParse(values);
@@ -30,18 +31,25 @@ export default function EditLawModal({ law, onClose, onLawUpdated }) {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const payload = parsed.data;
+    try {
+      const updatedLaw = await lawApi.updateLaw(law.id, parsed.data);
 
-      notifications.success("Law updated (mock).", {
+      notifications.success("Law updated successfully.", {
         title: "Law Updated",
         duration: 3000,
       });
 
-      onLawUpdated?.({ ...law, ...payload });
+      onLawUpdated?.(updatedLaw);
       onClose?.();
+    } catch (error) {
+      console.error("Error updating law:", error);
+      notifications.error(error.message || "Failed to update law.", {
+        title: "Update Error",
+        duration: 5000,
+      });
+    } finally {
       setIsSubmitting(false);
-    }, 250);
+    }
   };
 
   return (
