@@ -191,3 +191,4 @@ class LawViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(law)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+

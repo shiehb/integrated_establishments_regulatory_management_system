@@ -79,3 +79,4 @@ class Law(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
 
+

@@ -23,3 +23,4 @@ class LawAdmin(admin.ModelAdmin):
         }),
     )
 
+

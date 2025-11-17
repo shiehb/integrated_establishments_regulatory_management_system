@@ -60,3 +60,4 @@ class LawSerializer(serializers.ModelSerializer):
             return value
         return None
 
+
