@@ -56,6 +56,7 @@ AUTH_USER_MODEL = 'users.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Serve static files in production
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -144,13 +145,18 @@ if db_config:
 
 ROOT_URLCONF = 'core.urls'
 
-# Allow all origins in dev (restrict in prod)
-CORS_ALLOW_ALL_ORIGINS = True 
+# CORS Configuration
+# In production, set CORS_ALLOW_ALL_ORIGINS=False and configure CORS_ALLOWED_ORIGINS
+CORS_ALLOW_ALL_ORIGINS = os.getenv("CORS_ALLOW_ALL_ORIGINS", "False") == "True"
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vite dev
     "https://iermsdeploy.vercel.app"  # production frontend
 ]
+
+# Add production frontend URL from environment variable if provided
+if os.getenv("FRONTEND_URL"):
+    CORS_ALLOWED_ORIGINS.append(os.getenv("FRONTEND_URL"))
 
 # Email Configuration - Using Gmail for development
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -260,6 +266,9 @@ USE_TZ = True
 # Static files
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# WhiteNoise configuration for serving static files
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Media files (for future use if needed)
 MEDIA_URL = '/media/'

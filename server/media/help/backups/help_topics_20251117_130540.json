@@ -1,0 +1,1401 @@
+[
+  {
+    "id": "topic-102",
+    "title": "Admin Quick Start",
+    "description": "Quick guide for administrators to manage the system.",
+    "category": "getting-started",
+    "tags": [
+      "admin",
+      "quick start",
+      "management",
+      "system"
+    ],
+    "access": [
+      "admin"
+    ],
+    "steps": [
+      {
+        "title": "User Management",
+        "description": "Navigate to Users page to add, edit, or deactivate user accounts. Assign appropriate roles and sections.",
+        "image": ""
+      },
+      {
+        "title": "System Configuration",
+        "description": "Use System Configuration page to manage law sections, inspection types, and other system settings.",
+        "image": ""
+      },
+      {
+        "title": "Database Backup",
+        "description": "Regularly backup your database from the Database Backup page. You can schedule automatic backups.",
+        "image": ""
+      },
+      {
+        "title": "Monitor Activity",
+        "description": "Check the Dashboard for system-wide statistics and review audit logs for security monitoring.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-103",
+    "title": "Frequently Asked Questions",
+    "description": "Common questions and answers about using the system.",
+    "category": "getting-started",
+    "tags": [
+      "faq",
+      "questions",
+      "help",
+      "common"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "How do I reset my password?",
+        "description": "Click on your user dropdown in the top-right corner and select 'Change Password'. If you forgot your password, use the 'Forgot Password' link on the login page.",
+        "image": ""
+      },
+      {
+        "title": "Why can't I see certain menu items?",
+        "description": "Menu visibility is role-based. Some features are only available to specific user roles (Admin, Section Chief, etc.). Contact your administrator if you need access.",
+        "image": ""
+      },
+      {
+        "title": "How do I print or export reports?",
+        "description": "Most pages have export options. Look for the export or print button typically located in the top-right area of data tables.",
+        "image": ""
+      },
+      {
+        "title": "Can I use the system on mobile devices?",
+        "description": "Yes! The system is responsive and works on tablets and smartphones. The Help Center automatically becomes full-screen on mobile for better readability.",
+        "image": ""
+      },
+      {
+        "title": "What are keyboard shortcuts?",
+        "description": "Press F1 or ? to open Help Center anytime. Press ESC to close modals. More shortcuts may be available in specific pages.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-104",
+    "title": "Dashboard Overview",
+    "description": "Learn how to navigate and use the dashboard effectively.",
+    "category": "dashboard",
+    "tags": [
+      "dashboard",
+      "overview",
+      "statistics",
+      "navigation"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "Access the Dashboard",
+        "description": "The Dashboard is your home page when you log in. It provides an overview of your tasks, statistics, and recent activity.",
+        "image": ""
+      },
+      {
+        "title": "View Statistics",
+        "description": "The dashboard displays key metrics including total establishments, pending inspections, completed inspections, and compliance rates.",
+        "image": ""
+      },
+      {
+        "title": "Review Pending Tasks",
+        "description": "Check the 'Pending Tasks' section to see inspections that require your attention or action.",
+        "image": ""
+      },
+      {
+        "title": "Quick Actions",
+        "description": "Use quick action buttons to create new inspections, add establishments, or access frequently used features.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-105",
+    "title": "Understanding Dashboard Statistics",
+    "description": "Learn what each statistic on the dashboard means and how to interpret them.",
+    "category": "dashboard",
+    "tags": [
+      "dashboard",
+      "statistics",
+      "metrics",
+      "analytics"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "Establishment Counts",
+        "description": "View total number of establishments, active establishments, and establishments by status.",
+        "image": ""
+      },
+      {
+        "title": "Inspection Metrics",
+        "description": "See pending inspections, completed inspections, and inspection completion rates.",
+        "image": ""
+      },
+      {
+        "title": "Compliance Status",
+        "description": "Monitor compliance rates and track establishments that are compliant vs non-compliant.",
+        "image": ""
+      },
+      {
+        "title": "Recent Activity",
+        "description": "View recent inspections, updates, and system activities in chronological order.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-106",
+    "title": "How to Add Establishment",
+    "description": "Step by step guide to add a new establishment.",
+    "category": "establishment",
+    "tags": [
+      "add",
+      "establishment",
+      "form",
+      "create"
+    ],
+    "access": [
+      "admin",
+      "Division Chief",
+      "Section Chief",
+      "Unit Head"
+    ],
+    "steps": [
+      {
+        "title": "Open the Establishments Page",
+        "description": "Navigate to the 'Establishments' section from the sidebar.",
+        "image": ""
+      },
+      {
+        "title": "Click Add Establishment",
+        "description": "Click the 'Add Establishment' button on the top-right corner.",
+        "image": ""
+      },
+      {
+        "title": "Fill the Form",
+        "description": "Enter all the required details like Name, Address, Coordinates, Business Type, and other relevant information.",
+        "image": ""
+      },
+      {
+        "title": "Set Location",
+        "description": "Use the map picker to set the establishment's location coordinates, or enter them manually.",
+        "image": ""
+      },
+      {
+        "title": "Save",
+        "description": "Click 'Save' to add the establishment to the system. You can add a polygon boundary later if needed.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-107",
+    "title": "How to Edit Establishment",
+    "description": "Guide for modifying existing establishment details.",
+    "category": "establishment",
+    "tags": [
+      "edit",
+      "establishment",
+      "update",
+      "modify"
+    ],
+    "access": [
+      "admin",
+      "Division Chief",
+      "Section Chief",
+      "Unit Head"
+    ],
+    "steps": [
+      {
+        "title": "Navigate to Establishments",
+        "description": "Go to the Establishments page from the sidebar.",
+        "image": ""
+      },
+      {
+        "title": "Find the Establishment",
+        "description": "Use the search bar or browse the list to find the establishment you want to edit.",
+        "image": ""
+      },
+      {
+        "title": "Click Edit Button",
+        "description": "Click the 'Edit' button next to the establishment name or open the establishment details and click 'Edit'.",
+        "image": ""
+      },
+      {
+        "title": "Update Information",
+        "description": "Modify the necessary fields including name, address, coordinates, business type, or any other details.",
+        "image": ""
+      },
+      {
+        "title": "Save Changes",
+        "description": "Click 'Save' to update the establishment information. Changes will be logged in the audit trail.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-108",
+    "title": "How to View and Edit Polygons",
+    "description": "Learn how to view and manage establishment boundary polygons.",
+    "category": "establishment",
+    "tags": [
+      "polygon",
+      "map",
+      "boundaries",
+      "geographic"
+    ],
+    "access": [
+      "admin",
+      "Division Chief",
+      "Section Chief",
+      "Unit Head",
+      "Monitoring Personnel"
+    ],
+    "steps": [
+      {
+        "title": "Access Polygon View",
+        "description": "Click the 'Polygon' button next to any establishment in the establishments list.",
+        "image": ""
+      },
+      {
+        "title": "View Existing Polygon",
+        "description": "If a polygon exists, it will be displayed on the map in blue. You can zoom and pan to view it clearly.",
+        "image": ""
+      },
+      {
+        "title": "Edit Polygon",
+        "description": "Click 'Create Polygon' or 'Update Polygon' to enter edit mode. This allows you to draw or modify the boundary.",
+        "image": ""
+      },
+      {
+        "title": "Draw or Modify",
+        "description": "Click on the map to add points, or drag existing points to modify the polygon shape. Right-click to remove points.",
+        "image": ""
+      },
+      {
+        "title": "Save Changes",
+        "description": "Click 'Save Polygon' to store your changes. The polygon will be associated with the establishment.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-109",
+    "title": "Searching and Filtering Establishments",
+    "description": "Learn how to efficiently search and filter establishments.",
+    "category": "establishment",
+    "tags": [
+      "search",
+      "filter",
+      "establishment",
+      "find"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "Use the Search Bar",
+        "description": "Type in the search bar at the top of the establishments page to search by name, address, or business type.",
+        "image": ""
+      },
+      {
+        "title": "Apply Filters",
+        "description": "Use filter options to narrow down results by status, business type, section, or other criteria.",
+        "image": ""
+      },
+      {
+        "title": "Sort Results",
+        "description": "Click on column headers to sort establishments by name, date created, or other attributes.",
+        "image": ""
+      },
+      {
+        "title": "Export Results",
+        "description": "Use the export button to download filtered results as CSV or Excel for reporting purposes.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-110",
+    "title": "How to Create Inspections",
+    "description": "Step by step guide to create new inspections.",
+    "category": "inspection",
+    "tags": [
+      "inspection",
+      "create",
+      "wizard",
+      "new"
+    ],
+    "access": [
+      "admin",
+      "Division Chief",
+      "Section Chief",
+      "Unit Head",
+      "Monitoring Personnel"
+    ],
+    "steps": [
+      {
+        "title": "Navigate to Inspections",
+        "description": "Go to the Inspections page from the sidebar.",
+        "image": ""
+      },
+      {
+        "title": "Start New Inspection",
+        "description": "Click the 'New Inspection' button in the top-right corner.",
+        "image": ""
+      },
+      {
+        "title": "Select Establishments",
+        "description": "Choose one or more establishments to inspect. You can search and select multiple establishments.",
+        "image": ""
+      },
+      {
+        "title": "Choose Law Section",
+        "description": "Select the appropriate law section for the inspection from the dropdown menu.",
+        "image": ""
+      },
+      {
+        "title": "Complete the Wizard",
+        "description": "Follow the wizard steps to provide inspection details, dates, and other required information.",
+        "image": ""
+      },
+      {
+        "title": "Submit",
+        "description": "Review your information and click 'Create Inspection' to finalize. The inspection will be assigned based on workflow rules.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-111",
+    "title": "Completing Inspection Forms",
+    "description": "Guide for filling out inspection forms with all required information.",
+    "category": "inspection",
+    "tags": [
+      "inspection",
+      "form",
+      "complete",
+      "fill"
+    ],
+    "access": [
+      "admin",
+      "Division Chief",
+      "Section Chief",
+      "Unit Head",
+      "Monitoring Personnel"
+    ],
+    "steps": [
+      {
+        "title": "Open Inspection Form",
+        "description": "Navigate to your assigned inspection and click 'Start Inspection' or 'Continue' to open the form.",
+        "image": ""
+      },
+      {
+        "title": "Fill Required Sections",
+        "description": "Complete all required sections of the inspection form. Required fields are marked with an asterisk (*).",
+        "image": ""
+      },
+      {
+        "title": "Upload Documentation",
+        "description": "Attach photos, documents, or other evidence using the file upload sections. Multiple files can be uploaded.",
+        "image": ""
+      },
+      {
+        "title": "Mark Compliance Status",
+        "description": "For each requirement, mark whether the establishment is compliant or non-compliant with detailed notes.",
+        "image": ""
+      },
+      {
+        "title": "Save Draft",
+        "description": "Click 'Save Draft' to save your progress. You can return later to complete the form.",
+        "image": ""
+      },
+      {
+        "title": "Submit for Review",
+        "description": "Once all sections are complete, click 'Submit' to send the inspection for review by your supervisor.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-112",
+    "title": "Understanding Inspection Workflow",
+    "description": "Learn about the inspection workflow and status transitions.",
+    "category": "inspection",
+    "tags": [
+      "inspection",
+      "workflow",
+      "status",
+      "process"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "Created Status",
+        "description": "When an inspection is first created, it starts in 'Created' status and awaits assignment.",
+        "image": ""
+      },
+      {
+        "title": "Section Assignment",
+        "description": "Inspections are assigned to appropriate sections (Section Chief, Unit Head, or Monitoring Personnel) based on workflow rules.",
+        "image": ""
+      },
+      {
+        "title": "In Progress",
+        "description": "Once assigned, inspectors mark inspections as 'In Progress' while completing the inspection form.",
+        "image": ""
+      },
+      {
+        "title": "Review Process",
+        "description": "Completed inspections go through review stages: Unit Review, Section Review, and Division Review for compliant cases.",
+        "image": ""
+      },
+      {
+        "title": "Legal Review",
+        "description": "Non-compliant inspections are routed to Legal Unit for review and may result in NOV (Notice of Violation) or NOO (Notice of Order).",
+        "image": ""
+      },
+      {
+        "title": "Closure",
+        "description": "Inspections are closed as either 'Compliant' or 'Non-Compliant' after all review processes are complete.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-113",
+    "title": "Reviewing Inspections",
+    "description": "Guide for supervisors to review and approve inspections.",
+    "category": "inspection",
+    "tags": [
+      "inspection",
+      "review",
+      "approve",
+      "supervisor"
+    ],
+    "access": [
+      "admin",
+      "Division Chief",
+      "Section Chief",
+      "Unit Head"
+    ],
+    "steps": [
+      {
+        "title": "Access Review Page",
+        "description": "Navigate to the Inspections page and find inspections pending your review. They will be marked with a review indicator.",
+        "image": ""
+      },
+      {
+        "title": "Open Inspection",
+        "description": "Click on the inspection to view all details, compliance status, and uploaded documentation.",
+        "image": ""
+      },
+      {
+        "title": "Review Information",
+        "description": "Carefully review all sections of the inspection form, compliance findings, and attached documents.",
+        "image": ""
+      },
+      {
+        "title": "Add Comments",
+        "description": "Add review comments or notes if you need to request changes or provide feedback.",
+        "image": ""
+      },
+      {
+        "title": "Approve or Request Changes",
+        "description": "Approve the inspection to move it to the next stage, or request changes to be made by the inspector.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-114",
+    "title": "Generating Inspection Reports",
+    "description": "Learn how to generate and export inspection reports.",
+    "category": "inspection",
+    "tags": [
+      "inspection",
+      "report",
+      "export",
+      "generate"
+    ],
+    "access": [
+      "admin",
+      "Division Chief",
+      "Section Chief",
+      "Unit Head"
+    ],
+    "steps": [
+      {
+        "title": "Access Report View",
+        "description": "Open a completed inspection and click 'View Report' to see the formatted inspection report.",
+        "image": ""
+      },
+      {
+        "title": "Review Report",
+        "description": "The report displays all inspection details, findings, compliance status, and recommendations in a formatted view.",
+        "image": ""
+      },
+      {
+        "title": "Export as PDF",
+        "description": "Click 'Export PDF' to download the inspection report as a PDF document for printing or sharing.",
+        "image": ""
+      },
+      {
+        "title": "Print Report",
+        "description": "Use the print button to print the report directly from your browser.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-115",
+    "title": "How to Use the Interactive Map",
+    "description": "Navigate and utilize the interactive map to view establishments and their locations.",
+    "category": "map",
+    "tags": [
+      "map",
+      "navigation",
+      "location",
+      "view",
+      "geography"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "Access the Map",
+        "description": "Click 'Map' from the sidebar to open the interactive map view.",
+        "image": ""
+      },
+      {
+        "title": "View Establishments",
+        "description": "All establishments are displayed as markers on the map. Click on any marker to view establishment details.",
+        "image": ""
+      },
+      {
+        "title": "Zoom and Pan",
+        "description": "Use mouse wheel to zoom, or click and drag to pan around the map. Use zoom controls in the corner for precise navigation.",
+        "image": ""
+      },
+      {
+        "title": "View Polygons",
+        "description": "Establishments with defined boundaries will show polygon overlays. Click on polygons to see establishment information.",
+        "image": ""
+      },
+      {
+        "title": "Search Locations",
+        "description": "Use the search bar to find specific addresses or locations on the map.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-116",
+    "title": "Managing Geographic Boundaries",
+    "description": "Learn how to create and manage establishment boundary polygons on the map.",
+    "category": "map",
+    "tags": [
+      "map",
+      "polygon",
+      "boundary",
+      "geographic",
+      "draw"
+    ],
+    "access": [
+      "admin",
+      "Division Chief",
+      "Section Chief",
+      "Unit Head",
+      "Monitoring Personnel"
+    ],
+    "steps": [
+      {
+        "title": "Select Establishment",
+        "description": "From the Map page, click on an establishment marker or search for the establishment you want to manage.",
+        "image": ""
+      },
+      {
+        "title": "Open Polygon Editor",
+        "description": "Click 'Manage Polygon' or 'Edit Boundary' to open the polygon editing interface.",
+        "image": ""
+      },
+      {
+        "title": "Draw New Polygon",
+        "description": "Click 'Create Polygon' and then click on the map to place points. Connect points to form a closed polygon.",
+        "image": ""
+      },
+      {
+        "title": "Edit Existing Polygon",
+        "description": "Click and drag existing polygon points to modify the shape, or add new points by clicking on polygon edges.",
+        "image": ""
+      },
+      {
+        "title": "Save Boundary",
+        "description": "Click 'Save' to store the polygon. The boundary will be associated with the establishment and visible on the map.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-117",
+    "title": "Geographic Search and Filtering",
+    "description": "Use map features to search and filter establishments by location.",
+    "category": "map",
+    "tags": [
+      "map",
+      "search",
+      "filter",
+      "geographic",
+      "location"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "Use Map Filters",
+        "description": "Apply filters on the map page to show only establishments matching specific criteria (status, type, section).",
+        "image": ""
+      },
+      {
+        "title": "Zoom to Area",
+        "description": "Zoom into a specific geographic area to see establishments in that region more clearly.",
+        "image": ""
+      },
+      {
+        "title": "Cluster View",
+        "description": "When zoomed out, establishments are grouped into clusters. Zoom in to see individual markers.",
+        "image": ""
+      },
+      {
+        "title": "Export Map Data",
+        "description": "Export visible establishments on the map as a list or download geographic data for analysis.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-118",
+    "title": "How to Manage Users",
+    "description": "Guide for adding, editing, and managing user accounts.",
+    "category": "user",
+    "tags": [
+      "user",
+      "management",
+      "admin",
+      "accounts"
+    ],
+    "access": [
+      "admin"
+    ],
+    "steps": [
+      {
+        "title": "Access Users Page",
+        "description": "Navigate to 'Users' from the sidebar (admin only).",
+        "image": ""
+      },
+      {
+        "title": "Add New User",
+        "description": "Click 'Add User' button and fill in the required information including name, email, and password.",
+        "image": ""
+      },
+      {
+        "title": "Assign Role and Section",
+        "description": "Select appropriate user role (Admin, Division Chief, Section Chief, Unit Head, Monitoring Personnel, Legal Unit) and assign to a section.",
+        "image": ""
+      },
+      {
+        "title": "Set Permissions",
+        "description": "Configure specific permissions and access levels for the user based on their role and responsibilities.",
+        "image": ""
+      },
+      {
+        "title": "Set User Status",
+        "description": "Activate or deactivate users as needed using the action menu. Deactivated users cannot log in.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-119",
+    "title": "How to Edit Profile",
+    "description": "Guide for editing user profile and avatar.",
+    "category": "user",
+    "tags": [
+      "profile",
+      "edit",
+      "avatar",
+      "settings"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "Go to Profile Settings",
+        "description": "Click on your avatar in the top-right corner and choose 'Profile Settings'.",
+        "image": ""
+      },
+      {
+        "title": "Edit Details",
+        "description": "Update your name, email, phone number, and other personal information as needed.",
+        "image": ""
+      },
+      {
+        "title": "Upload Avatar",
+        "description": "Click on the avatar image to upload a new profile picture. Supported formats: JPG, PNG, WebP.",
+        "image": ""
+      },
+      {
+        "title": "Save Changes",
+        "description": "Click 'Save' to update your profile. Changes will be reflected immediately.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-120",
+    "title": "Understanding User Roles",
+    "description": "Learn about different user roles and their permissions.",
+    "category": "user",
+    "tags": [
+      "roles",
+      "permissions",
+      "access",
+      "authorization"
+    ],
+    "access": [
+      "admin",
+      "Division Chief",
+      "Section Chief"
+    ],
+    "steps": [
+      {
+        "title": "Admin",
+        "description": "Full system access including user management, system configuration, and all features. Can manage all establishments and inspections.",
+        "image": ""
+      },
+      {
+        "title": "Division Chief",
+        "description": "Full access to manage establishments, users within their division, and inspections. Can review and approve inspections.",
+        "image": ""
+      },
+      {
+        "title": "Section Chief",
+        "description": "Can manage establishments and create inspections within their section. Can review and assign inspections to unit heads.",
+        "image": ""
+      },
+      {
+        "title": "Unit Head",
+        "description": "Can add/edit establishments and create inspections. Can review inspections assigned to their unit. No user management access.",
+        "image": ""
+      },
+      {
+        "title": "Monitoring Personnel",
+        "description": "Can create inspections and edit polygons. Can complete inspection forms. Cannot edit establishments or manage users.",
+        "image": ""
+      },
+      {
+        "title": "Legal Unit",
+        "description": "Has access to legal documents, billing, NOV/NOO management, and reports. Cannot modify establishments or inspections.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-121",
+    "title": "Managing Notifications",
+    "description": "Learn how to view and manage system notifications.",
+    "category": "notification",
+    "tags": [
+      "notification",
+      "alerts",
+      "messages",
+      "manage"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "View Notifications",
+        "description": "Click the bell icon in the top-right corner to view your notifications. A badge shows the count of unread notifications.",
+        "image": ""
+      },
+      {
+        "title": "Read Notifications",
+        "description": "Click on any notification to mark it as read and view details. Unread notifications are highlighted.",
+        "image": ""
+      },
+      {
+        "title": "Mark as Read",
+        "description": "Click 'Mark All as Read' to mark all notifications as read at once.",
+        "image": ""
+      },
+      {
+        "title": "Notification Types",
+        "description": "Notifications include inspection assignments, review requests, status updates, and system alerts.",
+        "image": ""
+      },
+      {
+        "title": "Notification Settings",
+        "description": "Configure notification preferences to control what types of notifications you receive.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-122",
+    "title": "Notification Settings",
+    "description": "Configure how and when you receive notifications.",
+    "category": "notification",
+    "tags": [
+      "notification",
+      "settings",
+      "preferences",
+      "configure"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "Access Settings",
+        "description": "Go to your profile settings and navigate to the 'Notifications' tab.",
+        "image": ""
+      },
+      {
+        "title": "Choose Notification Types",
+        "description": "Select which types of notifications you want to receive: inspection assignments, reviews, status updates, etc.",
+        "image": ""
+      },
+      {
+        "title": "Set Frequency",
+        "description": "Choose how often you want to receive notifications: immediately, daily digest, or weekly summary.",
+        "image": ""
+      },
+      {
+        "title": "Email Notifications",
+        "description": "Enable or disable email notifications for important alerts and updates.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-123",
+    "title": "Generating Accomplishment Reports",
+    "description": "Learn how to create and export accomplishment reports.",
+    "category": "general",
+    "tags": [
+      "report",
+      "accomplishment",
+      "export",
+      "generate"
+    ],
+    "access": [
+      "Section Chief",
+      "Unit Head",
+      "Monitoring Personnel"
+    ],
+    "steps": [
+      {
+        "title": "Access Reports Page",
+        "description": "Navigate to 'Reports' from the sidebar to access the reports section.",
+        "image": ""
+      },
+      {
+        "title": "Select Report Type",
+        "description": "Choose 'Accomplishment Report' from the available report types.",
+        "image": ""
+      },
+      {
+        "title": "Set Date Range",
+        "description": "Select the date range for the report using the date picker. You can choose specific months or date ranges.",
+        "image": ""
+      },
+      {
+        "title": "Configure Filters",
+        "description": "Apply filters for section, unit, inspector, or inspection type to narrow down the report data.",
+        "image": ""
+      },
+      {
+        "title": "Generate Report",
+        "description": "Click 'Generate Report' to create the accomplishment report with statistics and summaries.",
+        "image": ""
+      },
+      {
+        "title": "Export Report",
+        "description": "Export the report as PDF or Excel for printing or sharing with supervisors.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-124",
+    "title": "Exporting Data",
+    "description": "Learn how to export data from various pages in the system.",
+    "category": "general",
+    "tags": [
+      "export",
+      "data",
+      "download",
+      "csv",
+      "excel"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "Find Export Button",
+        "description": "Look for the export button (usually in the top-right area) on pages with data tables like Establishments, Inspections, or Users.",
+        "image": ""
+      },
+      {
+        "title": "Choose Export Format",
+        "description": "Select your preferred export format: CSV (for Excel) or Excel (.xlsx) format.",
+        "image": ""
+      },
+      {
+        "title": "Apply Filters First",
+        "description": "If you want to export filtered data, apply your filters and search criteria before clicking export.",
+        "image": ""
+      },
+      {
+        "title": "Download File",
+        "description": "Click 'Export' and the file will download to your computer. Open it with Excel or any spreadsheet application.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-125",
+    "title": "Billing Management",
+    "description": "Guide for managing billing and payment records.",
+    "category": "legal",
+    "tags": [
+      "billing",
+      "payment",
+      "legal",
+      "financial"
+    ],
+    "access": [
+      "Legal Unit"
+    ],
+    "steps": [
+      {
+        "title": "Access Billing Page",
+        "description": "Navigate to 'Billing' from the sidebar (Legal Unit access only).",
+        "image": ""
+      },
+      {
+        "title": "View Billing Records",
+        "description": "View all billing records, payment status, and outstanding balances for establishments.",
+        "image": ""
+      },
+      {
+        "title": "Create Billing Entry",
+        "description": "Click 'Add Billing' to create a new billing record for an establishment.",
+        "image": ""
+      },
+      {
+        "title": "Record Payment",
+        "description": "Update billing records when payments are received. Mark payments as complete and update balances.",
+        "image": ""
+      },
+      {
+        "title": "Generate Billing Reports",
+        "description": "Export billing reports and payment summaries for accounting and record-keeping purposes.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-126",
+    "title": "Managing NOV and NOO",
+    "description": "Learn how to create and manage Notice of Violation (NOV) and Notice of Order (NOO) documents.",
+    "category": "legal",
+    "tags": [
+      "nov",
+      "noo",
+      "legal",
+      "violation",
+      "order"
+    ],
+    "access": [
+      "Legal Unit"
+    ],
+    "steps": [
+      {
+        "title": "Access Legal Review",
+        "description": "Navigate to inspections that require legal review. These are typically non-compliant inspections.",
+        "image": ""
+      },
+      {
+        "title": "Review Inspection",
+        "description": "Review the inspection findings, compliance status, and documentation to determine if NOV or NOO is required.",
+        "image": ""
+      },
+      {
+        "title": "Create NOV",
+        "description": "For violations, create a Notice of Violation document. Fill in violation details, requirements, and deadlines.",
+        "image": ""
+      },
+      {
+        "title": "Create NOO",
+        "description": "For orders, create a Notice of Order document. Specify the order requirements and compliance deadlines.",
+        "image": ""
+      },
+      {
+        "title": "Send Documents",
+        "description": "Send NOV or NOO documents to the establishment. Track delivery and response status.",
+        "image": ""
+      },
+      {
+        "title": "Track Compliance",
+        "description": "Monitor establishment responses and compliance with NOV/NOO requirements. Update status as needed.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-127",
+    "title": "System Configuration",
+    "description": "Guide for configuring system settings and parameters.",
+    "category": "system",
+    "tags": [
+      "system",
+      "configuration",
+      "settings",
+      "admin"
+    ],
+    "access": [
+      "admin"
+    ],
+    "steps": [
+      {
+        "title": "Access System Config",
+        "description": "Navigate to 'System Configuration' from the sidebar (admin only).",
+        "image": ""
+      },
+      {
+        "title": "Manage Law Sections",
+        "description": "Add, edit, or remove law sections that are used in inspections. Configure section details and requirements.",
+        "image": ""
+      },
+      {
+        "title": "Configure Inspection Types",
+        "description": "Set up different inspection types and their associated requirements and workflows.",
+        "image": ""
+      },
+      {
+        "title": "System Parameters",
+        "description": "Configure system-wide parameters such as default settings, notification preferences, and workflow rules.",
+        "image": ""
+      },
+      {
+        "title": "Save Changes",
+        "description": "Click 'Save' to apply configuration changes. Some changes may require system restart to take effect.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-128",
+    "title": "Law Management",
+    "description": "Learn how to manage laws and legal requirements in the system.",
+    "category": "system",
+    "tags": [
+      "law",
+      "legal",
+      "management",
+      "requirements"
+    ],
+    "access": [
+      "admin"
+    ],
+    "steps": [
+      {
+        "title": "Access Law Management",
+        "description": "Navigate to 'Law Management' from the sidebar (admin only).",
+        "image": ""
+      },
+      {
+        "title": "View Laws",
+        "description": "Browse all laws and legal requirements configured in the system. Each law can have multiple sections.",
+        "image": ""
+      },
+      {
+        "title": "Add New Law",
+        "description": "Click 'Add Law' to create a new law entry. Provide law name, description, and effective dates.",
+        "image": ""
+      },
+      {
+        "title": "Manage Law Sections",
+        "description": "Add sections to laws, define requirements, and configure compliance criteria for each section.",
+        "image": ""
+      },
+      {
+        "title": "Edit or Deactivate",
+        "description": "Edit existing laws or deactivate laws that are no longer in effect. Deactivated laws won't appear in new inspections.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-129",
+    "title": "Database Backup and Restore",
+    "description": "Learn how to backup and restore the system database.",
+    "category": "system",
+    "tags": [
+      "backup",
+      "restore",
+      "database",
+      "data"
+    ],
+    "access": [
+      "admin"
+    ],
+    "steps": [
+      {
+        "title": "Access Backup Page",
+        "description": "Navigate to 'Database Backup' from the sidebar (admin only).",
+        "image": ""
+      },
+      {
+        "title": "Create Backup",
+        "description": "Click 'Create Backup' to generate a full database backup. The backup includes all data, settings, and configurations.",
+        "image": ""
+      },
+      {
+        "title": "Schedule Backups",
+        "description": "Configure automatic backup schedules (daily, weekly, monthly) to ensure regular data protection.",
+        "image": ""
+      },
+      {
+        "title": "Download Backup",
+        "description": "Download backup files to your local computer for additional safety. Store backups in secure locations.",
+        "image": ""
+      },
+      {
+        "title": "Restore from Backup",
+        "description": "Use 'Restore' to recover the database from a previous backup. This will replace all current data with backup data.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-130",
+    "title": "Viewing Audit Logs",
+    "description": "Learn how to access and review system audit logs.",
+    "category": "system",
+    "tags": [
+      "audit",
+      "logs",
+      "security",
+      "monitoring"
+    ],
+    "access": [
+      "admin"
+    ],
+    "steps": [
+      {
+        "title": "Access Audit Logs",
+        "description": "Navigate to 'Audit Logs' from the sidebar (admin only).",
+        "image": ""
+      },
+      {
+        "title": "Filter Logs",
+        "description": "Use filters to search logs by user, action type, module, date range, or keywords.",
+        "image": ""
+      },
+      {
+        "title": "View Log Details",
+        "description": "Click on any log entry to view detailed information including user, action, timestamp, IP address, and metadata.",
+        "image": ""
+      },
+      {
+        "title": "Export Logs",
+        "description": "Export audit logs as CSV or Excel for external analysis or compliance reporting.",
+        "image": ""
+      },
+      {
+        "title": "Monitor Activity",
+        "description": "Use audit logs to monitor system activity, track user actions, and investigate security incidents.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-131",
+    "title": "Keyboard Shortcuts",
+    "description": "Learn useful keyboard shortcuts to navigate the system faster.",
+    "category": "general",
+    "tags": [
+      "shortcuts",
+      "keyboard",
+      "navigation",
+      "productivity"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "Help Center",
+        "description": "Press F1 or ? to open the Help Center from anywhere in the system.",
+        "image": ""
+      },
+      {
+        "title": "Close Modals",
+        "description": "Press ESC to close any open modal, dialog, or popup window.",
+        "image": ""
+      },
+      {
+        "title": "Search",
+        "description": "Press Ctrl+K or Cmd+K (Mac) to focus the search bar when available.",
+        "image": ""
+      },
+      {
+        "title": "Navigation",
+        "description": "Use Tab to navigate between form fields. Enter to submit forms. Arrow keys to navigate lists.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-132",
+    "title": "Mobile Access",
+    "description": "Learn how to use the system on mobile devices and tablets.",
+    "category": "general",
+    "tags": [
+      "mobile",
+      "tablet",
+      "responsive",
+      "access"
+    ],
+    "access": [],
+    "steps": [
+      {
+        "title": "Mobile Browser",
+        "description": "Access the system through any modern mobile browser (Chrome, Safari, Firefox) on your smartphone or tablet.",
+        "image": ""
+      },
+      {
+        "title": "Responsive Design",
+        "description": "The system automatically adapts to smaller screens. Menus become collapsible and forms are optimized for touch.",
+        "image": ""
+      },
+      {
+        "title": "Touch Navigation",
+        "description": "Use touch gestures to navigate: tap to select, swipe to scroll, pinch to zoom on maps.",
+        "image": ""
+      },
+      {
+        "title": "Help Center on Mobile",
+        "description": "The Help Center becomes full-screen on mobile devices for better readability and navigation.",
+        "image": ""
+      },
+      {
+        "title": "Offline Capabilities",
+        "description": "Some features work offline. Data syncs automatically when connection is restored.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "topic-133",
+    "title": "Reinspection Reminders",
+    "description": "Learn how to manage and track reinspection reminders.",
+    "category": "inspection",
+    "tags": [
+      "reinspection",
+      "reminders",
+      "scheduling",
+      "tracking"
+    ],
+    "access": [
+      "Division Chief"
+    ],
+    "steps": [
+      {
+        "title": "Access Reinspection Reminders",
+        "description": "Navigate to 'Reinspection Reminders' from the sidebar (Division Chief access only).",
+        "image": ""
+      },
+      {
+        "title": "View Pending Reinspections",
+        "description": "See all establishments that require reinspection based on previous inspection dates and compliance status.",
+        "image": ""
+      },
+      {
+        "title": "Schedule Reinspections",
+        "description": "Schedule reinspections for establishments that are due. Set dates and assign inspectors.",
+        "image": ""
+      },
+      {
+        "title": "Track Status",
+        "description": "Monitor the status of scheduled reinspections and ensure they are completed on time.",
+        "image": ""
+      },
+      {
+        "title": "Generate Reminder Reports",
+        "description": "Export reports of pending and overdue reinspections for planning and resource allocation.",
+        "image": ""
+      }
+    ],
+    "created_at": "2025-01-15T00:00:00.000Z",
+    "updated_at": "2025-01-15T00:00:00.000Z"
+  }
+]

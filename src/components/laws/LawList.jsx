@@ -478,7 +478,7 @@ function LawActionButtons({ law, onView, onEdit, onToggle }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-md border border-slate-200 bg-white shadow-lg">
+        <div className="absolute right-0 top-full z-50 mt-2 w-48 rounded-md border border-slate-200 bg-white shadow-lg">
           <div className="py-1 text-sm text-slate-600">
             <button
               onClick={() => {

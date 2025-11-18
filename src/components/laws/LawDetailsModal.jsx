@@ -10,59 +10,60 @@ export default function LawDetailsModal({ law, onClose }) {
     : "—";
 
   return (
-    <div className="relative w-full max-w-2xl rounded-xl bg-white p-6 shadow-xl">
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute -top-4 -right-4 flex h-9 w-9 items-center justify-center rounded-full bg-white text-slate-500 shadow-lg transition hover:text-slate-700"
-        aria-label="Close law details modal"
-      >
-        ×
-      </button>
+    <div className="w-full max-w-2xl p-8 bg-white shadow-lg rounded-2xl">
+      <h2 className="mb-6 text-2xl font-bold text-center text-sky-600">
+        Law Details
+      </h2>
 
-      <header className="mb-6">
-        <p className="text-sm uppercase tracking-wide text-slate-400 font-semibold">
-          Laws & Regulations
-        </p>
-        <h2 className="mt-2 text-2xl font-bold text-slate-800">
-          {law.law_title || law.reference_code}
-        </h2>
-        <p className="text-sm text-slate-500 mt-1">{law.reference_code}</p>
-      </header>
-
-      <section className="space-y-4">
+      <div className="space-y-5 text-sm">
         <div>
-          <h3 className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
-            Category
-          </h3>
-          <p className="mt-1 text-sm text-slate-700">
+          <label className="text-sm font-medium text-gray-700">Law Title</label>
+          <p className="mt-1 text-sm text-gray-900 font-semibold">
+            {law.law_title || "N/A"}
+          </p>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium text-gray-700">Reference Code</label>
+          <p className="mt-1 text-sm text-gray-900">
+            {law.reference_code || "N/A"}
+          </p>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium text-gray-700">Category</label>
+          <p className="mt-1 text-sm text-gray-900">
             {law.category || "Uncategorized"}
           </p>
         </div>
 
         <div>
-          <h3 className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
-            Status
-          </h3>
-          <p className="mt-1 text-sm text-slate-700">{law.status}</p>
+          <label className="text-sm font-medium text-gray-700">Status</label>
+          <p className="mt-1 text-sm text-gray-900">{law.status || "N/A"}</p>
         </div>
 
         <div>
-          <h3 className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
-            Effective Date
-          </h3>
-          <p className="mt-1 text-sm text-slate-700">{effectiveDate}</p>
+          <label className="text-sm font-medium text-gray-700">Effective Date</label>
+          <p className="mt-1 text-sm text-gray-900">{effectiveDate}</p>
         </div>
 
         <div>
-          <h3 className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
-            Description
-          </h3>
-          <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-700">
+          <label className="text-sm font-medium text-gray-700">Description</label>
+          <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-gray-900">
             {law.description || "No description provided."}
           </p>
         </div>
-      </section>
+
+        <div className="flex gap-4 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-3 font-medium text-gray-700 transition bg-gray-300 rounded-lg hover:bg-gray-400"
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
