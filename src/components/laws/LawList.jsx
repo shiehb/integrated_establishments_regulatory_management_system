@@ -290,15 +290,15 @@ export default function LawList({
                       }
                     />
                   </th>
-                  {["Law", "Status", "Category", "Effective Date", "Actions"].map(
+                  {["Law", "Category", "Effective Date", "Status", "Actions"].map(
                     (label, index) => (
                       <th
                         key={label}
                         className={`px-3 py-2 border-b border-sky-500/50 ${
-                          index === 1
+                          index === 2
+                            ? "text-left"
+                            : index === 3
                             ? "text-center"
-                            : index === 4
-                            ? "text-right"
                             : ""
                         }`}
                       >
@@ -346,10 +346,14 @@ export default function LawList({
                           <span className="text-xs text-slate-500 truncate">
                             {law.reference_code}
                           </span>
-                          <span className="text-xs text-slate-500 line-clamp-2">
-                            {law.description}
-                          </span>
                         </div>
+                      </td>
+
+                      <td className="px-3 py-3 text-slate-600">
+                        {law.category || "Uncategorized"}
+                      </td>
+                      <td className="px-3 py-3 text-slate-600">
+                        {effectiveDate}
                       </td>
                       <td className="px-3 py-3 text-center">
                         <span
@@ -369,12 +373,6 @@ export default function LawList({
                           {law.status}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-slate-600">
-                        {law.category || "Uncategorized"}
-                      </td>
-                      <td className="px-3 py-3 text-slate-600">
-                        {effectiveDate}
-                      </td>
                       <td className="px-3 py-2">
                         <LawActionButtons
                           law={law}
@@ -383,6 +381,7 @@ export default function LawList({
                           onToggle={() => openStatusDialog(law)}
                         />
                       </td>
+                      
                     </tr>
                   );
                 })}

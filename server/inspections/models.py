@@ -732,10 +732,11 @@ class ComplianceQuota(models.Model):
     Monthly/Quarterly quota management for compliance law inspections.
     Supports auto-adjustment when accomplishments exceed targets.
     Quotas are stored by month, with quarter derived for reference.
+    Integrated with Law model for validation and dynamic law management.
     """
     law = models.CharField(
         max_length=50, 
-        help_text="Law code (e.g., PD-1586, RA-6969, RA-8749, RA-9275, RA-9003)"
+        help_text="Law code (e.g., PD-1586, RA-6969) - must match reference_code in Law model"
     )
     year = models.IntegerField(help_text="Year of the quota")
     month = models.IntegerField(
@@ -777,9 +778,33 @@ class ComplianceQuota(models.Model):
                        'July', 'August', 'September', 'October', 'November', 'December']
         month_name = month_names[self.month - 1] if self.month else 'Unknown'
         return f"{self.law} {month_name} {self.year}: {self.accomplished}/{self.target}"
+    
+    def clean(self):
+        """Validate that the law exists in the Law model and is active"""
+        super().clean()
+        
+        # Import here to avoid circular imports
+        from laws.models import Law
+        
+        # Validate law exists and is active
+        if self.law:
+            law_obj = Law.objects.filter(reference_code=self.law).first()
+            if not law_obj:
+                raise ValidationError({
+                    'law': f'Law with reference code "{self.law}" does not exist. '
+                           'Please add it to the Law Management system first.'
+                })
+            if law_obj.status != 'Active':
+                raise ValidationError({
+                    'law': f'Law "{self.law}" is not active. Only active laws can have quotas.'
+                })
 
     def save(self, *args, **kwargs):
-        """Override save to ensure quarter is derived from month"""
+        """Override save to ensure quarter is derived from month and law is validated"""
+        # Validate law
+        self.full_clean()
+        
+        # Set quarter from month
         if self.month and not self.quarter:
             self.quarter = self.get_quarter_from_month(self.month)
         elif self.month:
@@ -788,6 +813,27 @@ class ComplianceQuota(models.Model):
             if self.quarter != derived_quarter:
                 self.quarter = derived_quarter
         super().save(*args, **kwargs)
+    
+    @staticmethod
+    def get_active_laws():
+        """Get list of active law reference codes from Law model"""
+        from laws.models import Law
+        return list(Law.objects.filter(status='Active').values_list('reference_code', flat=True))
+    
+    @staticmethod
+    def get_law_details(reference_code):
+        """Get law details from Law model"""
+        from laws.models import Law
+        try:
+            law = Law.objects.get(reference_code=reference_code)
+            return {
+                'reference_code': law.reference_code,
+                'law_title': law.law_title,
+                'category': law.category,
+                'status': law.status
+            }
+        except Law.DoesNotExist:
+            return None
 
     @property
     def accomplished(self):

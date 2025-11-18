@@ -1,4 +1,7 @@
+import { getQuotaLaws } from '../services/api';
+
 // Quota management constants
+// Static fallback laws (used if API fails)
 export const LAWS = [
   {
     id: 'PD-1586',
@@ -26,6 +29,23 @@ export const LAWS = [
     fullName: 'Republic Act No. 9003 - Ecological Solid Waste Management Act'
   }
 ];
+
+/**
+ * Fetch active laws from the Law Management system
+ * Returns dynamic list of laws that can be used for quotas
+ * Falls back to static LAWS constant if API fails
+ */
+export const getActiveLaws = async () => {
+  try {
+    const laws = await getQuotaLaws();
+    // API returns laws in the correct format already
+    return laws;
+  } catch (error) {
+    console.error('Error fetching active laws for quota:', error);
+    // Fallback to static laws if API fails
+    return LAWS;
+  }
+};
 
 export const MONTHS = [
   { value: 1, label: 'January', short: 'Jan', quarter: 1 },

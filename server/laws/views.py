@@ -190,5 +190,18 @@ class LawViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(law)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], url_path='check-reference-code')
+    def check_reference_code(self, request):
+        """Check if a reference code already exists"""
+        reference_code = request.query_params.get('reference_code', '')
+        
+        if not reference_code:
+            return Response({'exists': False}, status=status.HTTP_200_OK)
+        
+        # Check if reference code exists (case-insensitive)
+        exists = Law.objects.filter(reference_code__iexact=reference_code).exists()
+        
+        return Response({'exists': exists}, status=status.HTTP_200_OK)
 
 

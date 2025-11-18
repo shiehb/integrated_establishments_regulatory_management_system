@@ -140,4 +140,21 @@ export const toggleLawStatus = async (id) => {
   }
 };
 
+/**
+ * Check if a reference code already exists
+ * @param {string} referenceCode - Reference code to check
+ * @returns {Promise<boolean>} True if exists, false otherwise
+ */
+export const checkReferenceCodeExists = async (referenceCode) => {
+  try {
+    const response = await api.get('/laws/check-reference-code/', {
+      params: { reference_code: referenceCode }
+    });
+    return response.data.exists;
+  } catch (error) {
+    console.error('Error checking reference code:', error);
+    return false;
+  }
+};
+
 

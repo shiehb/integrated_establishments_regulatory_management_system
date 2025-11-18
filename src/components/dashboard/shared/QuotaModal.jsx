@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { X, Target, AlertCircle, Calendar, Info } from "lucide-react";
-import { LAWS, QUARTERS, MONTHS, getQuarterFromMonth, getMonthsInQuarter, isPastMonth } from "../../../constants/quotaConstants";
+import { LAWS as FALLBACK_LAWS, QUARTERS, MONTHS, getQuarterFromMonth, getMonthsInQuarter, isPastMonth, getActiveLaws } from "../../../constants/quotaConstants";
 import ConfirmationDialog from "../../common/ConfirmationDialog";
 import { getQuotas } from "../../../services/api";
 import Header from "../../Header";
@@ -24,6 +24,7 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave, defaultYear = null, defaul
     auto_adjust: true
   });
 
+  const [LAWS, setLAWS] = useState(FALLBACK_LAWS); // Dynamic laws from API
   const [existingQuotas, setExistingQuotas] = useState([]);
   const [allQuartersQuotas, setAllQuartersQuotas] = useState([]); // Store quotas for all quarters of a year
   const [loadingQuotas, setLoadingQuotas] = useState(false);
@@ -32,6 +33,22 @@ const QuotaModal = ({ isOpen, onClose, quota, onSave, defaultYear = null, defaul
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  
+  // Fetch active laws when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const fetchLaws = async () => {
+        try {
+          const laws = await getActiveLaws();
+          setLAWS(laws);
+        } catch (error) {
+          console.error('Error fetching laws for quota modal:', error);
+          // Keep fallback laws on error
+        }
+      };
+      fetchLaws();
+    }
+  }, [isOpen]);
 
   // Fetch existing quotas to determine which months are already set
   useEffect(() => {

@@ -4280,8 +4280,10 @@ class InspectionViewSet(viewsets.ModelViewSet):
         if not law or not target:
             raise ValueError('Law and target are required')
         
-        # Validate law code
-        valid_laws = ['PD-1586', 'RA-6969', 'RA-8749', 'RA-9275', 'RA-9003']
+        # Validate law code against Law model
+        valid_laws = ComplianceQuota.get_active_laws()
+        if not valid_laws:
+            raise ValueError('No active laws found. Please add laws to the Law Management system first.')
         if law not in valid_laws:
             raise ValueError(f'Invalid law code. Must be one of: {", ".join(valid_laws)}')
         
@@ -4394,6 +4396,30 @@ class InspectionViewSet(viewsets.ModelViewSet):
             'message': f"Auto-adjusted {len(adjusted_quotas)} quotas for next quarter",
             'total_adjusted': len(adjusted_quotas)
         })
+    
+    @action(detail=False, methods=['get'], url_path='quota-laws')
+    def get_quota_laws(self, request):
+        """Get list of active laws for quota management"""
+        from .models import ComplianceQuota
+        from laws.models import Law
+        
+        # Get all active laws
+        active_laws = Law.objects.filter(status='Active').order_by('reference_code')
+        
+        laws_data = []
+        for law in active_laws:
+            laws_data.append({
+                'id': law.reference_code,
+                'reference_code': law.reference_code,
+                'name': f"{law.reference_code} ({law.category})",
+                'fullName': law.law_title,
+                'law_title': law.law_title,
+                'category': law.category,
+                'effective_date': law.effective_date.isoformat() if law.effective_date else None,
+                'status': law.status
+            })
+        
+        return Response(laws_data)
 
     @action(detail=False, methods=['post'])
     def evaluate_quarter(self, request):

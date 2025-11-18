@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from "react";
-import { Target, TrendingUp, Edit3, AlertCircle, FileCheck, AlertTriangle, Wind, Droplets, Recycle, Calendar, Archive, Plus, BarChart3 } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { Target, TrendingUp, Edit3, AlertCircle, FileCheck, AlertTriangle, Wind, Droplets, Recycle, Calendar, Archive, Plus, BarChart3, Scale } from "lucide-react";
 import { useQuotaData } from "./useQuotaData";
-import { getQuotaColor, formatQuotaDisplay, QUARTERS, MONTHS, getQuarterFromMonth, isPastMonth, isCurrentMonth } from "../../../constants/quotaConstants";
+import { getQuotaColor, formatQuotaDisplay, QUARTERS, MONTHS, getQuarterFromMonth, isPastMonth, isCurrentMonth, getActiveLaws } from "../../../constants/quotaConstants";
 import QuotaModal from "./QuotaModal";
 import QuotaSkeleton from "./QuotaSkeleton";
 
@@ -37,8 +37,28 @@ const QuotaCard = ({ userRole = null }) => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingQuota, setEditingQuota] = useState(null);
+  const [laws, setLaws] = useState([]);
+  const [isLoadingLaws, setIsLoadingLaws] = useState(true);
 
   const canEdit = ['Admin', 'Division Chief'].includes(userRole);
+  
+  // Fetch active laws from API
+  useEffect(() => {
+    const fetchLaws = async () => {
+      setIsLoadingLaws(true);
+      try {
+        const activeLaws = await getActiveLaws();
+        setLaws(activeLaws);
+      } catch (error) {
+        console.error('Error fetching laws for quota cards:', error);
+        // Fallback to empty array - quotas will still show based on API data
+        setLaws([]);
+      } finally {
+        setIsLoadingLaws(false);
+      }
+    };
+    fetchLaws();
+  }, []);
 
   // Generate available years (from 2020 to current year + 1 for future planning)
   const availableYears = [];
@@ -80,11 +100,12 @@ const QuotaCard = ({ userRole = null }) => {
     }
   }, [viewMode, selectedYear, selectedMonth, selectedQuarter, currentYear, currentQuarter, currentMonthNum]);
 
-  // Law display order
-  const lawOrder = ['PD-1586', 'RA-8749', 'RA-9275', 'RA-6969', 'RA-9003'];
+  // Original law display order (prioritized)
+  const originalLawOrder = ['PD-1586', 'RA-8749', 'RA-9275', 'RA-6969', 'RA-9003'];
 
-  // Icon mapping for each law with colors
-  const getLawIcon = (lawId) => {
+  // Smart icon mapping based on law code and category
+  const getLawIcon = (lawId, lawCategory = null) => {
+    // Original laws with specific icons
     switch (lawId) {
       case 'PD-1586':
         return <FileCheck size={28} className="text-blue-600" />;
@@ -97,16 +118,55 @@ const QuotaCard = ({ userRole = null }) => {
       case 'RA-9003':
         return <Recycle size={28} className="text-emerald-600" />;
       default:
-        return <Target size={28} className="text-gray-600" />;
+        // Smart icon selection based on category for new laws
+        if (lawCategory) {
+          const categoryLower = lawCategory.toLowerCase();
+          if (categoryLower.includes('air') || categoryLower.includes('quality')) {
+            return <Wind size={28} className="text-purple-600" />;
+          } else if (categoryLower.includes('water') || categoryLower.includes('marine')) {
+            return <Droplets size={28} className="text-teal-600" />;
+          } else if (categoryLower.includes('waste') || categoryLower.includes('solid')) {
+            return <Recycle size={28} className="text-green-600" />;
+          } else if (categoryLower.includes('hazard') || categoryLower.includes('toxic')) {
+            return <AlertTriangle size={28} className="text-red-600" />;
+          } else if (categoryLower.includes('impact') || categoryLower.includes('eia')) {
+            return <FileCheck size={28} className="text-indigo-600" />;
+          }
+        }
+        // Default icon for laws without category match
+        return <Scale size={28} className="text-gray-600" />;
     }
   };
 
-  // Sort quotas by the specified order
-  const sortedQuotas = quotas ? [...quotas].sort((a, b) => {
-    const indexA = lawOrder.indexOf(a.law);
-    const indexB = lawOrder.indexOf(b.law);
-    return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
-  }) : [];
+  // Get law category for a given law code
+  const getLawCategory = (lawId) => {
+    const law = laws.find(l => l.id === lawId || l.reference_code === lawId);
+    return law?.category || null;
+  };
+
+  // Sort quotas: original 5 laws first (in order), then alphabetically by law code
+  const sortedQuotas = useMemo(() => {
+    if (!quotas) return [];
+    
+    return [...quotas].sort((a, b) => {
+      const indexA = originalLawOrder.indexOf(a.law);
+      const indexB = originalLawOrder.indexOf(b.law);
+      
+      // Both are original laws - sort by original order
+      if (indexA !== -1 && indexB !== -1) {
+        return indexA - indexB;
+      }
+      
+      // A is original, B is new - A comes first
+      if (indexA !== -1) return -1;
+      
+      // B is original, A is new - B comes first
+      if (indexB !== -1) return 1;
+      
+      // Both are new laws - sort alphabetically
+      return a.law.localeCompare(b.law);
+    });
+  }, [quotas]);
 
   const handleEditQuota = (quota) => {
     setEditingQuota(quota);
@@ -181,7 +241,8 @@ const QuotaCard = ({ userRole = null }) => {
     };
   };
 
-  if (isLoading) {
+  // Show loading while fetching either quotas or laws
+  if (isLoading || isLoadingLaws) {
     return <QuotaSkeleton />;
   }
 
@@ -361,9 +422,11 @@ const QuotaCard = ({ userRole = null }) => {
         <div className={`grid gap-4 ${
           sortedQuotas.length === 1 ? 'grid-cols-1 max-w-md mx-auto' :
           sortedQuotas.length === 2 ? 'grid-cols-2 max-w-2xl mx-auto' :
-            sortedQuotas.length === 3 ? 'grid-cols-3 mx-auto' :
+          sortedQuotas.length === 3 ? 'grid-cols-3 mx-auto' :
           sortedQuotas.length === 4 ? 'grid-cols-4' :
-          'grid-cols-5'
+          sortedQuotas.length === 5 ? 'grid-cols-5' :
+          sortedQuotas.length === 6 ? 'grid-cols-6' :
+          'grid-cols-5 xl:grid-cols-6'
         }`}>
           {sortedQuotas.map((quota) => {
             const style = getProgressBarStyle(quota);
@@ -391,7 +454,7 @@ const QuotaCard = ({ userRole = null }) => {
                 {/* Law Name with Icon and Auto Badge */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    {getLawIcon(quota.law)}
+                    {getLawIcon(quota.law, getLawCategory(quota.law))}
                     <span className="font-semibold text-base text-gray-800">{quota.law}</span>
                   </div>
                   {quota.auto_adjusted && (

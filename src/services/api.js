@@ -738,6 +738,11 @@ export const autoAdjustQuotas = async (params = {}) => {
   return res.data;
 };
 
+export const getQuotaLaws = async () => {
+  const res = await api.get('inspections/quota-laws/');
+  return res.data;
+};
+
 // Quarterly evaluation functions
 export const evaluateQuarter = async (evaluationData) => {
   const res = await api.post('inspections/evaluate_quarter/', evaluationData);

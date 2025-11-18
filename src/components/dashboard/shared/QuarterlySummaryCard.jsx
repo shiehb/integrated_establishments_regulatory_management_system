@@ -1,15 +1,30 @@
 import React, { useState, useEffect } from "react";
 import { CheckCircle2, XCircle, TrendingUp, TrendingDown, AlertCircle, Calendar, Clock } from "lucide-react";
 import { getQuarterlyEvaluations, evaluateQuarter } from "../../../services/api";
-import { QUARTERS, LAWS } from "../../../constants/quotaConstants";
+import { QUARTERS, LAWS as FALLBACK_LAWS, getActiveLaws } from "../../../constants/quotaConstants";
 import ConfirmationDialog from "../../common/ConfirmationDialog";
 
 const QuarterlySummaryCard = ({ quarter, year, law = null, userRole = null, onEvaluationComplete }) => {
+  const [LAWS, setLAWS] = useState(FALLBACK_LAWS); // Dynamic laws from API
   const [evaluation, setEvaluation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Fetch active laws on mount
+  useEffect(() => {
+    const fetchLaws = async () => {
+      try {
+        const laws = await getActiveLaws();
+        setLAWS(laws);
+      } catch (error) {
+        console.error('Error fetching laws for quarterly summary:', error);
+        // Keep fallback laws on error
+      }
+    };
+    fetchLaws();
+  }, []);
 
   const canEvaluate = ['Admin', 'Division Chief'].includes(userRole);
 
