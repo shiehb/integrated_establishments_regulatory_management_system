@@ -1,9 +1,10 @@
 [phases.setup]
-nixPkgs = ["python311", "nodejs_18"]
+nixPkgs = ["python311", "python311Packages.pip", "nodejs_18"]
 
 [phases.install]
 cmds = [
-  "cd server && python3 -m pip install --upgrade pip",
+  "cd server && python3 -m ensurepip --upgrade",
+  "cd server && python3 -m pip install --upgrade pip setuptools wheel",
   "cd server && python3 -m pip install -r requirements.txt",
   "npm install",
 ]
