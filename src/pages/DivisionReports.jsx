@@ -379,7 +379,7 @@ export default function DivisionReports() {
   const BUTTON_SUCCESS = `${BUTTON_BASE} bg-green-600 text-white shadow-sm hover:bg-green-700 focus:ring-green-500`;
 
   const hasActiveFilters = Object.values(filterParams).some(v => v);
-  const COLUMN_COUNT = 9;
+  const COLUMN_COUNT = 6;
 
   // Get establishment name from record
   const getEstablishmentName = (record) => {
@@ -398,24 +398,6 @@ export default function DivisionReports() {
       return record.compliance_status;
     }
     return 'PENDING';
-  };
-
-  // Get has NOV/NOO
-  const hasNOV = (record) => {
-    return record.has_nov === true;
-  };
-
-  const hasNOO = (record) => {
-    return record.has_noo === true;
-  };
-
-  // Get status display - show "Completed" for closed and section completed statuses
-  const getStatusDisplay = (record) => {
-    const status = record.simplified_status || record.current_status || '';
-    if (status.includes('CLOSED') || status.includes('SECTION_COMPLETED')) {
-      return 'Completed';
-    }
-    return status;
   };
 
   const pageContent = (
@@ -564,14 +546,11 @@ export default function DivisionReports() {
               <thead>
                 <tr className="sticky top-0 z-10 bg-gradient-to-r from-sky-600 to-sky-700 text-left text-xs font-semibold uppercase tracking-wide text-white">
                   <th className="px-4 py-3">Inspection No.</th>
-                  <th className="px-4 py-3">Establishment</th>
                   <th className="px-4 py-3">Law</th>
-                  <th className="px-4 py-3">Inspection Date</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">NOV</th>
-                  <th className="px-4 py-3">NOO</th>
-                  <th className="px-4 py-3">Compliance</th>
+                  <th className="px-4 py-3">Establishment</th>
                   <th className="px-4 py-3">Inspected By</th>
+                  <th className="px-4 py-3">Inspection Date</th>
+                  <th className="px-4 py-3">Compliance</th>
                 </tr>
               </thead>
               <tbody className="bg-white">
@@ -600,8 +579,6 @@ export default function DivisionReports() {
                 ) : (
                   records.map((record) => {
                     const complianceStatus = getComplianceStatus(record);
-                    const nov = hasNOV(record);
-                    const noo = hasNOO(record);
                     return (
                       <tr
                         key={record.id}
@@ -610,42 +587,18 @@ export default function DivisionReports() {
                         <td className="whitespace-nowrap px-4 py-3 font-medium text-blue-600">
                           {record.code || 'N/A'}
                         </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700">
+                          {record.law || 'N/A'}
+                        </td>
                         <td className="min-w-[220px] px-4 py-3 text-gray-700">
                           {getEstablishmentName(record)}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-700">
-                          {record.law || 'N/A'}
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
+                          {record.inspected_by_name || 'Not Inspected'}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
                           {formatDate(record.created_at)}
                         </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${
-                            record.current_status === 'CLOSED_COMPLIANT' || record.current_status === 'SECTION_COMPLETED_COMPLIANT'
-                              ? 'bg-green-100 text-green-700 border-green-200'
-                              : record.current_status === 'CLOSED_NON_COMPLIANT' || record.current_status === 'SECTION_COMPLETED_NON_COMPLIANT'
-                              ? 'bg-red-100 text-red-700 border-red-200'
-                              : 'bg-gray-100 text-gray-600 border-gray-200'
-                          }`}
-                        >
-                          {getStatusDisplay(record)}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-center">
-                        {nov ? (
-                          <span className="text-green-600 font-bold text-lg">✓</span>
-                        ) : (
-                          <span className="text-red-600 font-bold text-lg">✗</span>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-sm text-center">
-                        {noo ? (
-                          <span className="text-green-600 font-bold text-lg">✓</span>
-                        ) : (
-                          <span className="text-red-600 font-bold text-lg">✗</span>
-                        )}
-                      </td>
                         <td className="whitespace-nowrap px-4 py-3 text-sm">
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${
@@ -658,9 +611,6 @@ export default function DivisionReports() {
                           >
                             {complianceStatus}
                           </span>
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                          {record.inspected_by_name || 'Not Inspected'}
                         </td>
                       </tr>
                     );

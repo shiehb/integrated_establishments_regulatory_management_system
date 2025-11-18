@@ -6,9 +6,9 @@ import PaginationControls from '../components/PaginationControls';
 import ConfirmationDialog from '../components/common/ConfirmationDialog';
 import { useLocalStoragePagination } from '../hooks/useLocalStoragePagination';
 import {
-  getLegalReportData,
-  exportLegalReportPDF,
-  exportLegalReportExcel
+  getMonitoringReportData,
+  exportMonitoringReportPDF,
+  exportMonitoringReportExcel
 } from '../services/api';
 import {
   FileText,
@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useNotifications } from '../components/NotificationManager';
 
-export default function LegalReports() {
+export default function MonitoringReports() {
   const notifications = useNotifications();
   
   // Ref to track if a request is in progress
@@ -39,17 +39,18 @@ export default function LegalReports() {
   const [totalCount, setTotalCount] = useState(0);
   
   // Pagination
-  const savedPagination = useLocalStoragePagination('legal_reports');
+  const savedPagination = useLocalStoragePagination('monitoring_reports');
   const [currentPage, setCurrentPage] = useState(savedPagination.page);
   const [pageSize, setPageSize] = useState(savedPagination.pageSize);
   
   // Filter state
   const [filters, setFilters] = useState({
-    billing_date_from: '',
-    billing_date_to: '',
+    date_from: '',
+    date_to: '',
     establishment: '',
     law: 'ALL',
     compliance_status: 'ALL',
+    inspection_status: 'ALL',
     has_nov: '',
     has_noo: ''
   });
@@ -97,14 +98,14 @@ export default function LegalReports() {
           ...filterParams
         };
         
-        console.log('Fetching legal reports with params:', params);
+        console.log('Fetching section reports with params:', params);
         console.log('API Base URL:', window.location.origin);
         
         // Fetch records
         let dataResponse;
         try {
           console.log('Making API call...');
-          dataResponse = await getLegalReportData(params);
+          dataResponse = await getMonitoringReportData(params);
           console.log('API call completed');
         } catch (apiError) {
           console.error('API Error details:', {
@@ -116,8 +117,8 @@ export default function LegalReports() {
           throw apiError;
         }
         
-        console.log('Legal reports data response:', dataResponse);
-        console.log('Legal reports data response type:', typeof dataResponse);
+        console.log('Section reports data response:', dataResponse);
+        console.log('Section reports data response type:', typeof dataResponse);
         console.log('Is array?', Array.isArray(dataResponse));
         console.log('Has results?', dataResponse?.results);
         console.log('Has count?', dataResponse?.count);
@@ -140,7 +141,7 @@ export default function LegalReports() {
         }
       } catch (error) {
         if (isMounted) {
-          console.error('Error fetching legal report data:', error);
+          console.error('Error fetching section report data:', error);
           console.error('Error details:', error.response?.data || error.message);
           // Use notificationsRef to avoid dependency issues
           if (notificationsRef.current && typeof notificationsRef.current.showNotification === 'function') {
@@ -186,11 +187,12 @@ export default function LegalReports() {
   const handleClearFilters = async () => {
     try {
       setFilters({
-        billing_date_from: '',
-        billing_date_to: '',
+        date_from: '',
+        date_to: '',
         establishment: '',
         law: 'ALL',
         compliance_status: 'ALL',
+        inspection_status: 'ALL',
         has_nov: '',
         has_noo: ''
       });
@@ -221,7 +223,7 @@ export default function LegalReports() {
     setConfirmationDialog(prev => ({ ...prev, loading: true }));
     setExportingPDF(true);
     try {
-      await exportLegalReportPDF(filterParams);
+      await exportMonitoringReportPDF(filterParams);
       notifications?.showNotification('PDF report exported successfully', 'success');
     } catch (error) {
       console.error('Error exporting PDF:', error);
@@ -246,7 +248,7 @@ export default function LegalReports() {
     setConfirmationDialog(prev => ({ ...prev, loading: true }));
     setExportingExcel(true);
     try {
-      await exportLegalReportExcel(filterParams);
+      await exportMonitoringReportExcel(filterParams);
       notifications?.showNotification('Excel report exported successfully', 'success');
     } catch (error) {
       console.error('Error exporting Excel:', error);
@@ -353,14 +355,6 @@ export default function LegalReports() {
     }
   };
   
-  // Format currency
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-PH', {
-      style: 'currency',
-      currency: 'PHP'
-    }).format(amount || 0);
-  };
-  
   // Format date
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -385,22 +379,41 @@ export default function LegalReports() {
   const BUTTON_SUCCESS = `${BUTTON_BASE} bg-green-600 text-white shadow-sm hover:bg-green-700 focus:ring-green-500`;
 
   const hasActiveFilters = Object.values(filterParams).some(v => v);
-  const COLUMN_COUNT = 9;
+  const COLUMN_COUNT = 5;
 
-  // Get has NOV/NOO
-  const hasNOV = (record) => {
-    return record.has_nov === true;
+  // Get establishment name from record
+  const getEstablishmentName = (record) => {
+    if (record.establishment_name) {
+      return record.establishment_name;
+    }
+    if (record.establishments_detail && record.establishments_detail.length > 0) {
+      return record.establishments_detail[0].name;
+    }
+    return 'N/A';
   };
 
-  const hasNOO = (record) => {
-    return record.has_noo === true;
+  // Get compliance status from record
+  const getComplianceStatus = (record) => {
+    if (record.compliance_status) {
+      return record.compliance_status;
+    }
+    return 'PENDING';
+  };
+
+  // Get status display - show "Completed" for closed and section completed statuses
+  const getStatusDisplay = (record) => {
+    const status = record.simplified_status || record.current_status || '';
+    if (status.includes('CLOSED') || status.includes('SECTION_COMPLETED')) {
+      return 'Completed';
+    }
+    return status;
   };
 
   const pageContent = (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-sky-600">Legal Report Generation</h1>
+          <h1 className="text-2xl font-bold text-sky-600">Monitoring Report Generation</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -455,24 +468,24 @@ export default function LegalReports() {
       </div>
 
       <div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <div className="flex flex-col">
-            <label className="text-sm font-medium text-gray-700">Billing Date From</label>
+            <label className="text-sm font-medium text-gray-700">Date From</label>
             <input
               type="date"
-              value={filters.billing_date_from}
-              max={filters.billing_date_to || undefined}
-              onChange={(e) => handleFilterChange('billing_date_from', e.target.value)}
+              value={filters.date_from}
+              max={filters.date_to || undefined}
+              onChange={(e) => handleFilterChange('date_from', e.target.value)}
               className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
           </div>
           <div className="flex flex-col">
-            <label className="text-sm font-medium text-gray-700">Billing Date To</label>
+            <label className="text-sm font-medium text-gray-700">Date To</label>
             <input
               type="date"
-              value={filters.billing_date_to}
-              min={filters.billing_date_from || undefined}
-              onChange={(e) => handleFilterChange('billing_date_to', e.target.value)}
+              value={filters.date_to}
+              min={filters.date_from || undefined}
+              onChange={(e) => handleFilterChange('date_to', e.target.value)}
               className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
           </div>
@@ -514,6 +527,24 @@ export default function LegalReports() {
               <option value="PENDING">Pending</option>
             </select>
           </div>
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-gray-700">Inspection Status</label>
+            <select
+              value={filters.inspection_status}
+              onChange={(e) => handleFilterChange('inspection_status', e.target.value)}
+              className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="CREATED">Created</option>
+              <option value="SECTION_ASSIGNED">Section Assigned</option>
+              <option value="SECTION_COMPLETED_COMPLIANT">Section Completed (Compliant)</option>
+              <option value="SECTION_COMPLETED_NON_COMPLIANT">Section Completed (Non-Compliant)</option>
+              <option value="DIVISION_REVIEWED">Division Reviewed</option>
+              <option value="LEGAL_REVIEW">Legal Review</option>
+              <option value="CLOSED_COMPLIANT">Closed (Compliant)</option>
+              <option value="CLOSED_NON_COMPLIANT">Closed (Non-Compliant)</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -525,13 +556,9 @@ export default function LegalReports() {
                 <tr className="sticky top-0 z-10 bg-gradient-to-r from-sky-600 to-sky-700 text-left text-xs font-semibold uppercase tracking-wide text-white">
                   <th className="px-4 py-3">Inspection No.</th>
                   <th className="px-4 py-3">Establishment</th>
-                  <th className="px-4 py-3">Issued Date</th>
-                  <th className="px-4 py-3">Due Date</th>
-                  <th className="px-4 py-3">Amount</th>
-                  <th className="px-4 py-3">Payment Date</th>
-                  <th className="px-4 py-3">NOV</th>
-                  <th className="px-4 py-3">NOO</th>
-                  <th className="px-4 py-3">Payment Status</th>
+                  <th className="px-4 py-3">Inspection Date</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Compliance</th>
                 </tr>
               </thead>
               <tbody className="bg-white">
@@ -540,7 +567,7 @@ export default function LegalReports() {
                     <td colSpan={COLUMN_COUNT} className="px-4 py-12 text-center text-gray-500">
                       <div className="flex flex-col items-center gap-2">
                         <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-sky-600" />
-                        <span className="text-sm text-gray-600">Loading billing records...</span>
+                        <span className="text-sm text-gray-600">Loading inspection records...</span>
                       </div>
                     </td>
                   </tr>
@@ -551,62 +578,53 @@ export default function LegalReports() {
                         <FileText className="w-12 h-12 text-gray-300 mb-3" />
                         <p className="text-sm text-gray-600">
                           {hasActiveFilters
-                            ? 'No billing records found. Try adjusting your filters or create new billing records.'
-                            : 'No billing records exist yet. Billing records are created when NOO (Notice of Order) is sent.'}
+                            ? 'No inspection records found. Try adjusting your filters or create new inspection records.'
+                            : 'No inspection records exist yet. Inspection records are created by Division Chiefs.'}
                         </p>
                       </div>
                     </td>
                   </tr>
                 ) : (
                   records.map((record) => {
-                    const nov = hasNOV(record);
-                    const noo = hasNOO(record);
+                    const complianceStatus = getComplianceStatus(record);
                     return (
                       <tr
                         key={record.id}
                         className="cursor-pointer border-b border-gray-200 text-sm transition-colors hover:bg-sky-50"
                       >
                         <td className="whitespace-nowrap px-4 py-3 font-medium text-blue-600">
-                          {record.inspection_code || 'N/A'}
+                          {record.code || 'N/A'}
                         </td>
                         <td className="min-w-[220px] px-4 py-3 text-gray-700">
-                          {record.establishment_name || 'N/A'}
+                          {getEstablishmentName(record)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                          {formatDate(record.sent_date)}
+                          {formatDate(record.created_at)}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                          {formatDate(record.due_date)}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 font-semibold text-gray-900">
-                          {formatCurrency(record.amount)}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">
-                          {formatDate(record.payment_date)}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-center">
-                          {nov ? (
-                            <span className="text-green-600 font-bold text-lg">✓</span>
-                          ) : (
-                            <span className="text-red-600 font-bold text-lg">✗</span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-center">
-                          {noo ? (
-                            <span className="text-green-600 font-bold text-lg">✓</span>
-                          ) : (
-                            <span className="text-red-600 font-bold text-lg">✗</span>
-                          )}
-                        </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${
+                            record.current_status === 'CLOSED_COMPLIANT' || record.current_status === 'SECTION_COMPLETED_COMPLIANT'
+                              ? 'bg-green-100 text-green-700 border-green-200'
+                              : record.current_status === 'CLOSED_NON_COMPLIANT' || record.current_status === 'SECTION_COMPLETED_NON_COMPLIANT'
+                              ? 'bg-red-100 text-red-700 border-red-200'
+                              : 'bg-gray-100 text-gray-600 border-gray-200'
+                          }`}
+                        >
+                          {getStatusDisplay(record)}
+                        </span>
+                      </td>
                         <td className="whitespace-nowrap px-4 py-3 text-sm">
                           <span
                             className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium border ${
-                              record.payment_status === 'PAID'
+                              complianceStatus === 'COMPLIANT'
                                 ? 'bg-green-100 text-green-700 border-green-200'
-                                : 'bg-red-100 text-red-700 border-red-200'
+                                : complianceStatus === 'NON_COMPLIANT'
+                                ? 'bg-red-100 text-red-700 border-red-200'
+                                : 'bg-gray-100 text-gray-600 border-gray-200'
                             }`}
                           >
-                            {record.payment_status}
+                            {complianceStatus}
                           </span>
                         </td>
                       </tr>

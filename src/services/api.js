@@ -1422,3 +1422,222 @@ export const exportDivisionReportExcel = async (params = {}) => {
   }
 };
 
+// Section Report Generation
+// -------------------------------------------------
+export const getSectionReportData = async (params = {}) => {
+  try {
+    const response = await api.get('section-reports/', { params });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch section report data. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const exportSectionReportPDF = async (params = {}) => {
+  try {
+    const response = await api.get('section-reports/export_pdf/', {
+      params,
+      responseType: 'blob'
+    });
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `section_report_${new Date().toISOString().slice(0,10)}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true };
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to export PDF. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const exportSectionReportExcel = async (params = {}) => {
+  try {
+    const response = await api.get('section-reports/export_excel/', {
+      params,
+      responseType: 'blob'
+    });
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `section_report_${new Date().toISOString().slice(0,10)}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true };
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to export Excel. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+// Unit Report Generation
+// -------------------------------------------------
+export const getUnitReportData = async (params = {}) => {
+  try {
+    const response = await api.get('unit-reports/', { params });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch unit report data. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const exportUnitReportPDF = async (params = {}) => {
+  try {
+    const response = await api.get('unit-reports/export_pdf/', {
+      params,
+      responseType: 'blob'
+    });
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `unit_report_${new Date().toISOString().slice(0,10)}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true };
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to export PDF. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const exportUnitReportExcel = async (params = {}) => {
+  try {
+    const response = await api.get('unit-reports/export_excel/', {
+      params,
+      responseType: 'blob'
+    });
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `unit_report_${new Date().toISOString().slice(0,10)}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true };
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to export Excel. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+// Monitoring Report Generation
+// -------------------------------------------------
+export const getMonitoringReportData = async (params = {}) => {
+  try {
+    const response = await api.get('monitoring-reports/', { params });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch monitoring report data. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const exportMonitoringReportPDF = async (params = {}) => {
+  try {
+    const response = await api.get('monitoring-reports/export_pdf/', {
+      params,
+      responseType: 'blob'
+    });
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `monitoring_report_${new Date().toISOString().slice(0,10)}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true };
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to export PDF. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const exportMonitoringReportExcel = async (params = {}) => {
+  try {
+    const response = await api.get('monitoring-reports/export_excel/', {
+      params,
+      responseType: 'blob'
+    });
+    
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `monitoring_report_${new Date().toISOString().slice(0,10)}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true };
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to export Excel. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+

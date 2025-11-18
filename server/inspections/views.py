@@ -5999,3 +5999,946 @@ class DivisionReportViewSet(viewsets.ViewSet):
         response['Content-Disposition'] = f'attachment; filename="division_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
         
         return response
+
+
+class SectionReportViewSet(viewsets.ViewSet):
+    """
+    ViewSet for Section Report Generation
+    Shows only inspections inspected by the current Section Chief user
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def _get_base_queryset(self, request):
+        """Get base queryset with filters applied - only inspections inspected by current user"""
+        from django.db.models import Q
+        
+        user = request.user
+        
+        # Access control - Section Chief and Admin only
+        if user.userlevel not in ['Section Chief', 'Admin']:
+            return Inspection.objects.none()
+        
+        # Base filter: only inspections inspected by current user
+        queryset = Inspection.objects.filter(form__inspected_by=user)
+        
+        # Date filters
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        if date_from:
+            queryset = queryset.filter(created_at__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(created_at__lte=date_to)
+        
+        # Establishment filter
+        establishment = request.query_params.get('establishment')
+        if establishment:
+            queryset = queryset.filter(
+                Q(establishments__name__icontains=establishment) |
+                Q(establishments__id=establishment)
+            ).distinct()
+        
+        # Inspection code filter
+        inspection_code = request.query_params.get('inspection_code')
+        if inspection_code:
+            queryset = queryset.filter(code__icontains=inspection_code)
+        
+        # Inspection status filter
+        inspection_status = request.query_params.get('inspection_status')
+        if inspection_status and inspection_status != 'ALL':
+            queryset = queryset.filter(current_status=inspection_status)
+        
+        # Law filter
+        law = request.query_params.get('law')
+        if law and law != 'ALL':
+            queryset = queryset.filter(law__icontains=law.replace('-', ''))
+        
+        # Compliance status filter
+        compliance_status = request.query_params.get('compliance_status')
+        if compliance_status and compliance_status != 'ALL':
+            if compliance_status == 'PENDING':
+                queryset = queryset.filter(
+                    Q(form__compliance_decision__isnull=True) |
+                    Q(form__compliance_decision='PENDING') |
+                    Q(form__isnull=True)
+                )
+            else:
+                queryset = queryset.filter(form__compliance_decision=compliance_status)
+        
+        # NOV/NOO filter
+        has_nov = request.query_params.get('has_nov')
+        if has_nov == 'true':
+            queryset = queryset.filter(form__nov__isnull=False)
+        elif has_nov == 'false':
+            queryset = queryset.filter(
+                Q(form__nov__isnull=True) | Q(form__isnull=True)
+            )
+        
+        has_noo = request.query_params.get('has_noo')
+        if has_noo == 'true':
+            queryset = queryset.filter(form__noo__isnull=False)
+        elif has_noo == 'false':
+            queryset = queryset.filter(
+                Q(form__noo__isnull=True) | Q(form__isnull=True)
+            )
+        
+        # Optimize queries
+        queryset = queryset.select_related(
+            'created_by',
+            'assigned_to'
+        ).prefetch_related(
+            'establishments',
+            'form',
+            'form__nov',
+            'form__noo',
+            'form__inspected_by'
+        )
+        
+        return queryset
+    
+    def list(self, request):
+        """Get filtered inspections for report"""
+        from core.pagination import StandardResultsSetPagination
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')
+        
+        total_count = queryset.count()
+        logger.info(f"Section Report Query - Total records before pagination: {total_count}")
+        logger.info(f"Section Report Query - Filters: {dict(request.query_params)}")
+        
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        
+        if page is not None:
+            serializer = DivisionReportSerializer(page, many=True, context={'request': request})
+            response_data = paginator.get_paginated_response(serializer.data)
+            logger.info(f"Section Report Query - Returning {len(serializer.data)} records (paginated)")
+            return response_data
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        logger.info(f"Section Report Query - Returning {len(serializer.data)} records (non-paginated)")
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """Get computed summary statistics"""
+        from django.db.models import Count, Q
+        
+        queryset = self._get_base_queryset(request)
+        
+        total_inspections = queryset.count()
+        by_status = queryset.values('current_status').annotate(count=Count('id'))
+        status_breakdown = {item['current_status']: item['count'] for item in by_status}
+        
+        total_nov = queryset.filter(form__nov__isnull=False).count()
+        total_noo = queryset.filter(form__noo__isnull=False).count()
+        
+        compliant_count = queryset.filter(form__compliance_decision='COMPLIANT').count()
+        non_compliant_count = queryset.filter(form__compliance_decision='NON_COMPLIANT').count()
+        pending_count = queryset.filter(
+            Q(form__compliance_decision__isnull=True) |
+            Q(form__compliance_decision='PENDING') |
+            Q(form__isnull=True)
+        ).count()
+        
+        return Response({
+            'inspection_summary': {
+                'total_inspections': total_inspections,
+                'status_breakdown': status_breakdown,
+                'total_nov': total_nov,
+                'total_noo': total_noo,
+            },
+            'compliance_summary': {
+                'compliant_count': compliant_count,
+                'non_compliant_count': non_compliant_count,
+                'pending_count': pending_count,
+            }
+        })
+    
+    @action(detail=False, methods=['get'])
+    def recommendations(self, request):
+        """Generate system-based recommendations"""
+        from django.utils import timezone
+        from datetime import timedelta
+        from django.db.models import Count
+        
+        queryset = self._get_base_queryset(request)
+        recommendations = []
+        
+        # Non-compliant inspections requiring follow-up
+        non_compliant = queryset.filter(form__compliance_decision='NON_COMPLIANT')
+        if non_compliant.exists():
+            recommendations.append({
+                'type': 'Non-Compliant Inspections',
+                'description': f"{non_compliant.count()} inspections are marked as non-compliant. Follow-up actions may be required."
+            })
+        
+        return Response(recommendations)
+    
+    @action(detail=False, methods=['get'])
+    def export_pdf(self, request):
+        """Export report as PDF"""
+        from django.http import HttpResponse
+        from .division_report_pdf import DivisionReportPDFGenerator
+        import io
+        
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')[:100]
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        
+        stats_view = self.statistics(request)
+        statistics = stats_view.data
+        
+        recs_view = self.recommendations(request)
+        recommendations = recs_view.data
+        
+        report_data = {
+            'records': serializer.data,
+            'statistics': statistics,
+            'recommendations': recommendations,
+        }
+        
+        filters_applied = {}
+        filter_params = ['date_from', 'date_to', 'establishment', 'inspection_code', 'inspection_status', 'law', 'compliance_status']
+        for param in filter_params:
+            value = request.query_params.get(param)
+            if value:
+                filters_applied[param] = value
+        
+        buffer = io.BytesIO()
+        generator = DivisionReportPDFGenerator(buffer, report_data, filters_applied, request.user)
+        # Override title for section report
+        original_add_title = generator._add_title_page
+        def _add_title_page_section():
+            from reportlab.platypus import Paragraph, Spacer
+            from reportlab.lib.units import inch
+            from datetime import datetime
+            title_text = "<para align='center'><b><font size='18' color='#0066CC'>SECTION REPORT</font></b></para>"
+            generator.story.append(Paragraph(title_text, generator.styles['GovernmentTitle']))
+            subtitle_text = "<para align='center'><font size='14' color='#008000'>Inspection Summary Report</font></para>"
+            generator.story.append(Paragraph(subtitle_text, generator.styles['GovernmentSubtitle']))
+            generator.story.append(Spacer(1, 0.2*inch))
+            gen_date = datetime.now().strftime("%B %d, %Y")
+            date_text = f"<para align='center'><font size='10'>Generated on: {gen_date}</font></para>"
+            generator.story.append(Paragraph(date_text, generator.styles['Normal']))
+            generator.story.append(Spacer(1, 0.3*inch))
+            # Add metadata table
+            metadata_data = [
+                ['Report ID:', f"SECT-RPT-{int(datetime.now().timestamp() * 1000)}"],
+                ['Prepared by:', f"{request.user.first_name} {request.user.last_name}"],
+                ['User Level:', request.user.userlevel],
+                ['Email:', request.user.email],
+                ['Generated:', datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+            ]
+            from reportlab.platypus import Table, TableStyle
+            from reportlab.lib import colors
+            metadata_table = Table(metadata_data, colWidths=[2*inch, 4*inch])
+            metadata_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
+                ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                ('PADDING', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('BACKGROUND', (0, 0), (0, -1), generator.light_blue),
+            ]))
+            generator.story.append(metadata_table)
+            generator.story.append(Spacer(1, 0.3*inch))
+            # Add filters if any
+            if filters_applied:
+                filter_data = [['FILTERS APPLIED:', '']]
+                for key, value in filters_applied.items():
+                    filter_data.append([key.replace('_', ' ').title() + ':', str(value)])
+                filter_table = Table(filter_data, colWidths=[2*inch, 4*inch])
+                filter_table.setStyle(TableStyle([
+                    ('FONTNAME', (0, 0), (0, 0), 'Times-Bold'),
+                    ('FONTSIZE', (0, 0), (0, 0), 11),
+                    ('BACKGROUND', (0, 0), (-1, 0), generator.light_blue),
+                    ('FONTNAME', (0, 1), (0, -1), 'Times-Bold'),
+                    ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
+                    ('FONTSIZE', (0, 1), (-1, -1), 9),
+                    ('PADDING', (0, 0), (-1, -1), 6),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ]))
+                generator.story.append(filter_table)
+        generator._add_title_page = _add_title_page_section
+        generator.generate()
+        
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="section_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+        return response
+    
+    @action(detail=False, methods=['get'])
+    def export_excel(self, request):
+        """Export report as Excel"""
+        from django.http import HttpResponse
+        from .division_report_excel import DivisionReportExcelGenerator
+        
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')[:500]
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        
+        stats_view = self.statistics(request)
+        statistics = stats_view.data
+        
+        recs_view = self.recommendations(request)
+        recommendations = recs_view.data
+        
+        report_data = {
+            'records': serializer.data,
+            'statistics': statistics,
+            'recommendations': recommendations,
+        }
+        
+        filters_applied = {}
+        filter_params = ['date_from', 'date_to', 'establishment', 'inspection_code', 'inspection_status', 'law', 'compliance_status']
+        for param in filter_params:
+            value = request.query_params.get(param)
+            if value:
+                filters_applied[param] = value
+        
+        generator = DivisionReportExcelGenerator(report_data, filters_applied)
+        # Update title for section report
+        ws = generator.workbook.active
+        ws['A1'] = 'SECTION REPORT - SUMMARY STATISTICS'
+        
+        output = generator.generate()
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="section_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+        return response
+
+
+class UnitReportViewSet(viewsets.ViewSet):
+    """
+    ViewSet for Unit Report Generation
+    Shows only inspections inspected by the current Unit Head user
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def _get_base_queryset(self, request):
+        """Get base queryset with filters applied - only inspections inspected by current user"""
+        from django.db.models import Q
+        
+        user = request.user
+        
+        # Access control - Unit Head and Admin only
+        if user.userlevel not in ['Unit Head', 'Admin']:
+            return Inspection.objects.none()
+        
+        # Base filter: only inspections inspected by current user
+        queryset = Inspection.objects.filter(form__inspected_by=user)
+        
+        # Date filters
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        if date_from:
+            queryset = queryset.filter(created_at__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(created_at__lte=date_to)
+        
+        # Establishment filter
+        establishment = request.query_params.get('establishment')
+        if establishment:
+            queryset = queryset.filter(
+                Q(establishments__name__icontains=establishment) |
+                Q(establishments__id=establishment)
+            ).distinct()
+        
+        # Inspection code filter
+        inspection_code = request.query_params.get('inspection_code')
+        if inspection_code:
+            queryset = queryset.filter(code__icontains=inspection_code)
+        
+        # Inspection status filter
+        inspection_status = request.query_params.get('inspection_status')
+        if inspection_status and inspection_status != 'ALL':
+            queryset = queryset.filter(current_status=inspection_status)
+        
+        # Law filter
+        law = request.query_params.get('law')
+        if law and law != 'ALL':
+            queryset = queryset.filter(law__icontains=law.replace('-', ''))
+        
+        # Compliance status filter
+        compliance_status = request.query_params.get('compliance_status')
+        if compliance_status and compliance_status != 'ALL':
+            if compliance_status == 'PENDING':
+                queryset = queryset.filter(
+                    Q(form__compliance_decision__isnull=True) |
+                    Q(form__compliance_decision='PENDING') |
+                    Q(form__isnull=True)
+                )
+            else:
+                queryset = queryset.filter(form__compliance_decision=compliance_status)
+        
+        # NOV/NOO filter
+        has_nov = request.query_params.get('has_nov')
+        if has_nov == 'true':
+            queryset = queryset.filter(form__nov__isnull=False)
+        elif has_nov == 'false':
+            queryset = queryset.filter(
+                Q(form__nov__isnull=True) | Q(form__isnull=True)
+            )
+        
+        has_noo = request.query_params.get('has_noo')
+        if has_noo == 'true':
+            queryset = queryset.filter(form__noo__isnull=False)
+        elif has_noo == 'false':
+            queryset = queryset.filter(
+                Q(form__noo__isnull=True) | Q(form__isnull=True)
+            )
+        
+        # Optimize queries
+        queryset = queryset.select_related(
+            'created_by',
+            'assigned_to'
+        ).prefetch_related(
+            'establishments',
+            'form',
+            'form__nov',
+            'form__noo',
+            'form__inspected_by'
+        )
+        
+        return queryset
+    
+    def list(self, request):
+        """Get filtered inspections for report"""
+        from core.pagination import StandardResultsSetPagination
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')
+        
+        total_count = queryset.count()
+        logger.info(f"Unit Report Query - Total records before pagination: {total_count}")
+        logger.info(f"Unit Report Query - Filters: {dict(request.query_params)}")
+        
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        
+        if page is not None:
+            serializer = DivisionReportSerializer(page, many=True, context={'request': request})
+            response_data = paginator.get_paginated_response(serializer.data)
+            logger.info(f"Unit Report Query - Returning {len(serializer.data)} records (paginated)")
+            return response_data
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        logger.info(f"Unit Report Query - Returning {len(serializer.data)} records (non-paginated)")
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """Get computed summary statistics"""
+        from django.db.models import Count, Q
+        
+        queryset = self._get_base_queryset(request)
+        
+        total_inspections = queryset.count()
+        by_status = queryset.values('current_status').annotate(count=Count('id'))
+        status_breakdown = {item['current_status']: item['count'] for item in by_status}
+        
+        total_nov = queryset.filter(form__nov__isnull=False).count()
+        total_noo = queryset.filter(form__noo__isnull=False).count()
+        
+        compliant_count = queryset.filter(form__compliance_decision='COMPLIANT').count()
+        non_compliant_count = queryset.filter(form__compliance_decision='NON_COMPLIANT').count()
+        pending_count = queryset.filter(
+            Q(form__compliance_decision__isnull=True) |
+            Q(form__compliance_decision='PENDING') |
+            Q(form__isnull=True)
+        ).count()
+        
+        return Response({
+            'inspection_summary': {
+                'total_inspections': total_inspections,
+                'status_breakdown': status_breakdown,
+                'total_nov': total_nov,
+                'total_noo': total_noo,
+            },
+            'compliance_summary': {
+                'compliant_count': compliant_count,
+                'non_compliant_count': non_compliant_count,
+                'pending_count': pending_count,
+            }
+        })
+    
+    @action(detail=False, methods=['get'])
+    def recommendations(self, request):
+        """Generate system-based recommendations"""
+        from django.db.models import Count
+        
+        queryset = self._get_base_queryset(request)
+        recommendations = []
+        
+        # Non-compliant inspections requiring follow-up
+        non_compliant = queryset.filter(form__compliance_decision='NON_COMPLIANT')
+        if non_compliant.exists():
+            recommendations.append({
+                'type': 'Non-Compliant Inspections',
+                'description': f"{non_compliant.count()} inspections are marked as non-compliant. Follow-up actions may be required."
+            })
+        
+        return Response(recommendations)
+    
+    @action(detail=False, methods=['get'])
+    def export_pdf(self, request):
+        """Export report as PDF"""
+        from django.http import HttpResponse
+        from .division_report_pdf import DivisionReportPDFGenerator
+        import io
+        
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')[:100]
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        
+        stats_view = self.statistics(request)
+        statistics = stats_view.data
+        
+        recs_view = self.recommendations(request)
+        recommendations = recs_view.data
+        
+        report_data = {
+            'records': serializer.data,
+            'statistics': statistics,
+            'recommendations': recommendations,
+        }
+        
+        filters_applied = {}
+        filter_params = ['date_from', 'date_to', 'establishment', 'inspection_code', 'inspection_status', 'law', 'compliance_status']
+        for param in filter_params:
+            value = request.query_params.get(param)
+            if value:
+                filters_applied[param] = value
+        
+        buffer = io.BytesIO()
+        generator = DivisionReportPDFGenerator(buffer, report_data, filters_applied, request.user)
+        # Override title for unit report
+        def _add_title_page_unit():
+            from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+            from reportlab.lib.units import inch
+            from reportlab.lib import colors
+            from datetime import datetime
+            title_text = "<para align='center'><b><font size='18' color='#0066CC'>UNIT REPORT</font></b></para>"
+            generator.story.append(Paragraph(title_text, generator.styles['GovernmentTitle']))
+            subtitle_text = "<para align='center'><font size='14' color='#008000'>Inspection Summary Report</font></para>"
+            generator.story.append(Paragraph(subtitle_text, generator.styles['GovernmentSubtitle']))
+            generator.story.append(Spacer(1, 0.2*inch))
+            gen_date = datetime.now().strftime("%B %d, %Y")
+            date_text = f"<para align='center'><font size='10'>Generated on: {gen_date}</font></para>"
+            generator.story.append(Paragraph(date_text, generator.styles['Normal']))
+            generator.story.append(Spacer(1, 0.3*inch))
+            # Add metadata table
+            metadata_data = [
+                ['Report ID:', f"UNIT-RPT-{int(datetime.now().timestamp() * 1000)}"],
+                ['Prepared by:', f"{request.user.first_name} {request.user.last_name}"],
+                ['User Level:', request.user.userlevel],
+                ['Email:', request.user.email],
+                ['Generated:', datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+            ]
+            metadata_table = Table(metadata_data, colWidths=[2*inch, 4*inch])
+            metadata_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
+                ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                ('PADDING', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('BACKGROUND', (0, 0), (0, -1), generator.light_blue),
+            ]))
+            generator.story.append(metadata_table)
+            generator.story.append(Spacer(1, 0.3*inch))
+            # Add filters if any
+            if filters_applied:
+                filter_data = [['FILTERS APPLIED:', '']]
+                for key, value in filters_applied.items():
+                    filter_data.append([key.replace('_', ' ').title() + ':', str(value)])
+                filter_table = Table(filter_data, colWidths=[2*inch, 4*inch])
+                filter_table.setStyle(TableStyle([
+                    ('FONTNAME', (0, 0), (0, 0), 'Times-Bold'),
+                    ('FONTSIZE', (0, 0), (0, 0), 11),
+                    ('BACKGROUND', (0, 0), (-1, 0), generator.light_blue),
+                    ('FONTNAME', (0, 1), (0, -1), 'Times-Bold'),
+                    ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
+                    ('FONTSIZE', (0, 1), (-1, -1), 9),
+                    ('PADDING', (0, 0), (-1, -1), 6),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ]))
+                generator.story.append(filter_table)
+        generator._add_title_page = _add_title_page_unit
+        generator.generate()
+        
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="unit_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+        return response
+    
+    @action(detail=False, methods=['get'])
+    def export_excel(self, request):
+        """Export report as Excel"""
+        from django.http import HttpResponse
+        from .division_report_excel import DivisionReportExcelGenerator
+        
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')[:500]
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        
+        stats_view = self.statistics(request)
+        statistics = stats_view.data
+        
+        recs_view = self.recommendations(request)
+        recommendations = recs_view.data
+        
+        report_data = {
+            'records': serializer.data,
+            'statistics': statistics,
+            'recommendations': recommendations,
+        }
+        
+        filters_applied = {}
+        filter_params = ['date_from', 'date_to', 'establishment', 'inspection_code', 'inspection_status', 'law', 'compliance_status']
+        for param in filter_params:
+            value = request.query_params.get(param)
+            if value:
+                filters_applied[param] = value
+        
+        generator = DivisionReportExcelGenerator(report_data, filters_applied)
+        # Update title for unit report
+        ws = generator.workbook.active
+        ws['A1'] = 'UNIT REPORT - SUMMARY STATISTICS'
+        
+        output = generator.generate()
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="unit_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+        return response
+
+
+class MonitoringReportViewSet(viewsets.ViewSet):
+    """
+    ViewSet for Monitoring Report Generation
+    Shows only inspections inspected by the current Monitoring Personnel user
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def _get_base_queryset(self, request):
+        """Get base queryset with filters applied - only inspections inspected by current user"""
+        from django.db.models import Q
+        
+        user = request.user
+        
+        # Access control - Monitoring Personnel and Admin only
+        if user.userlevel not in ['Monitoring Personnel', 'Admin']:
+            return Inspection.objects.none()
+        
+        # Base filter: only inspections inspected by current user
+        queryset = Inspection.objects.filter(form__inspected_by=user)
+        
+        # Date filters
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        if date_from:
+            queryset = queryset.filter(created_at__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(created_at__lte=date_to)
+        
+        # Establishment filter
+        establishment = request.query_params.get('establishment')
+        if establishment:
+            queryset = queryset.filter(
+                Q(establishments__name__icontains=establishment) |
+                Q(establishments__id=establishment)
+            ).distinct()
+        
+        # Inspection code filter
+        inspection_code = request.query_params.get('inspection_code')
+        if inspection_code:
+            queryset = queryset.filter(code__icontains=inspection_code)
+        
+        # Inspection status filter
+        inspection_status = request.query_params.get('inspection_status')
+        if inspection_status and inspection_status != 'ALL':
+            queryset = queryset.filter(current_status=inspection_status)
+        
+        # Law filter
+        law = request.query_params.get('law')
+        if law and law != 'ALL':
+            queryset = queryset.filter(law__icontains=law.replace('-', ''))
+        
+        # Compliance status filter
+        compliance_status = request.query_params.get('compliance_status')
+        if compliance_status and compliance_status != 'ALL':
+            if compliance_status == 'PENDING':
+                queryset = queryset.filter(
+                    Q(form__compliance_decision__isnull=True) |
+                    Q(form__compliance_decision='PENDING') |
+                    Q(form__isnull=True)
+                )
+            else:
+                queryset = queryset.filter(form__compliance_decision=compliance_status)
+        
+        # NOV/NOO filter
+        has_nov = request.query_params.get('has_nov')
+        if has_nov == 'true':
+            queryset = queryset.filter(form__nov__isnull=False)
+        elif has_nov == 'false':
+            queryset = queryset.filter(
+                Q(form__nov__isnull=True) | Q(form__isnull=True)
+            )
+        
+        has_noo = request.query_params.get('has_noo')
+        if has_noo == 'true':
+            queryset = queryset.filter(form__noo__isnull=False)
+        elif has_noo == 'false':
+            queryset = queryset.filter(
+                Q(form__noo__isnull=True) | Q(form__isnull=True)
+            )
+        
+        # Optimize queries
+        queryset = queryset.select_related(
+            'created_by',
+            'assigned_to'
+        ).prefetch_related(
+            'establishments',
+            'form',
+            'form__nov',
+            'form__noo',
+            'form__inspected_by'
+        )
+        
+        return queryset
+    
+    def list(self, request):
+        """Get filtered inspections for report"""
+        from core.pagination import StandardResultsSetPagination
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')
+        
+        total_count = queryset.count()
+        logger.info(f"Monitoring Report Query - Total records before pagination: {total_count}")
+        logger.info(f"Monitoring Report Query - Filters: {dict(request.query_params)}")
+        
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        
+        if page is not None:
+            serializer = DivisionReportSerializer(page, many=True, context={'request': request})
+            response_data = paginator.get_paginated_response(serializer.data)
+            logger.info(f"Monitoring Report Query - Returning {len(serializer.data)} records (paginated)")
+            return response_data
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        logger.info(f"Monitoring Report Query - Returning {len(serializer.data)} records (non-paginated)")
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """Get computed summary statistics"""
+        from django.db.models import Count, Q
+        
+        queryset = self._get_base_queryset(request)
+        
+        total_inspections = queryset.count()
+        by_status = queryset.values('current_status').annotate(count=Count('id'))
+        status_breakdown = {item['current_status']: item['count'] for item in by_status}
+        
+        total_nov = queryset.filter(form__nov__isnull=False).count()
+        total_noo = queryset.filter(form__noo__isnull=False).count()
+        
+        compliant_count = queryset.filter(form__compliance_decision='COMPLIANT').count()
+        non_compliant_count = queryset.filter(form__compliance_decision='NON_COMPLIANT').count()
+        pending_count = queryset.filter(
+            Q(form__compliance_decision__isnull=True) |
+            Q(form__compliance_decision='PENDING') |
+            Q(form__isnull=True)
+        ).count()
+        
+        return Response({
+            'inspection_summary': {
+                'total_inspections': total_inspections,
+                'status_breakdown': status_breakdown,
+                'total_nov': total_nov,
+                'total_noo': total_noo,
+            },
+            'compliance_summary': {
+                'compliant_count': compliant_count,
+                'non_compliant_count': non_compliant_count,
+                'pending_count': pending_count,
+            }
+        })
+    
+    @action(detail=False, methods=['get'])
+    def recommendations(self, request):
+        """Generate system-based recommendations"""
+        from django.db.models import Count
+        
+        queryset = self._get_base_queryset(request)
+        recommendations = []
+        
+        # Non-compliant inspections requiring follow-up
+        non_compliant = queryset.filter(form__compliance_decision='NON_COMPLIANT')
+        if non_compliant.exists():
+            recommendations.append({
+                'type': 'Non-Compliant Inspections',
+                'description': f"{non_compliant.count()} inspections are marked as non-compliant. Follow-up actions may be required."
+            })
+        
+        return Response(recommendations)
+    
+    @action(detail=False, methods=['get'])
+    def export_pdf(self, request):
+        """Export report as PDF"""
+        from django.http import HttpResponse
+        from .division_report_pdf import DivisionReportPDFGenerator
+        import io
+        
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')[:100]
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        
+        stats_view = self.statistics(request)
+        statistics = stats_view.data
+        
+        recs_view = self.recommendations(request)
+        recommendations = recs_view.data
+        
+        report_data = {
+            'records': serializer.data,
+            'statistics': statistics,
+            'recommendations': recommendations,
+        }
+        
+        filters_applied = {}
+        filter_params = ['date_from', 'date_to', 'establishment', 'inspection_code', 'inspection_status', 'law', 'compliance_status']
+        for param in filter_params:
+            value = request.query_params.get(param)
+            if value:
+                filters_applied[param] = value
+        
+        buffer = io.BytesIO()
+        generator = DivisionReportPDFGenerator(buffer, report_data, filters_applied, request.user)
+        # Override title for monitoring report
+        def _add_title_page_monitoring():
+            from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+            from reportlab.lib.units import inch
+            from reportlab.lib import colors
+            from datetime import datetime
+            title_text = "<para align='center'><b><font size='18' color='#0066CC'>MONITORING REPORT</font></b></para>"
+            generator.story.append(Paragraph(title_text, generator.styles['GovernmentTitle']))
+            subtitle_text = "<para align='center'><font size='14' color='#008000'>Inspection Summary Report</font></para>"
+            generator.story.append(Paragraph(subtitle_text, generator.styles['GovernmentSubtitle']))
+            generator.story.append(Spacer(1, 0.2*inch))
+            gen_date = datetime.now().strftime("%B %d, %Y")
+            date_text = f"<para align='center'><font size='10'>Generated on: {gen_date}</font></para>"
+            generator.story.append(Paragraph(date_text, generator.styles['Normal']))
+            generator.story.append(Spacer(1, 0.3*inch))
+            # Add metadata table
+            metadata_data = [
+                ['Report ID:', f"MON-RPT-{int(datetime.now().timestamp() * 1000)}"],
+                ['Prepared by:', f"{request.user.first_name} {request.user.last_name}"],
+                ['User Level:', request.user.userlevel],
+                ['Email:', request.user.email],
+                ['Generated:', datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+            ]
+            metadata_table = Table(metadata_data, colWidths=[2*inch, 4*inch])
+            metadata_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
+                ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+                ('PADDING', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('BACKGROUND', (0, 0), (0, -1), generator.light_blue),
+            ]))
+            generator.story.append(metadata_table)
+            generator.story.append(Spacer(1, 0.3*inch))
+            # Add filters if any
+            if filters_applied:
+                filter_data = [['FILTERS APPLIED:', '']]
+                for key, value in filters_applied.items():
+                    filter_data.append([key.replace('_', ' ').title() + ':', str(value)])
+                filter_table = Table(filter_data, colWidths=[2*inch, 4*inch])
+                filter_table.setStyle(TableStyle([
+                    ('FONTNAME', (0, 0), (0, 0), 'Times-Bold'),
+                    ('FONTSIZE', (0, 0), (0, 0), 11),
+                    ('BACKGROUND', (0, 0), (-1, 0), generator.light_blue),
+                    ('FONTNAME', (0, 1), (0, -1), 'Times-Bold'),
+                    ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
+                    ('FONTSIZE', (0, 1), (-1, -1), 9),
+                    ('PADDING', (0, 0), (-1, -1), 6),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ]))
+                generator.story.append(filter_table)
+        generator._add_title_page = _add_title_page_monitoring
+        generator.generate()
+        
+        buffer.seek(0)
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="monitoring_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+        return response
+    
+    @action(detail=False, methods=['get'])
+    def export_excel(self, request):
+        """Export report as Excel"""
+        from django.http import HttpResponse
+        from .division_report_excel import DivisionReportExcelGenerator
+        
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')[:500]
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        
+        stats_view = self.statistics(request)
+        statistics = stats_view.data
+        
+        recs_view = self.recommendations(request)
+        recommendations = recs_view.data
+        
+        report_data = {
+            'records': serializer.data,
+            'statistics': statistics,
+            'recommendations': recommendations,
+        }
+        
+        filters_applied = {}
+        filter_params = ['date_from', 'date_to', 'establishment', 'inspection_code', 'inspection_status', 'law', 'compliance_status']
+        for param in filter_params:
+            value = request.query_params.get(param)
+            if value:
+                filters_applied[param] = value
+        
+        generator = DivisionReportExcelGenerator(report_data, filters_applied)
+        # Update title for monitoring report
+        ws = generator.workbook.active
+        ws['A1'] = 'MONITORING REPORT - SUMMARY STATISTICS'
+        
+        output = generator.generate()
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="monitoring_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+        return response

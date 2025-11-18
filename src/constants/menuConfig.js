@@ -64,22 +64,6 @@ export const MENU_CONFIG = [
     category: "Management"
   },
   {
-    id: "reports",
-    name: "Reports",
-    path: "/reports",
-    icon: FileText,
-    roles: [ "Section Chief", "Unit Head", "Monitoring Personnel"],
-    category: "Management"
-  },
-  {
-    id: "reinspection-reminders",
-    name: "Reinspection Reminders",
-    path: "/reinspection-reminders",
-    icon: Bell,
-    roles: ["Division Chief"],
-    category: "Management"
-  },
-  {
     id: "billing",
     name: "Billing Records",
     path: "/billing",
@@ -88,8 +72,32 @@ export const MENU_CONFIG = [
     category: "Legal"
   },
   {
+    id: "section-reports",
+    name: "Accomplishment Reports",
+    path: "/section-reports",
+    icon: FileText,
+    roles: ["Section Chief"],
+    category: "Management"
+  },
+  {
+    id: "unit-reports",
+    name: "Accomplishment Reports",
+    path: "/unit-reports",
+    icon: FileText,
+    roles: ["Unit Head"],
+    category: "Management"
+  },
+  {
+    id: "monitoring-reports",
+    name: "Accomplishment Reports",
+    path: "/monitoring-reports",
+    icon: FileText,
+    roles: ["Monitoring Personnel"],
+    category: "Management"
+  },
+  {
     id: "legal-reports",
-    name: "Report Generation",
+    name: "Reports",
     path: "/legal-reports",
     icon: FileText,
     roles: ["Legal Unit"],
@@ -97,10 +105,18 @@ export const MENU_CONFIG = [
   },
   {
     id: "division-reports",
-    name: "Division Reports",
+    name: "Reports",
     path: "/division-reports",
     icon: FileText,
-    roles: ["Division Chief", "Admin"],
+    roles: ["Division Chief"],
+    category: "Management"
+  },
+  {
+    id: "reinspection-reminders",
+    name: "Reinspection Reminders",
+    path: "/reinspection-reminders",
+    icon: Bell,
+    roles: ["Division Chief"],
     category: "Management"
   },
   {

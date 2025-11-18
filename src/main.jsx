@@ -39,6 +39,9 @@ import AuditLogs from "./pages/AuditLogs";
 import ReinspectionRemindersPage from "./pages/ReinspectionReminders";
 import LegalReports from "./pages/LegalReports";
 import DivisionReports from "./pages/DivisionReports";
+import SectionReports from "./pages/SectionReports";
+import UnitReports from "./pages/UnitReports";
+import MonitoringReports from "./pages/MonitoringReports";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -137,7 +140,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route
               path="/division-reports"
               element={
-                <RoleRoute allowed={["Division Chief", "Admin"]}>
+                <RoleRoute allowed={["Division Chief"]}>
                   <DivisionReports />
                 </RoleRoute>
               }
@@ -183,10 +186,26 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               }
             />
             <Route
-              path="/reports"
+              path="/section-reports"
               element={
-                <RoleRoute allowed={["Section Chief", "Unit Head", "Monitoring Personnel"]}>
-                  <AccomplishmentReports />
+                <RoleRoute allowed={["Section Chief"]}>
+                  <SectionReports />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/unit-reports"
+              element={
+                <RoleRoute allowed={["Unit Head"]}>
+                  <UnitReports />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/monitoring-reports"
+              element={
+                <RoleRoute allowed={["Monitoring Personnel"]}>
+                  <MonitoringReports />
                 </RoleRoute>
               }
             />
