@@ -724,6 +724,91 @@ class LegalReportSerializer(serializers.ModelSerializer):
         return None
 
 
+class DivisionReportSerializer(serializers.ModelSerializer):
+    """Serializer for Division Report Generation with inspection data"""
+    establishment_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    assigned_to_name = serializers.SerializerMethodField()
+    assigned_to_level = serializers.SerializerMethodField()
+    simplified_status = serializers.SerializerMethodField()
+    compliance_status = serializers.SerializerMethodField()
+    has_nov = serializers.SerializerMethodField()
+    has_noo = serializers.SerializerMethodField()
+    nov_sent_date = serializers.SerializerMethodField()
+    noo_sent_date = serializers.SerializerMethodField()
+    inspected_by_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Inspection
+        fields = [
+            'id', 'code', 'establishment_name', 'law', 'district',
+            'created_by', 'created_by_name', 'assigned_to', 'assigned_to_name', 'assigned_to_level',
+            'inspected_by_name', 'current_status', 'simplified_status',
+            'compliance_status', 'has_nov', 'has_noo',
+            'nov_sent_date', 'noo_sent_date',
+            'created_at', 'updated_at'
+        ]
+    
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.email
+        return None
+    
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to:
+            return f"{obj.assigned_to.first_name} {obj.assigned_to.last_name}".strip() or obj.assigned_to.email
+        return None
+    
+    def get_assigned_to_level(self, obj):
+        return obj.assigned_to.userlevel if obj.assigned_to else None
+    
+    def get_simplified_status(self, obj):
+        return obj.get_simplified_status()
+    
+    def get_establishment_name(self, obj):
+        """Get establishment name from related establishments"""
+        if obj.establishments.exists():
+            return obj.establishments.first().name
+        return None
+    
+    def get_compliance_status(self, obj):
+        """Get compliance status from inspection form"""
+        if hasattr(obj, 'form') and obj.form:
+            return obj.form.compliance_decision or 'PENDING'
+        return 'PENDING'
+    
+    def get_has_nov(self, obj):
+        """Check if NOV was sent"""
+        if hasattr(obj, 'form') and obj.form and hasattr(obj.form, 'nov'):
+            return obj.form.nov is not None
+        return False
+    
+    def get_has_noo(self, obj):
+        """Check if NOO was sent"""
+        if hasattr(obj, 'form') and obj.form and hasattr(obj.form, 'noo'):
+            return obj.form.noo is not None
+        return False
+    
+    def get_nov_sent_date(self, obj):
+        """Get NOV sent date"""
+        if hasattr(obj, 'form') and obj.form and hasattr(obj.form, 'nov') and obj.form.nov:
+            return obj.form.nov.sent_date
+        return None
+    
+    def get_noo_sent_date(self, obj):
+        """Get NOO sent date"""
+        if hasattr(obj, 'form') and obj.form and hasattr(obj.form, 'noo') and obj.form.noo:
+            return obj.form.noo.sent_date
+        return None
+    
+    def get_inspected_by_name(self, obj):
+        """Get the name of the user who inspected this inspection"""
+        if hasattr(obj, 'form') and obj.form and obj.form.inspected_by:
+            inspector = obj.form.inspected_by
+            return f"{inspector.first_name} {inspector.last_name}".strip() or inspector.email
+        return None
+
+
 class SignatureUploadSerializer(serializers.Serializer):
     """Serializer for signature image upload"""
     slot = serializers.ChoiceField(

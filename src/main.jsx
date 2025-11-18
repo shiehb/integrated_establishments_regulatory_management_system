@@ -38,6 +38,7 @@ import LawManagement from "./pages/LawManagement";
 import AuditLogs from "./pages/AuditLogs";
 import ReinspectionRemindersPage from "./pages/ReinspectionReminders";
 import LegalReports from "./pages/LegalReports";
+import DivisionReports from "./pages/DivisionReports";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -130,6 +131,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               element={
                 <RoleRoute allowed={["Legal Unit"]}>
                   <LegalReports />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/division-reports"
+              element={
+                <RoleRoute allowed={["Division Chief", "Admin"]}>
+                  <DivisionReports />
                 </RoleRoute>
               }
             />

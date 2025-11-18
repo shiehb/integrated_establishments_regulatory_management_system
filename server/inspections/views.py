@@ -20,7 +20,7 @@ from .serializers import (
     InspectionSerializer, InspectionCreateSerializer, InspectionFormSerializer,
     InspectionHistorySerializer, InspectionDocumentSerializer,
     InspectionActionSerializer, NOVSerializer, NOOSerializer, BillingRecordSerializer,
-    SignatureUploadSerializer, RecommendationSerializer, LegalReportSerializer
+    SignatureUploadSerializer, RecommendationSerializer, LegalReportSerializer, DivisionReportSerializer
 )
 from .utils import (
     send_inspection_forward_notification,
@@ -5654,5 +5654,348 @@ class LegalReportViewSet(viewsets.ViewSet):
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
         response['Content-Disposition'] = f'attachment; filename="legal_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+        
+        return response
+
+
+class DivisionReportViewSet(viewsets.ViewSet):
+    """
+    ViewSet for Division Report Generation
+    Provides comprehensive reporting with filtering, statistics, and export capabilities
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def _get_base_queryset(self, request):
+        """Get base queryset with filters applied"""
+        from django.db.models import Q
+        
+        queryset = Inspection.objects.all()
+        
+        # Access control - Division Chief and Admin can see all
+        user = request.user
+        if user.userlevel not in ['Division Chief', 'Admin']:
+            # Others can only see inspections they created or are assigned to
+            queryset = queryset.filter(
+                Q(created_by=user) | Q(assigned_to=user)
+            )
+        
+        # Date filters
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        if date_from:
+            queryset = queryset.filter(created_at__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(created_at__lte=date_to)
+        
+        # Establishment filter
+        establishment = request.query_params.get('establishment')
+        if establishment:
+            queryset = queryset.filter(
+                Q(establishments__name__icontains=establishment) |
+                Q(establishments__id=establishment)
+            ).distinct()
+        
+        # Inspection code filter
+        inspection_code = request.query_params.get('inspection_code')
+        if inspection_code:
+            queryset = queryset.filter(code__icontains=inspection_code)
+        
+        # Inspection status filter
+        inspection_status = request.query_params.get('inspection_status')
+        if inspection_status and inspection_status != 'ALL':
+            queryset = queryset.filter(current_status=inspection_status)
+        
+        # Law filter
+        law = request.query_params.get('law')
+        if law and law != 'ALL':
+            queryset = queryset.filter(law__icontains=law.replace('-', ''))
+        
+        # Compliance status filter (requires join with inspection form)
+        compliance_status = request.query_params.get('compliance_status')
+        if compliance_status and compliance_status != 'ALL':
+            # Handle cases where form might not exist - treat missing forms as PENDING
+            if compliance_status == 'PENDING':
+                queryset = queryset.filter(
+                    Q(form__compliance_decision__isnull=True) |
+                    Q(form__compliance_decision='PENDING') |
+                    Q(form__isnull=True)
+                )
+            else:
+                queryset = queryset.filter(form__compliance_decision=compliance_status)
+        
+        # NOV/NOO filter
+        has_nov = request.query_params.get('has_nov')
+        if has_nov == 'true':
+            queryset = queryset.filter(form__nov__isnull=False)
+        elif has_nov == 'false':
+            queryset = queryset.filter(
+                Q(form__nov__isnull=True) | Q(form__isnull=True)
+            )
+        
+        has_noo = request.query_params.get('has_noo')
+        if has_noo == 'true':
+            queryset = queryset.filter(form__noo__isnull=False)
+        elif has_noo == 'false':
+            queryset = queryset.filter(
+                Q(form__noo__isnull=True) | Q(form__isnull=True)
+            )
+        
+        # Optimize queries - use prefetch for form to handle cases where form might not exist
+        queryset = queryset.select_related(
+            'created_by',
+            'assigned_to'
+        ).prefetch_related(
+            'establishments',
+            'form',
+            'form__nov',
+            'form__noo',
+            'form__inspected_by'
+        )
+        
+        return queryset
+    
+    def list(self, request):
+        """Get filtered inspections for report"""
+        from core.pagination import StandardResultsSetPagination
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')
+        
+        # Log query info for debugging
+        total_count = queryset.count()
+        logger.info(f"Division Report Query - Total records before pagination: {total_count}")
+        logger.info(f"Division Report Query - Filters: {dict(request.query_params)}")
+        
+        # Pagination
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        
+        if page is not None:
+            serializer = DivisionReportSerializer(page, many=True, context={'request': request})
+            response_data = paginator.get_paginated_response(serializer.data)
+            logger.info(f"Division Report Query - Returning {len(serializer.data)} records (paginated)")
+            return response_data
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        logger.info(f"Division Report Query - Returning {len(serializer.data)} records (non-paginated)")
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """Get computed summary statistics"""
+        from django.db.models import Count, Q
+        
+        queryset = self._get_base_queryset(request)
+        
+        # Inspection summary
+        total_inspections = queryset.count()
+        by_status = queryset.values('current_status').annotate(count=Count('id'))
+        status_breakdown = {item['current_status']: item['count'] for item in by_status}
+        
+        # Count NOV/NOO
+        total_nov = queryset.filter(form__nov__isnull=False).count()
+        total_noo = queryset.filter(form__noo__isnull=False).count()
+        
+        # Compliance summary
+        compliant_count = queryset.filter(
+            form__compliance_decision='COMPLIANT'
+        ).count()
+        non_compliant_count = queryset.filter(
+            form__compliance_decision='NON_COMPLIANT'
+        ).count()
+        pending_count = queryset.filter(
+            Q(form__compliance_decision__isnull=True) |
+            Q(form__compliance_decision='PENDING') |
+            Q(form__isnull=True)
+        ).count()
+        
+        # Division review summary
+        division_reviewed = queryset.filter(current_status='DIVISION_REVIEWED').count()
+        section_completed = queryset.filter(
+            current_status__in=['SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT']
+        ).count()
+        
+        return Response({
+            'inspection_summary': {
+                'total_inspections': total_inspections,
+                'status_breakdown': status_breakdown,
+                'division_reviewed': division_reviewed,
+                'section_completed': section_completed,
+                'total_nov': total_nov,
+                'total_noo': total_noo,
+            },
+            'compliance_summary': {
+                'compliant_count': compliant_count,
+                'non_compliant_count': non_compliant_count,
+                'pending_count': pending_count,
+            }
+        })
+    
+    @action(detail=False, methods=['get'])
+    def recommendations(self, request):
+        """Generate system-based recommendations"""
+        from django.utils import timezone
+        from datetime import timedelta
+        from django.db.models import Count
+        
+        queryset = self._get_base_queryset(request)
+        recommendations = []
+        
+        # Pending division review (section completed but not reviewed)
+        pending_review = queryset.filter(
+            current_status__in=['SECTION_COMPLETED_COMPLIANT', 'SECTION_COMPLETED_NON_COMPLIANT']
+        )
+        
+        if pending_review.exists():
+            recommendations.append({
+                'type': 'Pending Division Review',
+                'description': f"{pending_review.count()} inspections are waiting for division review."
+            })
+        
+        # Repeated non-compliance (establishments with 2+ non-compliant inspections)
+        repeated_non_compliant = queryset.filter(
+            form__compliance_decision='NON_COMPLIANT'
+        ).values('establishments__name').annotate(
+            count=Count('id', distinct=True)
+        ).filter(count__gte=2)
+        
+        if repeated_non_compliant.exists():
+            establishments = [est['establishments__name'] for est in repeated_non_compliant[:5]]
+            recommendations.append({
+                'type': 'Repeated Non-Compliance',
+                'description': f"The following establishments have repeated non-compliance issues: {', '.join(establishments)}. Consider escalated action."
+            })
+        
+        # Inspections requiring legal attention
+        needs_legal = queryset.filter(
+            current_status='NON_COMPLIANT',
+            form__compliance_decision='NON_COMPLIANT'
+        )
+        
+        if needs_legal.exists():
+            recommendations.append({
+                'type': 'Legal Escalation Required',
+                'description': f"{needs_legal.count()} non-compliant inspections require legal unit attention."
+            })
+        
+        # Long pending inspections (30+ days without completion)
+        today = timezone.now().date()
+        pending_threshold = today - timedelta(days=30)
+        long_pending = queryset.filter(
+            created_at__lt=pending_threshold,
+            current_status__in=['CREATED', 'SECTION_ASSIGNED', 'UNIT_ASSIGNED', 'MONITORING_ASSIGNED']
+        )
+        
+        if long_pending.exists():
+            recommendations.append({
+                'type': 'Long Pending Inspections',
+                'description': f"{long_pending.count()} inspections have been pending for more than 30 days. Follow up required."
+            })
+        
+        return Response(recommendations)
+    
+    @action(detail=False, methods=['get'])
+    def export_pdf(self, request):
+        """Export report as PDF"""
+        from django.http import HttpResponse
+        from .division_report_pdf import DivisionReportPDFGenerator
+        import io
+        
+        # Get filtered data
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')[:100]  # Limit to 100 records
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        
+        # Get statistics
+        stats_view = self.statistics(request)
+        statistics = stats_view.data
+        
+        # Get recommendations
+        recs_view = self.recommendations(request)
+        recommendations = recs_view.data
+        
+        # Prepare report data
+        report_data = {
+            'records': serializer.data,
+            'statistics': statistics,
+            'recommendations': recommendations,
+        }
+        
+        # Prepare filters applied
+        filters_applied = {}
+        filter_params = [
+            'date_from', 'date_to', 'establishment', 'inspection_code',
+            'inspection_status', 'law', 'compliance_status'
+        ]
+        for param in filter_params:
+            value = request.query_params.get(param)
+            if value:
+                filters_applied[param] = value
+        
+        # Generate PDF
+        buffer = io.BytesIO()
+        generator = DivisionReportPDFGenerator(buffer, report_data, filters_applied, request.user)
+        generator.generate()
+        
+        buffer.seek(0)
+        
+        # Return PDF response
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="division_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+        
+        return response
+    
+    @action(detail=False, methods=['get'])
+    def export_excel(self, request):
+        """Export report as Excel"""
+        from django.http import HttpResponse
+        from .division_report_excel import DivisionReportExcelGenerator
+        
+        # Get filtered data
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')[:500]  # Limit to 500 records
+        
+        serializer = DivisionReportSerializer(queryset, many=True, context={'request': request})
+        
+        # Get statistics
+        stats_view = self.statistics(request)
+        statistics = stats_view.data
+        
+        # Get recommendations
+        recs_view = self.recommendations(request)
+        recommendations = recs_view.data
+        
+        # Prepare report data
+        report_data = {
+            'records': serializer.data,
+            'statistics': statistics,
+            'recommendations': recommendations,
+        }
+        
+        # Prepare filters applied
+        filters_applied = {}
+        filter_params = [
+            'date_from', 'date_to', 'establishment', 'inspection_code',
+            'inspection_status', 'law', 'compliance_status'
+        ]
+        for param in filter_params:
+            value = request.query_params.get(param)
+            if value:
+                filters_applied[param] = value
+        
+        # Generate Excel
+        generator = DivisionReportExcelGenerator(report_data, filters_applied)
+        output = generator.generate()
+        
+        # Return Excel response
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="division_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
         
         return response
