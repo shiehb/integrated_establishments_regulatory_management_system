@@ -1,0 +1,22 @@
+[providers]
+python = "311"
+node = "18"
+
+[phases.setup]
+nixPkgs = ["python311", "nodejs_18"]
+
+[phases.install]
+cmds = [
+  "cd server && python3 -m pip install --upgrade pip",
+  "cd server && python3 -m pip install -r requirements.txt",
+  "npm install",
+]
+
+[phases.build]
+cmds = [
+  "npm run build",
+]
+
+[start]
+cmd = "cd server && gunicorn core.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 2 --timeout 120"
+
