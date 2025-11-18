@@ -6226,60 +6226,68 @@ class SectionReportViewSet(viewsets.ViewSet):
         buffer = io.BytesIO()
         generator = DivisionReportPDFGenerator(buffer, report_data, filters_applied, request.user)
         # Override title for section report
-        original_add_title = generator._add_title_page
         def _add_title_page_section():
-            from reportlab.platypus import Paragraph, Spacer
+            from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
             from reportlab.lib.units import inch
+            from reportlab.lib import colors
             from datetime import datetime
             title_text = "<para align='center'><b><font size='18' color='#0066CC'>SECTION REPORT</font></b></para>"
-            generator.story.append(Paragraph(title_text, generator.styles['GovernmentTitle']))
+            generator.story.append(Paragraph(title_text, generator.styles['DENRTitle']))
             subtitle_text = "<para align='center'><font size='14' color='#008000'>Inspection Summary Report</font></para>"
-            generator.story.append(Paragraph(subtitle_text, generator.styles['GovernmentSubtitle']))
+            generator.story.append(Paragraph(subtitle_text, generator.styles['DENRSubtitle']))
             generator.story.append(Spacer(1, 0.2*inch))
             gen_date = datetime.now().strftime("%B %d, %Y")
             date_text = f"<para align='center'><font size='10'>Generated on: {gen_date}</font></para>"
-            generator.story.append(Paragraph(date_text, generator.styles['Normal']))
+            generator.story.append(Paragraph(date_text, generator.styles['DENRBody']))
             generator.story.append(Spacer(1, 0.3*inch))
             # Add metadata table
             metadata_data = [
-                ['Report ID:', f"SECT-RPT-{int(datetime.now().timestamp() * 1000)}"],
+                ['Reference Number:', generator.reference_number],
                 ['Prepared by:', f"{request.user.first_name} {request.user.last_name}"],
                 ['User Level:', request.user.userlevel],
                 ['Email:', request.user.email],
                 ['Generated:', datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
             ]
-            from reportlab.platypus import Table, TableStyle
-            from reportlab.lib import colors
             metadata_table = Table(metadata_data, colWidths=[2*inch, 4*inch])
             metadata_table.setStyle(TableStyle([
-                ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
-                ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
                 ('ALIGN', (0, 0), (0, -1), 'LEFT'),
                 ('ALIGN', (1, 0), (1, -1), 'LEFT'),
                 ('PADDING', (0, 0), (-1, -1), 8),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('GRID', (0, 0), (-1, -1), 0.5, generator.border_gray),
                 ('BACKGROUND', (0, 0), (0, -1), generator.light_blue),
             ]))
             generator.story.append(metadata_table)
+            generator.story.append(Spacer(1, 0.3*inch))
+            # Legal bases section
+            generator.story.append(Paragraph("<b>LEGAL BASES</b>", generator.styles['SectionHeader']))
+            legal_bases = generator._get_legal_bases()
+            for base in legal_bases:
+                base_text = f"<bullet>&bull;</bullet> {base}"
+                generator.story.append(Paragraph(base_text, generator.styles['DENRBody']))
             generator.story.append(Spacer(1, 0.3*inch))
             # Add filters if any
             if filters_applied:
                 filter_data = [['FILTERS APPLIED:', '']]
                 for key, value in filters_applied.items():
-                    filter_data.append([key.replace('_', ' ').title() + ':', str(value)])
-                filter_table = Table(filter_data, colWidths=[2*inch, 4*inch])
-                filter_table.setStyle(TableStyle([
-                    ('FONTNAME', (0, 0), (0, 0), 'Times-Bold'),
-                    ('FONTSIZE', (0, 0), (0, 0), 11),
-                    ('BACKGROUND', (0, 0), (-1, 0), generator.light_blue),
-                    ('FONTNAME', (0, 1), (0, -1), 'Times-Bold'),
-                    ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
-                    ('FONTSIZE', (0, 1), (-1, -1), 9),
-                    ('PADDING', (0, 0), (-1, -1), 6),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ]))
-                generator.story.append(filter_table)
+                    if value:
+                        filter_data.append([key.replace('_', ' ').title() + ':', str(value)])
+                if len(filter_data) > 1:
+                    filter_table = Table(filter_data, colWidths=[2*inch, 4*inch])
+                    filter_table.setStyle(TableStyle([
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (0, 0), 11),
+                        ('BACKGROUND', (0, 0), (-1, 0), generator.light_blue),
+                        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+                        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+                        ('FONTSIZE', (0, 1), (-1, -1), 9),
+                        ('PADDING', (0, 0), (-1, -1), 6),
+                        ('GRID', (0, 0), (-1, -1), 0.5, generator.border_gray),
+                    ]))
+                    generator.story.append(filter_table)
+                    generator.story.append(Spacer(1, 0.3*inch))
         generator._add_title_page = _add_title_page_section
         generator.generate()
         
@@ -6292,7 +6300,7 @@ class SectionReportViewSet(viewsets.ViewSet):
     def export_excel(self, request):
         """Export report as Excel"""
         from django.http import HttpResponse
-        from .division_report_excel import DivisionReportExcelGenerator
+        from .section_report_excel import SectionReportExcelGenerator
         
         queryset = self._get_base_queryset(request)
         queryset = queryset.order_by('-created_at')[:500]
@@ -6318,11 +6326,7 @@ class SectionReportViewSet(viewsets.ViewSet):
             if value:
                 filters_applied[param] = value
         
-        generator = DivisionReportExcelGenerator(report_data, filters_applied)
-        # Update title for section report
-        ws = generator.workbook.active
-        ws['A1'] = 'SECTION REPORT - SUMMARY STATISTICS'
-        
+        generator = SectionReportExcelGenerator(report_data, filters_applied)
         output = generator.generate()
         response = HttpResponse(
             output.getvalue(),
@@ -6554,17 +6558,17 @@ class UnitReportViewSet(viewsets.ViewSet):
             from reportlab.lib import colors
             from datetime import datetime
             title_text = "<para align='center'><b><font size='18' color='#0066CC'>UNIT REPORT</font></b></para>"
-            generator.story.append(Paragraph(title_text, generator.styles['GovernmentTitle']))
+            generator.story.append(Paragraph(title_text, generator.styles['DENRTitle']))
             subtitle_text = "<para align='center'><font size='14' color='#008000'>Inspection Summary Report</font></para>"
-            generator.story.append(Paragraph(subtitle_text, generator.styles['GovernmentSubtitle']))
+            generator.story.append(Paragraph(subtitle_text, generator.styles['DENRSubtitle']))
             generator.story.append(Spacer(1, 0.2*inch))
             gen_date = datetime.now().strftime("%B %d, %Y")
             date_text = f"<para align='center'><font size='10'>Generated on: {gen_date}</font></para>"
-            generator.story.append(Paragraph(date_text, generator.styles['Normal']))
+            generator.story.append(Paragraph(date_text, generator.styles['DENRBody']))
             generator.story.append(Spacer(1, 0.3*inch))
             # Add metadata table
             metadata_data = [
-                ['Report ID:', f"UNIT-RPT-{int(datetime.now().timestamp() * 1000)}"],
+                ['Reference Number:', generator.reference_number],
                 ['Prepared by:', f"{request.user.first_name} {request.user.last_name}"],
                 ['User Level:', request.user.userlevel],
                 ['Email:', request.user.email],
@@ -6572,34 +6576,44 @@ class UnitReportViewSet(viewsets.ViewSet):
             ]
             metadata_table = Table(metadata_data, colWidths=[2*inch, 4*inch])
             metadata_table.setStyle(TableStyle([
-                ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
-                ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
                 ('ALIGN', (0, 0), (0, -1), 'LEFT'),
                 ('ALIGN', (1, 0), (1, -1), 'LEFT'),
                 ('PADDING', (0, 0), (-1, -1), 8),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('GRID', (0, 0), (-1, -1), 0.5, generator.border_gray),
                 ('BACKGROUND', (0, 0), (0, -1), generator.light_blue),
             ]))
             generator.story.append(metadata_table)
+            generator.story.append(Spacer(1, 0.3*inch))
+            # Legal bases section
+            generator.story.append(Paragraph("<b>LEGAL BASES</b>", generator.styles['SectionHeader']))
+            legal_bases = generator._get_legal_bases()
+            for base in legal_bases:
+                base_text = f"<bullet>&bull;</bullet> {base}"
+                generator.story.append(Paragraph(base_text, generator.styles['DENRBody']))
             generator.story.append(Spacer(1, 0.3*inch))
             # Add filters if any
             if filters_applied:
                 filter_data = [['FILTERS APPLIED:', '']]
                 for key, value in filters_applied.items():
-                    filter_data.append([key.replace('_', ' ').title() + ':', str(value)])
-                filter_table = Table(filter_data, colWidths=[2*inch, 4*inch])
-                filter_table.setStyle(TableStyle([
-                    ('FONTNAME', (0, 0), (0, 0), 'Times-Bold'),
-                    ('FONTSIZE', (0, 0), (0, 0), 11),
-                    ('BACKGROUND', (0, 0), (-1, 0), generator.light_blue),
-                    ('FONTNAME', (0, 1), (0, -1), 'Times-Bold'),
-                    ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
-                    ('FONTSIZE', (0, 1), (-1, -1), 9),
-                    ('PADDING', (0, 0), (-1, -1), 6),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ]))
-                generator.story.append(filter_table)
+                    if value:
+                        filter_data.append([key.replace('_', ' ').title() + ':', str(value)])
+                if len(filter_data) > 1:
+                    filter_table = Table(filter_data, colWidths=[2*inch, 4*inch])
+                    filter_table.setStyle(TableStyle([
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (0, 0), 11),
+                        ('BACKGROUND', (0, 0), (-1, 0), generator.light_blue),
+                        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+                        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+                        ('FONTSIZE', (0, 1), (-1, -1), 9),
+                        ('PADDING', (0, 0), (-1, -1), 6),
+                        ('GRID', (0, 0), (-1, -1), 0.5, generator.border_gray),
+                    ]))
+                    generator.story.append(filter_table)
+                    generator.story.append(Spacer(1, 0.3*inch))
         generator._add_title_page = _add_title_page_unit
         generator.generate()
         
@@ -6612,7 +6626,7 @@ class UnitReportViewSet(viewsets.ViewSet):
     def export_excel(self, request):
         """Export report as Excel"""
         from django.http import HttpResponse
-        from .division_report_excel import DivisionReportExcelGenerator
+        from .unit_report_excel import UnitReportExcelGenerator
         
         queryset = self._get_base_queryset(request)
         queryset = queryset.order_by('-created_at')[:500]
@@ -6638,11 +6652,7 @@ class UnitReportViewSet(viewsets.ViewSet):
             if value:
                 filters_applied[param] = value
         
-        generator = DivisionReportExcelGenerator(report_data, filters_applied)
-        # Update title for unit report
-        ws = generator.workbook.active
-        ws['A1'] = 'UNIT REPORT - SUMMARY STATISTICS'
-        
+        generator = UnitReportExcelGenerator(report_data, filters_applied)
         output = generator.generate()
         response = HttpResponse(
             output.getvalue(),
@@ -6874,17 +6884,17 @@ class MonitoringReportViewSet(viewsets.ViewSet):
             from reportlab.lib import colors
             from datetime import datetime
             title_text = "<para align='center'><b><font size='18' color='#0066CC'>MONITORING REPORT</font></b></para>"
-            generator.story.append(Paragraph(title_text, generator.styles['GovernmentTitle']))
+            generator.story.append(Paragraph(title_text, generator.styles['DENRTitle']))
             subtitle_text = "<para align='center'><font size='14' color='#008000'>Inspection Summary Report</font></para>"
-            generator.story.append(Paragraph(subtitle_text, generator.styles['GovernmentSubtitle']))
+            generator.story.append(Paragraph(subtitle_text, generator.styles['DENRSubtitle']))
             generator.story.append(Spacer(1, 0.2*inch))
             gen_date = datetime.now().strftime("%B %d, %Y")
             date_text = f"<para align='center'><font size='10'>Generated on: {gen_date}</font></para>"
-            generator.story.append(Paragraph(date_text, generator.styles['Normal']))
+            generator.story.append(Paragraph(date_text, generator.styles['DENRBody']))
             generator.story.append(Spacer(1, 0.3*inch))
             # Add metadata table
             metadata_data = [
-                ['Report ID:', f"MON-RPT-{int(datetime.now().timestamp() * 1000)}"],
+                ['Reference Number:', generator.reference_number],
                 ['Prepared by:', f"{request.user.first_name} {request.user.last_name}"],
                 ['User Level:', request.user.userlevel],
                 ['Email:', request.user.email],
@@ -6892,34 +6902,44 @@ class MonitoringReportViewSet(viewsets.ViewSet):
             ]
             metadata_table = Table(metadata_data, colWidths=[2*inch, 4*inch])
             metadata_table.setStyle(TableStyle([
-                ('FONTNAME', (0, 0), (0, -1), 'Times-Bold'),
-                ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
+                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+                ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
                 ('FONTSIZE', (0, 0), (-1, -1), 10),
                 ('ALIGN', (0, 0), (0, -1), 'LEFT'),
                 ('ALIGN', (1, 0), (1, -1), 'LEFT'),
                 ('PADDING', (0, 0), (-1, -1), 8),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('GRID', (0, 0), (-1, -1), 0.5, generator.border_gray),
                 ('BACKGROUND', (0, 0), (0, -1), generator.light_blue),
             ]))
             generator.story.append(metadata_table)
+            generator.story.append(Spacer(1, 0.3*inch))
+            # Legal bases section
+            generator.story.append(Paragraph("<b>LEGAL BASES</b>", generator.styles['SectionHeader']))
+            legal_bases = generator._get_legal_bases()
+            for base in legal_bases:
+                base_text = f"<bullet>&bull;</bullet> {base}"
+                generator.story.append(Paragraph(base_text, generator.styles['DENRBody']))
             generator.story.append(Spacer(1, 0.3*inch))
             # Add filters if any
             if filters_applied:
                 filter_data = [['FILTERS APPLIED:', '']]
                 for key, value in filters_applied.items():
-                    filter_data.append([key.replace('_', ' ').title() + ':', str(value)])
-                filter_table = Table(filter_data, colWidths=[2*inch, 4*inch])
-                filter_table.setStyle(TableStyle([
-                    ('FONTNAME', (0, 0), (0, 0), 'Times-Bold'),
-                    ('FONTSIZE', (0, 0), (0, 0), 11),
-                    ('BACKGROUND', (0, 0), (-1, 0), generator.light_blue),
-                    ('FONTNAME', (0, 1), (0, -1), 'Times-Bold'),
-                    ('FONTNAME', (1, 0), (1, -1), 'Times-Roman'),
-                    ('FONTSIZE', (0, 1), (-1, -1), 9),
-                    ('PADDING', (0, 0), (-1, -1), 6),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ]))
-                generator.story.append(filter_table)
+                    if value:
+                        filter_data.append([key.replace('_', ' ').title() + ':', str(value)])
+                if len(filter_data) > 1:
+                    filter_table = Table(filter_data, colWidths=[2*inch, 4*inch])
+                    filter_table.setStyle(TableStyle([
+                        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (0, 0), 11),
+                        ('BACKGROUND', (0, 0), (-1, 0), generator.light_blue),
+                        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+                        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+                        ('FONTSIZE', (0, 1), (-1, -1), 9),
+                        ('PADDING', (0, 0), (-1, -1), 6),
+                        ('GRID', (0, 0), (-1, -1), 0.5, generator.border_gray),
+                    ]))
+                    generator.story.append(filter_table)
+                    generator.story.append(Spacer(1, 0.3*inch))
         generator._add_title_page = _add_title_page_monitoring
         generator.generate()
         
@@ -6932,7 +6952,7 @@ class MonitoringReportViewSet(viewsets.ViewSet):
     def export_excel(self, request):
         """Export report as Excel"""
         from django.http import HttpResponse
-        from .division_report_excel import DivisionReportExcelGenerator
+        from .monitoring_report_excel import MonitoringReportExcelGenerator
         
         queryset = self._get_base_queryset(request)
         queryset = queryset.order_by('-created_at')[:500]
@@ -6958,11 +6978,7 @@ class MonitoringReportViewSet(viewsets.ViewSet):
             if value:
                 filters_applied[param] = value
         
-        generator = DivisionReportExcelGenerator(report_data, filters_applied)
-        # Update title for monitoring report
-        ws = generator.workbook.active
-        ws['A1'] = 'MONITORING REPORT - SUMMARY STATISTICS'
-        
+        generator = MonitoringReportExcelGenerator(report_data, filters_applied)
         output = generator.generate()
         response = HttpResponse(
             output.getvalue(),
