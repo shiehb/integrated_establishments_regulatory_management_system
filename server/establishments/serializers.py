@@ -66,6 +66,40 @@ class EstablishmentSerializer(serializers.ModelSerializer):
                     })
                     
             except (ValueError, TypeError):
-                raise serializers.ValidationError({
-                    'polygon': [f'Coordinate {i} must be valid numbers']
-                })
+                    raise serializers.ValidationError({
+                        'polygon': [f'Coordinate {i} must be valid numbers']
+                    })
+
+
+class AdminReportEstablishmentSerializer(serializers.ModelSerializer):
+    """Serializer for Admin Report - Establishment data"""
+    full_address = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Establishment
+        fields = (
+            'id',
+            'name',
+            'nature_of_business',
+            'province',
+            'city',
+            'barangay',
+            'street_building',
+            'full_address',
+            'created_at',
+            'updated_at',
+            'is_active'
+        )
+    
+    def get_full_address(self, obj):
+        """Get full address formatted"""
+        parts = []
+        if obj.street_building:
+            parts.append(obj.street_building)
+        if obj.barangay:
+            parts.append(obj.barangay)
+        if obj.city:
+            parts.append(obj.city)
+        if obj.province:
+            parts.append(obj.province)
+        return ', '.join(parts) if parts else 'N/A'

@@ -1641,3 +1641,116 @@ export const exportMonitoringReportExcel = async (params = {}) => {
   }
 };
 
+// Admin Report Generation
+// -------------------------------------------------
+export const getAdminReportEstablishments = async (params = {}) => {
+  try {
+    const response = await api.get('admin-reports/establishments/', { params });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch establishments report data. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const getAdminReportUsers = async (params = {}) => {
+  try {
+    const response = await api.get('admin-reports/users/', { params });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch users report data. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const getAdminReportFilterOptions = async (params = {}) => {
+  try {
+    const response = await api.get('admin-reports/filter_options/', { params });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch filter options. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const exportAdminReportPDF = async (params = {}, reportType = 'establishments') => {
+  try {
+    const endpoint = reportType === 'establishments' 
+      ? 'admin-reports/export_establishments_pdf/' 
+      : 'admin-reports/export_users_pdf/';
+    
+    const response = await api.get(endpoint, {
+      params,
+      responseType: 'blob'
+    });
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `admin_${reportType}_report_${new Date().toISOString().slice(0,10)}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true };
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to export PDF. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const exportAdminReportExcel = async (params = {}, reportType = 'establishments') => {
+  try {
+    const endpoint = reportType === 'establishments' 
+      ? 'admin-reports/export_establishments_excel/' 
+      : 'admin-reports/export_users_excel/';
+    
+    const response = await api.get(endpoint, {
+      params,
+      responseType: 'blob'
+    });
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `admin_${reportType}_report_${new Date().toISOString().slice(0,10)}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true };
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to export Excel. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+

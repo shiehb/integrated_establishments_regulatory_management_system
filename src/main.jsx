@@ -42,6 +42,7 @@ import DivisionReports from "./pages/DivisionReports";
 import SectionReports from "./pages/SectionReports";
 import UnitReports from "./pages/UnitReports";
 import MonitoringReports from "./pages/MonitoringReports";
+import AdminReports from "./pages/AdminReports";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -206,6 +207,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               element={
                 <RoleRoute allowed={["Monitoring Personnel"]}>
                   <MonitoringReports />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/admin-reports"
+              element={
+                <RoleRoute allowed={["Admin"]}>
+                  <AdminReports />
                 </RoleRoute>
               }
             />

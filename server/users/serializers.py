@@ -208,3 +208,29 @@ class MyTokenObtainPairSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
+
+class AdminReportUserSerializer(serializers.ModelSerializer):
+    """Serializer for Admin Report - User data"""
+    full_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = User
+        fields = (
+            'id',
+            'email',
+            'first_name',
+            'last_name',
+            'full_name',
+            'userlevel',
+            'section',
+            'date_joined',
+            'updated_at',
+            'is_active',
+            'last_login'
+        )
+    
+    def get_full_name(self, obj):
+        """Get full name"""
+        parts = [obj.first_name, obj.last_name]
+        return ' '.join(filter(None, parts)) or obj.email
+

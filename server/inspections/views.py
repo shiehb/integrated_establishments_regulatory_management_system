@@ -5690,10 +5690,17 @@ class DivisionReportViewSet(viewsets.ViewSet):
         # Establishment filter
         establishment = request.query_params.get('establishment')
         if establishment:
-            queryset = queryset.filter(
-                Q(establishments__name__icontains=establishment) |
-                Q(establishments__id=establishment)
-            ).distinct()
+            # Try to convert to int for ID lookup, if fails only search by name
+            try:
+                establishment_id = int(establishment)
+                queryset = queryset.filter(
+                    Q(establishments__name__icontains=establishment) |
+                    Q(establishments__id=establishment_id)
+                ).distinct()
+            except (ValueError, TypeError):
+                queryset = queryset.filter(
+                    Q(establishments__name__icontains=establishment)
+                ).distinct()
         
         # Inspection code filter
         inspection_code = request.query_params.get('inspection_code')
@@ -6032,10 +6039,17 @@ class SectionReportViewSet(viewsets.ViewSet):
         # Establishment filter
         establishment = request.query_params.get('establishment')
         if establishment:
-            queryset = queryset.filter(
-                Q(establishments__name__icontains=establishment) |
-                Q(establishments__id=establishment)
-            ).distinct()
+            # Try to convert to int for ID lookup, if fails only search by name
+            try:
+                establishment_id = int(establishment)
+                queryset = queryset.filter(
+                    Q(establishments__name__icontains=establishment) |
+                    Q(establishments__id=establishment_id)
+                ).distinct()
+            except (ValueError, TypeError):
+                queryset = queryset.filter(
+                    Q(establishments__name__icontains=establishment)
+                ).distinct()
         
         # Inspection code filter
         inspection_code = request.query_params.get('inspection_code')
@@ -6349,10 +6363,17 @@ class UnitReportViewSet(viewsets.ViewSet):
         # Establishment filter
         establishment = request.query_params.get('establishment')
         if establishment:
-            queryset = queryset.filter(
-                Q(establishments__name__icontains=establishment) |
-                Q(establishments__id=establishment)
-            ).distinct()
+            # Try to convert to int for ID lookup, if fails only search by name
+            try:
+                establishment_id = int(establishment)
+                queryset = queryset.filter(
+                    Q(establishments__name__icontains=establishment) |
+                    Q(establishments__id=establishment_id)
+                ).distinct()
+            except (ValueError, TypeError):
+                queryset = queryset.filter(
+                    Q(establishments__name__icontains=establishment)
+                ).distinct()
         
         # Inspection code filter
         inspection_code = request.query_params.get('inspection_code')
@@ -6662,10 +6683,17 @@ class MonitoringReportViewSet(viewsets.ViewSet):
         # Establishment filter
         establishment = request.query_params.get('establishment')
         if establishment:
-            queryset = queryset.filter(
-                Q(establishments__name__icontains=establishment) |
-                Q(establishments__id=establishment)
-            ).distinct()
+            # Try to convert to int for ID lookup, if fails only search by name
+            try:
+                establishment_id = int(establishment)
+                queryset = queryset.filter(
+                    Q(establishments__name__icontains=establishment) |
+                    Q(establishments__id=establishment_id)
+                ).distinct()
+            except (ValueError, TypeError):
+                queryset = queryset.filter(
+                    Q(establishments__name__icontains=establishment)
+                ).distinct()
         
         # Inspection code filter
         inspection_code = request.query_params.get('inspection_code')
@@ -6941,4 +6969,363 @@ class MonitoringReportViewSet(viewsets.ViewSet):
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         )
         response['Content-Disposition'] = f'attachment; filename="monitoring_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+        return response
+
+
+class AdminReportViewSet(viewsets.ViewSet):
+    """
+    ViewSet for Admin Report Generation - Establishments and Users
+    Provides comprehensive reporting with filtering, statistics, and export capabilities
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def _check_admin_access(self, request):
+        """Check if user has admin access"""
+        if request.user.userlevel != 'Admin':
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only Admin users can access this report.")
+    
+    def _get_establishments_queryset(self, request):
+        """Get filtered establishments queryset"""
+        from establishments.models import Establishment
+        from establishments.serializers import AdminReportEstablishmentSerializer
+        
+        queryset = Establishment.objects.all()
+        
+        # Date filters
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        if date_from:
+            queryset = queryset.filter(created_at__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(created_at__lte=date_to)
+        
+        # Nature of Business filter
+        nature_of_business = request.query_params.get('nature_of_business')
+        if nature_of_business and nature_of_business != 'ALL':
+            queryset = queryset.filter(nature_of_business__icontains=nature_of_business)
+        
+        # Province filter
+        province = request.query_params.get('province')
+        if province and province != 'ALL':
+            queryset = queryset.filter(province__icontains=province)
+        
+        # Barangay filter
+        barangay = request.query_params.get('barangay')
+        if barangay and barangay != 'ALL':
+            queryset = queryset.filter(barangay__icontains=barangay)
+        
+        # Order by created_at descending
+        queryset = queryset.order_by('-created_at')
+        
+        return queryset
+    
+    def _get_users_queryset(self, request):
+        """Get filtered users queryset"""
+        from users.serializers import AdminReportUserSerializer
+        
+        User = get_user_model()
+        queryset = User.objects.all()
+        
+        # Status filter (created or updated)
+        status_filter = request.query_params.get('status_filter', 'created')
+        
+        # Date filters based on status_filter
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        
+        if status_filter == 'created':
+            if date_from:
+                queryset = queryset.filter(date_joined__gte=date_from)
+            if date_to:
+                queryset = queryset.filter(date_joined__lte=date_to)
+        elif status_filter == 'updated':
+            if date_from:
+                queryset = queryset.filter(updated_at__gte=date_from)
+            if date_to:
+                queryset = queryset.filter(updated_at__lte=date_to)
+        
+        # Active status filter
+        is_active_filter = request.query_params.get('is_active')
+        if is_active_filter == 'true':
+            queryset = queryset.filter(is_active=True)
+        elif is_active_filter == 'false':
+            queryset = queryset.filter(is_active=False)
+        
+        # Order by date_joined descending
+        queryset = queryset.order_by('-date_joined')
+        
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def establishments(self, request):
+        """List establishments with pagination"""
+        self._check_admin_access(request)
+        from core.pagination import StandardResultsSetPagination
+        from establishments.serializers import AdminReportEstablishmentSerializer
+        
+        queryset = self._get_establishments_queryset(request)
+        
+        # Pagination
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        
+        if page is not None:
+            serializer = AdminReportEstablishmentSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+        
+        serializer = AdminReportEstablishmentSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def users(self, request):
+        """List users with pagination"""
+        self._check_admin_access(request)
+        from core.pagination import StandardResultsSetPagination
+        from users.serializers import AdminReportUserSerializer
+        
+        queryset = self._get_users_queryset(request)
+        
+        # Pagination
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        
+        if page is not None:
+            serializer = AdminReportUserSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+        
+        serializer = AdminReportUserSerializer(queryset, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def establishments_statistics(self, request):
+        """Get establishments statistics"""
+        self._check_admin_access(request)
+        from django.db.models import Count
+        
+        queryset = self._get_establishments_queryset(request)
+        
+        total = queryset.count()
+        active = queryset.filter(is_active=True).count()
+        inactive = queryset.filter(is_active=False).count()
+        
+        # Group by nature of business
+        by_nature = queryset.values('nature_of_business').annotate(
+            count=Count('id')
+        ).order_by('-count')[:10]
+        
+        # Group by province
+        by_province = queryset.values('province').annotate(
+            count=Count('id')
+        ).order_by('-count')[:10]
+        
+        return Response({
+            'total': total,
+            'active': active,
+            'inactive': inactive,
+            'by_nature_of_business': list(by_nature),
+            'by_province': list(by_province)
+        })
+    
+    @action(detail=False, methods=['get'])
+    def users_statistics(self, request):
+        """Get users statistics"""
+        self._check_admin_access(request)
+        from django.db.models import Count
+        
+        queryset = self._get_users_queryset(request)
+        
+        total = queryset.count()
+        active = queryset.filter(is_active=True).count()
+        inactive = queryset.filter(is_active=False).count()
+        
+        # Group by userlevel
+        by_userlevel = queryset.values('userlevel').annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        # Group by section
+        by_section = queryset.values('section').annotate(
+            count=Count('id')
+        ).order_by('-count')
+        
+        return Response({
+            'total': total,
+            'active': active,
+            'inactive': inactive,
+            'by_userlevel': list(by_userlevel),
+            'by_section': list(by_section)
+        })
+    
+    @action(detail=False, methods=['get'])
+    def filter_options(self, request):
+        """Get filter options for establishments"""
+        self._check_admin_access(request)
+        from establishments.models import Establishment
+        
+        # Get unique values for filters
+        nature_of_business = Establishment.objects.values_list(
+            'nature_of_business', flat=True
+        ).distinct().order_by('nature_of_business')
+        
+        provinces = Establishment.objects.values_list(
+            'province', flat=True
+        ).distinct().order_by('province')
+        
+        # Barangays (filtered by province if provided)
+        province = request.query_params.get('province')
+        barangay_queryset = Establishment.objects.all()
+        if province and province != 'ALL':
+            barangay_queryset = barangay_queryset.filter(province__icontains=province)
+        
+        barangays = barangay_queryset.values_list(
+            'barangay', flat=True
+        ).distinct().order_by('barangay')
+        
+        return Response({
+            'nature_of_business': list(nature_of_business),
+            'provinces': list(provinces),
+            'barangays': list(barangays)
+        })
+    
+    @action(detail=False, methods=['get'])
+    def export_establishments_pdf(self, request):
+        """Export establishments report as PDF"""
+        self._check_admin_access(request)
+        from django.http import HttpResponse
+        from .admin_report_pdf import AdminReportPDFGenerator
+        import io
+        
+        queryset = self._get_establishments_queryset(request)
+        from establishments.serializers import AdminReportEstablishmentSerializer
+        serializer = AdminReportEstablishmentSerializer(queryset, many=True)
+        report_data = serializer.data
+        
+        # Build filters applied dict
+        filters_applied = {
+            'Date From': request.query_params.get('date_from', ''),
+            'Date To': request.query_params.get('date_to', ''),
+            'Nature of Business': request.query_params.get('nature_of_business', 'ALL'),
+            'Province': request.query_params.get('province', 'ALL'),
+            'Barangay': request.query_params.get('barangay', 'ALL'),
+        }
+        
+        buffer = io.BytesIO()
+        generator = AdminReportPDFGenerator(buffer, report_data, filters_applied, {
+            'name': f"{request.user.first_name} {request.user.last_name}".strip() or request.user.email,
+            'userlevel': request.user.userlevel
+        })
+        generator.generate_establishments_report()
+        
+        buffer.seek(0)
+        response = HttpResponse(
+            buffer.read(),
+            content_type='application/pdf'
+        )
+        response['Content-Disposition'] = f'attachment; filename="admin_establishments_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+        return response
+    
+    @action(detail=False, methods=['get'])
+    def export_users_pdf(self, request):
+        """Export users report as PDF"""
+        self._check_admin_access(request)
+        from django.http import HttpResponse
+        from .admin_report_pdf import AdminReportPDFGenerator
+        import io
+        
+        queryset = self._get_users_queryset(request)
+        from users.serializers import AdminReportUserSerializer
+        serializer = AdminReportUserSerializer(queryset, many=True)
+        report_data = serializer.data
+        
+        # Build filters applied dict
+        status_filter = request.query_params.get('status_filter', 'created')
+        filters_applied = {
+            'Date From': request.query_params.get('date_from', ''),
+            'Date To': request.query_params.get('date_to', ''),
+            'Status Filter': status_filter.title(),
+            'Active Status': request.query_params.get('is_active', 'ALL'),
+        }
+        
+        buffer = io.BytesIO()
+        generator = AdminReportPDFGenerator(buffer, report_data, filters_applied, {
+            'name': f"{request.user.first_name} {request.user.last_name}".strip() or request.user.email,
+            'userlevel': request.user.userlevel
+        })
+        generator.generate_users_report()
+        
+        buffer.seek(0)
+        response = HttpResponse(
+            buffer.read(),
+            content_type='application/pdf'
+        )
+        response['Content-Disposition'] = f'attachment; filename="admin_users_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+        return response
+    
+    @action(detail=False, methods=['get'])
+    def export_establishments_excel(self, request):
+        """Export establishments report as Excel"""
+        self._check_admin_access(request)
+        from django.http import HttpResponse
+        from .admin_report_excel import AdminReportExcelGenerator
+        import io
+        
+        queryset = self._get_establishments_queryset(request)
+        from establishments.serializers import AdminReportEstablishmentSerializer
+        serializer = AdminReportEstablishmentSerializer(queryset, many=True)
+        report_data = serializer.data
+        
+        # Build filters applied dict
+        filters_applied = {
+            'Date From': request.query_params.get('date_from', ''),
+            'Date To': request.query_params.get('date_to', ''),
+            'Nature of Business': request.query_params.get('nature_of_business', 'ALL'),
+            'Province': request.query_params.get('province', 'ALL'),
+            'Barangay': request.query_params.get('barangay', 'ALL'),
+        }
+        
+        output = io.BytesIO()
+        generator = AdminReportExcelGenerator(report_data, filters_applied)
+        generator.generate_establishments_report()
+        generator.workbook.save(output)
+        
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="admin_establishments_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+        return response
+    
+    @action(detail=False, methods=['get'])
+    def export_users_excel(self, request):
+        """Export users report as Excel"""
+        self._check_admin_access(request)
+        from django.http import HttpResponse
+        from .admin_report_excel import AdminReportExcelGenerator
+        import io
+        
+        queryset = self._get_users_queryset(request)
+        from users.serializers import AdminReportUserSerializer
+        serializer = AdminReportUserSerializer(queryset, many=True)
+        report_data = serializer.data
+        
+        # Build filters applied dict
+        status_filter = request.query_params.get('status_filter', 'created')
+        filters_applied = {
+            'Date From': request.query_params.get('date_from', ''),
+            'Date To': request.query_params.get('date_to', ''),
+            'Status Filter': status_filter.title(),
+            'Active Status': request.query_params.get('is_active', 'ALL'),
+        }
+        
+        output = io.BytesIO()
+        generator = AdminReportExcelGenerator(report_data, filters_applied)
+        generator.generate_users_report()
+        generator.workbook.save(output)
+        
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="admin_users_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
         return response

@@ -14,9 +14,10 @@ import {
   FileText,
   Download,
   FileSpreadsheet,
-  Printer,
   RefreshCcw,
-  Eraser
+  Eraser,
+  X,
+  Filter
 } from 'lucide-react';
 import { useNotifications } from '../components/NotificationManager';
 
@@ -43,8 +44,8 @@ export default function DivisionReports() {
   const [currentPage, setCurrentPage] = useState(savedPagination.page);
   const [pageSize, setPageSize] = useState(savedPagination.pageSize);
   
-  // Filter state
-  const [filters, setFilters] = useState({
+  // Filter state - what user types
+  const [inputFilters, setInputFilters] = useState({
     date_from: '',
     date_to: '',
     establishment: '',
@@ -55,25 +56,45 @@ export default function DivisionReports() {
     has_noo: ''
   });
   
+  // Applied filter state - what filters are actually applied to the query
+  const [appliedFilters, setAppliedFilters] = useState({
+    date_from: '',
+    date_to: '',
+    establishment: '',
+    law: 'ALL',
+    compliance_status: 'ALL',
+    inspection_status: 'ALL',
+    has_nov: '',
+    has_noo: ''
+  });
+  
+  // Refresh trigger state
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
   // Export loading states
   const [exportingPDF, setExportingPDF] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
   
+  // Generate report modal state
+  const [generateReportModal, setGenerateReportModal] = useState({
+    open: false
+  });
+  
   // Confirmation dialog state
   const [confirmationDialog, setConfirmationDialog] = useState({
     open: false,
-    action: null, // 'clear', 'exportPDF', 'exportExcel', 'print'
+    action: null, // 'clear', 'exportPDF', 'exportExcel'
     loading: false
   });
   
-  // Memoize filter params
+  // Memoize filter params from applied filters
   const filterParams = useMemo(() => {
     const params = Object.fromEntries(
-      Object.entries(filters).filter(([, v]) => v && v !== 'ALL')
+      Object.entries(appliedFilters).filter(([, v]) => v && v !== 'ALL')
     );
     console.log('filterParams computed:', params);
     return params;
-  }, [filters]);
+  }, [appliedFilters]);
   
   // Fetch data
   useEffect(() => {
@@ -144,9 +165,9 @@ export default function DivisionReports() {
           console.error('Error fetching division report data:', error);
           console.error('Error details:', error.response?.data || error.message);
           // Use notificationsRef to avoid dependency issues
-          if (notificationsRef.current && typeof notificationsRef.current.showNotification === 'function') {
+          if (notificationsRef.current && typeof notificationsRef.current.error === 'function') {
             const errorMsg = error.response?.data?.detail || error.message || 'Failed to fetch report data';
-            notificationsRef.current.showNotification(errorMsg, 'error');
+            notificationsRef.current.error(errorMsg);
           }
           setRecords([]);
           setTotalCount(0);
@@ -163,16 +184,22 @@ export default function DivisionReports() {
     console.log('useEffect triggered', { currentPage, pageSize, filterParams });
     fetchData();
     
-    return () => {
-      isMounted = false;
-      fetchingRef.current = false;
-    };
-  }, [currentPage, pageSize, filterParams]);
+      return () => {
+        isMounted = false;
+        fetchingRef.current = false;
+      };
+    }, [currentPage, pageSize, filterParams, refreshTrigger]);
   
-  // Handle filter change
+  // Handle filter change (doesn't apply filters, just updates input)
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-    setCurrentPage(1); // Reset to first page on filter change
+    setInputFilters(prev => ({ ...prev, [key]: value }));
+  };
+  
+  // Apply filters - copies inputFilters to appliedFilters and triggers fetch
+  const handleApplyFilters = () => {
+    setAppliedFilters(inputFilters);
+    setCurrentPage(1); // Reset to first page when applying filters
+    notifications?.success('Filters applied successfully');
   };
   
   // Clear filters - with confirmation
@@ -186,7 +213,7 @@ export default function DivisionReports() {
   
   const handleClearFilters = async () => {
     try {
-      setFilters({
+      const clearedFilters = {
         date_from: '',
         date_to: '',
         establishment: '',
@@ -195,8 +222,11 @@ export default function DivisionReports() {
         inspection_status: 'ALL',
         has_nov: '',
         has_noo: ''
-      });
+      };
+      setInputFilters(clearedFilters);
+      setAppliedFilters(clearedFilters);
       setCurrentPage(1);
+      notifications?.info('Filters cleared successfully');
     } finally {
       // Always close dialog
       setConfirmationDialog({ open: false, action: null, loading: false });
@@ -206,15 +236,27 @@ export default function DivisionReports() {
   // Manual refresh function
   const handleRefresh = useCallback(() => {
     setCurrentPage(1);
-    // Force re-render by updating a dependency
-    setFilters(prev => ({ ...prev }));
-  }, []);
+    // Force refetch by incrementing refresh trigger
+    setRefreshTrigger(prev => prev + 1);
+    notifications?.info('Refreshing data...');
+  }, [notifications]);
   
-  // Export handlers - with confirmation
-  const handleExportPDFClick = () => {
+  // Generate report modal handlers
+  const handleGenerateReportClick = () => {
+    setGenerateReportModal({ open: true });
+  };
+  
+  const handleCloseGenerateReportModal = () => {
+    setGenerateReportModal({ open: false });
+  };
+  
+  const handleSelectReportType = (type) => {
+    handleCloseGenerateReportModal();
+    
+    // Open confirmation dialog based on type
     setConfirmationDialog({
       open: true,
-      action: 'exportPDF',
+      action: type,
       loading: false
     });
   };
@@ -224,24 +266,15 @@ export default function DivisionReports() {
     setExportingPDF(true);
     try {
       await exportDivisionReportPDF(filterParams);
-      notifications?.showNotification('PDF report exported successfully', 'success');
+      notifications?.success('PDF report exported successfully');
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      notifications?.showNotification('Failed to export PDF report', 'error');
-      throw error; // Re-throw to be caught by handleConfirmAction
+      notifications?.error('Failed to export PDF report');
+      throw error;
     } finally {
       setExportingPDF(false);
-      // Always close dialog and reset loading state
       setConfirmationDialog({ open: false, action: null, loading: false });
     }
-  };
-  
-  const handleExportExcelClick = () => {
-    setConfirmationDialog({
-      open: true,
-      action: 'exportExcel',
-      loading: false
-    });
   };
   
   const handleExportExcel = async () => {
@@ -249,29 +282,15 @@ export default function DivisionReports() {
     setExportingExcel(true);
     try {
       await exportDivisionReportExcel(filterParams);
-      notifications?.showNotification('Excel report exported successfully', 'success');
+      notifications?.success('Excel report exported successfully');
     } catch (error) {
       console.error('Error exporting Excel:', error);
-      notifications?.showNotification('Failed to export Excel report', 'error');
-      throw error; // Re-throw to be caught by handleConfirmAction
+      notifications?.error('Failed to export Excel report');
+      throw error;
     } finally {
       setExportingExcel(false);
-      // Always close dialog and reset loading state
       setConfirmationDialog({ open: false, action: null, loading: false });
     }
-  };
-  
-  const handlePrintClick = () => {
-    setConfirmationDialog({
-      open: true,
-      action: 'print',
-      loading: false
-    });
-  };
-  
-  const handlePrint = () => {
-    window.print();
-    setConfirmationDialog({ open: false, action: null, loading: false });
   };
   
   // Handle confirmation dialog actions
@@ -286,9 +305,6 @@ export default function DivisionReports() {
           break;
         case 'exportExcel':
           await handleExportExcel();
-          break;
-        case 'print':
-          handlePrint();
           break;
         default:
           setConfirmationDialog({ open: false, action: null, loading: false });
@@ -325,20 +341,11 @@ export default function DivisionReports() {
           confirmColor: 'sky',
           headerColor: 'sky'
         };
-      case 'exportExcel':
+        case 'exportExcel':
         return {
           title: 'Export to Excel',
           message: 'This will generate and download an Excel report with the current filtered data. Do you want to continue?',
           confirmText: 'Export Excel',
-          cancelText: 'Cancel',
-          confirmColor: 'sky',
-          headerColor: 'sky'
-        };
-      case 'print':
-        return {
-          title: 'Print Report',
-          message: 'This will open the print dialog for the current report. Do you want to continue?',
-          confirmText: 'Print',
           cancelText: 'Cancel',
           confirmColor: 'sky',
           headerColor: 'sky'
@@ -369,14 +376,11 @@ export default function DivisionReports() {
     }
   };
 
-  // Button style constants (matching AuditLogs)
-  const BUTTON_BASE = "inline-flex items-center justify-center gap-2 rounded px-3 py-1 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60";
-  const BUTTON_SUBTLE = `${BUTTON_BASE} border border-gray-200 text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-sky-500`;
-  const BUTTON_MUTED = `${BUTTON_BASE} border border-gray-200 text-gray-700 shadow-sm hover:bg-gray-50 focus:ring-sky-500`;
-  const BUTTON_PRIMARY = `${BUTTON_BASE} bg-sky-600 text-white shadow-sm hover:bg-sky-700 focus:ring-sky-500`;
-  const BUTTON_ACCENT = `${BUTTON_BASE} bg-sky-600 text-white shadow-sm hover:bg-sky-700 focus:ring-sky-500`;
-  const BUTTON_DANGER = `${BUTTON_BASE} bg-red-600 text-white shadow-sm hover:bg-red-700 focus:ring-red-500`;
-  const BUTTON_SUCCESS = `${BUTTON_BASE} bg-green-600 text-white shadow-sm hover:bg-green-700 focus:ring-green-500`;
+  // Button style constants (removed rounded corners)
+  const BUTTON_BASE = "inline-flex items-center justify-center gap-2 px-3 py-1 text-sm font-medium transition-colors focus:outline-none disabled:cursor-not-allowed disabled:opacity-60";
+  const BUTTON_SUBTLE = `${BUTTON_BASE} border border-gray-200 py-1.5 text-gray-700 hover:bg-gray-50`;
+  const BUTTON_MUTED = `${BUTTON_BASE} border border-gray-200 text-gray-700 hover:bg-gray-50`;
+  const BUTTON_PRIMARY = `${BUTTON_BASE} bg-sky-600 text-white hover:bg-sky-700`;
 
   const hasActiveFilters = Object.values(filterParams).some(v => v);
   const COLUMN_COUNT = 6;
@@ -404,9 +408,9 @@ export default function DivisionReports() {
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-sky-600">Division Report Generation</h1>
+          <h1 className="text-2xl font-bold text-sky-600">Report</h1>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center">
           <button
             onClick={handleRefresh}
             className={BUTTON_SUBTLE}
@@ -414,7 +418,6 @@ export default function DivisionReports() {
             type="button"
           >
             <RefreshCcw size={16} className={loading ? "animate-spin" : ""} />
-            Refresh
           </button>
           <button
             onClick={handleClearFiltersClick}
@@ -423,49 +426,29 @@ export default function DivisionReports() {
             type="button"
           >
             <Eraser size={16} />
-            Clear
+            Clear Filters
           </button>
           <button
-            onClick={handleExportPDFClick}
-            disabled={exportingPDF || loading || confirmationDialog.loading}
+            onClick={handleGenerateReportClick}
+            disabled={loading || confirmationDialog.loading || records.length === 0}
             className={BUTTON_PRIMARY}
-            title="Export to PDF"
+            title="Generate Report"
             type="button"
           >
             <Download size={16} />
-            {exportingPDF ? 'Exporting...' : 'Export PDF'}
-          </button>
-          <button
-            onClick={handleExportExcelClick}
-            disabled={exportingExcel || loading || confirmationDialog.loading}
-            className={BUTTON_SUCCESS}
-            title="Export to Excel"
-            type="button"
-          >
-            <FileSpreadsheet size={16} />
-            {exportingExcel ? 'Exporting...' : 'Export Excel'}
-          </button>
-          <button
-            onClick={handlePrintClick}
-            disabled={confirmationDialog.loading}
-            className={BUTTON_PRIMARY}
-            title="Print view"
-            type="button"
-          >
-            <Printer size={16} />
-            Print
+            Generate Report
           </button>
         </div>
       </div>
 
       <div>
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(6,minmax(0,1fr))_auto]">
           <div className="flex flex-col">
             <label className="text-sm font-medium text-gray-700">Date From</label>
             <input
               type="date"
-              value={filters.date_from}
-              max={filters.date_to || undefined}
+              value={inputFilters.date_from}
+              max={inputFilters.date_to || undefined}
               onChange={(e) => handleFilterChange('date_from', e.target.value)}
               className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
@@ -474,8 +457,8 @@ export default function DivisionReports() {
             <label className="text-sm font-medium text-gray-700">Date To</label>
             <input
               type="date"
-              value={filters.date_to}
-              min={filters.date_from || undefined}
+              value={inputFilters.date_to}
+              min={inputFilters.date_from || undefined}
               onChange={(e) => handleFilterChange('date_to', e.target.value)}
               className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
@@ -484,7 +467,7 @@ export default function DivisionReports() {
             <label className="text-sm font-medium text-gray-700">Establishment Name</label>
             <input
               type="text"
-              value={filters.establishment}
+              value={inputFilters.establishment}
               onChange={(e) => handleFilterChange('establishment', e.target.value)}
               placeholder="Search establishment..."
               className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -493,7 +476,7 @@ export default function DivisionReports() {
           <div className="flex flex-col">
             <label className="text-sm font-medium text-gray-700">Law Type</label>
             <select
-              value={filters.law}
+              value={inputFilters.law}
               onChange={(e) => handleFilterChange('law', e.target.value)}
               className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
             >
@@ -508,7 +491,7 @@ export default function DivisionReports() {
           <div className="flex flex-col">
             <label className="text-sm font-medium text-gray-700">Compliance Status</label>
             <select
-              value={filters.compliance_status}
+              value={inputFilters.compliance_status}
               onChange={(e) => handleFilterChange('compliance_status', e.target.value)}
               className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
             >
@@ -521,7 +504,7 @@ export default function DivisionReports() {
           <div className="flex flex-col">
             <label className="text-sm font-medium text-gray-700">Inspection Status</label>
             <select
-              value={filters.inspection_status}
+              value={inputFilters.inspection_status}
               onChange={(e) => handleFilterChange('inspection_status', e.target.value)}
               className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
             >
@@ -535,6 +518,18 @@ export default function DivisionReports() {
               <option value="CLOSED_COMPLIANT">Closed (Compliant)</option>
               <option value="CLOSED_NON_COMPLIANT">Closed (Non-Compliant)</option>
             </select>
+          </div>
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-gray-700 invisible">Apply</label>
+            <button
+              onClick={handleApplyFilters}
+              className={`${BUTTON_PRIMARY} mt-1 py-2 rounded self-end`}
+              title="Apply filters"
+              type="button"
+            >
+              <Filter size={16} />
+              Apply Filters
+            </button>
           </div>
         </div>
       </div>
@@ -663,6 +658,76 @@ export default function DivisionReports() {
         onConfirm={handleConfirmAction}
         onCancel={handleCancelAction}
       />
+      
+      {/* Generate Report Modal */}
+      {generateReportModal.open && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-white shadow-xl mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4 bg-sky-50 border-b border-sky-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-800">Generate Report</h3>
+                <button
+                  onClick={handleCloseGenerateReportModal}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                  type="button"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6">
+              <p className="mb-4 text-gray-600">Select the report type you want to generate:</p>
+              
+              {/* Report Type Options */}
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleSelectReportType('exportPDF')}
+                  disabled={loading || exportingPDF}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left border border-gray-200 hover:bg-sky-50 hover:border-sky-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  type="button"
+                >
+                  <div className="flex-shrink-0 w-10 h-10 bg-red-100 flex items-center justify-center">
+                    <FileText size={20} className="text-red-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">PDF Report</div>
+                    <div className="text-sm text-gray-500">Export as PDF document</div>
+                  </div>
+                </button>
+                
+                <button
+                  onClick={() => handleSelectReportType('exportExcel')}
+                  disabled={loading || exportingExcel}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left border border-gray-200 hover:bg-sky-50 hover:border-sky-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  type="button"
+                >
+                  <div className="flex-shrink-0 w-10 h-10 bg-green-100 flex items-center justify-center">
+                    <FileSpreadsheet size={20} className="text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">Excel Report</div>
+                    <div className="text-sm text-gray-500">Export as Excel spreadsheet</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={handleCloseGenerateReportModal}
+                className="px-4 py-2 text-gray-700 transition-colors bg-gray-200 hover:bg-gray-300 font-medium"
+                type="button"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

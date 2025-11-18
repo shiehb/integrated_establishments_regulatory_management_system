@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import InspectionViewSet, BillingViewSet, LegalReportViewSet, DivisionReportViewSet, SectionReportViewSet, UnitReportViewSet, MonitoringReportViewSet
+from .views import InspectionViewSet, BillingViewSet, LegalReportViewSet, DivisionReportViewSet, SectionReportViewSet, UnitReportViewSet, MonitoringReportViewSet, AdminReportViewSet
 
 router = DefaultRouter()
 router.register(r'inspections', InspectionViewSet, basename='inspection')
@@ -10,6 +10,7 @@ router.register(r'division-reports', DivisionReportViewSet, basename='division-r
 router.register(r'section-reports', SectionReportViewSet, basename='section-report')
 router.register(r'unit-reports', UnitReportViewSet, basename='unit-report')
 router.register(r'monitoring-reports', MonitoringReportViewSet, basename='monitoring-report')
+router.register(r'admin-reports', AdminReportViewSet, basename='admin-report')
 
 urlpatterns = [
     # Additional endpoints for search (must be before router.urls)

@@ -151,6 +151,14 @@ export const MENU_CONFIG = [
     roles: ["Admin"],
     category: "Administration"
   },
+  {
+    id: "admin-reports",
+    name: "Reports",
+    path: "/admin-reports",
+    icon: FileText,
+    roles: ["Admin"],
+    category: "Administration"
+  },
 ];
 
 // Helper function to filter menu items by user role
