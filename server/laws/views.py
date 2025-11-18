@@ -203,5 +203,43 @@ class LawViewSet(viewsets.ModelViewSet):
         exists = Law.objects.filter(reference_code__iexact=reference_code).exists()
         
         return Response({'exists': exists}, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], url_path='check-law-title')
+    def check_law_title(self, request):
+        """Check if a law title already exists (exact match or contains/contained in)"""
+        law_title = request.query_params.get('law_title', '')
+        exclude_id = request.query_params.get('exclude_id', None)
+        
+        if not law_title:
+            return Response({'exists': False}, status=status.HTTP_200_OK)
+        
+        # Build queryset
+        queryset = Law.objects.all()
+        
+        # Exclude current law when editing
+        if exclude_id:
+            queryset = queryset.exclude(id=exclude_id)
+        
+        # Check for exact match (case-insensitive)
+        if queryset.filter(law_title__iexact=law_title).exists():
+            return Response({'exists': True}, status=status.HTTP_200_OK)
+        
+        # Check if new title is contained in any existing title
+        # e.g., existing: "Republic Act No. 9003 - Ecological Solid Waste Management"
+        #       new: "Ecological Solid Waste Management"
+        if queryset.filter(law_title__icontains=law_title).exists():
+            return Response({'exists': True}, status=status.HTTP_200_OK)
+        
+        # Check if any existing title is contained in the new title
+        # e.g., existing: "Ecological Solid Waste Management"
+        #       new: "Republic Act No. 9003 - Ecological Solid Waste Management"
+        existing_titles = queryset.values_list('law_title', flat=True)
+        law_title_lower = law_title.lower()
+        
+        for existing_title in existing_titles:
+            if existing_title.lower() in law_title_lower:
+                return Response({'exists': True}, status=status.HTTP_200_OK)
+        
+        return Response({'exists': False}, status=status.HTTP_200_OK)
 
 

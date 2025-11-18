@@ -88,6 +88,14 @@ export const MENU_CONFIG = [
     category: "Legal"
   },
   {
+    id: "legal-reports",
+    name: "Report Generation",
+    path: "/legal-reports",
+    icon: FileText,
+    roles: ["Legal Unit"],
+    category: "Legal"
+  },
+  {
     id: "system-config",
     name: "System Configuration",
     path: "/system-config",

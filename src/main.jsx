@@ -37,6 +37,7 @@ import NotificationContainer from "./components/NotificationManager";
 import LawManagement from "./pages/LawManagement";
 import AuditLogs from "./pages/AuditLogs";
 import ReinspectionRemindersPage from "./pages/ReinspectionReminders";
+import LegalReports from "./pages/LegalReports";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -121,6 +122,14 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               element={
                 <RoleRoute allowed={["Legal Unit"]}>
                   <Billing />
+                </RoleRoute>
+              }
+            />
+            <Route
+              path="/legal-reports"
+              element={
+                <RoleRoute allowed={["Legal Unit"]}>
+                  <LegalReports />
                 </RoleRoute>
               }
             />

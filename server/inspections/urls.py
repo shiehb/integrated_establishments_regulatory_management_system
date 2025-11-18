@@ -1,10 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import InspectionViewSet, BillingViewSet
+from .views import InspectionViewSet, BillingViewSet, LegalReportViewSet
 
 router = DefaultRouter()
 router.register(r'inspections', InspectionViewSet, basename='inspection')
 router.register(r'billing', BillingViewSet, basename='billing')
+router.register(r'legal-reports', LegalReportViewSet, basename='legal-report')
 
 urlpatterns = [
     # Additional endpoints for search (must be before router.urls)

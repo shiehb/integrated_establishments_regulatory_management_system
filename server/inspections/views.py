@@ -20,7 +20,7 @@ from .serializers import (
     InspectionSerializer, InspectionCreateSerializer, InspectionFormSerializer,
     InspectionHistorySerializer, InspectionDocumentSerializer,
     InspectionActionSerializer, NOVSerializer, NOOSerializer, BillingRecordSerializer,
-    SignatureUploadSerializer, RecommendationSerializer
+    SignatureUploadSerializer, RecommendationSerializer, LegalReportSerializer
 )
 from .utils import (
     send_inspection_forward_notification,
@@ -300,12 +300,20 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         elif tab == 'section_in_progress':
             # Show inspections that this Section Chief is currently working on
+            # Exclude returned inspections (they should only appear in returned_inspection tab)
+            from inspections.models import InspectionHistory
+            returned_subquery = InspectionHistory.objects.filter(
+                inspection=OuterRef('pk'),
+                remarks__icontains='Returned'
+            )
             return queryset.filter(
                 law_filter,
                 assigned_to=user,
                 current_status__in=[
                     'SECTION_IN_PROGRESS'
                 ]
+            ).exclude(
+                Exists(returned_subquery)
             )
         elif tab == 'forwarded':
             # Show inspections forwarded to Unit Head or Monitoring Personnel (status-based)
@@ -422,12 +430,20 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         elif tab == 'unit_in_progress':
             # Show inspections that this Unit Head is currently working on
+            # Exclude returned inspections (they should only appear in returned_inspection tab)
+            from inspections.models import InspectionHistory
+            returned_subquery = InspectionHistory.objects.filter(
+                inspection=OuterRef('pk'),
+                remarks__icontains='Returned'
+            )
             return queryset.filter(
                 law_filter,
                 assigned_to=user,
                 current_status__in=[
                     'UNIT_IN_PROGRESS'
                 ]
+            ).exclude(
+                Exists(returned_subquery)
             )
         elif tab == 'forwarded':
             # Show inspections forwarded to Monitoring Personnel (status-based)
@@ -543,9 +559,17 @@ class InspectionViewSet(viewsets.ModelViewSet):
             )
         elif tab == 'in_progress':
             # Show inspections that this Monitoring Personnel has started (in progress or with draft)
+            # Exclude returned inspections (they should only appear in returned_reports tab)
+            from inspections.models import InspectionHistory
+            returned_subquery = InspectionHistory.objects.filter(
+                inspection=OuterRef('pk'),
+                remarks__icontains='Returned'
+            )
             return queryset.filter(
                 assigned_to=user,
                 current_status='MONITORING_IN_PROGRESS'
+            ).exclude(
+                Exists(returned_subquery)
             )
         elif tab == 'inspection_complete':
             # Only show inspections this Monitoring Personnel personally completed
@@ -4775,10 +4799,18 @@ class InspectionViewSet(viewsets.ModelViewSet):
         slot = serializer.validated_data['slot']
         user_level = request.user.userlevel
         inspector_level = form.inspected_by.userlevel if form.inspected_by else None
+        is_original_inspector = form.inspected_by and form.inspected_by.id == request.user.id
         
         # Role-based slot validation
         allowed = False
-        if inspector_level == 'Monitoring Personnel':
+        
+        # Allow original inspector to upload their own 'submitted' signature regardless of level
+        if slot == 'submitted' and is_original_inspector:
+            allowed = True
+        # Allow user to upload 'submitted' signature if inspector hasn't been set yet (preview mode)
+        elif slot == 'submitted' and form.inspected_by is None:
+            allowed = True
+        elif inspector_level == 'Monitoring Personnel':
             if slot == 'submitted' and user_level == 'Monitoring Personnel':
                 allowed = True
             elif slot == 'review_unit' and user_level == 'Unit Head':
@@ -4801,8 +4833,15 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 allowed = True
         
         if not allowed:
+            # Provide detailed error for debugging
+            error_detail = (
+                f'You do not have permission to upload signature for slot "{slot}". '
+                f'User level: {user_level}, Inspector level: {inspector_level}, '
+                f'Is original inspector: {is_original_inspector}, Inspector ID: {form.inspected_by.id if form.inspected_by else None}, User ID: {request.user.id}'
+            )
+            logger.warning(f'Signature upload denied: {error_detail}')
             return Response(
-                {'detail': 'You do not have permission to upload signature for this slot.'},
+                {'detail': error_detail},
                 status=status.HTTP_403_FORBIDDEN
             )
         
@@ -5255,3 +5294,365 @@ class BillingViewSet(viewsets.ModelViewSet):
             'billing': serializer.data,
             'generated_at': timezone.now().isoformat()
         })
+
+
+class LegalReportViewSet(viewsets.ViewSet):
+    """
+    ViewSet for Legal Unit Report Generation
+    Provides comprehensive reporting with filtering, statistics, and export capabilities
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def _get_base_queryset(self, request):
+        """Get base queryset with filters applied"""
+        from django.db.models import Q
+        
+        queryset = BillingRecord.objects.all()
+        
+        # Access control - Legal Unit can see all
+        user = request.user
+        if user.userlevel != 'Legal Unit' and user.userlevel not in ['Division Chief', 'Section Chief', 'Admin']:
+            # Others can only see their related law
+            if hasattr(user, 'law') and user.law:
+                queryset = queryset.filter(related_law=user.law)
+            else:
+                queryset = queryset.none()
+        
+        # Date filters
+        billing_date_from = request.query_params.get('billing_date_from')
+        billing_date_to = request.query_params.get('billing_date_to')
+        if billing_date_from:
+            queryset = queryset.filter(sent_date__gte=billing_date_from)
+        if billing_date_to:
+            queryset = queryset.filter(sent_date__lte=billing_date_to)
+        
+        # Establishment filter
+        establishment = request.query_params.get('establishment')
+        if establishment:
+            queryset = queryset.filter(
+                Q(establishment_name__icontains=establishment) |
+                Q(establishment_id=establishment)
+            )
+        
+        # Inspection control number
+        inspection_code = request.query_params.get('inspection_code')
+        if inspection_code:
+            queryset = queryset.filter(inspection__code__icontains=inspection_code)
+        
+        # Billing status
+        payment_status = request.query_params.get('payment_status')
+        if payment_status and payment_status != 'ALL':
+            queryset = queryset.filter(payment_status=payment_status)
+        
+        # Legal action filter
+        legal_action = request.query_params.get('legal_action')
+        if legal_action and legal_action != 'ALL':
+            queryset = queryset.filter(legal_action=legal_action)
+        
+        # Law filter
+        law = request.query_params.get('law')
+        if law and law != 'ALL':
+            queryset = queryset.filter(related_law__icontains=law.replace('-', ''))
+        
+        # Compliance status filter (requires join with inspection form)
+        compliance_status = request.query_params.get('compliance_status')
+        if compliance_status and compliance_status != 'ALL':
+            # Handle cases where form might not exist - treat missing forms as PENDING
+            if compliance_status == 'PENDING':
+                queryset = queryset.filter(
+                    Q(inspection__form__compliance_decision__isnull=True) |
+                    Q(inspection__form__compliance_decision='PENDING') |
+                    Q(inspection__form__isnull=True)
+                )
+            else:
+                queryset = queryset.filter(inspection__form__compliance_decision=compliance_status)
+        
+        # NOV/NOO filter
+        has_nov = request.query_params.get('has_nov')
+        if has_nov == 'true':
+            queryset = queryset.filter(inspection__form__nov__isnull=False)
+        elif has_nov == 'false':
+            queryset = queryset.filter(inspection__form__nov__isnull=True)
+        
+        has_noo = request.query_params.get('has_noo')
+        if has_noo == 'true':
+            queryset = queryset.filter(inspection__form__noo__isnull=False)
+        elif has_noo == 'false':
+            queryset = queryset.filter(inspection__form__noo__isnull=True)
+        
+        # Optimize queries - use prefetch for form to handle cases where form might not exist
+        queryset = queryset.select_related(
+            'inspection',
+            'establishment',
+            'issued_by'
+        ).prefetch_related(
+            'inspection__form',
+            'inspection__form__nov',
+            'inspection__form__noo'
+        )
+        
+        return queryset
+    
+    def list(self, request):
+        """Get filtered billing records for report"""
+        from core.pagination import StandardResultsSetPagination
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')
+        
+        # Log query info for debugging
+        total_count = queryset.count()
+        logger.info(f"Legal Report Query - Total records before pagination: {total_count}")
+        logger.info(f"Legal Report Query - Filters: {dict(request.query_params)}")
+        
+        # Pagination
+        paginator = StandardResultsSetPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        
+        if page is not None:
+            serializer = LegalReportSerializer(page, many=True)
+            response_data = paginator.get_paginated_response(serializer.data)
+            logger.info(f"Legal Report Query - Returning {len(serializer.data)} records (paginated)")
+            return response_data
+        
+        serializer = LegalReportSerializer(queryset, many=True)
+        logger.info(f"Legal Report Query - Returning {len(serializer.data)} records (non-paginated)")
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """Get computed summary statistics"""
+        from django.db.models import Sum, Avg, Count, Q, F
+        from datetime import timedelta
+        
+        queryset = self._get_base_queryset(request)
+        
+        # Billing summary
+        billing_aggregates = queryset.aggregate(
+            total_billed=Sum('amount'),
+            total_paid=Sum('amount', filter=Q(payment_status='PAID')),
+            avg_days_to_payment=Avg(
+                F('payment_date') - F('sent_date'),
+                filter=Q(payment_status='PAID', payment_date__isnull=False)
+            )
+        )
+        
+        total_billed = billing_aggregates['total_billed'] or 0
+        total_paid = billing_aggregates['total_paid'] or 0
+        outstanding_balance = total_billed - total_paid
+        
+        avg_days = billing_aggregates['avg_days_to_payment']
+        avg_days_to_payment = avg_days.days if avg_days else 0
+        
+        # Count NOV/NOO
+        total_nov = queryset.filter(inspection__form__nov__isnull=False).count()
+        total_noo = queryset.filter(inspection__form__noo__isnull=False).count()
+        
+        # Compliance summary
+        compliant_count = queryset.filter(
+            inspection__form__compliance_decision='COMPLIANT'
+        ).count()
+        non_compliant_count = queryset.filter(
+            inspection__form__compliance_decision='NON_COMPLIANT'
+        ).count()
+        pending_count = queryset.filter(
+            Q(inspection__form__compliance_decision__isnull=True) |
+            Q(inspection__form__compliance_decision='PENDING')
+        ).count()
+        
+        # Re-inspections recommended (non-compliant with no payment)
+        reinspection_recommended = queryset.filter(
+            inspection__form__compliance_decision='NON_COMPLIANT',
+            payment_status='UNPAID'
+        ).count()
+        
+        return Response({
+            'billing_summary': {
+                'total_billed': float(total_billed),
+                'total_paid': float(total_paid),
+                'outstanding_balance': float(outstanding_balance),
+                'avg_days_to_payment': avg_days_to_payment,
+                'total_nov': total_nov,
+                'total_noo': total_noo,
+            },
+            'compliance_summary': {
+                'compliant_count': compliant_count,
+                'non_compliant_count': non_compliant_count,
+                'pending_count': pending_count,
+                'reinspection_recommended': reinspection_recommended,
+            }
+        })
+    
+    @action(detail=False, methods=['get'])
+    def recommendations(self, request):
+        """Generate system-based recommendations"""
+        from django.utils import timezone
+        from datetime import timedelta
+        from django.db.models import Count
+        
+        queryset = self._get_base_queryset(request)
+        recommendations = []
+        
+        # Repeated non-compliance (establishments with 2+ non-compliant inspections)
+        repeated_non_compliant = queryset.filter(
+            inspection__form__compliance_decision='NON_COMPLIANT'
+        ).values('establishment_id', 'establishment_name').annotate(
+            count=Count('id')
+        ).filter(count__gte=2)
+        
+        if repeated_non_compliant.exists():
+            establishments = [est['establishment_name'] for est in repeated_non_compliant[:5]]
+            recommendations.append({
+                'type': 'Repeated Non-Compliance',
+                'description': f"The following establishments have repeated non-compliance issues: {', '.join(establishments)}. Consider escalating legal action."
+            })
+        
+        # Overdue payments (30+ days)
+        today = timezone.now().date()
+        overdue_threshold = today - timedelta(days=30)
+        overdue_payments = queryset.filter(
+            payment_status='UNPAID',
+            due_date__lt=overdue_threshold
+        )
+        
+        if overdue_payments.exists():
+            recommendations.append({
+                'type': 'Overdue Payments',
+                'description': f"{overdue_payments.count()} establishments have payments overdue for more than 30 days. Immediate follow-up and potential legal escalation required."
+            })
+        
+        # Legal escalation needed (non-compliant + no payment + no legal action)
+        needs_escalation = queryset.filter(
+            inspection__form__compliance_decision='NON_COMPLIANT',
+            payment_status='UNPAID',
+            legal_action='NONE'
+        )
+        
+        if needs_escalation.exists():
+            recommendations.append({
+                'type': 'Legal Escalation Required',
+                'description': f"{needs_escalation.count()} non-compliant establishments with unpaid penalties require legal action initiation."
+            })
+        
+        # Pending compliance verification
+        pending_verification = queryset.filter(
+            inspection__form__nov__isnull=False,
+            inspection__form__noo__isnull=True,
+            inspection__form__compliance_decision='PENDING'
+        )
+        
+        if pending_verification.exists():
+            recommendations.append({
+                'type': 'Pending Compliance Verification',
+                'description': f"{pending_verification.count()} establishments require re-inspection to verify compliance with NOV."
+            })
+        
+        return Response(recommendations)
+    
+    @action(detail=False, methods=['get'])
+    def export_pdf(self, request):
+        """Export report as PDF"""
+        from django.http import HttpResponse
+        from .legal_report_pdf import LegalReportPDFGenerator
+        import io
+        
+        # Get filtered data
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')[:100]  # Limit to 100 records
+        
+        serializer = LegalReportSerializer(queryset, many=True)
+        
+        # Get statistics
+        stats_view = self.statistics(request)
+        statistics = stats_view.data
+        
+        # Get recommendations
+        recs_view = self.recommendations(request)
+        recommendations = recs_view.data
+        
+        # Prepare report data
+        report_data = {
+            'records': serializer.data,
+            'statistics': statistics,
+            'recommendations': recommendations,
+        }
+        
+        # Prepare filters applied
+        filters_applied = {}
+        filter_params = [
+            'billing_date_from', 'billing_date_to', 'payment_date_from', 'payment_date_to',
+            'establishment', 'inspection_code', 'payment_status', 'legal_action',
+            'law', 'compliance_status'
+        ]
+        for param in filter_params:
+            value = request.query_params.get(param)
+            if value:
+                filters_applied[param] = value
+        
+        # Generate PDF
+        buffer = io.BytesIO()
+        generator = LegalReportPDFGenerator(buffer, report_data, filters_applied, request.user)
+        generator.generate()
+        
+        buffer.seek(0)
+        
+        # Return PDF response
+        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="legal_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+        
+        return response
+    
+    @action(detail=False, methods=['get'])
+    def export_excel(self, request):
+        """Export report as Excel"""
+        from django.http import HttpResponse
+        from .excel_generator import LegalReportExcelGenerator
+        
+        # Get filtered data
+        queryset = self._get_base_queryset(request)
+        queryset = queryset.order_by('-created_at')[:500]  # Limit to 500 records
+        
+        serializer = LegalReportSerializer(queryset, many=True)
+        
+        # Get statistics
+        stats_view = self.statistics(request)
+        statistics = stats_view.data
+        
+        # Get recommendations
+        recs_view = self.recommendations(request)
+        recommendations = recs_view.data
+        
+        # Prepare report data
+        report_data = {
+            'records': serializer.data,
+            'statistics': statistics,
+            'recommendations': recommendations,
+        }
+        
+        # Prepare filters applied
+        filters_applied = {}
+        filter_params = [
+            'billing_date_from', 'billing_date_to', 'payment_date_from', 'payment_date_to',
+            'establishment', 'inspection_code', 'payment_status', 'legal_action',
+            'law', 'compliance_status'
+        ]
+        for param in filter_params:
+            value = request.query_params.get(param)
+            if value:
+                filters_applied[param] = value
+        
+        # Generate Excel
+        generator = LegalReportExcelGenerator(report_data, filters_applied)
+        output = generator.generate()
+        
+        # Return Excel response
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="legal_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.xlsx"'
+        
+        return response

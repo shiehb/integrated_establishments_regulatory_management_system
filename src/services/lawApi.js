@@ -157,4 +157,26 @@ export const checkReferenceCodeExists = async (referenceCode) => {
   }
 };
 
+/**
+ * Check if a law title already exists
+ * @param {string} lawTitle - Law title to check
+ * @param {number|string} excludeId - Optional law ID to exclude from check (for editing)
+ * @returns {Promise<boolean>} True if exists, false otherwise
+ */
+export const checkLawTitleExists = async (lawTitle, excludeId = null) => {
+  try {
+    const params = { law_title: lawTitle };
+    if (excludeId) {
+      params.exclude_id = excludeId;
+    }
+    const response = await api.get('/laws/check-law-title/', {
+      params
+    });
+    return response.data.exists;
+  } catch (error) {
+    console.error('Error checking law title:', error);
+    return false;
+  }
+};
+
 

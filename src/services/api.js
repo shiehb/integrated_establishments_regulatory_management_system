@@ -1211,3 +1211,109 @@ export const deleteRecommendation = async (id, recId) => {
   return res.data;
 };
 
+// -------------------------------------------------
+// Legal Report Generation
+// -------------------------------------------------
+export const getLegalReportData = async (params = {}) => {
+  try {
+    const response = await api.get('legal-reports/', { params });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch legal report data. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const getLegalReportStatistics = async (params = {}) => {
+  try {
+    const response = await api.get('legal-reports/statistics/', { params });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch legal report statistics. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const getLegalReportRecommendations = async (params = {}) => {
+  try {
+    const response = await api.get('legal-reports/recommendations/', { params });
+    return response.data;
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to fetch recommendations. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const exportLegalReportPDF = async (params = {}) => {
+  try {
+    const response = await api.get('legal-reports/export_pdf/', {
+      params,
+      responseType: 'blob'
+    });
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `legal_report_${new Date().toISOString().slice(0,10)}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true };
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to export PDF. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+
+export const exportLegalReportExcel = async (params = {}) => {
+  try {
+    const response = await api.get('legal-reports/export_excel/', {
+      params,
+      responseType: 'blob'
+    });
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `legal_report_${new Date().toISOString().slice(0,10)}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true };
+  } catch (error) {
+    const enhancedError = new Error(
+      error.response?.data?.detail ||
+        error.response?.data?.error ||
+        "Failed to export Excel. Please try again."
+    );
+    enhancedError.response = error.response;
+    throw enhancedError;
+  }
+};
+

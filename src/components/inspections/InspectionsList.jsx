@@ -14,7 +14,9 @@ import {
   Send,
   FileText,
   Building,
-  RotateCcw
+  RotateCcw,
+  X,
+  CornerDownLeft
 } from "lucide-react";
 import {
   getProfile, 
@@ -2592,52 +2594,106 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
 
       {/* Return Remarks Modal */}
       {remarksModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-2xl bg-white rounded shadow-lg">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <div className="flex flex-col">
-                <h3 className="text-sm font-semibold text-gray-800">
-                  Return Remarks — {remarksModal.inspection?.code}
-                </h3>
-                {remarksModal.all?.length > 0 && (
-                  <div className="text-[11px] text-gray-500">
-                    Returned by {remarksModal.all[0]?.changed_by_name || '—'} on {new Date(remarksModal.all[0]?.created_at).toLocaleString()}
-                    {(remarksModal.all[0]?.previous_status && remarksModal.all[0]?.new_status) && (
-                      <span className="ml-1">
-                        • {remarksModal.all[0]?.previous_status} → {remarksModal.all[0]?.new_status}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/20 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+            {/* Header Section */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <CornerDownLeft className="w-5 h-5 mr-2 text-orange-600" />
+                Return Remarks
+              </h3>
               <div className="flex items-center gap-2">
                 <button
                   onClick={copyLatestRemarks}
-                  className="px-2 py-1 text-xs text-sky-700 bg-sky-50 border border-sky-200 rounded hover:bg-sky-100"
+                  className="px-3 py-1.5 text-xs font-medium text-sky-700 bg-sky-50 border border-sky-200 rounded-md hover:bg-sky-100 transition-colors"
                 >
                   Copy
                 </button>
                 <button
                   onClick={closeRemarksModal}
-                  className="px-2 py-1 text-xs text-gray-600 hover:text-gray-800"
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  Close
+                  <X className="w-6 h-6" />
                 </button>
               </div>
             </div>
 
-            <div className="p-4 space-y-4">
+            {/* Content Section */}
+            <div className="p-6 space-y-4">
+              {/* Inspection Details */}
+              {remarksModal.inspection && (
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <div className="flex items-center mb-2">
+                    <Building className="w-4 h-4 mr-2 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-700">Inspection Details</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-gray-500">Code:</span>
+                      <span className="ml-2 font-medium text-gray-900">{remarksModal.inspection.code}</span>
+                    </div>
+                    {remarksModal.all?.length > 0 && (
+                      <div>
+                        <span className="text-gray-500">Returned by:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          {remarksModal.all[0]?.changed_by_name || '—'}
+                        </span>
+                      </div>
+                    )}
+                    {remarksModal.all?.length > 0 && (
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Date:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          {new Date(remarksModal.all[0]?.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    {remarksModal.all?.[0]?.previous_status && remarksModal.all[0]?.new_status && (
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Status Change:</span>
+                        <span className="ml-2 font-medium text-gray-900">
+                          {remarksModal.all[0].previous_status} → {remarksModal.all[0].new_status}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Latest Remarks */}
               <div>
-                <div className="text-xs font-medium text-gray-600 mb-1">Latest Remarks</div>
-                <div className="text-sm text-gray-800 whitespace-pre-wrap">
-                  {remarksModal.latest || 'No remarks'}
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Latest Remarks
+                </label>
+                <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                  <div className="text-sm text-gray-800 whitespace-pre-wrap">
+                    {remarksModal.latest || 'No remarks'}
+                  </div>
                 </div>
               </div>
-
-              {/* Return history removed per request */}
             </div>
 
-            {/* Footer removed: Done button no longer shown */}
+            {/* Footer Section */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
+              <button
+                onClick={closeRemarksModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  if (remarksModal.inspection?.id) {
+                    closeRemarksModal();
+                    navigate(`/inspections/${remarksModal.inspection.id}/form`);
+                  }
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700 transition-colors flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Re-inspect
+              </button>
+            </div>
           </div>
         </div>
       )}

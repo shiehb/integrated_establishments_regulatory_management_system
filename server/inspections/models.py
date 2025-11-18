@@ -669,6 +669,21 @@ class BillingRecord(models.Model):
         help_text='Internal notes when tagging this billing as paid'
     )
     
+    # Legal actions
+    LEGAL_ACTION_CHOICES = [
+        ('NONE', 'None'),
+        ('SHOW_CAUSE_ORDER', 'Show Cause Order'),
+        ('LEGAL_EVALUATION', 'For Legal Evaluation'),
+        ('FOR_ENDORSEMENT', 'For Endorsement'),
+        ('LEGAL_ESCALATION', 'Legal Escalation'),
+    ]
+    legal_action = models.CharField(
+        max_length=30,
+        choices=LEGAL_ACTION_CHOICES,
+        default='NONE',
+        help_text='Current legal action status'
+    )
+    
     # Tracking
     issued_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

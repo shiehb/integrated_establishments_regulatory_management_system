@@ -609,7 +609,7 @@ class BillingRecordSerializer(serializers.ModelSerializer):
             'issued_by', 'issued_by_name', 'sent_date',
             'payment_status', 'payment_date', 'payment_reference',
             'payment_notes', 'payment_confirmed_by', 'payment_confirmed_by_name',
-            'payment_confirmed_at',
+            'payment_confirmed_at', 'legal_action',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
@@ -626,6 +626,101 @@ class BillingRecordSerializer(serializers.ModelSerializer):
     def get_payment_confirmed_by_name(self, obj):
         if obj.payment_confirmed_by:
             return f"{obj.payment_confirmed_by.first_name} {obj.payment_confirmed_by.last_name}".strip() or obj.payment_confirmed_by.email
+        return None
+
+
+class LegalReportSerializer(serializers.ModelSerializer):
+    """Serializer for Legal Report Generation with combined data"""
+    inspection_code = serializers.CharField(source='inspection.code', read_only=True)
+    inspection_type = serializers.SerializerMethodField()
+    issued_by_name = serializers.SerializerMethodField()
+    compliance_status = serializers.SerializerMethodField()
+    has_nov = serializers.SerializerMethodField()
+    has_noo = serializers.SerializerMethodField()
+    nov_sent_date = serializers.SerializerMethodField()
+    noo_sent_date = serializers.SerializerMethodField()
+    days_overdue = serializers.SerializerMethodField()
+    assigned_legal_officer = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = BillingRecord
+        fields = [
+            'id', 'billing_code', 'inspection', 'inspection_code', 'inspection_type',
+            'establishment', 'establishment_name', 'contact_person',
+            'related_law', 'billing_type',
+            'description', 'amount', 'due_date', 'recommendations',
+            'issued_by', 'issued_by_name', 'sent_date',
+            'payment_status', 'payment_date', 'payment_reference',
+            'payment_notes', 'legal_action',
+            'compliance_status', 'has_nov', 'has_noo',
+            'nov_sent_date', 'noo_sent_date',
+            'days_overdue', 'assigned_legal_officer',
+            'created_at', 'updated_at'
+        ]
+    
+    def get_inspection_type(self, obj):
+        """Derive inspection type from inspection status"""
+        if obj.inspection:
+            status = obj.inspection.current_status
+            if 'SECTION' in status:
+                return 'Initial Inspection'
+            elif 'UNIT' in status:
+                return 'Re-inspection'
+            elif 'MONITORING' in status:
+                return 'Monitoring'
+            return 'Unit Inspection'
+        return 'N/A'
+    
+    def get_issued_by_name(self, obj):
+        if obj.issued_by:
+            return f"{obj.issued_by.first_name} {obj.issued_by.last_name}".strip() or obj.issued_by.email
+        return None
+    
+    def get_compliance_status(self, obj):
+        """Get compliance status from inspection form"""
+        if obj.inspection and hasattr(obj.inspection, 'form') and obj.inspection.form:
+            return obj.inspection.form.compliance_decision or 'PENDING'
+        return 'PENDING'
+    
+    def get_has_nov(self, obj):
+        """Check if NOV was sent"""
+        if obj.inspection and hasattr(obj.inspection, 'form') and obj.inspection.form:
+            return hasattr(obj.inspection.form, 'nov') and obj.inspection.form.nov is not None
+        return False
+    
+    def get_has_noo(self, obj):
+        """Check if NOO was sent"""
+        if obj.inspection and hasattr(obj.inspection, 'form') and obj.inspection.form:
+            return hasattr(obj.inspection.form, 'noo') and obj.inspection.form.noo is not None
+        return False
+    
+    def get_nov_sent_date(self, obj):
+        """Get NOV sent date"""
+        if obj.inspection and hasattr(obj.inspection, 'form') and obj.inspection.form:
+            if hasattr(obj.inspection.form, 'nov') and obj.inspection.form.nov:
+                return obj.inspection.form.nov.sent_date
+        return None
+    
+    def get_noo_sent_date(self, obj):
+        """Get NOO sent date"""
+        if obj.inspection and hasattr(obj.inspection, 'form') and obj.inspection.form:
+            if hasattr(obj.inspection.form, 'noo') and obj.inspection.form.noo:
+                return obj.inspection.form.noo.sent_date
+        return None
+    
+    def get_days_overdue(self, obj):
+        """Calculate days overdue for payment"""
+        from django.utils import timezone
+        if obj.payment_status == 'UNPAID' and obj.due_date:
+            today = timezone.now().date()
+            if today > obj.due_date:
+                return (today - obj.due_date).days
+        return 0
+    
+    def get_assigned_legal_officer(self, obj):
+        """Get assigned legal officer"""
+        if obj.issued_by:
+            return f"{obj.issued_by.first_name} {obj.issued_by.last_name}".strip() or obj.issued_by.email
         return None
 
 

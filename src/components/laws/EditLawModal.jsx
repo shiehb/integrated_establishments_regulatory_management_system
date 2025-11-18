@@ -17,7 +17,10 @@ export default function EditLawModal({ law, onClose, onLawUpdated }) {
   const [loading, setLoading] = useState(false);
   const [validatingCode, setValidatingCode] = useState(false);
   const [codeExists, setCodeExists] = useState(false);
+  const [validatingTitle, setValidatingTitle] = useState(false);
+  const [titleExists, setTitleExists] = useState(false);
   const codeCheckTimeoutRef = useRef(null);
+  const titleCheckTimeoutRef = useRef(null);
   const notifications = useNotifications();
 
   // Cleanup timeout on unmount
@@ -25,6 +28,9 @@ export default function EditLawModal({ law, onClose, onLawUpdated }) {
     return () => {
       if (codeCheckTimeoutRef.current) {
         clearTimeout(codeCheckTimeoutRef.current);
+      }
+      if (titleCheckTimeoutRef.current) {
+        clearTimeout(titleCheckTimeoutRef.current);
       }
     };
   }, []);
@@ -72,6 +78,32 @@ export default function EditLawModal({ law, onClose, onLawUpdated }) {
     }, 500);
   };
 
+  const handleLawTitleValidation = async (title) => {
+    // Clear existing timeout
+    if (titleCheckTimeoutRef.current) {
+      clearTimeout(titleCheckTimeoutRef.current);
+    }
+    
+    // Don't check if title is empty, too short, or same as original
+    if (!title || title.trim().length < 3 || title === law?.law_title) {
+      setTitleExists(false);
+      return;
+    }
+    
+    // Debounce the check by 500ms
+    titleCheckTimeoutRef.current = setTimeout(async () => {
+      setValidatingTitle(true);
+      try {
+        const exists = await lawApi.checkLawTitleExists(title, law?.id);
+        setTitleExists(exists);
+      } catch (error) {
+        console.error('Error validating law title:', error);
+      } finally {
+        setValidatingTitle(false);
+      }
+    }, 500);
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     
@@ -79,6 +111,9 @@ export default function EditLawModal({ law, onClose, onLawUpdated }) {
       const upperValue = value.toUpperCase();
       setFormData((prev) => ({ ...prev, [name]: upperValue }));
       handleReferenceCodeValidation(upperValue);
+    } else if (name === 'law_title') {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+      handleLawTitleValidation(value);
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -90,6 +125,11 @@ export default function EditLawModal({ law, onClose, onLawUpdated }) {
 
     // Don't proceed if code exists or is being validated
     if (codeExists || validatingCode) {
+      return;
+    }
+
+    // Don't proceed if title exists or is being validated
+    if (titleExists || validatingTitle) {
       return;
     }
 
@@ -169,13 +209,21 @@ export default function EditLawModal({ law, onClose, onLawUpdated }) {
             Code already exists
           </span>
         )}
-        {field !== "reference_code" && hasError && <span className="text-xs text-red-500">Required</span>}
-        {field !== "reference_code" && isTooShort && !hasError && (
+        {field === "law_title" && formData.law_title && titleExists && (
+          <span className="text-xs text-amber-600 font-medium">
+            Title already exists
+          </span>
+        )}
+        {field !== "reference_code" && field !== "law_title" && hasError && <span className="text-xs text-red-500">Required</span>}
+        {field !== "reference_code" && field !== "law_title" && isTooShort && !hasError && (
           <span className="text-xs text-red-500">
-            {field === "law_title" && "Min 3 characters"}
             {field === "description" && "Min 10 characters"}
             {field === "category" && "Min 2 characters"}
           </span>
+        )}
+        {field === "law_title" && hasError && <span className="text-xs text-red-500">Required</span>}
+        {field === "law_title" && isTooShort && !hasError && !titleExists && (
+          <span className="text-xs text-red-500">Min 3 characters</span>
         )}
       </label>
     );
@@ -234,18 +282,45 @@ export default function EditLawModal({ law, onClose, onLawUpdated }) {
           </div>
           <div>
             <Label field="law_title">Law Title</Label>
-            <input
-              type="text"
-              name="law_title"
-              value={formData.law_title}
-              onChange={handleChange}
-              className={`w-full p-2 border rounded-lg ${
-                submitted && (!formData.law_title.trim() || formData.law_title.trim().length < 3)
-                  ? "border-red-500"
-                  : "border-gray-300"
-              }`}
-              placeholder="e.g., Philippine Clean Air Act"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                name="law_title"
+                value={formData.law_title}
+                onChange={handleChange}
+                className={`w-full p-2 pr-10 border rounded-lg ${
+                  submitted && (!formData.law_title.trim() || formData.law_title.trim().length < 3)
+                    ? "border-red-500"
+                    : titleExists
+                    ? "border-amber-400 bg-amber-50"
+                    : validatingTitle
+                    ? "border-blue-400"
+                    : "border-gray-300"
+                }`}
+                placeholder="e.g., Philippine Clean Air Act"
+              />
+              
+              {/* Validation Status Icons */}
+              {validatingTitle && (
+                <div className="absolute right-3 top-3">
+                  <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+              {titleExists && !validatingTitle && (
+                <div className="absolute right-3 top-3">
+                  <svg className="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              )}
+              {!titleExists && !validatingTitle && formData.law_title.trim() && formData.law_title.trim().length >= 3 && formData.law_title !== law?.law_title && (
+                <div className="absolute right-3 top-3">
+                  <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
