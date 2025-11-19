@@ -740,7 +740,18 @@ export default function AdminReports() {
         <div>
           <h1 className="text-2xl font-bold text-sky-600">Report</h1>
         </div>
-        <div className="flex flex-wrap items-center">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Report Type:</label>
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value)}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            >
+              <option value="establishments">Establishments</option>
+              <option value="users">Users</option>
+            </select>
+          </div>
           <button
             onClick={handleRefresh}
             className={BUTTON_SUBTLE}
@@ -769,34 +780,6 @@ export default function AdminReports() {
             Generate Report
           </button>
         </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          <button
-            onClick={() => setActiveTab('establishments')}
-            className={`${
-              activeTab === 'establishments'
-                ? 'border-sky-500 text-sky-600'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-            } whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium flex items-center gap-2`}
-          >
-            <Building2 size={16} />
-            Establishments
-          </button>
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`${
-              activeTab === 'users'
-                ? 'border-sky-500 text-sky-600'
-                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-            } whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium flex items-center gap-2`}
-          >
-            <Users size={16} />
-            Users
-          </button>
-        </nav>
       </div>
 
       {/* Filters */}

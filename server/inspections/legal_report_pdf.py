@@ -34,6 +34,54 @@ class LegalReportPDFGenerator:
         # Logo paths
         self.LOGO1_PATH = os.path.join(settings.BASE_DIR, '../public/assets/document/logo1.png')
         self.LOGO2_PATH = os.path.join(settings.BASE_DIR, '../public/assets/document/logo2.png')
+    
+    def _get_user_display_name(self):
+        """Safely get user's full name"""
+        first_name = getattr(self.user_info, 'first_name', '') or ''
+        last_name = getattr(self.user_info, 'last_name', '') or ''
+        if first_name or last_name:
+            return f"{first_name} {last_name}".strip()
+        # Fallback to email if no name
+        return getattr(self.user_info, 'email', 'Unknown User') or 'Unknown User'
+    
+    def _get_user_level(self):
+        """Safely get user level, handling both CharField and ForeignKey"""
+        userlevel = getattr(self.user_info, 'userlevel', None)
+        if userlevel is None:
+            return 'N/A'
+        # If it's a ForeignKey (has code attribute), get the code
+        if hasattr(userlevel, 'code'):
+            return userlevel.code
+        # If it's a ForeignKey (has name attribute), get the name
+        if hasattr(userlevel, 'name'):
+            return userlevel.name
+        # If it's already a string, return it
+        return str(userlevel)
+    
+    def _get_user_email(self):
+        """Safely get user email"""
+        return getattr(self.user_info, 'email', 'N/A') or 'N/A'
+    
+    def _safe_float(self, value, default=0.0):
+        """Safely convert value to float, handling strings, Decimals, None, etc."""
+        if value is None:
+            return default
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            # Remove currency symbols and whitespace
+            cleaned = value.replace('₱', '').replace(',', '').strip()
+            if not cleaned:
+                return default
+            try:
+                return float(cleaned)
+            except (ValueError, TypeError):
+                return default
+        # Handle Decimal and other numeric types
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return default
         
     def _get_denr_colors(self):
         """Return standardized DENR color palette"""
@@ -215,9 +263,9 @@ class LegalReportPDFGenerator:
         # Report metadata
         metadata_data = [
             ['Reference Number:', self.reference_number],
-            ['Prepared by:', f"{self.user_info.first_name} {self.user_info.last_name}"],
-            ['User Level:', self.user_info.userlevel],
-            ['Email:', self.user_info.email],
+            ['Prepared by:', self._get_user_display_name()],
+            ['User Level:', self._get_user_level()],
+            ['Email:', self._get_user_email()],
             ['Generated:', datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
         ]
         
@@ -287,9 +335,9 @@ class LegalReportPDFGenerator:
         # Billing summary
         billing_data = [
             ['BILLING SUMMARY', ''],
-            ['Total Billed Amount', f"₱{billing_stats.get('total_billed', 0):,.2f}"],
-            ['Total Paid Amount', f"₱{billing_stats.get('total_paid', 0):,.2f}"],
-            ['Outstanding Balance', f"₱{billing_stats.get('outstanding_balance', 0):,.2f}"],
+            ['Total Billed Amount', f"₱{self._safe_float(billing_stats.get('total_billed', 0)):,.2f}"],
+            ['Total Paid Amount', f"₱{self._safe_float(billing_stats.get('total_paid', 0)):,.2f}"],
+            ['Outstanding Balance', f"₱{self._safe_float(billing_stats.get('outstanding_balance', 0)):,.2f}"],
             ['Average Days to Payment', f"{billing_stats.get('avg_days_to_payment', 0):.1f} days"],
             ['Total NOV Issued', str(billing_stats.get('total_nov', 0))],
             ['Total NOO Issued', str(billing_stats.get('total_noo', 0))],
@@ -383,7 +431,7 @@ class LegalReportPDFGenerator:
             table_data.append([
                 record.get('inspection_code', 'N/A')[:15],
                 record.get('establishment_name', 'N/A')[:25],
-                f"₱{record.get('amount', 0):,.0f}",
+                f"₱{self._safe_float(record.get('amount', 0)):,.0f}",
                 billing_date[:10] if billing_date else 'N/A',
                 record.get('payment_status', 'UNPAID')[:10],
                 ', '.join(nov_noo) if nov_noo else 'None',
@@ -448,7 +496,7 @@ class LegalReportPDFGenerator:
         
         routing_data = [
             ['Stage', 'Name', 'Position', 'Date', 'Signature'],
-            ['Prepared by', f"{self.user_info.first_name} {self.user_info.last_name}", 'Legal Unit', '', ''],
+            ['Prepared by', self._get_user_display_name(), 'Legal Unit', '', ''],
             ['Reviewed by', '', 'Section Chief', '', ''],
             ['Recommended by', '', 'Division Chief', '', ''],
             ['Approved by', '', 'Regional Director', '', ''],

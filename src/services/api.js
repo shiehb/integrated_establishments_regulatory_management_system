@@ -1266,6 +1266,19 @@ export const exportLegalReportPDF = async (params = {}) => {
       responseType: 'blob'
     });
     
+    // Check if response is actually an error (JSON error returned as blob)
+    const contentType = response.headers['content-type'] || '';
+    if (contentType.includes('application/json')) {
+      // Response is JSON error, parse it
+      const text = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsText(response.data);
+      });
+      const errorData = JSON.parse(text);
+      throw new Error(errorData.detail || errorData.error || 'Failed to export PDF');
+    }
+    
     // Create download link
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
@@ -1278,9 +1291,37 @@ export const exportLegalReportPDF = async (params = {}) => {
     
     return { success: true };
   } catch (error) {
+    // Handle blob error responses
+    if (error.response && error.response.data instanceof Blob) {
+      try {
+        const text = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsText(error.response.data);
+        });
+        const errorData = JSON.parse(text);
+        const enhancedError = new Error(
+          errorData.detail || errorData.error || "Failed to export PDF. Please try again."
+        );
+        enhancedError.response = error.response;
+        throw enhancedError;
+      } catch (parseError) {
+        // If parsing fails, use generic error
+        const enhancedError = new Error(
+          error.response?.data?.detail ||
+            error.response?.data?.error ||
+            "Failed to export PDF. Please try again."
+        );
+        enhancedError.response = error.response;
+        throw enhancedError;
+      }
+    }
+    
     const enhancedError = new Error(
       error.response?.data?.detail ||
         error.response?.data?.error ||
+        error.message ||
         "Failed to export PDF. Please try again."
     );
     enhancedError.response = error.response;

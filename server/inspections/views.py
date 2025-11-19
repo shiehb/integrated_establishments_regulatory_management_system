@@ -5555,55 +5555,97 @@ class LegalReportViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['get'])
     def export_pdf(self, request):
         """Export report as PDF"""
-        from django.http import HttpResponse
+        from django.http import HttpResponse, JsonResponse
         from .legal_report_pdf import LegalReportPDFGenerator
         import io
+        import logging
+        import traceback
         
-        # Get filtered data
-        queryset = self._get_base_queryset(request)
-        queryset = queryset.order_by('-created_at')[:100]  # Limit to 100 records
+        logger = logging.getLogger(__name__)
         
-        serializer = LegalReportSerializer(queryset, many=True)
-        
-        # Get statistics
-        stats_view = self.statistics(request)
-        statistics = stats_view.data
-        
-        # Get recommendations
-        recs_view = self.recommendations(request)
-        recommendations = recs_view.data
-        
-        # Prepare report data
-        report_data = {
-            'records': serializer.data,
-            'statistics': statistics,
-            'recommendations': recommendations,
-        }
-        
-        # Prepare filters applied
-        filters_applied = {}
-        filter_params = [
-            'billing_date_from', 'billing_date_to', 'payment_date_from', 'payment_date_to',
-            'establishment', 'inspection_code', 'payment_status', 'legal_action',
-            'law', 'compliance_status'
-        ]
-        for param in filter_params:
-            value = request.query_params.get(param)
-            if value:
-                filters_applied[param] = value
-        
-        # Generate PDF
-        buffer = io.BytesIO()
-        generator = LegalReportPDFGenerator(buffer, report_data, filters_applied, request.user)
-        generator.generate()
-        
-        buffer.seek(0)
-        
-        # Return PDF response
-        response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="legal_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
-        
-        return response
+        try:
+            # Get filtered data
+            queryset = self._get_base_queryset(request)
+            queryset = queryset.order_by('-created_at')[:100]  # Limit to 100 records
+            
+            serializer = LegalReportSerializer(queryset, many=True)
+            
+            # Get statistics
+            try:
+                stats_view = self.statistics(request)
+                statistics = stats_view.data
+            except Exception as e:
+                logger.error(f"Error getting statistics: {str(e)}\n{traceback.format_exc()}")
+                statistics = {
+                    'billing_summary': {
+                        'total_billed': 0,
+                        'total_paid': 0,
+                        'outstanding_balance': 0,
+                        'avg_days_to_payment': 0,
+                        'total_nov': 0,
+                        'total_noo': 0,
+                    },
+                    'compliance_summary': {
+                        'compliant_count': 0,
+                        'non_compliant_count': 0,
+                        'pending_count': 0,
+                        'reinspection_recommended': 0,
+                    }
+                }
+            
+            # Get recommendations
+            try:
+                recs_view = self.recommendations(request)
+                recommendations = recs_view.data
+            except Exception as e:
+                logger.error(f"Error getting recommendations: {str(e)}\n{traceback.format_exc()}")
+                recommendations = []
+            
+            # Prepare report data
+            report_data = {
+                'records': serializer.data,
+                'statistics': statistics,
+                'recommendations': recommendations,
+            }
+            
+            # Prepare filters applied
+            filters_applied = {}
+            filter_params = [
+                'billing_date_from', 'billing_date_to', 'payment_date_from', 'payment_date_to',
+                'establishment', 'inspection_code', 'payment_status', 'legal_action',
+                'law', 'compliance_status'
+            ]
+            for param in filter_params:
+                value = request.query_params.get(param)
+                if value:
+                    filters_applied[param] = value
+            
+            # Generate PDF
+            try:
+                buffer = io.BytesIO()
+                generator = LegalReportPDFGenerator(buffer, report_data, filters_applied, request.user)
+                generator.generate()
+                
+                buffer.seek(0)
+                
+                # Return PDF response
+                response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+                response['Content-Disposition'] = f'attachment; filename="legal_report_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+                
+                return response
+            except Exception as e:
+                logger.error(f"Error generating PDF: {str(e)}\n{traceback.format_exc()}")
+                return JsonResponse({
+                    'error': 'Failed to generate PDF',
+                    'detail': str(e)
+                }, status=500)
+                
+        except Exception as e:
+            logger.error(f"Error in export_pdf: {str(e)}\n{traceback.format_exc()}")
+            return JsonResponse({
+                'error': 'Failed to export PDF',
+                'detail': str(e)
+            }, status=500)
     
     @action(detail=False, methods=['get'])
     def export_excel(self, request):
