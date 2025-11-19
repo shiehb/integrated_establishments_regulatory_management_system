@@ -404,6 +404,18 @@ const InspectionReviewPage = () => {
 
   const signatureSlot = getSignatureSlotForUser();
 
+  // Memoize signature URLs to prevent re-renders on every keystroke
+  const signatureUrls = useMemo(() => {
+    const signatures = inspectionData?.form?.checklist?.signatures || {};
+    const timestamp = Date.now();
+    return {
+      submitted: signatures.submitted?.url ? `${signatures.submitted.url}?t=${timestamp}` : null,
+      review_unit: signatures.review_unit?.url ? `${signatures.review_unit.url}?t=${timestamp}` : null,
+      review_section: signatures.review_section?.url ? `${signatures.review_section.url}?t=${timestamp}` : null,
+      approve_division: signatures.approve_division?.url ? `${signatures.approve_division.url}?t=${timestamp}` : null,
+    };
+  }, [inspectionData?.form?.checklist?.signatures]);
+
   // Get signature configuration for display
   const signatureConfig = useMemo(() => {
     if (!inspectionData) return { submittedRole: 'Inspector', reviewUnit: false, reviewSection: false };
@@ -1823,15 +1835,15 @@ const InspectionReviewPage = () => {
               {/* Submitted by (Inspector) */}
               <div className="flex flex-col items-center">
                 {/* Signature image if available */}
-                {inspectionData.form?.checklist?.signatures?.submitted?.url ? (
+                {signatureUrls.submitted ? (
                   <div className="relative group">
                     <img
-                      src={`${inspectionData.form.checklist.signatures.submitted.url}?t=${Date.now()}`}
+                      src={signatureUrls.submitted}
                       alt="Submitted by signature"
                       className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
                       onError={(e) => {
                         console.error('❌ Failed to load submitted signature:', e);
-                        console.log('Image URL:', inspectionData.form.checklist.signatures.submitted.url);
+                        console.log('Image URL:', signatureUrls.submitted);
                       }}
                     />
                     {/* Delete button for own signature */}
@@ -1887,15 +1899,15 @@ const InspectionReviewPage = () => {
               {/* Reviewed by – Unit Head (only when Monitoring inspected) */}
               {signatureConfig.reviewUnit && (
                 <div className="flex flex-col items-center">
-                  {inspectionData.form?.checklist?.signatures?.review_unit?.url ? (
+                  {signatureUrls.review_unit ? (
                     <div className="relative group">
                       <img
-                        src={`${inspectionData.form.checklist.signatures.review_unit.url}?t=${Date.now()}`}
+                        src={signatureUrls.review_unit}
                         alt="Unit Head review signature"
                         className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
                         onError={(e) => {
                           console.error('❌ Failed to load review_unit signature:', e);
-                          console.log('Image URL:', inspectionData.form.checklist.signatures.review_unit.url);
+                          console.log('Image URL:', signatureUrls.review_unit);
                         }}
                       />
                       {signatureSlot === 'review_unit' && (
@@ -1948,15 +1960,15 @@ const InspectionReviewPage = () => {
               {/* Reviewed by – Section Chief */}
               {signatureConfig.reviewSection && (
                 <div className="flex flex-col items-center">
-                  {inspectionData.form?.checklist?.signatures?.review_section?.url ? (
+                  {signatureUrls.review_section ? (
                     <div className="relative group">
                       <img
-                        src={`${inspectionData.form.checklist.signatures.review_section.url}?t=${Date.now()}`}
+                        src={signatureUrls.review_section}
                         alt="Section Chief review signature"
                         className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
                         onError={(e) => {
                           console.error('❌ Failed to load review_section signature:', e);
-                          console.log('Image URL:', inspectionData.form.checklist.signatures.review_section.url);
+                          console.log('Image URL:', signatureUrls.review_section);
                         }}
                       />
                       {signatureSlot === 'review_section' && (
@@ -2008,15 +2020,15 @@ const InspectionReviewPage = () => {
 
               {/* Approved by – Division Chief (always shown) */}
               <div className="flex flex-col items-center">
-                {inspectionData.form?.checklist?.signatures?.approve_division?.url ? (
+                {signatureUrls.approve_division ? (
                   <div className="relative group">
                     <img
-                      src={`${inspectionData.form.checklist.signatures.approve_division.url}?t=${Date.now()}`}
+                      src={signatureUrls.approve_division}
                       alt="Division Chief signature"
                       className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
                       onError={(e) => {
                         console.error('❌ Failed to load approve_division signature:', e);
-                        console.log('Image URL:', inspectionData.form.checklist.signatures.approve_division.url);
+                        console.log('Image URL:', signatureUrls.approve_division);
                       }}
                     />
                     {signatureSlot === 'approve_division' && (
@@ -2122,7 +2134,8 @@ const InspectionReviewPage = () => {
                   value={returnRemarks}
                   onChange={(e) => setReturnRemarks(e.target.value)}
                   placeholder="Enter remarks for returning this inspection..."
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 min-h-[120px] focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-y overflow-auto mb-4"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-900 min-h-[120px] focus:ring-2 focus:ring-sky-500 focus:border-sky-500 resize-y overflow-y-auto mb-4 break-words"
+                  style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}
                   disabled={loading}
                 />
               )}

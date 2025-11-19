@@ -265,6 +265,53 @@ const InspectionReportViewPage = () => {
     });
   };
 
+  // Get signature URLs from inspection data
+  const signatureUrls = useMemo(() => {
+    const signatures = inspectionData?.form?.checklist?.signatures || formData?.signatures || {};
+    const timestamp = Date.now();
+    return {
+      submitted: signatures.submitted?.url ? `${signatures.submitted.url}?t=${timestamp}` : null,
+      review_unit: signatures.review_unit?.url ? `${signatures.review_unit.url}?t=${timestamp}` : null,
+      review_section: signatures.review_section?.url ? `${signatures.review_section.url}?t=${timestamp}` : null,
+      approve_division: signatures.approve_division?.url ? `${signatures.approve_division.url}?t=${timestamp}` : null,
+    };
+  }, [inspectionData?.form?.checklist?.signatures, formData?.signatures]);
+
+  // Get signature configuration for display
+  const signatureConfig = useMemo(() => {
+    if (!inspectionData) return { submittedRole: 'Inspector', reviewUnit: false, reviewSection: false };
+    
+    const inspectorLevel = inspectionData.form?.inspector_info?.level || '';
+    
+    if (inspectorLevel === 'Monitoring Personnel') {
+      return {
+        submittedRole: 'Monitoring Personnel',
+        reviewUnit: true,
+        reviewSection: true,
+      };
+    }
+    if (inspectorLevel === 'Unit Head') {
+      return {
+        submittedRole: 'Unit Head',
+        reviewUnit: false,
+        reviewSection: true,
+      };
+    }
+    if (inspectorLevel === 'Section Chief') {
+      return {
+        submittedRole: 'Section Chief',
+        reviewUnit: false,
+        reviewSection: true,
+      };
+    }
+    
+    return {
+      submittedRole: inspectorLevel || 'Inspector',
+      reviewUnit: false,
+      reviewSection: false,
+    };
+  }, [inspectionData]);
+
   const getComplianceStatus = () => {
     if (inspectionData?.form?.compliance_decision) {
       return inspectionData.form.compliance_decision;
@@ -894,11 +941,161 @@ const InspectionReportViewPage = () => {
               </section>
             )}
 
-            {/* VIII. PHOTO DOCUMENTATION */}
+            {/* VIII. SIGNATORIES */}
+            <section className="mb-8 page-break-before">
+              <h2 className="text-lg font-bold uppercase border-b-2 border-gray-800 pb-2 mb-8">
+                VIII. SIGNATORIES
+              </h2>
+
+              <div className={`grid gap-10 text-sm mt-8 ${signatureConfig.reviewUnit ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                {/* Submitted by (Inspector) */}
+                <div className="flex flex-col items-center">
+                  {/* Signature image if available */}
+                  {signatureUrls.submitted ? (
+                    <div className="relative">
+                      <img
+                        src={signatureUrls.submitted}
+                        alt="Submitted by signature"
+                        className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
+                        onError={(e) => {
+                          console.error('Failed to load submitted signature:', e);
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-20 flex flex-col items-center justify-center border border-dashed border-gray-300 rounded px-4">
+                      <span className="text-xs text-gray-400 italic">No signature</span>
+                    </div>
+                  )}
+
+                  <div className="w-full border-t-2 border-black mt-2" />
+                  <p className="mt-2 font-semibold uppercase text-center">Submitted by:</p>
+                  <p className="font-bold text-center">
+                    {inspectionData?.form?.checklist?.signatures?.submitted?.name ||
+                      inspectionData?.form?.inspector_info?.name ||
+                      inspectionData?.inspected_by_name ||
+                      '_______________________'}
+                  </p>
+                  <p className="text-xs text-gray-700 text-center">
+                    {signatureConfig.submittedRole}
+                  </p>
+                  {inspectionData?.form?.checklist?.signatures?.submitted?.uploaded_at && (
+                    <p className="text-xs text-gray-500 text-center mt-1">
+                      {new Date(inspectionData.form.checklist.signatures.submitted.uploaded_at).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+
+                {/* Reviewed by – Unit Head (only when Monitoring inspected) */}
+                {signatureConfig.reviewUnit && (
+                  <div className="flex flex-col items-center">
+                    {signatureUrls.review_unit ? (
+                      <div className="relative">
+                        <img
+                          src={signatureUrls.review_unit}
+                          alt="Unit Head review signature"
+                          className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
+                          onError={(e) => {
+                            console.error('Failed to load review_unit signature:', e);
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-20 flex flex-col items-center justify-center border border-dashed border-gray-300 rounded px-4">
+                        <span className="text-xs text-gray-400 italic">No signature</span>
+                      </div>
+                    )}
+
+                    <div className="w-full border-t-2 border-black mt-2" />
+                    <p className="mt-2 font-semibold uppercase text-center">Reviewed by (Unit Head):</p>
+                    <p className="font-bold text-center">
+                      {inspectionData?.form?.checklist?.signatures?.review_unit?.name ||
+                        '_______________________'}
+                    </p>
+                    <p className="text-xs text-gray-700 text-center">Unit Head</p>
+                    {inspectionData?.form?.checklist?.signatures?.review_unit?.uploaded_at && (
+                      <p className="text-xs text-gray-500 text-center mt-1">
+                        {new Date(inspectionData.form.checklist.signatures.review_unit.uploaded_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Reviewed by – Section Chief */}
+                {signatureConfig.reviewSection && (
+                  <div className="flex flex-col items-center">
+                    {signatureUrls.review_section ? (
+                      <div className="relative">
+                        <img
+                          src={signatureUrls.review_section}
+                          alt="Section Chief review signature"
+                          className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
+                          onError={(e) => {
+                            console.error('Failed to load review_section signature:', e);
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-20 flex flex-col items-center justify-center border border-dashed border-gray-300 rounded px-4">
+                        <span className="text-xs text-gray-400 italic">No signature</span>
+                      </div>
+                    )}
+
+                    <div className="w-full border-t-2 border-black mt-2" />
+                    <p className="mt-2 font-semibold uppercase text-center">Reviewed by (Section Chief):</p>
+                    <p className="font-bold text-center">
+                      {inspectionData?.form?.checklist?.signatures?.review_section?.name ||
+                        '_______________________'}
+                    </p>
+                    <p className="text-xs text-gray-700 text-center">Section Chief</p>
+                    {inspectionData?.form?.checklist?.signatures?.review_section?.uploaded_at && (
+                      <p className="text-xs text-gray-500 text-center mt-1">
+                        {new Date(inspectionData.form.checklist.signatures.review_section.uploaded_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Approved by – Division Chief (always shown) */}
+                <div className="flex flex-col items-center">
+                  {signatureUrls.approve_division ? (
+                    <div className="relative">
+                      <img
+                        src={signatureUrls.approve_division}
+                        alt="Division Chief signature"
+                        className="h-20 object-contain mb-1 border border-gray-200 rounded p-1"
+                        onError={(e) => {
+                          console.error('Failed to load approve_division signature:', e);
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-20 flex flex-col items-center justify-center border border-dashed border-gray-300 rounded px-4">
+                      <span className="text-xs text-gray-400 italic">No signature</span>
+                    </div>
+                  )}
+
+                  <div className="w-full border-t-2 border-black mt-2" />
+                  <p className="mt-2 font-semibold uppercase text-center">Approved by (Division Chief):</p>
+                  <p className="font-bold text-center">
+                    {inspectionData?.form?.checklist?.signatures?.approve_division?.name ||
+                      '_______________________'}
+                  </p>
+                  <p className="text-xs text-gray-700 text-center">Division Chief</p>
+                  {inspectionData?.form?.checklist?.signatures?.approve_division?.uploaded_at && (
+                    <p className="text-xs text-gray-500 text-center mt-1">
+                      {new Date(inspectionData.form.checklist.signatures.approve_division.uploaded_at).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* IX. PHOTO DOCUMENTATION */}
             {formData.generalFindings && Array.isArray(formData.generalFindings) && formData.generalFindings.length > 0 && (
               <section className="mb-8 page-break-before">
                 <h2 className="text-lg font-bold uppercase border-b-2 border-gray-800 pb-2 mb-4">
-                  VIII. PHOTO DOCUMENTATION
+                  IX. PHOTO DOCUMENTATION
                 </h2>
                 
                 <div className="grid grid-cols-3 gap-4">

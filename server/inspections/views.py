@@ -1127,6 +1127,10 @@ class InspectionViewSet(viewsets.ModelViewSet):
         prev_status = inspection.current_status
         inspection.current_status = next_status
         inspection.assigned_to = next_assignee
+        
+        # Clear signatures when returning inspection
+        self._clear_signatures_on_return(inspection)
+        
         inspection.save()
 
         remarks = request.data.get("remarks")
@@ -1945,6 +1949,55 @@ class InspectionViewSet(viewsets.ModelViewSet):
             return inspection.get_next_assignee(default_status)
         return None
 
+    def _clear_signatures_on_return(self, inspection):
+        """
+        Clear all signatures when an inspection is returned.
+        Also deletes the signature files from storage.
+        """
+        from django.core.files.storage import default_storage
+        
+        form = getattr(inspection, 'form', None)
+        if not form:
+            return
+        
+        checklist = form.checklist or {}
+        signatures = checklist.get('signatures', {})
+        
+        if not signatures:
+            return
+        
+        # Delete signature files from storage
+        for slot, signature_data in signatures.items():
+            url = signature_data.get('url', '')
+            if url:
+                try:
+                    # Extract path from URL (similar to delete_signature method)
+                    # Handle both absolute URLs and relative paths
+                    if url.startswith('http://') or url.startswith('https://'):
+                        # Extract path from absolute URL
+                        if '/media/' in url:
+                            path = url.split('/media/')[1]
+                        else:
+                            # Try using base_url replacement
+                            path = url.replace(default_storage.base_url, '')
+                    else:
+                        # Already a relative path
+                        path = url.replace(default_storage.base_url, '')
+                    
+                    # Delete file if it exists
+                    if path and default_storage.exists(path):
+                        default_storage.delete(path)
+                except Exception as exc:
+                    # Log error but don't fail the return operation
+                    logger.warning(
+                        f"Failed to delete signature file {url} for inspection {inspection.code}: {exc}"
+                    )
+        
+        # Clear signatures from checklist
+        checklist['signatures'] = {}
+        form.checklist = checklist
+        form.save(update_fields=['checklist'])
+
     def _execute_return_transition(
         self,
         *,
@@ -1965,6 +2018,9 @@ class InspectionViewSet(viewsets.ModelViewSet):
                 {'error': f'No assignee found for status {target_status}'},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        # Clear signatures when returning inspection
+        self._clear_signatures_on_return(inspection)
 
         prev_status = inspection.current_status
         inspection.current_status = target_status
@@ -3602,6 +3658,10 @@ class InspectionViewSet(viewsets.ModelViewSet):
         prev_status = inspection.current_status
         inspection.current_status = 'DIVISION_REVIEWED'
         inspection.assigned_to = next_assignee
+        
+        # Clear signatures when returning inspection
+        self._clear_signatures_on_return(inspection)
+        
         inspection.save()
         
         # Log history
@@ -7058,20 +7118,15 @@ class AdminReportViewSet(viewsets.ViewSet):
         if date_to:
             queryset = queryset.filter(created_at__lte=date_to)
         
-        # Nature of Business filter
-        nature_of_business = request.query_params.get('nature_of_business')
-        if nature_of_business and nature_of_business != 'ALL':
-            queryset = queryset.filter(nature_of_business__icontains=nature_of_business)
-        
         # Province filter
         province = request.query_params.get('province')
         if province and province != 'ALL':
             queryset = queryset.filter(province__icontains=province)
         
-        # Barangay filter
-        barangay = request.query_params.get('barangay')
-        if barangay and barangay != 'ALL':
-            queryset = queryset.filter(barangay__icontains=barangay)
+        # City filter
+        city = request.query_params.get('city')
+        if city and city != 'ALL':
+            queryset = queryset.filter(city__icontains=city)
         
         # Order by created_at descending
         queryset = queryset.order_by('-created_at')
@@ -7222,28 +7277,23 @@ class AdminReportViewSet(viewsets.ViewSet):
         from establishments.models import Establishment
         
         # Get unique values for filters
-        nature_of_business = Establishment.objects.values_list(
-            'nature_of_business', flat=True
-        ).distinct().order_by('nature_of_business')
-        
         provinces = Establishment.objects.values_list(
             'province', flat=True
         ).distinct().order_by('province')
         
-        # Barangays (filtered by province if provided)
+        # Cities (filtered by province if provided)
         province = request.query_params.get('province')
-        barangay_queryset = Establishment.objects.all()
+        city_queryset = Establishment.objects.all()
         if province and province != 'ALL':
-            barangay_queryset = barangay_queryset.filter(province__icontains=province)
+            city_queryset = city_queryset.filter(province__icontains=province)
         
-        barangays = barangay_queryset.values_list(
-            'barangay', flat=True
-        ).distinct().order_by('barangay')
+        cities = city_queryset.values_list(
+            'city', flat=True
+        ).distinct().order_by('city')
         
         return Response({
-            'nature_of_business': list(nature_of_business),
             'provinces': list(provinces),
-            'barangays': list(barangays)
+            'cities': list(cities)
         })
     
     @action(detail=False, methods=['get'])
@@ -7263,9 +7313,8 @@ class AdminReportViewSet(viewsets.ViewSet):
         filters_applied = {
             'Date From': request.query_params.get('date_from', ''),
             'Date To': request.query_params.get('date_to', ''),
-            'Nature of Business': request.query_params.get('nature_of_business', 'ALL'),
             'Province': request.query_params.get('province', 'ALL'),
-            'Barangay': request.query_params.get('barangay', 'ALL'),
+            'City': request.query_params.get('city', 'ALL'),
         }
         
         buffer = io.BytesIO()
@@ -7337,9 +7386,8 @@ class AdminReportViewSet(viewsets.ViewSet):
         filters_applied = {
             'Date From': request.query_params.get('date_from', ''),
             'Date To': request.query_params.get('date_to', ''),
-            'Nature of Business': request.query_params.get('nature_of_business', 'ALL'),
             'Province': request.query_params.get('province', 'ALL'),
-            'Barangay': request.query_params.get('barangay', 'ALL'),
+            'City': request.query_params.get('city', 'ALL'),
         }
         
         output = io.BytesIO()

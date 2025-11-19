@@ -2560,9 +2560,10 @@ export default function InspectionsList({ onAdd, refreshTrigger, userLevel = 'Di
                   Remarks <span className="text-red-500">*</span>
                 </label>
                 <textarea
-                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 ${
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 break-words ${
                     remarksError ? 'border-red-500' : 'border-gray-300'
                   }`}
+                  style={{ wordWrap: 'break-word', overflowWrap: 'break-word' }}
                   rows={4}
                   value={actionRemarks}
                   onChange={(event) => {

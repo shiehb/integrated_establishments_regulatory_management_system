@@ -48,9 +48,8 @@ export default function AdminReports() {
   
   // Filter options (for establishments)
   const [filterOptions, setFilterOptions] = useState({
-    nature_of_business: [],
     provinces: [],
-    barangays: []
+    cities: []
   });
   
   // Pagination - separate for each tab
@@ -67,9 +66,8 @@ export default function AdminReports() {
   const [filtersEstablishments, setFiltersEstablishments] = useState({
     date_from: '',
     date_to: '',
-    nature_of_business: 'ALL',
     province: 'ALL',
-    barangay: 'ALL'
+    city: 'ALL'
   });
   
   const [filtersUsers, setFiltersUsers] = useState({
@@ -83,9 +81,8 @@ export default function AdminReports() {
   const [appliedFiltersEstablishments, setAppliedFiltersEstablishments] = useState({
     date_from: '',
     date_to: '',
-    nature_of_business: 'ALL',
     province: 'ALL',
-    barangay: 'ALL'
+    city: 'ALL'
   });
   
   const [appliedFiltersUsers, setAppliedFiltersUsers] = useState({
@@ -226,9 +223,9 @@ export default function AdminReports() {
   const handleFilterChange = (key, value) => {
     if (activeTab === 'establishments') {
       setFiltersEstablishments(prev => ({ ...prev, [key]: value }));
-      // Reset barangay when province changes
+      // Reset city when province changes
       if (key === 'province') {
-        setFiltersEstablishments(prev => ({ ...prev, [key]: value, barangay: 'ALL' }));
+        setFiltersEstablishments(prev => ({ ...prev, [key]: value, city: 'ALL' }));
       }
     } else {
       setFiltersUsers(prev => ({ ...prev, [key]: value }));
@@ -261,9 +258,8 @@ export default function AdminReports() {
         const clearedFilters = {
           date_from: '',
           date_to: '',
-          nature_of_business: 'ALL',
           province: 'ALL',
-          barangay: 'ALL'
+          city: 'ALL'
         };
         setFiltersEstablishments(clearedFilters);
         setAppliedFiltersEstablishments(clearedFilters);
@@ -441,6 +437,17 @@ export default function AdminReports() {
   const renderEstablishmentsFilters = () => (
     <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
       <div className="flex flex-col">
+        <label className="text-sm font-medium text-gray-700">Report Type</label>
+        <select
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value)}
+          className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+        >
+          <option value="establishments">Establishments</option>
+          <option value="users">Users</option>
+        </select>
+      </div>
+      <div className="flex flex-col">
         <label className="text-sm font-medium text-gray-700">Date From</label>
         <input
           type="date"
@@ -461,19 +468,6 @@ export default function AdminReports() {
         />
       </div>
       <div className="flex flex-col">
-        <label className="text-sm font-medium text-gray-700">Nature of Business</label>
-        <select
-          value={filtersEstablishments.nature_of_business}
-          onChange={(e) => handleFilterChange('nature_of_business', e.target.value)}
-          className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-        >
-          <option value="ALL">All</option>
-          {filterOptions.nature_of_business?.map((option, idx) => (
-            <option key={idx} value={option}>{option}</option>
-          ))}
-        </select>
-      </div>
-      <div className="flex flex-col">
         <label className="text-sm font-medium text-gray-700">Province</label>
         <select
           value={filtersEstablishments.province}
@@ -487,15 +481,15 @@ export default function AdminReports() {
         </select>
       </div>
       <div className="flex flex-col">
-        <label className="text-sm font-medium text-gray-700">Barangay</label>
+        <label className="text-sm font-medium text-gray-700">City/Municipality</label>
         <select
-          value={filtersEstablishments.barangay}
-          onChange={(e) => handleFilterChange('barangay', e.target.value)}
+          value={filtersEstablishments.city}
+          onChange={(e) => handleFilterChange('city', e.target.value)}
           disabled={filtersEstablishments.province === 'ALL'}
           className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
         >
-          <option value="ALL">All Barangays</option>
-          {filterOptions.barangays?.map((option, idx) => (
+          <option value="ALL">All Cities/Municipalities</option>
+          {filterOptions.cities?.map((option, idx) => (
             <option key={idx} value={option}>{option}</option>
           ))}
         </select>
@@ -517,7 +511,18 @@ export default function AdminReports() {
   
   // Render users filters
   const renderUsersFilters = () => (
-    <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto_0]">
+    <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_auto_0]">
+      <div className="flex flex-col">
+        <label className="text-sm font-medium text-gray-700">Report Type</label>
+        <select
+          value={activeTab}
+          onChange={(e) => setActiveTab(e.target.value)}
+          className="mt-1 rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+        >
+          <option value="establishments">Establishments</option>
+          <option value="users">Users</option>
+        </select>
+      </div>
       <div className="flex flex-col">
         <label className="text-sm font-medium text-gray-700">Date From</label>
         <input
@@ -741,17 +746,6 @@ export default function AdminReports() {
           <h1 className="text-2xl font-bold text-sky-600">Report</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Report Type:</label>
-            <select
-              value={activeTab}
-              onChange={(e) => setActiveTab(e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-            >
-              <option value="establishments">Establishments</option>
-              <option value="users">Users</option>
-            </select>
-          </div>
           <button
             onClick={handleRefresh}
             className={BUTTON_SUBTLE}
