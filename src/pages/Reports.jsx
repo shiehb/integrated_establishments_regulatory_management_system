@@ -9,6 +9,7 @@ import ConfirmationDialog from '../components/common/ConfirmationDialog';
 import ReportResultsTable from '../components/reports/ReportResultsTable';
 import DynamicFilters from '../components/reports/DynamicFilters';
 import { getAllowedReports, generateCentralizedReport, getFilterOptions } from '../services/reportsApi';
+import { getProfile } from '../services/api';
 import { useNotifications } from '../components/NotificationManager';
 
 // Helper function to load images as base64
@@ -569,6 +570,89 @@ export default function Reports() {
           align: "right",
         });
       }
+
+      // Add signatories on the last page
+      doc.setPage(pageCount);
+      const pageHeight = doc.internal.pageSize.getHeight();
+      
+      // Get user profile for "Submitted by"
+      let submittedByName = "System User";
+      let submittedByUserLevel = "";
+      try {
+        const userProfile = await getProfile();
+        if (userProfile) {
+          const firstName = userProfile.first_name || "";
+          const lastName = userProfile.last_name || "";
+          submittedByName = `${firstName} ${lastName}`.trim() || userProfile.email || "System User";
+          submittedByUserLevel = userProfile.userlevel || "";
+        }
+      } catch (err) {
+        console.warn('Could not fetch user profile for PDF:', err);
+      }
+
+      // Calculate Y position for signatories (positioned above page number)
+      // Page number is at Y=325, so signatories should be around Y=280-300
+      const signatoryStartY = 280;
+      
+      // Add spacing line above signatories
+      doc.setDrawColor(200, 200, 200);
+      doc.line(20, signatoryStartY - 3, pageWidth - 20, signatoryStartY - 3);
+      
+      // Signatories section
+      doc.setFont("times", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      
+      // Left side - Submitted by
+      const leftX = 30;
+      const rightX = pageWidth - 30;
+      let leftY = signatoryStartY;
+      let rightY = signatoryStartY;
+      
+      // Submitted by section
+      doc.text("Submitted by:", leftX, leftY);
+      leftY += 8;
+      
+      // Name line with underline
+      doc.setFont("times", "bold");
+      doc.setFontSize(10);
+      doc.text(submittedByName, leftX, leftY);
+      doc.setDrawColor(0, 0, 0);
+      doc.line(leftX, leftY + 2, leftX + 60, leftY + 2);
+      
+      // User Level/Role
+      leftY += 6;
+      doc.setFont("times", "normal");
+      doc.setFontSize(9);
+      if (submittedByUserLevel) {
+        doc.text(submittedByUserLevel, leftX, leftY);
+      }
+      
+      // Right side - Submitted to (left-aligned text on right side of page)
+      const rightSideX = pageWidth - 120; // Position on right side but left-align text
+      doc.setFont("times", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(0, 0, 0);
+      doc.text("Submitted to:", rightSideX, rightY);
+      rightY += 8;
+      
+      // Regional Director name line with underline
+      doc.setFont("times", "bold");
+      doc.setFontSize(10);
+      const regionalDirectorText = "Regional Director";
+      doc.text(regionalDirectorText, rightSideX, rightY);
+      doc.setDrawColor(0, 0, 0);
+      // Draw underline aligned to the left edge of the text
+      const regionalDirectorWidth = doc.getTextWidth(regionalDirectorText);
+      doc.line(rightSideX, rightY + 2, rightSideX + regionalDirectorWidth, rightY + 2);
+      
+      // Position
+      rightY += 6;
+      doc.setFont("times", "normal");
+      doc.setFontSize(9);
+      doc.text("Environmental Management Bureau", rightSideX, rightY);
+      rightY += 4;
+      doc.text("Region I", rightSideX, rightY);
 
       const blobUrl = doc.output("bloburl");
       window.open(blobUrl, "_blank");

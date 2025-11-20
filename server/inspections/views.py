@@ -3108,6 +3108,29 @@ class InspectionViewSet(viewsets.ModelViewSet):
             remarks=remarks
         )
         
+        # Send notifications to Legal Unit
+        try:
+            # Send email notification
+            send_inspection_forward_notification(
+                user=legal_user,
+                inspection=inspection,
+                forwarded_by=user,
+                remarks=remarks
+            )
+            
+            # Create in-app notification
+            create_forward_notification(
+                recipient=legal_user,
+                inspection=inspection,
+                forwarded_by=user,
+                remarks=remarks
+            )
+            
+            logger.info(f"Forward notifications sent to {legal_user.email} for inspection {inspection.code}")
+        except Exception as e:
+            # Log the error but don't fail the forward operation
+            logger.error(f"Failed to send forward notifications for inspection {inspection.code}: {str(e)}")
+        
         # Audit trail for forward to legal
         audit_inspection_event(
             user,
