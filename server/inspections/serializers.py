@@ -206,6 +206,10 @@ class InspectionSerializer(serializers.ModelSerializer):
     # Return information
     return_remarks = serializers.SerializerMethodField()
 
+    # Reinspection fields
+    previous_inspection_code = serializers.SerializerMethodField()
+    previous_inspection_date = serializers.SerializerMethodField()
+
     class Meta:
         model = Inspection
         fields = [
@@ -217,7 +221,9 @@ class InspectionSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
             'form', 'history',
             'can_user_act', 'available_actions',
-            'return_remarks'
+            'return_remarks',
+            'is_reinspection', 'previous_inspection',
+            'previous_inspection_code', 'previous_inspection_date'
         ]
         read_only_fields = ['id', 'code', 'created_at', 'updated_at']
     
@@ -418,6 +424,18 @@ class InspectionSerializer(serializers.ModelSerializer):
                 # Handle any errors gracefully
                 return None
         return None
+    
+    def get_previous_inspection_code(self, obj):
+        """Get code of previous inspection if this is a reinspection"""
+        if obj.previous_inspection:
+            return obj.previous_inspection.code
+        return None
+    
+    def get_previous_inspection_date(self, obj):
+        """Get date of previous inspection if this is a reinspection"""
+        if obj.previous_inspection:
+            return obj.previous_inspection.created_at.isoformat() if obj.previous_inspection.created_at else None
+        return None
 
 
 class InspectionCreateSerializer(serializers.Serializer):
@@ -431,6 +449,7 @@ class InspectionCreateSerializer(serializers.Serializer):
         choices=['PD-1586', 'RA-6969', 'RA-8749', 'RA-9275', 'RA-9003']
     )
     scheduled_at = serializers.DateTimeField(required=False, allow_null=True)
+    reinspection_schedule_id = serializers.IntegerField(required=False, allow_null=True, help_text='ID of reinspection schedule if this is a reinspection')
     
     def validate_establishments(self, value):
         """Validate that all establishment IDs exist"""
@@ -446,16 +465,58 @@ class InspectionCreateSerializer(serializers.Serializer):
         """Create inspection with form"""
         establishment_ids = validated_data.pop('establishments')
         scheduled_at = validated_data.pop('scheduled_at', None)
+        reinspection_schedule_id = validated_data.pop('reinspection_schedule_id', None)
         
         # Get request user
         request = self.context.get('request')
         user = request.user if request else None
         
+        # Handle reinspection schedule if provided
+        previous_inspection = None
+        is_reinspection = False
+        
+        if reinspection_schedule_id:
+            # Priority 1: If reinspection_schedule_id is provided, use it
+            try:
+                from .models import ReinspectionSchedule
+                schedule = ReinspectionSchedule.objects.get(id=reinspection_schedule_id)
+                previous_inspection = schedule.original_inspection
+                is_reinspection = True
+                # Update schedule status to SCHEDULED
+                schedule.status = 'SCHEDULED'
+                schedule.save()
+            except ReinspectionSchedule.DoesNotExist:
+                pass  # Invalid schedule ID, continue without reinspection link
+        else:
+            # Priority 2: Auto-detect reinspection by checking establishment history
+            # Find the most recent closed inspection for any of the establishments
+            # that matches the same law (if specified)
+            from .models import Inspection
+            law_filter = validated_data.get('law')
+            
+            # Query for closed inspections with matching establishments
+            closed_inspections = Inspection.objects.filter(
+                establishments__id__in=establishment_ids,
+                current_status__in=['CLOSED_COMPLIANT', 'CLOSED_NON_COMPLIANT']
+            )
+            
+            # If law is specified, filter by law as well
+            if law_filter:
+                closed_inspections = closed_inspections.filter(law=law_filter)
+            
+            # Get the most recent closed inspection
+            previous_inspection = closed_inspections.order_by('-updated_at').first()
+            
+            if previous_inspection:
+                is_reinspection = True
+        
         # Create inspection
         inspection = Inspection.objects.create(
             law=validated_data['law'],
             created_by=user,
-            current_status='CREATED'
+            current_status='CREATED',
+            previous_inspection=previous_inspection,
+            is_reinspection=is_reinspection
         )
         
         # Add establishments

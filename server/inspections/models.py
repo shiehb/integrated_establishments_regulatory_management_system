@@ -78,6 +78,20 @@ class Inspection(models.Model):
     # Workflow tracking
     current_status = models.CharField(max_length=40, choices=STATUS_CHOICES, default='CREATED')
     
+    # Reinspection tracking
+    previous_inspection = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reinspections',
+        help_text='Link to the previous inspection this reinspection is based on'
+    )
+    is_reinspection = models.BooleanField(
+        default=False,
+        help_text='Flag to identify if this is a reinspection'
+    )
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

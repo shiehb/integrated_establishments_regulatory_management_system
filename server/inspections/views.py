@@ -5006,6 +5006,54 @@ class InspectionViewSet(viewsets.ModelViewSet):
         
         return Response({'detail': 'Signature deleted successfully.'})
 
+    @action(detail=True, methods=['get'], url_path='previous-violations', permission_classes=[permissions.IsAuthenticated])
+    def previous_violations(self, request, pk=None):
+        """
+        Get previous violations from the most recent closed inspection for establishments in this inspection
+        """
+        inspection = self.get_object()
+        establishments = inspection.establishments.all()
+        
+        previous_violations_data = []
+        
+        for establishment in establishments:
+            # Find the most recent closed inspection for this establishment
+            # Check both by direct link (if this is a reinspection) and by establishment history
+            previous_inspection = None
+            
+            # First, check if this inspection has a previous_inspection link
+            if inspection.previous_inspection and establishment in inspection.previous_inspection.establishments.all():
+                previous_inspection = inspection.previous_inspection
+            else:
+                # Find most recent closed inspection for this establishment
+                from .models import InspectionForm
+                recent_inspections = Inspection.objects.filter(
+                    establishments=establishment,
+                    current_status__in=['CLOSED_COMPLIANT', 'CLOSED_NON_COMPLIANT']
+                ).exclude(id=inspection.id).order_by('-updated_at')
+                
+                if recent_inspections.exists():
+                    previous_inspection = recent_inspections.first()
+            
+            if previous_inspection:
+                form = getattr(previous_inspection, 'form', None)
+                violations_found = form.violations_found if form and form.violations_found else None
+                
+                if violations_found:
+                    previous_violations_data.append({
+                        'establishment_id': establishment.id,
+                        'establishment_name': establishment.name,
+                        'previous_inspection_code': previous_inspection.code,
+                        'previous_inspection_date': previous_inspection.created_at.isoformat() if previous_inspection.created_at else None,
+                        'compliance_status': previous_inspection.current_status,
+                        'violations': violations_found
+                    })
+        
+        return Response({
+            'previous_violations': previous_violations_data,
+            'has_previous_violations': len(previous_violations_data) > 0
+        })
+
     @action(detail=True, methods=['post'], url_path='add_recommendation')
     def add_recommendation(self, request, pk=None):
         """Add a recommendation to inspection"""

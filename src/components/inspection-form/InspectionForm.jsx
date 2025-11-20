@@ -3,7 +3,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import * as InspectionConstants from "../../constants/inspectionform/index";
 import LayoutForm from "../LayoutForm";
 import { validateEmailAddress } from "./utils";
-import { saveInspectionDraft, completeInspection, getInspection, closeInspection, sendNOV, sendNOO, uploadFindingDocument, getFindingDocuments, deleteFindingDocument, getUsers } from "../../services/api";
+import { saveInspectionDraft, completeInspection, getInspection, closeInspection, sendNOV, sendNOO, uploadFindingDocument, getFindingDocuments, deleteFindingDocument, getUsers, getPreviousViolations } from "../../services/api";
 import ConfirmationDialog from "../common/ConfirmationDialog";
 import { useNotifications } from "../NotificationManager";
 import { getButtonVisibility as getRoleStatusButtonVisibility, canUserAccessInspection } from "../../utils/roleStatusMatrix";
@@ -19,6 +19,7 @@ import SummaryOfFindingsAndObservations from "./SummaryOfFindingsAndObservations
 import Recommendations from "./Recommendations";
 import InspectionPolygonMap from "./InspectionPolygonMap";
 import ValidationSummary from "./ValidationSummary";
+import PreviousViolations from "./PreviousViolations";
 
 /* ---------------------------
    Main Inspection Form Component
@@ -145,6 +146,7 @@ export default function InspectionForm({ inspectionData }) {
   // Tab navigation state and refs
   const [activeSection, setActiveSection] = useState('general');
   const [isMapPanelOpen, setIsMapPanelOpen] = useState(false);
+  const [isPreviousViolationsOpen, setIsPreviousViolationsOpen] = useState(false);
   const generalRef = useRef(null);
   const purposeRef = useRef(null);
   const complianceStatusRef = useRef(null);
@@ -569,6 +571,42 @@ export default function InspectionForm({ inspectionData }) {
         
         // Load photos from backend
         await loadPhotosFromBackend(inspectionId);
+        
+        // Check if this is a reinspection and auto-open previous violations panel
+        // Also check if there might be previous violations even if not explicitly marked
+        const isReinspection = inspectionData.is_reinspection || inspectionData.previous_inspection;
+        const hasEstablishments = inspectionData.establishments_detail && inspectionData.establishments_detail.length > 0;
+        
+        // Try to fetch previous violations to see if they exist
+        if (hasEstablishments && inspectionId) {
+          // Check for previous violations asynchronously
+          getPreviousViolations(inspectionId).then(data => {
+            console.log('Previous violations check:', {
+              hasViolations: data.has_previous_violations,
+              count: data.previous_violations?.length || 0,
+              isReinspection
+            });
+            if (data.has_previous_violations && data.previous_violations.length > 0) {
+              console.log('Opening previous violations panel - violations found');
+              setIsPreviousViolationsOpen(true);
+            } else if (isReinspection) {
+              // If marked as reinspection, open even if no violations found yet
+              console.log('Opening previous violations panel - marked as reinspection');
+              setIsPreviousViolationsOpen(true);
+            }
+          }).catch(err => {
+            // If error, still open if marked as reinspection
+            console.log('Error fetching previous violations:', err);
+            if (isReinspection) {
+              console.log('Opening previous violations panel - reinspection (error case)');
+              setIsPreviousViolationsOpen(true);
+            }
+          });
+        } else if (isReinspection) {
+          // If marked as reinspection, open panel
+          console.log('Opening previous violations panel - reinspection (no establishments check)');
+          setIsPreviousViolationsOpen(true);
+        }
         
         // Mark data as loaded to prevent duplicate loading
         setIsDataLoaded(true);
@@ -1625,7 +1663,15 @@ export default function InspectionForm({ inspectionData }) {
              onScrollToSection={scrollToSection}
            />
          ) 
-         // Priority 2: Show map (reference only)
+         // Priority 2: Show previous violations (when panel is open or reinspection detected)
+         : isPreviousViolationsOpen && fullInspectionData && inspectionId ? (
+           <PreviousViolations
+             inspectionId={inspectionId}
+             inspectionData={fullInspectionData}
+             onClose={() => setIsPreviousViolationsOpen(false)}
+           />
+         )
+         // Priority 3: Show map (reference only)
          : isMapPanelOpen && fullInspectionData ? (
            <InspectionPolygonMap 
              inspectionData={fullInspectionData}

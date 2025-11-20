@@ -24,4 +24,9 @@ urlpatterns = [
     
     # Save generated report endpoint
     path('save/', views.save_generated_report, name='save-generated-report'),
+    
+    # Centralized Report Dashboard endpoints
+    path('access/', views.get_report_access, name='report-access'),
+    path('generate/', views.generate_report, name='generate-report'),
+    path('filter-options/', views.get_filter_options, name='filter-options'),
 ]

@@ -9,3 +9,7 @@ def getQuarterDates(quarter, year):
         4: {'start': f'{year}-10-01', 'end': f'{year}-12-31'}
     }
     return quarters.get(quarter, quarters[1])
+
+
+# Alias for consistent naming
+get_quarter_dates = getQuarterDates

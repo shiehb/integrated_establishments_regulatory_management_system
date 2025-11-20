@@ -294,6 +294,11 @@ export const getReinspectionReminders = async () => {
   return res.data;
 };
 
+export const getPreviousViolations = async (inspectionId) => {
+  const res = await api.get(`inspections/${inspectionId}/previous-violations/`);
+  return res.data;
+};
+
 export const createInspection = async (inspectionData) => {
   try {
     const res = await api.post("inspections/", inspectionData);

@@ -167,6 +167,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
+    allowed_reports = serializers.SerializerMethodField()
     
     class Meta:
         model = User
@@ -186,13 +187,15 @@ class UserSerializer(serializers.ModelSerializer):
             'is_active',
             'must_change_password',  # Required for forced password change on first login
             'is_first_login',  # Track if user has logged in before
+            'allowed_reports',  # NEW: Reports allowed for this user's role
         )
         read_only_fields = (
             'is_active',
             'must_change_password',
             'is_first_login',
             'date_joined',
-            'last_login'
+            'last_login',
+            'allowed_reports'
         )
 
     def get_avatar_url(self, obj):
@@ -202,6 +205,18 @@ class UserSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.avatar.url)
             return obj.avatar.url
         return None
+    
+    def get_allowed_reports(self, obj):
+        """Get list of report types this user can access based on their role"""
+        from reports.models import ReportAccess
+        
+        try:
+            allowed = ReportAccess.objects.filter(role=obj.userlevel).values(
+                'report_type', 'display_name'
+            )
+            return list(allowed)
+        except Exception:
+            return []
 
 
 class MyTokenObtainPairSerializer(serializers.Serializer):

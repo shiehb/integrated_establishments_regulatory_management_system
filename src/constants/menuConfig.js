@@ -13,6 +13,7 @@ import {
   Scale,
   History,
   Bell,
+  BarChart3,
 } from "lucide-react";
 
 // Menu configuration with role-based access control
@@ -64,52 +65,20 @@ export const MENU_CONFIG = [
     category: "Management"
   },
   {
+    id: "reports",
+    name: "Reports",
+    path: "/reports",
+    icon: BarChart3,
+    roles: ["Admin", "Section Chief", "Unit Head", "Legal Unit", "Inspector", "Division Chief", "Monitoring Personnel"],
+    category: "Management"
+  },
+  {
     id: "billing",
     name: "Billing Records",
     path: "/billing",
     icon: FileText,
     roles: ["Legal Unit"],
     category: "Legal"
-  },
-  {
-    id: "section-reports",
-    name: "Accomplishment Reports",
-    path: "/section-reports",
-    icon: FileText,
-    roles: ["Section Chief"],
-    category: "Management"
-  },
-  {
-    id: "unit-reports",
-    name: "Accomplishment Reports",
-    path: "/unit-reports",
-    icon: FileText,
-    roles: ["Unit Head"],
-    category: "Management"
-  },
-  {
-    id: "monitoring-reports",
-    name: "Accomplishment Reports",
-    path: "/monitoring-reports",
-    icon: FileText,
-    roles: ["Monitoring Personnel"],
-    category: "Management"
-  },
-  {
-    id: "legal-reports",
-    name: "Reports",
-    path: "/legal-reports",
-    icon: FileText,
-    roles: ["Legal Unit"],
-    category: "Legal"
-  },
-  {
-    id: "division-reports",
-    name: "Reports",
-    path: "/division-reports",
-    icon: FileText,
-    roles: ["Division Chief"],
-    category: "Management"
   },
   {
     id: "reinspection-reminders",
@@ -148,14 +117,6 @@ export const MENU_CONFIG = [
     name: "Help Editor",
     path: "/help/editor",
     icon: BookOpen,
-    roles: ["Admin"],
-    category: "Administration"
-  },
-  {
-    id: "admin-reports",
-    name: "Reports",
-    path: "/admin-reports",
-    icon: FileText,
     roles: ["Admin"],
     category: "Administration"
   },

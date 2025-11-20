@@ -130,3 +130,67 @@ class ReportMetric(models.Model):
         return f"Metrics for {self.report.title}"
 
 
+class ReportAccess(models.Model):
+    """
+    Defines which user roles have access to which report types
+    """
+    REPORT_TYPE_CHOICES = [
+        ('user', 'User Report'),
+        ('establishment', 'Establishment Report'),
+        ('law', 'Law Report'),
+        ('quota', 'Quota Report'),
+        ('billing', 'Billing Report'),
+        ('compliance', 'Compliance Report'),
+        ('non_compliant', 'Non-Compliant Report'),
+        ('inspection', 'Inspection Report'),
+        ('section_accomplishment', 'Section Accomplishment Report'),
+        ('unit_accomplishment', 'Unit Accomplishment Report'),
+        ('monitoring_accomplishment', 'Monitoring Accomplishment Report'),
+    ]
+    
+    ROLE_CHOICES = [
+        ('Admin', 'Admin'),
+        ('Legal Unit', 'Legal Unit'),
+        ('Division Chief', 'Division Chief'),
+        ('Section Chief', 'Section Chief'),
+        ('Unit Head', 'Unit Head'),
+        ('Monitoring Personnel', 'Monitoring Personnel'),
+    ]
+    
+    role = models.CharField(
+        max_length=50, 
+        choices=ROLE_CHOICES,
+        help_text="User role"
+    )
+    report_type = models.CharField(
+        max_length=50, 
+        choices=REPORT_TYPE_CHOICES,
+        help_text="Report type code"
+    )
+    display_name = models.CharField(
+        max_length=100,
+        help_text="Human-readable report name",
+        blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = [('role', 'report_type')]
+        ordering = ['role', 'report_type']
+        verbose_name = 'Report Access'
+        verbose_name_plural = 'Report Access Rules'
+        indexes = [
+            models.Index(fields=['role']),
+            models.Index(fields=['report_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.role} -> {self.get_report_type_display()}"
+    
+    def save(self, *args, **kwargs):
+        # Auto-populate display_name from choices if not provided
+        if not self.display_name:
+            self.display_name = dict(self.REPORT_TYPE_CHOICES).get(self.report_type, self.report_type)
+        super().save(*args, **kwargs)
+
+
